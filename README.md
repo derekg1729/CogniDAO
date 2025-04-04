@@ -1,0 +1,2 @@
+# CogniDAO
+Hello, Cogni! 🚀
