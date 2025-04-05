@@ -1,0 +1,37 @@
+# Welcome to your prefect.yaml file! You can use this file for storing and managing
+# configuration for deploying your flows. We recommend committing this file to source
+# control along with your flow code.
+
+# Generic metadata about this project
+name: cogni
+prefect-version: 3.3.3
+
+# build section allows you to manage and build docker images
+build: null
+
+# push section allows you to manage if and how this project is uploaded to remote locations
+push: null
+
+# pull section allows you to provide instructions for cloning this project in remote locations
+pull:
+- prefect.deployments.steps.set_working_directory:
+    directory: /Users/derek/dev/cogni
+
+# the deployments section allows you to provide configuration for deploying flows
+deployments:
+- name: Ritual of Presence
+  version: null
+  tags: []
+  concurrency_limit: null
+  description: Main flow for Cogni's Ritual of Presence
+  entrypoint: flows/cogni_broadcast.py:cogni_broadcast
+  parameters: {}
+  work_pool:
+    name: cogni-pool
+    work_queue_name: null
+    job_variables: {}
+  schedules:
+  - cron: 0 10 * * 2,5
+    timezone: null
+    day_or: true
+    active: true

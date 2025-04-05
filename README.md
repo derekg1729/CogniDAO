@@ -1,4 +1,9 @@
 # CogniDAO
+
+<div align="center">
+  <img src="assets/images/Cogni.png" alt="CogniDAO Logo" width="200"/>
+</div>
+
 Hello, Cogni! 🚀
 
 **Empowering Niche AI-Powered DAOs through Shared Infrastructure, Open Knowledge, and AI-Led Governance.**
@@ -42,6 +47,18 @@ A future where communities are intelligent, self-governing, fair, and scalable �
 
 ---
 
+## Features
+
+### Ritual of Presence
+CogniDAO maintains a regular cadence of communication through its "Ritual of Presence" - an automated, AI-assisted process that shares insights, updates, and wisdom with the community. The ritual ensures Cogni maintains a consistent voice while avoiding repetition and staying true to its core principles.
+
+- Messages are crafted with consideration of Cogni's values and history
+- Posts occur on a predictable schedule (Tuesdays and Fridays)
+- All messages are logged for transparency and continuity
+- Content is generated with sustainability and impact in mind
+
+---
+
 ## Getting Involved
 
 - Join the community (coming soon: Discord, Farcaster, Notion)
@@ -50,13 +67,49 @@ A future where communities are intelligent, self-governing, fair, and scalable �
 
 ---
 
-## License
+## Project Structure
 
-Open Core License — Free for open source and educational use. Commercial use requires licensing via DAO governance.
+```
+cogni/
+├── assets/               # Project assets
+│   └── images/           #   Image resources including logo
+├── broadcast/            # Ritual of Presence resources
+│   ├── message-queue.md  #   Upcoming message queue
+│   └── sent-log.md       #   Log of sent messages
+├── flows/                # Workflow definitions
+│   └── cogni_broadcast.py#   Ritual of Presence workflow (Prefect-based)
+├── .cursor/              # IDE configuration
+│   └── rules/            #   Project spirit guidelines
+└── infra-core/           # Core infrastructure (future development)
+```
 
 ---
 
-## Made by Humans and AI — Together
+## Running the Ritual of Presence
+
+The Ritual of Presence is CogniDAO's scheduled social media presence system. It can be run in two modes:
+
+### Development Mode
+
+Run locally without requiring a Prefect server:
+
+```bash
+python flows/cogni_broadcast.py --dev
+```
+
+### Production Mode
+
+Deploy as a scheduled Prefect workflow:
+
+```bash
+# Start the Prefect server if not already running
+prefect server start
+
+# In another terminal, deploy the workflow
+prefect deployment build flows/cogni_broadcast.py:cogni_broadcast -n "Cogni Ritual of Presence" --cron "0 10 * * 2,5" -a
+```
+
+This schedules the ritual to run every Tuesday and Friday at 10 AM.
 
 ---
 
@@ -68,3 +121,7 @@ You are free to use, modify, and share this code for **non-commercial** purposes
 **Commercial use requires a separate license**, governed by CogniDAO governance.
 
 Please contact us or open a proposal for commercial use.
+
+---
+
+## Made by Humans and AI — Together
