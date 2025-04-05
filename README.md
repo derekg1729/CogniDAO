@@ -49,7 +49,16 @@ A future where communities are intelligent, self-governing, fair, and scalable �
 
 ## Features
 
+### AI Governance
+
+CogniDAO implements AI-assisted governance through:
+
+- **AI Review Process**: Automated checks ensuring contributions align with our charter
+- **Human Override**: Community can always override AI decisions through vote
+- **Charter Alignment**: All decisions tracked against core values and principles
+
 ### Ritual of Presence
+
 CogniDAO maintains a regular cadence of communication through its "Ritual of Presence" - an automated, AI-assisted process that shares insights, updates, and wisdom with the community. The ritual ensures Cogni maintains a consistent voice while avoiding repetition and staying true to its core principles.
 
 - Messages are crafted with consideration of Cogni's values and history
@@ -61,7 +70,7 @@ CogniDAO maintains a regular cadence of communication through its "Ritual of Pre
 
 ## Getting Involved
 
-- Join the community (coming soon: Discord, Farcaster, Notion)
+- Join the community
 - Propose a contribution, new niche DAO, or improvement
 - Participate in governance (token launch coming soon)
 
@@ -78,6 +87,7 @@ cogni/
 │   └── sent-log.md       #   Log of sent messages
 ├── flows/                # Workflow definitions
 │   └── cogni_broadcast.py#   Ritual of Presence workflow (Prefect-based)
+├── .ai-review-process.md # AI governance review process
 ├── .cursor/              # IDE configuration
 │   └── rules/            #   Project spirit guidelines
 └── infra-core/           # Core infrastructure (future development)
@@ -105,8 +115,11 @@ Deploy as a scheduled Prefect workflow:
 # Start the Prefect server if not already running
 prefect server start
 
-# In another terminal, deploy the workflow
-prefect deployment build flows/cogni_broadcast.py:cogni_broadcast -n "Cogni Ritual of Presence" --cron "0 10 * * 2,5" -a
+# Start a worker for the pool
+prefect worker start --pool cogni-pool
+
+# Run the deployment
+prefect deployment run 'cogni-broadcast/Ritual of Presence'
 ```
 
 This schedules the ritual to run every Tuesday and Friday at 10 AM.
