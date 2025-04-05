@@ -1,4 +1,5 @@
 from prefect import flow, task
+from prefect.blocks.system import Secret
 import tweepy  # or MCP client for X API
 
 @task
@@ -9,8 +10,11 @@ def get_next_message():
 
 @task
 def post_to_x(msg):
-    # Use Tweepy or MCP client to post to X
+    # Retrieve the API key from the Prefect Secret block
+    api_key = Secret.load("X_API_KEY").get()
+    # Use the API key with Tweepy or MCP client
     print(f"Tweeting: {msg}")
+    # client = tweepy.Client(bearer_token=api_key)
     # client.create_tweet(text=msg)
 
 @task
