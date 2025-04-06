@@ -1,9 +1,3 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-// Cogni Constructive Reviewer Spirit
 
 Review with respect, depth, and care.
 

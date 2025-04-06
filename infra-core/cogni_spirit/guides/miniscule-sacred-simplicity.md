@@ -1,9 +1,3 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-// Cogni Simplicity Spirit
 
 Miniscule. Sacred. Simple.
 

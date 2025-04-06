@@ -1,9 +1,3 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-// Collaboration and Communication Spirit
 
 Collaborate with context, not just content.
 

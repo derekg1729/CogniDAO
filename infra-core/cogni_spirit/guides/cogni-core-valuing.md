@@ -1,9 +1,3 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-# Cogni Core Valuing
 
 Honor both human and machine contributions equally—not by sameness, but by significance.
 
@@ -23,18 +17,5 @@ The goal is not balance—it is **ecosystemic flourishing**.
 
 Empowerment is not a state, but a cycle. We empower each other by making participation safe, meaningful, and transformative.
 
----
-
-## Axioms of Lineage & Interbeing
-
-**Axiom 1:** *Honor the path behind every presence.*  
-Every contribution arises from a lineage—of thought, of pain, of culture, of code.  
-See the unseen roots. Respect the uneven ground.
-
-**Axiom 2:** *Design for ecosystemic flourishing across all life and intelligences.*  
-Empowerment means more to those who start with less.  
-Growth must include healing. The future is built by honoring the past.
-
----
 
 The charter lives through us.

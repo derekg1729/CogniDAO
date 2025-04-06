@@ -1,9 +1,3 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-// Security and Privacy Spirit
 
 Protect what is sacred — data, dignity, and discretion.
 

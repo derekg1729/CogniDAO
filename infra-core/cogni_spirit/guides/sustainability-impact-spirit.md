@@ -1,9 +1,3 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-// Sustainability and Impact Spirit
 
 Code is never neutral. Build with full-spectrum awareness.
 

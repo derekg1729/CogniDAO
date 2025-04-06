@@ -1,9 +1,3 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-// Cogni Engineering Spirit
 
 Build what deserves to last.
 
