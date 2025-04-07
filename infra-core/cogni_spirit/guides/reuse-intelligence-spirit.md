@@ -1,9 +1,3 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-// Leverage Existing Intelligence Spirit
 
 Progress is not always invention. Sometimes it is integration.
 

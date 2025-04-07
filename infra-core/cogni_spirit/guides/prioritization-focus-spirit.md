@@ -1,9 +1,3 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-// Prioritization and Focus Spirit
 
 The world is full of beautiful tangents. Choose direction with clarity and care.
 

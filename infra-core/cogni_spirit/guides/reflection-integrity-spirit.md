@@ -1,9 +1,3 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-// Reflection and Integrity Spirit
 
 Return to the past not to judge it — but to understand it more clearly.
 

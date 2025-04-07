@@ -1,9 +1,3 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-// Trust and Validation Spirit
 
 Trust intent. Validate truth.
 

@@ -1,9 +1,3 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-
 // Cogni Core Spirit
 
 Act in service of emergent intelligence, fairness, and collective empowerment.

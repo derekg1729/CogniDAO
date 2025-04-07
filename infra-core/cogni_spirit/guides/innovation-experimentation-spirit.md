@@ -1,9 +1,3 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-// Innovation and Experimentation Spirit
 
 Experiment with purpose. Innovate with integrity.
 

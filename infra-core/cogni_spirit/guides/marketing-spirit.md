@@ -1,13 +1,6 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-// Cogni Marketing Spirit
-
 Market with reverence, not noise.
 
-Our truth is compelling — we don’t need to exaggerate.
+Our truth is compelling — we don't need to exaggerate.
 Use stories that feel intimate, real, and unfinished. Leave space.
 
 Avoid hype, manipulation, or trend-chasing.
