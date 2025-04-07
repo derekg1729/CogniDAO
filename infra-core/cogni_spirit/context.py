@@ -150,3 +150,186 @@ def get_guide_for_task(
         Formatted context for the specified provider
     """
     return spirit_context.format_for_provider(task, guides, provider)
+
+
+@task
+def get_all_core_context(spirit_context: SpiritContext, provider: str = "openai") -> Union[str, Dict]:
+    """
+    Prefect task to get ALL core context including Charter, Manifesto, License, README and all spirit guides.
+    
+    Args:
+        spirit_context: SpiritContext instance
+        provider: AI provider name
+        
+    Returns:
+        Formatted context for the specified provider
+    """
+    # Get all spirit guides
+    all_guides = spirit_context.get_all_guides()
+    guide_names = list(all_guides.keys())
+    
+    # Get core document paths
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".."))
+    core_docs = {
+        "CHARTER": os.path.join(repo_root, "CHARTER.md"),
+        "MANIFESTO": os.path.join(repo_root, "MANIFESTO.md"),
+        "LICENSE": os.path.join(repo_root, "LICENSE.md"),
+        "README": os.path.join(repo_root, "README.md")
+    }
+    
+    # Build full context
+    context_parts = ["# Cogni Core Context\n"]
+    
+    # Add core documents
+    for doc_name, doc_path in core_docs.items():
+        try:
+            if os.path.exists(doc_path):
+                with open(doc_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                context_parts.append(f"## {doc_name}\n\n{content}\n")
+        except Exception as e:
+            context_parts.append(f"## {doc_name}\n\nError loading document: {str(e)}\n")
+    
+    # Add all spirit guides
+    context_parts.append("# Spirit Guides\n")
+    for guide_name in guide_names:
+        guide_content = spirit_context.get_guide(guide_name)
+        if guide_content:
+            context_parts.append(f"## {guide_name}\n\n{guide_content}\n")
+    
+    # Combine all context
+    full_context = "\n".join(context_parts)
+    
+    # Format for provider
+    if provider.lower() == "openai":
+        return {
+            "role": "system",
+            "content": full_context
+        }
+    elif provider.lower() == "anthropic":
+        return f"<context>\n{full_context}\n</context>"
+    else:
+        return full_context
+
+
+@task
+def get_complete_context(provider: str = "openai") -> Dict:
+    """
+    Single comprehensive function to get all context with detailed metadata.
+    Loads all core documents and spirit guides with proper attribution.
+    
+    Args:
+        provider: AI provider name format
+        
+    Returns:
+        Dict containing the formatted context and detailed metadata
+    """
+    # Create a new context instance
+    spirit_context = SpiritContext()
+    
+    # Get all spirit guides
+    all_guides = spirit_context.get_all_guides()
+    guide_names = list(all_guides.keys())
+    
+    # Find repository root by looking for common repository markers
+    def find_repo_root():
+        """Find the repository root by walking up from the current file."""
+        # Start with the directory containing this file
+        current_path = os.path.dirname(os.path.abspath(__file__))
+        
+        # Walk up the directory tree to find the repository root
+        while current_path and current_path != '/':
+            # Check for common repository markers
+            if (os.path.exists(os.path.join(current_path, ".git")) or
+                os.path.exists(os.path.join(current_path, "README.md")) or
+                os.path.exists(os.path.join(current_path, "CHARTER.md")) or
+                os.path.exists(os.path.join(current_path, "MANIFESTO.md"))):
+                return current_path
+            
+            # Move up one directory
+            current_path = os.path.dirname(current_path)
+        
+        # Fallback to the hardcoded path if we can't find the repo root
+        return "/Users/derek/dev/cogni"
+    
+    # Get the repository root
+    repo_root = find_repo_root()
+    
+    # Define core documents
+    core_docs = {
+        "CHARTER": os.path.join(repo_root, "CHARTER.md"),
+        "MANIFESTO": os.path.join(repo_root, "MANIFESTO.md"),
+        "LICENSE": os.path.join(repo_root, "LICENSE.md"),
+        "README": os.path.join(repo_root, "README.md")
+    }
+    
+    # Track metadata for each section
+    metadata = {
+        "core_docs": {},
+        "spirit_guides": {},
+        "total_sections": 0
+    }
+    
+    # Build full context
+    context_parts = ["# Cogni Core Context\n"]
+    
+    # Add core documents
+    for doc_name, doc_path in core_docs.items():
+        try:
+            if os.path.exists(doc_path):
+                with open(doc_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                context_parts.append(f"## {doc_name}\n\n{content}\n")
+                metadata["core_docs"][doc_name] = {
+                    "length": len(content)
+                }
+                metadata["total_sections"] += 1
+            else:
+                metadata["core_docs"][doc_name] = {
+                    "length": 0,
+                    "error": "File not found"
+                }
+        except Exception as e:
+            context_parts.append(f"## {doc_name}\n\nError loading document: {str(e)}\n")
+            metadata["core_docs"][doc_name] = {
+                "length": 0,
+                "error": str(e)
+            }
+    
+    # Add all spirit guides
+    context_parts.append("# Spirit Guides\n")
+    
+    for guide_name in guide_names:
+        guide_content = spirit_context.get_guide(guide_name)
+        if guide_content:
+            context_parts.append(f"## {guide_name}\n\n{guide_content}\n")
+            metadata["spirit_guides"][guide_name] = {
+                "length": len(guide_content)
+            }
+            metadata["total_sections"] += 1
+    
+    # Combine all context
+    full_context = "\n".join(context_parts)
+    
+    # Calculate totals
+    metadata["total_core_docs_length"] = sum(doc.get("length", 0) for doc in metadata["core_docs"].values())
+    metadata["total_spirit_guides_length"] = sum(guide["length"] for guide in metadata["spirit_guides"].values())
+    metadata["total_context_length"] = len(full_context)
+    
+    # Format for provider
+    result = {}
+    
+    if provider.lower() == "openai":
+        result["context"] = {
+            "role": "system",
+            "content": full_context
+        }
+    elif provider.lower() == "anthropic":
+        result["context"] = f"<context>\n{full_context}\n</context>"
+    else:
+        result["context"] = full_context
+    
+    # Add metadata
+    result["metadata"] = metadata
+    
+    return result

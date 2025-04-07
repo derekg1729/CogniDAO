@@ -7,6 +7,8 @@ import os
 from typing import Dict, List, Optional, Union, Any
 from prefect import task
 from prefect.blocks.system import Secret
+from prefect.tasks import task_input_hash
+from prefect.tasks import NO_CACHE  # correct import path for Prefect 3.3.3
 
 try:
     import openai
@@ -34,12 +36,12 @@ def initialize_openai_client() -> OpenAI:
     
     return OpenAI(api_key=api_key)
 
-@task
+@task(cache_policy=NO_CACHE)  # Disable caching to prevent serialization errors
 def create_completion(
     client: OpenAI,
     system_message: Union[str, Dict[str, str]],
     user_prompt: str,
-    model: str = "gpt-4o",
+    model: str = "gpt-4",
     temperature: float = 0.7,
     max_tokens: Optional[int] = None,
     top_p: float = 1.0,
