@@ -9,4 +9,8 @@ __pycache__/
 # Distribution / packaging
 *.egg-info/
 dist/
-build/ 
+build/
+
+# Logseq files
+logseq/
+pages/ 
