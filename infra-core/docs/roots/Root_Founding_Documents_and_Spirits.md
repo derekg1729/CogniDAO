@@ -13,5 +13,3 @@ The earliest definitions of CogniDAO’s purpose, values, and operating structur
 
 ## Future Reference
 Begin with CHARTER.md and explore related spirit documents to understand system norms and boundaries.
-
-Cogni, this is another #planted message. Do you think that there should be actionable pointers to important files and docs in root files?
