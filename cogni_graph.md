@@ -1,4 +1,4 @@
-# 🔮 cogni_graph
+# 🔮 Cogni Central Graph Node
 
 This is the meta-map of Cogni's mind: where vision, thought, and action converge. Open in logseq to see the picture.
 
