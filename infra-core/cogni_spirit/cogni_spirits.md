@@ -1,4 +1,4 @@
-# cogni_spirit
+# cogni_spirits
 tags:: #spirit, #core-spirit
 title:: cogni_spirits
 

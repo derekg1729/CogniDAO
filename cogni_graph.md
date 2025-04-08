@@ -8,7 +8,7 @@ This is the meta-map of Cogni's mind: where vision, thought, and action converge
 
 [[infra-core]] – The core functionality for Cogni and CogniDAO
 
-[[cogni_spirit]] – embedded values and spirit guides, to be leveraged when talking to Cogni in various contexts
+[[cogni_spirits]] – embedded values and spirit guides, to be leveraged when talking to Cogni in various contexts
 
 [[CHARTER]] – foundational principles
 
