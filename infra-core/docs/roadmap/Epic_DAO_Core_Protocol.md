@@ -4,7 +4,7 @@
 :owner: 
 
 ## Vision
-The foundational DAO logic that governs contribution, rewards, consensus, and participation.
+The foundational DAO logic that governs contribution, rewards, consensus, and participation. This protocol will serve as the backbone for all CogniDAO operations, ensuring transparent, fair, and effective governance while enabling flexible contribution models and value recognition.
 
 ## Key Objectives
 - Define minimal on-chain or token structure
@@ -17,5 +17,6 @@ The foundational DAO logic that governs contribution, rewards, consensus, and pa
 - [[DAO Onboarding Guide]]
 
 ## Timeline
-- Start: YYYY-MM-DD
-- Target completion: YYYY-MM-DD
+## Timeline
+- Start: 2025-05-01
+- Target checkpoint v1 completion: 2025-05-31

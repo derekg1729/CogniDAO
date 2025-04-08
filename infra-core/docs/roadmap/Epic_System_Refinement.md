@@ -4,7 +4,7 @@
 :owner: 
 
 ## Vision
-Cogni must improve in efficiency, readability, and security as it grows—without losing clarity or simplicity.
+Cogni must improve in efficiency, readability, and security as it grows—without losing clarity or simplicity. Through continuous refactoring and optimization, we will maintain a clean, performant codebase that balances technical excellence with accessibility to new contributors, ensuring the system can scale smoothly while remaining secure and maintainable.
 
 ## Key Objectives
 - Simplify overly complex flows and files
@@ -17,5 +17,5 @@ Cogni must improve in efficiency, readability, and security as it grows—withou
 - [[Security Layer Additions]]
 
 ## Timeline
-- Start: YYYY-MM-DD
-- Target completion: YYYY-MM-DD
+- Start: 2025-06-01
+- Target checkpoint v1 completion: 2025-10-31
