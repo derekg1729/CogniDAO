@@ -1,6 +1,7 @@
-# Task:docker-compose-infra
+# docker-compose-infra
+:type: Project
 :status: todo
-:project: infra-core
+:project: [[Epic_Presence_and_Control_Loops]]
 
 ## Description
 Package all services (Prefect, Ollama, MCP, Git-Cogni agents) into a `docker-compose.yml` stack with health checks and shared volume.

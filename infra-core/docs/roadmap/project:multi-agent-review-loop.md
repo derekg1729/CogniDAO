@@ -1,6 +1,7 @@
-# Task:multi-agent-review-loop
+# multi-agent-review-loop
+:type: Project
 :status: todo
-:project: infra-core
+:project: [[Epic_Presence_and_Control_Loops]]
 
 ## Description
 Simulate two Git-Cogni agents (Alpha & Beta) discussing the diff in turn-based fashion, writing their conversation to a transcript.

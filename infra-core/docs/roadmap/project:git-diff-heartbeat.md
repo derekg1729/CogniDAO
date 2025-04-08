@@ -1,6 +1,8 @@
-# Task:git-diff-heartbeat
+# git-diff-heartbeat
+:type: Project
 :status: in_progress
-:project: infra-core
+:epic: [[Epic_Presence_and_Control_Loops]]
+:owner: 
 
 ## Description
 Detects new changes in the Git repo on each heartbeat and stores the `git diff` to a file for agent consumption.
