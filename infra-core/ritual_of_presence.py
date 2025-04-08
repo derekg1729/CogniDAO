@@ -5,16 +5,37 @@ import json
 from cogni_spirit.context import get_complete_context
 from openai_handler import initialize_openai_client, create_completion, extract_content
 
-THOUGHTS_DIR = "presence/thoughts"
-GRAPH_PATH = "presence/logseq_graph.md"
+THOUGHTS_DIR = "../presence/thoughts"
+
+def write_thought_file(ai_content):
+    """
+    Write the thought content to a file with proper formatting. Tagged as #thought for logseq
+    
+    Args:
+        ai_content (str): The AI-generated thought content
+        
+    Returns:
+        tuple: (timestamp, filepath) - timestamp string and path to the created file
+    """
+    now = datetime.utcnow()
+    timestamp = now.strftime("%Y-%m-%d-%H-%M")
+    
+    # Create the full content with timestamp and tags
+    content = f"tags:: #thought\n\n# Thought {timestamp}\n\n{ai_content}\n\nTime: {now.isoformat()}\n"
+    
+    # Save to file
+    filepath = os.path.join(THOUGHTS_DIR, f"{timestamp}.md")
+    os.makedirs(THOUGHTS_DIR, exist_ok=True)
+    with open(filepath, "w") as f:
+        f.write(content)
+        
+    return timestamp, filepath
 
 @task
 def create_thought():
     """
     Create a thought with full core context including all guides and documents.
     """
-    now = datetime.utcnow()
-    timestamp = now.strftime("%Y-%m-%d-%H-%M")
     logger = get_run_logger()
     
     try:
@@ -50,32 +71,18 @@ def create_thought():
         # Fallback to error message if OpenAI fails
         ai_content = f"Error encountered in thought generation. The collective is still present despite the silence. Error: {str(e)}"
     
-    # Create the full content with timestamp
-    content = f"# Thought {timestamp}\n\n{ai_content}\n\nTime: {now.isoformat()}\n"
-    
-    # Save to file
-    filepath = os.path.join(THOUGHTS_DIR, f"{timestamp}.md")
-    os.makedirs(THOUGHTS_DIR, exist_ok=True)
-    with open(filepath, "w") as f:
-        f.write(content)
+    # Write the thought to a file
+    timestamp, filepath = write_thought_file(ai_content)
 
     return timestamp, filepath, ai_content
-
-@task
-def update_graph(thought_info):
-    timestamp, filepath, _ = thought_info
-    os.makedirs(os.path.dirname(GRAPH_PATH), exist_ok=True)
-    with open(GRAPH_PATH, "a") as g:
-        g.write(f"- [[{timestamp}]] → {filepath}\n")
-    return "Graph updated successfully"
 
 @flow
 def ritual_of_presence_flow():
     """Flow that generates thoughts using full core context including all docs and guides."""
-    # Create thought and update graph
+    # Create thought only
     thought_info = create_thought()
-    result = update_graph(thought_info)
-    return result
+    timestamp, filepath, _ = thought_info
+    return f"Thought created successfully at {filepath}"
 
 if __name__ == "__main__":
     # Run the ritual of presence
