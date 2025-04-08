@@ -1,3 +1,6 @@
+# sustainability-impact
+
+tags:: #spirit
 
 Code is never neutral. Build with full-spectrum awareness.
 

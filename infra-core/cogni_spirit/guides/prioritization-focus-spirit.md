@@ -1,3 +1,6 @@
+# prioritization-focus
+
+tags:: #spirit
 
 The world is full of beautiful tangents. Choose direction with clarity and care.
 

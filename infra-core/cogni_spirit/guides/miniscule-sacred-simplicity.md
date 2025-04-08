@@ -1,3 +1,6 @@
+# miniscule-sacred-simplicity
+
+tags:: #core-spirit
 
 Miniscule. Sacred. Simple.
 

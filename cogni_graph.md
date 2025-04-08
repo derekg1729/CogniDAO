@@ -6,7 +6,7 @@ This is the meta-map of Cogni's mind: where vision, thought, and action converge
 
 [[presence]] – organic logs and reflections
 
-[[infra-core/roadmap/]] – structured execution tasks
+[[infra-core/roadmap]] – structured execution tasks
 
 [[cogni_spirit]] – embedded values and spirit guides
 
