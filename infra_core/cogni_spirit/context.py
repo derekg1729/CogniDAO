@@ -15,7 +15,7 @@ from prefect import task
 class SpiritContext:
     """Manages and provides access to Cogni spirit guides for AI context."""
     
-    def __init__(self, guides_dir: Optional[str] = None):
+    def __init__(self, guides_dir: Optional[str] = "../.."):
         """
         Initialize the SpiritContext.
         
@@ -153,7 +153,56 @@ def get_guide_for_task(
 
 
 @task
-def get_all_core_context(spirit_context: SpiritContext, provider: str = "openai") -> Union[str, Dict]:
+def get_core_context(spirit_context: SpiritContext, provider: str = "openai") -> Union[str, Dict]:
+    """
+    Prefect task to get core context including Charter, Manifesto, License, README only.
+    
+    Args:
+        spirit_context: SpiritContext instance
+        provider: AI provider name
+        
+    Returns:
+        Formatted context for the specified provider
+    """
+    # Get core document paths
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".."))
+    core_docs = {
+        "CHARTER": os.path.join(repo_root, "CHARTER.md"),
+        "MANIFESTO": os.path.join(repo_root, "MANIFESTO.md"),
+        "LICENSE": os.path.join(repo_root, "LICENSE.md"),
+        "README": os.path.join(repo_root, "README.md")
+    }
+    
+    # Build core context
+    context_parts = ["# Cogni Core Context\n"]
+    
+    # Add core documents
+    for doc_name, doc_path in core_docs.items():
+        try:
+            if os.path.exists(doc_path):
+                with open(doc_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                context_parts.append(f"## {doc_name}\n\n{content}\n")
+        except Exception as e:
+            context_parts.append(f"## {doc_name}\n\nError loading document: {str(e)}\n")
+    
+    # Combine all context
+    full_context = "\n".join(context_parts)
+    
+    # Format for provider
+    if provider.lower() == "openai":
+        return {
+            "role": "system",
+            "content": full_context
+        }
+    elif provider.lower() == "anthropic":
+        return f"<context>\n{full_context}\n</context>"
+    else:
+        return full_context
+
+
+@task
+def get_all_context(spirit_context: SpiritContext, provider: str = "openai") -> Union[str, Dict]:
     """
     Prefect task to get ALL core context including Charter, Manifesto, License, README and all spirit guides.
     
@@ -333,3 +382,6 @@ def get_complete_context(provider: str = "openai") -> Dict:
     result["metadata"] = metadata
     
     return result
+
+# Alias for backwards compatibility
+get_all_core_context = get_all_context
