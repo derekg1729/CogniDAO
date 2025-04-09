@@ -8,12 +8,11 @@
 
 - ## Action Items
 - [x] Identify/initial processing of PR using Pygithub 
-- [ ] Adapt `scripts/generate_commit_diffs_cognigraph_main.sh` for PR review
-- [ ] Create Python wrapper to call the script within Prefect workflow
-- [ ] Implement parameter injection for base and head branches
-- [ ] Create function to read and parse generated diff files
+- [x] Create Python implementation for PR commit retrieval
+- [x] Implement parameter injection for base and head branches
+- [x] Create function to retrieve commit data
 - ## Notes
-  This will build upon the existing commit diff generation script (`scripts/generate_commit_diffs_cognigraph_main.sh`) which already handles generating diff files. We'll adapt it to work with the PR branches and integrate with Prefect.
+  This now uses PyGithub API directly instead of the shell script, making it more integrated and portable. The implementation retrieves commit data including SHA, message, author, date, and file changes.
 - ## Estimated Effort
 - Hours: 2
 - ## Dependencies
