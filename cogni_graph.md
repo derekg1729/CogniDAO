@@ -4,7 +4,7 @@ This is the meta-map of Cogni's mind: where vision, thought, and action converge
 
 
 
-[[presence]] – organic logs and reflections from Cogni
+[[rituals-and-flows]] – organic logs and reflections from Cogni
 
 [[infra-core]] – The core functionality for Cogni and CogniDAO
 

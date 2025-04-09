@@ -1,8 +1,8 @@
 from prefect import flow
 
-# Simple deployment script for the Ritual of Presence flow
+# Deployment script for the Ritual of Presence flow
 if __name__ == "__main__":
-    # Deploy from local source (simplest approach)
+    # Deploy from local source
     print("Deploying Ritual of Presence flow to cogni-pool...")
     
     flow.from_source(
@@ -16,4 +16,4 @@ if __name__ == "__main__":
         description="Ritual of Presence: Generate thoughts with full core context",
     )
     
-    print("Deployment complete! To run, use: prefect deployment run 'ritual-of-presence-flow/ritual-of-presence'") 
+    print("Deployment complete! To run, use: prefect deployment run 'ritual-of-presence-flow/ritual-of-presence'")

@@ -1,3 +1,7 @@
+import sys, os
+# Ensure parent directory is in path # Fragile implementation, must be updated when files move
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 from prefect import task, flow, get_run_logger
 from datetime import datetime
 import os
@@ -5,7 +9,7 @@ import json
 from cogni_spirit.context import get_complete_context
 from openai_handler import initialize_openai_client, create_completion, extract_content
 
-THOUGHTS_DIR = "../presence/thoughts"
+THOUGHTS_DIR = "../../../presence/thoughts"
 
 def write_thought_file(ai_content):
     """
