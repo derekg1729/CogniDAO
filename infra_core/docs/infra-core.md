@@ -13,7 +13,7 @@
          :where
          [?b :block/properties ?p]
          [(get ?p :status) "in_progress"]
-         [(get ?p :epic) "infra-core"]]}
+         [(get ?p :epic) "infra_core"]]}
   #+END_QUERY
 - ## Active Projects
   #+BEGIN_QUERY
@@ -22,7 +22,7 @@
          :where
          [?b :block/properties ?p]
          [(get ?p :status) "in_progress"]
-         [(get ?p :epic) "infra-core"]]}
+         [(get ?p :epic) "infra_core"]]}
   #+END_QUERY
 - ## Completed Projects
   #+BEGIN_QUERY
@@ -31,7 +31,7 @@
          :where
          [?b :block/properties ?p]
          [(get ?p :status) "done"]
-         [(get ?p :epic) "infra-core"]]}
+         [(get ?p :epic) "infra_core"]]}
   #+END_QUERY
 - ## All Tasks
   #+BEGIN_QUERY

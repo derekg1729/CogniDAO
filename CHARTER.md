@@ -74,7 +74,7 @@ A world where anyone can start or join a high-impact DAO with tools, knowledge, 
 
 ## 5. Infrastructure & Repositories
 
-- `infra-core`:  
+- `infra_core`:  
   Core governance tools, AI agents, EVM flows, onboarding automation, smart contract templates.
 
 - `niche-charters`:  

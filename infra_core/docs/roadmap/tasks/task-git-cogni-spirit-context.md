@@ -9,7 +9,7 @@ Create the git-cogni spirit guide file and use the existing spirit context funct
 
 ## Action Items
 - [ ] Create `git-cogni.md` spirit guide file with review personality and guidelines
-- [ ] Use existing `SpiritContext` class from `infra-core/cogni_spirit/context.py`
+- [ ] Use existing `SpiritContext` class from `infra_core/cogni_spirit/context.py`
 - [ ] Add git-cogni to guides directory for auto-loading
 - [ ] Integrate with Prefect task using existing `get_guide_for_task` function
 

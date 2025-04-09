@@ -36,7 +36,7 @@ sys.modules['openai_handler'].extract_content = mock_extract_content
 import importlib.util
 spec = importlib.util.spec_from_file_location(
     "ritual_of_presence",
-    os.path.join(os.path.dirname(__file__), "../infra-core/flows/rituals/ritual_of_presence.py")
+    os.path.join(os.path.dirname(__file__), "../infra_core/flows/rituals/ritual_of_presence.py")
 )
 ritual_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ritual_module)

@@ -1,11 +1,13 @@
 # Task: Implement Commit Processing for GitCogni
 :type: Task
-:status: todo
+:status: in_progress
 :project: [[project-git-cogni-agent]]
 :owner:
 - ## Description
   Adapt existing commit diff script for use with GitCogni to extract and process commit information.
+
 - ## Action Items
+- [x] Identify/initial processing of PR using Pygithub 
 - [ ] Adapt `scripts/generate_commit_diffs_cognigraph_main.sh` for PR review
 - [ ] Create Python wrapper to call the script within Prefect workflow
 - [ ] Implement parameter injection for base and head branches

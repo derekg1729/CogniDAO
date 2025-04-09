@@ -9,7 +9,7 @@ Launch a single Git-Cogni agent, guided by spirit context, that reviews the diff
 What is git-Cogni? The spirit of the guardian of Cogni's git repo. Highly protective, highly pedantic.
 
 ## Implementation Tasks
-- [ ] [[task-git-cogni-setup-prefect]] - Prefect workflow orchestration
+- [x] [[task-git-cogni-setup-prefect]] - Prefect workflow orchestration
 - [ ] [[task-git-cogni-langchain-integration]] - LLM integration using LangChain
 - [ ] [[task-git-cogni-commit-processing]] - Process commit diffs for review
 - [ ] [[task-git-cogni-review-formatting]] - Format review results as markdown
