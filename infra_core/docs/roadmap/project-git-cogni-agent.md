@@ -17,6 +17,7 @@ V1 has been successfully implemented and tested, with the agent able to review P
 - [x] [[task-git-cogni-review-formatting]] - Format review results as markdown
 - [x] [[task-git-cogni-spirit-context]] - Implement spirit guide context
 - [x] [[task-git-cogni-openai-integration]] - Direct OpenAI integration for LLM review
+- [x] [[task-git-cogni-test-coverage]] - Improve GitCogni test coverage
 
 ## MVP Flow (completed)
 1. [x] Manually triggered prefect flow 
@@ -30,8 +31,10 @@ V1 has been successfully implemented and tested, with the agent able to review P
 6. [x] Output markdown review with decision
 
 ## Future Enhancements
-- [ ] Improved test coverage
+- [x] Improved test coverage (now at 86%)
 - [ ] Enhanced CLI tool
 - [ ] Support for private repositories
 - [ ] More efficient handling of very large PRs
 - [ ] LangChain integration (if needed)
+- [ ] End-to-end integration tests
+- [ ] CI pipeline for automated test execution

@@ -12,7 +12,7 @@ Create a direct OpenAI integration for the GitCogni MVP to review pull requests.
 - [x] Design prompt template combining PR data and spirit context
 - [x] Implement response handling and error management
 - [x] Add API response to PR data structure
-- [ ] Test with real PR examples
+- [x] Test with real PR examples
 
 ## Notes
 This is a simpler alternative to full LangChain integration for the initial MVP. We've implemented a staged approach:
