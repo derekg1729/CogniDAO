@@ -6,7 +6,7 @@ from prefect import task, flow, get_run_logger
 from datetime import datetime
 import os
 import json
-from cogni_spirit.context import get_complete_context
+from cogni_spirit.context import get_core_documents
 from openai_handler import initialize_openai_client, create_completion, extract_content
 
 THOUGHTS_DIR = "../../../presence/thoughts"
@@ -47,10 +47,10 @@ def create_thought():
         client = initialize_openai_client()
         
         # Get complete context with metadata
-        complete_context = get_complete_context()
+        core_context = get_core_documents()
         
         # Log metadata
-        logger.info(f"CONTEXT METADATA: {json.dumps(complete_context['metadata'], indent=2)}")
+        logger.info(f"CONTEXT METADATA: {json.dumps(core_context['metadata'], indent=2)}")
         
         # Create the prompt
         user_prompt = f"Generate a thoughtful reflection from Cogni. Please keep thoughts as short form morsels under 280 characters."
@@ -58,7 +58,7 @@ def create_thought():
         # Call OpenAI API
         response = create_completion(
             client=client,
-            system_message=complete_context['context'],
+            system_message=core_context['context'],
             user_prompt=user_prompt,
             temperature=0.8
         )

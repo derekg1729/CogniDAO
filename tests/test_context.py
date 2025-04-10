@@ -26,14 +26,19 @@ class TestSpiritContext(unittest.TestCase):
         
         # Verify the result is a dictionary with the expected structure for OpenAI
         self.assertIsInstance(result, dict)
-        self.assertIn("role", result)
-        self.assertEqual(result["role"], "system")
-        self.assertIn("content", result)
+        self.assertIn("context", result)
+        self.assertIn("metadata", result)
+        
+        # Check the context structure
+        context = result["context"]
+        self.assertIn("role", context)
+        self.assertEqual(context["role"], "system")
+        self.assertIn("content", context)
         
         # Verify the content includes important core documents
-        content = result["content"]
+        content = context["content"]
         print(content)
-        self.assertIn("# Cogni Core Context", content)
+        self.assertIn("# Cogni Core Documents", content)
         self.assertIn("## CHARTER", content)
         self.assertIn("## MANIFESTO", content)
         self.assertIn("## LICENSE", content)

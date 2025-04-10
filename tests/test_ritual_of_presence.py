@@ -9,10 +9,18 @@ from datetime import datetime
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Create mock modules
-mock_get_complete_context = MagicMock()
-mock_get_complete_context.return_value = {
-    "context": "Test context",
-    "metadata": {"test": "metadata"}
+mock_get_core_documents = MagicMock()
+mock_get_core_documents.return_value = {
+    "context": {
+        "role": "system",
+        "content": "Test context"
+    },
+    "metadata": {
+        "core_docs": {"TEST": {"length": 100}},
+        "total_sections": 1,
+        "total_core_docs_length": 100,
+        "total_context_length": 120
+    }
 }
 
 mock_initialize_openai = MagicMock()
@@ -24,7 +32,7 @@ mock_extract_content.return_value = "Test thought content"
 # Mock needed modules before importing ritual_of_presence
 sys.modules['cogni_spirit'] = MagicMock()
 sys.modules['cogni_spirit.context'] = MagicMock()
-sys.modules['cogni_spirit.context'].get_complete_context = mock_get_complete_context
+sys.modules['cogni_spirit.context'].get_core_documents = mock_get_core_documents
 
 # Also mock the openai_handler module
 sys.modules['openai_handler'] = MagicMock()
@@ -81,14 +89,14 @@ def test_write_thought_file(temp_thoughts_dir):
 def test_create_thought(temp_thoughts_dir):
     """Test the create_thought task"""
     # Reset mock call counts
-    mock_get_complete_context.reset_mock()
+    mock_get_core_documents.reset_mock()
     mock_create_completion.reset_mock()
     mock_extract_content.reset_mock()
     
     timestamp, filepath, content = create_thought()
     
     # Verify the function calls
-    assert mock_get_complete_context.call_count >= 1
+    assert mock_get_core_documents.call_count >= 1
     assert mock_create_completion.call_count >= 1
     assert mock_extract_content.call_count >= 1
     
