@@ -6,23 +6,22 @@ from typing import Dict, List, Optional, Union
 # Ensure parent directory is in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from infra_core.cogni_spirit.context import SpiritContext, get_core_context, get_guide_for_task
+from infra_core.cogni_spirit.context import get_core_context, get_guide_for_task
 
 
 class TestSpiritContext(unittest.TestCase):
     
     def setUp(self):
-        """Set up test environment with a real SpiritContext instance."""
-        # Use the correct "spirits" directory instead of the default "guides"
+        """Set up test environment."""
+        # Use the correct "spirits" directory
         module_dir = os.path.dirname(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
                                                                  'infra_core', 'cogni_spirit', 'context.py')))
-        spirits_dir = os.path.join(module_dir, "spirits")
-        self.spirit_context = SpiritContext(guides_dir=spirits_dir)
+        self.spirits_dir = os.path.join(module_dir, "spirits")
     
     def test_get_core_context_returns_guides(self):
         """Test that get_core_context returns a properly structured context object."""
-        # Call the function
-        result = get_core_context(self.spirit_context, provider="openai")
+        # Call the function with spirits_dir parameter
+        result = get_core_context(provider="openai", guides_dir=self.spirits_dir)
         
         # Verify the result is a dictionary with the expected structure for OpenAI
         self.assertIsInstance(result, dict)
@@ -51,7 +50,7 @@ class TestSpiritContext(unittest.TestCase):
         # Get the git-cogni guide for a task
         task_description = "Reviewing a pull request"
         result = get_guide_for_task(
-            self.spirit_context,
+            None,  # spirit_context parameter is no longer used
             task=task_description,
             guides=["git-cogni"],
             provider="openai"
@@ -76,7 +75,7 @@ class TestSpiritContext(unittest.TestCase):
         
         # Test with Anthropic provider
         anthropic_result = get_guide_for_task(
-            self.spirit_context,
+            None,  # spirit_context parameter is no longer used
             task=task_description,
             guides=["git-cogni"],
             provider="anthropic"
@@ -90,7 +89,7 @@ class TestSpiritContext(unittest.TestCase):
         """Test that get_guide_for_task uses default guides when none specified."""
         # Call with no guides specified - should use defaults
         result = get_guide_for_task(
-            self.spirit_context,
+            None,  # spirit_context parameter is no longer used
             task="Default guides test",
             provider="openai"
         )

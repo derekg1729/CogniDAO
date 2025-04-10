@@ -192,21 +192,22 @@ def get_core_documents(provider: str = "openai", guides_dir: Optional[str] = Non
         "metadata": metadata
     }
 
-# Helper functions for backward compatibility with tests
 def get_guide_for_task(
-    spirit_context, # Kept for backward compatibility, not used
-    task: str,
+    spirit_context=None,  # Kept for API compatibility, but not used
+    task: str = "",
     guides: Optional[List[str]] = None,
-    provider: str = "openai"
+    provider: str = "openai",
+    guides_dir: Optional[str] = None
 ) -> Union[str, Dict]:
     """
     Get formatted guide context for a task.
     
     Args:
-        spirit_context: Parameter kept for backward compatibility, not used
+        spirit_context: Ignored, kept for API compatibility
         task: Description of the task
         guides: List of guide names to include
         provider: AI provider name
+        guides_dir: Optional custom directory to load guides from
         
     Returns:
         Formatted context for the specified provider
@@ -215,7 +216,7 @@ def get_guide_for_task(
         guides = ["cogni-core-spirit", "cogni-core-valuing"]
     
     # Prepare context with task description
-    raw_context = get_specific_guides(guides, provider="raw")
+    raw_context = get_specific_guides(guides, provider="raw", guides_dir=guides_dir)
     
     # Add task description
     context_with_task = f"# Cogni Spirit Context for: {task}\n\n{raw_context}"
@@ -231,36 +232,20 @@ def get_guide_for_task(
     else:
         return context_with_task
 
-def get_core_context(spirit_context=None, provider: str = "openai") -> Union[str, Dict]:
+def get_core_context(
+    spirit_context=None,  # Kept for API compatibility, but not used
+    provider: str = "openai",
+    guides_dir: Optional[str] = None
+) -> Union[str, Dict]:
     """
     Get core context including Charter, Manifesto, License, README.
     
     Args:
-        spirit_context: Parameter kept for backward compatibility, not used
+        spirit_context: Ignored, kept for API compatibility
         provider: AI provider name
+        guides_dir: Optional custom directory to load guides from
         
     Returns:
         Formatted context for the specified provider
     """
-    return get_core_documents(provider)
-
-# For backward compatibility
-class SpiritContext:
-    """
-    Legacy class for backward compatibility. 
-    DEPRECATED: Use the functional approach instead with get_guide(), 
-    get_specific_guides(), and get_core_documents().
-    """
-    
-    def __init__(self, guides_dir: Optional[str] = None):
-        self.guides_dir = guides_dir
-        self.guides_cache = _load_guides(guides_dir)
-    
-    def get_guide(self, guide_name: str) -> Optional[str]:
-        return get_guide(guide_name, self.guides_dir)
-    
-    def get_specific_guides(self, guides: List[str], provider: str = "openai") -> Union[str, Dict]:
-        return get_specific_guides(guides, provider, self.guides_dir)
-    
-    def get_core_documents(self, provider: str = "openai") -> Union[str, Dict]:
-        return get_core_documents(provider, self.guides_dir)
+    return get_core_documents(provider, guides_dir)

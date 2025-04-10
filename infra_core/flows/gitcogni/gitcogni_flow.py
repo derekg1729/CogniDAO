@@ -7,6 +7,7 @@ import re
 from github import Github
 import json
 from datetime import datetime
+from cogni_spirit.context import get_core_documents, get_guide_for_task
 
 @task
 def parse_pr_url(pr_url):
@@ -257,10 +258,34 @@ def gitcogni_review_flow(pr_url=None):
     # Step 4: Prepare PR data structure
     pr_data = prepare_pr_data(pr_info, branch_info, commit_info)
     
+    # Step 5: Retrieve context from context.py
+    logger.info("Retrieving context for GitCogni review...")
+    
+    # Get core context
+    core_context = get_core_documents()
+    logger.info(f"CONTEXT METADATA: {json.dumps(core_context['metadata'], indent=2)}")
+    
+    # Get git-cogni spirit guide
+    task_description = f"Reviewing PR #{pr_info['number']} in {pr_info['owner']}/{pr_info['repo']}"
+    git_cogni_context = get_guide_for_task(
+        task=task_description,
+        guides=["git-cogni"]
+    )
+    
+    # Create metadata about the git-cogni content for logging
+    git_cogni_metadata = {
+        "spirit_guide": "git-cogni",
+        "task_description": task_description,
+        "content_length": len(git_cogni_context["content"]) if isinstance(git_cogni_context, dict) and "content" in git_cogni_context else 0
+    }
+    logger.info(f"SPIRIT GUIDE METADATA: {json.dumps(git_cogni_metadata, indent=2)}")
+    
     # Success! Return the branch and commit information
     message = f"PR #{pr_info['number']} branches: {branch_info['source_branch']} → {branch_info['target_branch']}"
     logger.info(f"Success! {message}")
     logger.info(f"Found {len(commit_info['commits'])} commits")
+
+    # TODO: Ready for a AI Model call!
     
     # Print commit information with enhanced metadata
     for i, commit in enumerate(commit_info['commits']):
