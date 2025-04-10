@@ -8,6 +8,7 @@ from github import Github
 import json
 from datetime import datetime
 from cogni_spirit.context import get_core_documents, get_guide_for_task
+from openai_handler import initialize_openai_client, create_completion, extract_content
 
 @task
 def parse_pr_url(pr_url):
@@ -212,6 +213,199 @@ def prepare_pr_data(pr_info, branch_info, commit_info):
     logger.info(f"Prepared PR data structure with {pr_data['metadata']['commit_count']} commits")
     return pr_data
 
+@task
+def git_cogni_review(git_cogni_context, core_context, pr_data):
+    """
+    Review PR data using staged OpenAI calls for each commit and a final verdict.
+    
+    Args:
+        git_cogni_context: Git-cogni spirit guide context
+        core_context: Core documents context
+        pr_data: PR data including commit information
+        
+    Returns:
+        dict: Review results with individual commit reviews and final verdict
+    """
+    logger = get_run_logger()
+    logger.info("Starting git-cogni review process...")
+    
+    # Initialize OpenAI client
+    client = initialize_openai_client()
+    
+    # 1. Extract commit data for review
+    commits = pr_data['commit_info']['commits']
+    pr_info = pr_data['pr_info']
+    branch_info = pr_data['branch_info']
+    
+    # Create output structure
+    review_results = {
+        "pr_info": {
+            "owner": pr_info['owner'],
+            "repo": pr_info['repo'],
+            "number": pr_info['number'],
+            "source_branch": branch_info['source_branch'],
+            "target_branch": branch_info['target_branch']
+        },
+        "commit_reviews": [],
+        "final_verdict": None,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    # 2. Process each commit with individual prompts
+    logger.info(f"Starting review of {len(commits)} commits...")
+    
+    for i, commit in enumerate(commits):
+        logger.info(f"Reviewing commit {i+1}/{len(commits)}: {commit['short_sha']}")
+        
+        # Limit patch sizes to avoid token limits
+        limited_files = []
+        for file in commit['files']:
+            file_copy = file.copy()
+            if 'patch' in file_copy:
+                file_copy['patch'] = file_copy['patch'][:1500]  # Limit patch size
+            limited_files.append(file_copy)
+        
+        # Create prompt for this commit
+        commit_prompt = f"""
+        Review this specific commit in isolation:
+        
+        Commit: {commit['short_sha']}
+        Message: {commit['message']}
+        Author: {commit['author']}
+        Date: {commit['date']}
+        Files changed: {commit['files_count']}
+        
+        Details:
+        {json.dumps(limited_files, indent=2)}
+        
+        Provide a brief, structured review of this commit focusing on:
+        1. Code quality and simplicity
+        2. Clear alignment between code and commit message
+        2. Potential issues
+        3. Suggestions for improvement
+        4. Rating (1-5 stars)
+        
+        Format your response in markdown.
+        """
+        
+        # Call OpenAI API for this commit, including git-cogni context on all calls
+        response = create_completion(
+            client=client,
+            system_message=git_cogni_context,
+            user_prompt=commit_prompt,
+            temperature=0.3,  # Lower temperature for consistency
+        )
+        
+        # Extract content
+        commit_review = extract_content(response)
+        logger.info(f"Completed review for commit {commit['short_sha']} ({len(commit_review)} chars)")
+        
+        # Store the review
+        review_results["commit_reviews"].append({
+            "commit_sha": commit['short_sha'],
+            "commit_message": commit['message'],
+            "review": commit_review
+        })
+    
+    # 3. Final prompt - create a verdict based on all reviews
+    all_reviews = "\n\n".join([
+        f"## Commit {item['commit_sha']}: {item['commit_message']}\n{item['review']}"
+        for item in review_results["commit_reviews"]
+    ])
+    
+    final_prompt = f"""
+    You have reviewed all commits in PR #{pr_info['number']} in {pr_info['owner']}/{pr_info['repo']}.
+    Source Branch: {branch_info['source_branch']}
+    Target Branch: {branch_info['target_branch']}
+    
+    Individual commit reviews:
+    
+    {all_reviews}
+    
+    Please provide a final verdict on this pull request:
+    1. Summarize the overall changes and their purpose
+    2. List any consistent issues or concerns found across commits
+    3. Provide general recommendations for improvement
+    4. Give a final decision: APPROVE, REQUEST_CHANGES, or COMMENT
+    
+    Format your verdict as markdown with clear sections.
+    """
+    
+    # Call OpenAI for final verdict
+    final_response = create_completion(
+        client=client,
+        system_message=git_cogni_context,
+        user_prompt=final_prompt,
+        temperature=0.3,
+    )
+    
+    # Extract final verdict
+    final_verdict = extract_content(final_response)
+    logger.info(f"Completed final verdict ({len(final_verdict)} chars)")
+    
+    # Add to results
+    review_results["final_verdict"] = final_verdict
+    
+    return review_results
+
+@task
+def save_review_to_file(review_results):
+    """
+    Save PR review results to markdown files.
+    
+    Args:
+        review_results: Review results including commit reviews and verdict
+        
+    Returns:
+        dict: Paths to saved files
+    """
+    logger = get_run_logger()
+    
+    # Create file names
+    pr_info = review_results["pr_info"]
+    base_name = f"review_{pr_info['owner']}_{pr_info['repo']}_{pr_info['number']}"
+    verdict_file = f"{base_name}_verdict.md"
+    details_file = f"{base_name}_details.md"
+    
+    # Create verdict markdown
+    with open(verdict_file, "w") as f:
+        # Write header
+        f.write(f"# PR Review: #{pr_info['number']} in {pr_info['owner']}/{pr_info['repo']}\n\n")
+        f.write(f"**Source Branch:** {pr_info['source_branch']}\n")
+        f.write(f"**Target Branch:** {pr_info['target_branch']}\n")
+        f.write(f"**Review Date:** {review_results['timestamp']}\n\n")
+        
+        # Write final verdict
+        f.write("## Final Verdict\n\n")
+        f.write(review_results["final_verdict"])
+    
+    # Create detailed review markdown
+    with open(details_file, "w") as f:
+        # Write header
+        f.write(f"# Detailed PR Review: #{pr_info['number']} in {pr_info['owner']}/{pr_info['repo']}\n\n")
+        f.write(f"**Source Branch:** {pr_info['source_branch']}\n")
+        f.write(f"**Target Branch:** {pr_info['target_branch']}\n")
+        f.write(f"**Review Date:** {review_results['timestamp']}\n\n")
+        
+        # Write each commit review
+        f.write("## Individual Commit Reviews\n\n")
+        for item in review_results["commit_reviews"]:
+            f.write(f"### Commit {item['commit_sha']}: {item['commit_message']}\n\n")
+            f.write(item["review"])
+            f.write("\n\n---\n\n")
+        
+        # Write final verdict
+        f.write("## Final Verdict\n\n")
+        f.write(review_results["final_verdict"])
+    
+    logger.info(f"Saved verdict to {verdict_file}")
+    logger.info(f"Saved detailed review to {details_file}")
+    
+    return {
+        "verdict_file": verdict_file,
+        "details_file": details_file
+    }
+
 @flow(name="gitcogni-review-flow")
 def gitcogni_review_flow(pr_url=None):
     """
@@ -221,7 +415,7 @@ def gitcogni_review_flow(pr_url=None):
         pr_url: GitHub PR URL to review
         
     Returns:
-        tuple: (status message, PR data structure)
+        tuple: (status message, review results)
     """
     logger = get_run_logger()
     logger.info("Starting GitCogni PR review flow...")
@@ -280,22 +474,19 @@ def gitcogni_review_flow(pr_url=None):
     }
     logger.info(f"SPIRIT GUIDE METADATA: {json.dumps(git_cogni_metadata, indent=2)}")
     
-    # Success! Return the branch and commit information
-    message = f"PR #{pr_info['number']} branches: {branch_info['source_branch']} → {branch_info['target_branch']}"
+    # Step 6: Perform the PR review
+    logger.info("Starting PR review process...")
+    review_results = git_cogni_review(git_cogni_context, core_context, pr_data)
+    
+    # Step 7: Save review results to files
+    logger.info("Saving review results to files...")
+    files = save_review_to_file(review_results)
+    
+    # Success! Return the review results
+    message = f"PR #{pr_info['number']} reviewed. Verdict: {files['verdict_file']}, Details: {files['details_file']}"
     logger.info(f"Success! {message}")
-    logger.info(f"Found {len(commit_info['commits'])} commits")
-
-    # TODO: Ready for a AI Model call!
     
-    # Print commit information with enhanced metadata
-    for i, commit in enumerate(commit_info['commits']):
-        logger.info(
-            f"Commit {i+1}: {commit['short_sha']} - "
-            f"{commit['files_count']} files changed ({commit['diff_length']} chars) - "
-            f"{commit['message']}"
-        )
-    
-    return message, pr_data
+    return message, review_results
 
 if __name__ == "__main__":
     # Example usage
@@ -308,23 +499,21 @@ if __name__ == "__main__":
         # No URL provided - this will return an error
         pr_url = None
     
-    message, pr_data = gitcogni_review_flow(pr_url=pr_url)
+    message, review_results = gitcogni_review_flow(pr_url=pr_url)
     print(message)
     
     # If we have data, show summary
-    if pr_data:
-        print(f"Collected data for {pr_data['metadata']['commit_count']} commits")
+    if review_results:
+        print(f"Review completed with {len(review_results.get('commit_reviews', []))} commits analyzed")
         
-        # Find and display any renamed files
-        renamed_files = []
-        for commit in pr_data['commit_info']['commits']:
-            for file in commit['files']:
-                if 'previous_filename' in file:
-                    renamed_files.append(f"{file['previous_filename']} -> {file['filename']}")
-        
-        if renamed_files:
-            print(f"Found {len(renamed_files)} renamed files:")
-            for rename in renamed_files[:5]:  # Show first 5 renames
-                print(f"  {rename}")
-            if len(renamed_files) > 5:
-                print(f"  ... and {len(renamed_files) - 5} more")
+        if review_results.get("final_verdict"):
+            verdict = review_results["final_verdict"]
+            # Extract decision using simple string search
+            if "APPROVE" in verdict:
+                decision = "APPROVE"
+            elif "REQUEST_CHANGES" in verdict:
+                decision = "REQUEST CHANGES"
+            else:
+                decision = "COMMENT"
+            
+            print(f"Final verdict: {decision}")
