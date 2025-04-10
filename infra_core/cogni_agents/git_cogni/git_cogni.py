@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional
 import re
 import json
 from datetime import datetime
+import logging
 
 # Ensure parent directory is in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
@@ -20,6 +21,8 @@ from infra_core.cogni_spirit.context import get_core_documents, get_guide_for_ta
 from infra_core.openai_handler import initialize_openai_client, create_completion, extract_content
 from github import Github
 
+# Setup logger
+logger = logging.getLogger(__name__)
 
 class GitCogniAgent(CogniAgent):
     """
@@ -29,12 +32,13 @@ class GitCogniAgent(CogniAgent):
     using the git-cogni spirit guide to provide structured feedback.
     """
     
-    def __init__(self, agent_root: Path):
+    def __init__(self, agent_root: Path, external_logger=None):
         """
         Initialize a new GitCogniAgent.
         
         Args:
             agent_root: Root directory for agent outputs
+            external_logger: Optional external logger (like Prefect's) to use instead of module logger
         """
         super().__init__(
             name="git-cogni",
@@ -42,6 +46,7 @@ class GitCogniAgent(CogniAgent):
             agent_root=agent_root
         )
         self.openai_client = None
+        self.logger = external_logger or logger
 
     def _initialize_client(self):
         """Initialize OpenAI client if not already initialized."""
@@ -50,7 +55,11 @@ class GitCogniAgent(CogniAgent):
 
     def load_core_context(self):
         """Load core context from charter, manifesto, etc."""
+        self.logger.info("Loading core context documents")
         self.core_context = get_core_documents()
+        if self.core_context and 'metadata' in self.core_context:
+            document_count = len(self.core_context['metadata'].get('documents', []))
+            self.logger.info(f"Loaded {document_count} core context documents")
 
     def parse_pr_url(self, pr_url):
         """
@@ -278,6 +287,16 @@ class GitCogniAgent(CogniAgent):
         pr_info = pr_data['pr_info']
         branch_info = pr_data['branch_info']
         
+        # Log the PR data for debugging
+        self.logger.info(f"REVIEW DATA: {json.dumps({
+            'pr_owner': pr_info['owner'],
+            'pr_repo': pr_info['repo'],
+            'pr_number': pr_info['number'],
+            'commit_count': len(commits),
+            'source_branch': branch_info['source_branch'],
+            'target_branch': branch_info['target_branch']
+        }, indent=2)}")
+        
         # Create output structure
         review_results = {
             "pr_info": {
@@ -294,12 +313,21 @@ class GitCogniAgent(CogniAgent):
         
         # 2. Process each commit with individual prompts
         for i, commit in enumerate(commits):
+            self.logger.info(f"Reviewing commit {i+1}/{len(commits)}: {commit['short_sha']} - {commit['message']}")
+            
+            # Log file count and diff size for monitoring
+            self.logger.info(f"COMMIT STATS: {json.dumps({
+                'commit_sha': commit['short_sha'],
+                'files_count': commit['files_count'],
+                'diff_length': commit['diff_length']
+            }, indent=2)}")
+            
             # Limit patch sizes to avoid token limits
             limited_files = []
             for file in commit['files']:
                 file_copy = file.copy()
                 if 'patch' in file_copy:
-                    file_copy['patch'] = file_copy['patch'][:1500]  # Limit patch size
+                    file_copy['patch'] = file_copy['patch'][:500]  # Limit patch size to 500 chars (reduced from 1500)
                 limited_files.append(file_copy)
             
             # Create prompt for this commit
@@ -315,13 +343,14 @@ class GitCogniAgent(CogniAgent):
             Details:
             {json.dumps(limited_files, indent=2)}
             
-            Provide a brief, structured review of this commit focusing on:
+            Provide a CONCISE and BRIEF, structured review of this commit focusing on:
             1. Code quality and simplicity
             2. Clear alignment between code and commit message
             2. Potential issues
             3. Suggestions for improvement
             4. Rating (1-5 stars)
             
+            Be very concise and specifically actionable. Limit your response to 100 words maximum.
             Format your response in markdown.
             """
             
@@ -335,6 +364,10 @@ class GitCogniAgent(CogniAgent):
             
             # Extract content
             commit_review = extract_content(response)
+            self.logger.info(f"Completed review of commit {commit['short_sha']}")
+            
+            # Add the requested logging for individual commit reviews
+            self.logger.info(f"COMMIT REVIEW ({commit['short_sha']}): {json.dumps({'review': commit_review}, indent=2)}")
             
             # Store the review
             review_results["commit_reviews"].append({
@@ -344,10 +377,18 @@ class GitCogniAgent(CogniAgent):
             })
         
         # 3. Final prompt - create a verdict based on all reviews
+        self.logger.info(f"Generating final verdict for PR #{pr_info['number']}")
         all_reviews = "\n\n".join([
             f"## Commit {item['commit_sha']}: {item['commit_message']}\n{item['review']}"
             for item in review_results["commit_reviews"]
         ])
+        
+        # Log the size of the reviews for debugging token limits
+        self.logger.info(f"VERDICT INPUT STATS: {json.dumps({
+            'review_count': len(review_results['commit_reviews']),
+            'combined_reviews_length': len(all_reviews),
+            'average_review_length': int(len(all_reviews) / max(1, len(review_results['commit_reviews'])))
+        }, indent=2)}")
         
         final_prompt = f"""
         You have reviewed all commits in PR #{pr_info['number']} in {pr_info['owner']}/{pr_info['repo']}.
@@ -427,7 +468,10 @@ class GitCogniAgent(CogniAgent):
         Returns:
             Dictionary with review results
         """
+        self.logger.info(f"Starting review for PR: {pr_url}")
         self.load_core_context()
+        
+        self.logger.info("Preparing input data")
         input_data = self.prepare_input(pr_url)
         
         if not input_data["pr_info"]["success"]:
@@ -436,6 +480,7 @@ class GitCogniAgent(CogniAgent):
                 "error": f"Failed to parse PR URL: {input_data['pr_info']['error']}",
                 "pr_url": pr_url
             }
+            self.logger.error(f"Failed to parse PR URL: {input_data['pr_info']['error']}")
             self.record_action(error_result, subdir="errors")
             return error_result
             
@@ -445,6 +490,7 @@ class GitCogniAgent(CogniAgent):
                 "error": f"Failed to get branch info: {input_data['branches']['error']}",
                 "pr_url": pr_url
             }
+            self.logger.error(f"Failed to get branch info: {input_data['branches']['error']}")
             self.record_action(error_result, subdir="errors")
             return error_result
             
@@ -454,10 +500,12 @@ class GitCogniAgent(CogniAgent):
                 "error": f"Failed to get commit info: {input_data['commits']['error']}",
                 "pr_url": pr_url
             }
+            self.logger.error(f"Failed to get commit info: {input_data['commits']['error']}")
             self.record_action(error_result, subdir="errors")
             return error_result
         
         # All checks passed, proceed with review
+        self.logger.info(f"Starting review with {len(input_data['commits']['commits'])} commits")
         results = self.act(input_data)
         
         # Create a prefix based on the verdict and PR info
@@ -475,11 +523,14 @@ class GitCogniAgent(CogniAgent):
                 verdict = "comment"
                 
             prefix = f"{pr_info['owner']}_{pr_info['repo']}_{pr_info['number']}_{verdict}_"
+            self.logger.info(f"Review complete with verdict: {verdict}")
         
         # Save the review results using the parent class's record_action method
+        self.logger.info("Saving review results")
         review_file = self.record_action(results, subdir="reviews", prefix=prefix)
         
         # Add the file path to the results
         results["review_file"] = str(review_file)
+        self.logger.info(f"Results saved to {review_file}")
         
         return results 

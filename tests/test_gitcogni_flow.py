@@ -226,6 +226,17 @@ class TestGitCogniFlow(unittest.TestCase):
         """Test the entire flow with mocked GitHub data"""
         # Mock GitCogniAgent instance
         mock_agent = mock_agent_class.return_value
+        
+        # Mock the parse_pr_url method to return success
+        mock_agent.parse_pr_url.return_value = {
+            "owner": "test-owner",
+            "repo": "test-repo",
+            "number": 123,
+            "success": True,
+            "error": None
+        }
+        
+        # Mock the review_and_save method
         mock_agent.review_and_save.return_value = {
             "pr_info": {
                 "owner": "test-owner",
@@ -244,8 +255,11 @@ class TestGitCogniFlow(unittest.TestCase):
         pr_url = "https://github.com/test-owner/test-repo/pull/123"
         message, pr_data = gitcogni_review_flow(pr_url=pr_url)
         
-        # Verify GitCogniAgent initialization and review_and_save call
+        # Verify GitCogniAgent initialization and parse_pr_url call
         mock_agent_class.assert_called_once()
+        mock_agent.parse_pr_url.assert_called_once_with(pr_url)
+        
+        # Verify review_and_save was called
         mock_agent.review_and_save.assert_called_once_with(pr_url)
         
         # Verify basic structure of the returned data

@@ -4,6 +4,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 from prefect import task, flow, get_run_logger
 from pathlib import Path
+import json
 from cogni_agents.git_cogni.git_cogni import GitCogniAgent
 
 @flow(name="gitcogni-review-flow")
@@ -32,11 +33,19 @@ def gitcogni_review_flow(pr_url=None):
     logger.info("Initializing GitCogniAgent...")
     base_path = Path(__file__).resolve().parent.parent.parent
     agent_root = base_path / "cogni_agents" / "git_cogni"
-    agent = GitCogniAgent(agent_root=agent_root)
+    agent = GitCogniAgent(agent_root=agent_root, external_logger=logger)
     
     # Run the review process using the agent
     logger.info(f"Reviewing PR: {pr_url}")
     try:
+        # Parse PR info first to provide early logging
+        pr_parsed = agent.parse_pr_url(pr_url)
+        if pr_parsed["success"]:
+            logger.info(f"PR INFO: {json.dumps(pr_parsed, indent=2)}")
+        else:
+            logger.error(f"Error parsing PR URL: {pr_parsed['error']}")
+            return f"Error parsing PR URL: {pr_parsed['error']}", None
+
         # The review_and_save method handles everything:
         # - Parsing the PR URL
         # - Getting branch and commit information
@@ -50,6 +59,20 @@ def gitcogni_review_flow(pr_url=None):
             error_message = review_results["error"]
             logger.error(f"Error during review: {error_message}")
             return f"Error: {error_message}", None
+        
+        # Log structured data about the review
+        if "commit_reviews" in review_results:
+            review_stats = {
+                "commits_reviewed": len(review_results["commit_reviews"]),
+                "commit_shas": [c["commit_sha"] for c in review_results["commit_reviews"]],
+                "review_file": review_results.get("review_file", "Unknown")
+            }
+            logger.info(f"REVIEW STATS: {json.dumps(review_stats, indent=2)}")
+            
+            # Log verdict summary if available
+            if "final_verdict" in review_results:
+                verdict_summary = review_results["final_verdict"][:200] + "..." if len(review_results["final_verdict"]) > 200 else review_results["final_verdict"]
+                logger.info(f"VERDICT SUMMARY: {json.dumps({'verdict': verdict_summary}, indent=2)}")
         
         # Success!
         logger.info(f"PR review completed successfully")
