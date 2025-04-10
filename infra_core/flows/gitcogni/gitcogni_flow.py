@@ -8,7 +8,7 @@ import json
 from cogni_agents.git_cogni.git_cogni import GitCogniAgent
 
 @flow(name="gitcogni-review-flow")
-def gitcogni_review_flow(pr_url=None):
+def gitcogni_review_flow(pr_url=None, test_mode=False):
     """
     GitCogni PR review flow.
     
@@ -17,6 +17,7 @@ def gitcogni_review_flow(pr_url=None):
     
     Args:
         pr_url: GitHub PR URL to review
+        test_mode: Whether to clean up created files after successful execution
         
     Returns:
         tuple: (status message, review results)
@@ -35,6 +36,9 @@ def gitcogni_review_flow(pr_url=None):
     agent_root = base_path / "cogni_agents" / "git_cogni"
     agent = GitCogniAgent(agent_root=agent_root, external_logger=logger)
     
+    if test_mode:
+        logger.info("Running in test mode - files will be cleaned up after successful execution")
+    
     # Run the review process using the agent
     logger.info(f"Reviewing PR: {pr_url}")
     try:
@@ -52,7 +56,8 @@ def gitcogni_review_flow(pr_url=None):
         # - Loading the core context and spirit guide
         # - Performing the actual review
         # - Saving the results to the agent's reviews directory
-        review_results = agent.review_and_save(pr_url)
+        # - Cleaning up files if test_mode is enabled
+        review_results = agent.review_and_save(pr_url, test_mode=test_mode)
         
         # Check for errors
         if "error" in review_results:
@@ -72,7 +77,10 @@ def gitcogni_review_flow(pr_url=None):
             # Log verdict summary if available
             if "final_verdict" in review_results:
                 verdict_summary = review_results["final_verdict"][:200] + "..." if len(review_results["final_verdict"]) > 200 else review_results["final_verdict"]
-                logger.info(f"VERDICT SUMMARY: {json.dumps({'verdict': verdict_summary}, indent=2)}")
+                
+                # Use verdict_decision field if available
+                decision = review_results.get("verdict_decision", agent.get_verdict_from_text(review_results["final_verdict"]))
+                logger.info(f"VERDICT SUMMARY: {json.dumps({'verdict': verdict_summary, 'decision': decision}, indent=2)}")
         
         # Success!
         logger.info(f"PR review completed successfully")
@@ -104,14 +112,15 @@ if __name__ == "__main__":
     if review_results:
         print(f"Review completed with {len(review_results.get('commit_reviews', []))} commits analyzed")
         
-        if review_results.get("final_verdict"):
-            verdict = review_results["final_verdict"]
-            # Extract decision using simple string search
-            if "APPROVE" in verdict:
-                decision = "APPROVE"
-            elif "REQUEST_CHANGES" in verdict:
-                decision = "REQUEST CHANGES"
-            else:
-                decision = "COMMENT"
-            
-            print(f"Final verdict: {decision}")
+        # Use verdict_decision field if available, or get it from the agent helper
+        if "verdict_decision" in review_results:
+            decision = review_results["verdict_decision"]
+        elif review_results.get("final_verdict"):
+            # Get by using the agent's helper method to provide consistent extraction
+            agent_root = Path(os.path.dirname(os.path.abspath(__file__))).parent.parent / "cogni_agents" / "git_cogni"
+            agent = GitCogniAgent(agent_root=agent_root)
+            decision = agent.get_verdict_from_text(review_results["final_verdict"])
+        else:
+            decision = "UNKNOWN"
+        
+        print(f"Final verdict: {decision}")

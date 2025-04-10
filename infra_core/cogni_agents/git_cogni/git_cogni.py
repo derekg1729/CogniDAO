@@ -21,7 +21,7 @@ from infra_core.cogni_spirit.context import get_core_documents, get_guide_for_ta
 from infra_core.openai_handler import initialize_openai_client, create_completion, extract_content
 from github import Github
 
-# Setup logger
+# Setup base logger
 logger = logging.getLogger(__name__)
 
 class GitCogniAgent(CogniAgent):
@@ -47,6 +47,111 @@ class GitCogniAgent(CogniAgent):
         )
         self.openai_client = None
         self.logger = external_logger or logger
+        self._instrumented = False
+        self.created_files = []  # Track files created by this agent instance
+    
+    @staticmethod
+    def setup_logging(verbose=False):
+        """
+        Setup logging for GitCogni with structured formatting.
+        
+        Args:
+            verbose: Whether to show verbose logs
+            
+        Returns:
+            logger: Configured logger
+        """
+        level = logging.INFO
+        
+        # Create custom formatter that highlights important information
+        class HighlightFormatter(logging.Formatter):
+            """Custom formatter that highlights JSON data"""
+            def format(self, record):
+                msg = super().format(record)
+                # Check if the message contains JSON data indicators
+                if any(marker in msg for marker in ["REVIEW DATA:", "COMMIT STATS:", "VERDICT INPUT STATS:", "VERDICT:", "TOKEN MONITOR"]):
+                    # Add emphasis with newlines and asterisks for important data
+                    return f"\n*{'*' * 80}\n{msg}\n{'*' * 80}*\n"
+                return msg
+        
+        # Configure root logger with both console handlers
+        root_logger = logging.getLogger()
+        root_logger.setLevel(level)
+        
+        # Clear existing handlers to avoid duplicate logs
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+        
+        # Create console handler with formatting
+        console = logging.StreamHandler()
+        console.setLevel(level)
+        
+        # Standard formatter for regular mode
+        formatter = logging.Formatter('%(levelname)-8s | %(message)s')
+        console.setFormatter(formatter)
+        
+        # Create a second handler for highlighted content
+        highlight_console = logging.StreamHandler()
+        highlight_console.setLevel(logging.INFO)  # Always show important info
+        highlight_formatter = HighlightFormatter('%(levelname)-8s | %(message)s')
+        highlight_console.setFormatter(highlight_formatter)
+        
+        # Add handlers to root logger
+        root_logger.addHandler(console)
+        root_logger.addHandler(highlight_console)
+        
+        # Suppress excessive logging from libraries
+        logging.getLogger('httpcore').setLevel(logging.WARNING)
+        logging.getLogger('httpx').setLevel(logging.WARNING)
+        logging.getLogger('github').setLevel(logging.WARNING)
+        logging.getLogger('urllib3').setLevel(logging.WARNING)
+        logging.getLogger('websockets').setLevel(logging.WARNING)
+        logging.getLogger('openai').setLevel(logging.WARNING)
+        logging.getLogger('graphviz').setLevel(logging.WARNING)
+        logging.getLogger('asyncio').setLevel(logging.WARNING)
+        
+        # If verbose is False, also limit prefect logs
+        if not verbose:
+            logging.getLogger('prefect').setLevel(logging.WARNING)
+        
+        # Make sure the agent module logger will use root handlers
+        agent_logger = logging.getLogger('infra_core.cogni_agents.git_cogni.git_cogni')
+        agent_logger.handlers = []  # Clear any existing handlers
+        agent_logger.propagate = True  # Ensure it uses the root logger's handlers
+        
+        # Return the agent logger for use
+        return logging.getLogger('gitcogni')
+    
+    def monitor_token_usage(self, operation, data):
+        """
+        Log information about operations with potential token usage.
+        
+        Args:
+            operation: Name of the operation being monitored
+            data: Data whose token usage is being monitored
+        """
+        if isinstance(data, str):
+            char_length = len(data)
+            word_count = len(data.split())
+            self.logger.info(f"TOKEN MONITOR | {operation} | ~{word_count} words, {char_length} chars")
+    
+    def get_verdict_from_text(self, verdict_text):
+        """
+        Extract the final decision from verdict text.
+        
+        Args:
+            verdict_text: The full verdict text to analyze
+            
+        Returns:
+            str: Final decision (APPROVE, REQUEST_CHANGES, or COMMENT)
+        """
+        # Standard decision mapping
+        if "APPROVE" in verdict_text:
+            return "APPROVE"
+        elif "REQUEST_CHANGES" in verdict_text:
+            return "REQUEST_CHANGES" 
+        else:
+            return "COMMENT"
 
     def _initialize_client(self):
         """Initialize OpenAI client if not already initialized."""
@@ -58,7 +163,11 @@ class GitCogniAgent(CogniAgent):
         self.logger.info("Loading core context documents")
         self.core_context = get_core_documents()
         if self.core_context and 'metadata' in self.core_context:
-            document_count = len(self.core_context['metadata'].get('documents', []))
+            # Count documents from core_docs dictionary
+            metadata = self.core_context['metadata']
+            document_count = len(metadata.get('core_docs', {}))
+            if 'core_spirit' in metadata:
+                document_count += 1
             self.logger.info(f"Loaded {document_count} core context documents")
 
     def parse_pr_url(self, pr_url):
@@ -311,6 +420,18 @@ class GitCogniAgent(CogniAgent):
             "timestamp": datetime.now().isoformat()
         }
         
+        # Monitor input context size
+        self.monitor_token_usage("git_cogni_context", git_cogni_context)
+        
+        # Log PR data stats
+        if commits:
+            commit_stats = {
+                "commit_count": len(commits),
+                "total_files": sum(c.get("files_count", 0) for c in commits),
+                "total_diff_length": sum(c.get("diff_length", 0) for c in commits)
+            }
+            self.logger.info(f"REVIEW INPUT STATS: {json.dumps(commit_stats, indent=2)}")
+        
         # 2. Process each commit with individual prompts
         for i, commit in enumerate(commits):
             self.logger.info(f"Reviewing commit {i+1}/{len(commits)}: {commit['short_sha']} - {commit['message']}")
@@ -354,6 +475,9 @@ class GitCogniAgent(CogniAgent):
             Format your response in markdown.
             """
             
+            # Monitor prompt size
+            self.monitor_token_usage(f"commit_prompt_{commit['short_sha']}", commit_prompt)
+            
             # Call OpenAI API for this commit, including git-cogni context on all calls
             response = create_completion(
                 client=client,
@@ -365,6 +489,9 @@ class GitCogniAgent(CogniAgent):
             # Extract content
             commit_review = extract_content(response)
             self.logger.info(f"Completed review of commit {commit['short_sha']}")
+            
+            # Monitor response size
+            self.monitor_token_usage(f"commit_review_{commit['short_sha']}", commit_review)
             
             # Add the requested logging for individual commit reviews
             self.logger.info(f"COMMIT REVIEW ({commit['short_sha']}): {json.dumps({'review': commit_review}, indent=2)}")
@@ -390,6 +517,9 @@ class GitCogniAgent(CogniAgent):
             'average_review_length': int(len(all_reviews) / max(1, len(review_results['commit_reviews'])))
         }, indent=2)}")
         
+        # Monitor combined reviews size
+        self.monitor_token_usage("combined_reviews", all_reviews)
+        
         final_prompt = f"""
         You have reviewed all commits in PR #{pr_info['number']} in {pr_info['owner']}/{pr_info['repo']}.
         Source Branch: {branch_info['source_branch']}
@@ -408,6 +538,9 @@ class GitCogniAgent(CogniAgent):
         Format your verdict as markdown with clear sections.
         """
         
+        # Monitor final prompt size
+        self.monitor_token_usage("final_prompt", final_prompt)
+        
         # Call OpenAI for final verdict
         final_response = create_completion(
             client=client,
@@ -419,8 +552,14 @@ class GitCogniAgent(CogniAgent):
         # Extract final verdict
         final_verdict = extract_content(final_response)
         
+        # Monitor final verdict size
+        self.monitor_token_usage("final_verdict", final_verdict)
+        
         # Add to results
         review_results["final_verdict"] = final_verdict
+        
+        # Add the verdict decision to results
+        review_results["verdict_decision"] = self.get_verdict_from_text(final_verdict)
         
         return review_results
 
@@ -458,12 +597,13 @@ class GitCogniAgent(CogniAgent):
         
         return review_results
 
-    def review_and_save(self, pr_url: str) -> Dict[str, Any]:
+    def review_and_save(self, pr_url: str, test_mode: bool = False) -> Dict[str, Any]:
         """
         Top-level utility: load context, prepare input, act, and save results.
         
         Args:
             pr_url: GitHub PR URL to review
+            test_mode: Whether to clean up files after successful execution
             
         Returns:
             Dictionary with review results
@@ -513,17 +653,21 @@ class GitCogniAgent(CogniAgent):
         if "final_verdict" in results and "pr_info" in results:
             pr_info = results["pr_info"]
             
-            # Extract verdict (approve, changes, or comment)
-            verdict = "unknown"
-            if "APPROVE" in results["final_verdict"]:
-                verdict = "approve"
-            elif "REQUEST_CHANGES" in results["final_verdict"]:
-                verdict = "changes"
+            # Use the verdict_decision field if available, otherwise extract from text
+            if "verdict_decision" in results:
+                decision = results["verdict_decision"].lower()
             else:
-                verdict = "comment"
+                # Legacy fallback - extract verdict (approve, changes, or comment)
+                verdict_text = results["final_verdict"]
+                if "APPROVE" in verdict_text:
+                    decision = "approve"
+                elif "REQUEST_CHANGES" in verdict_text:
+                    decision = "changes"
+                else:
+                    decision = "comment"
                 
-            prefix = f"{pr_info['owner']}_{pr_info['repo']}_{pr_info['number']}_{verdict}_"
-            self.logger.info(f"Review complete with verdict: {verdict}")
+            prefix = f"{pr_info['owner']}_{pr_info['repo']}_{pr_info['number']}_{decision}_"
+            self.logger.info(f"Review complete with verdict: {decision}")
         
         # Save the review results using the parent class's record_action method
         self.logger.info("Saving review results")
@@ -533,4 +677,51 @@ class GitCogniAgent(CogniAgent):
         results["review_file"] = str(review_file)
         self.logger.info(f"Results saved to {review_file}")
         
-        return results 
+        # If test mode is enabled, clean up the files
+        if test_mode:
+            self.logger.info("Test mode active - cleaning up created files")
+            count = self.cleanup_files()
+            self.logger.info(f"Cleaned up {count} files")
+        
+        return results
+
+    def record_action(self, output: Dict[str, Any], subdir: str = None, prefix: str = None) -> Path:
+        """
+        Override record_action to track created files.
+        
+        Args:
+            output: Data to save
+            subdir: Subdirectory within agent_root to save to
+            prefix: Optional prefix for the filename
+            
+        Returns:
+            Path to the saved file
+        """
+        # Call parent class method to save the file
+        output_path = super().record_action(output, subdir, prefix)
+        
+        # Track the created file
+        self.created_files.append(output_path)
+        
+        return output_path
+        
+    def cleanup_files(self):
+        """
+        Clean up all files created by this agent instance.
+        
+        Returns:
+            int: Number of files removed
+        """
+        count = 0
+        for file_path in self.created_files:
+            try:
+                if file_path.exists():
+                    file_path.unlink()
+                    count += 1
+            except Exception as e:
+                self.logger.warning(f"Failed to remove file {file_path}: {str(e)}")
+        
+        self.logger.info(f"Cleaned up {count} files in test mode")
+        self.created_files = []  # Reset the list
+        
+        return count 

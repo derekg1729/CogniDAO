@@ -15,7 +15,7 @@ Expand test coverage for GitCogni components to address the consistent issue ide
 - [ ] Create CI pipeline for automated test execution
 
 ## Notes
-The GitCogni self-review of PR #4 identified "lack of corresponding tests" as a consistent issue across multiple commits. This violates the core directive that untested code is untrusted code.
+The GitCogni self-review of #PR_4 identified "lack of corresponding tests" as a consistent issue across multiple commits. This violates the core directive that untested code is untrusted code.
 
 Key areas requiring test coverage:
 1. The OpenAI integration for both commit reviews and final verdict

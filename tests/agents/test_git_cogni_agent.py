@@ -280,6 +280,55 @@ class TestGitCogniAgent(unittest.TestCase):
         # Verify error result was returned
         self.assertEqual(result["error"], "Failed to get commit info: Failed to get commit data")
 
+    def test_cleanup_files(self):
+        """Test cleaning up created files"""
+        # Set up mock files
+        mock_file1 = MagicMock()
+        mock_file1.exists.return_value = True
+        mock_file2 = MagicMock() 
+        mock_file2.exists.return_value = True
+        mock_file3 = MagicMock()
+        mock_file3.exists.return_value = True
+        
+        # Add files to the agent's tracking list
+        self.agent.created_files = [mock_file1, mock_file2, mock_file3]
+        
+        # Call the cleanup method
+        count = self.agent.cleanup_files()
+        
+        # Verify all files were deleted
+        self.assertEqual(count, 3)
+        mock_file1.unlink.assert_called_once()
+        mock_file2.unlink.assert_called_once()
+        mock_file3.unlink.assert_called_once()
+        
+        # Verify the created_files list was reset
+        self.assertEqual(len(self.agent.created_files), 0)
+    
+    def test_cleanup_files_with_errors(self):
+        """Test cleaning up files with some errors"""
+        # Set up mock files
+        mock_file1 = MagicMock()
+        mock_file1.exists.return_value = True
+        mock_file1.unlink.side_effect = Exception("Permission denied")
+        
+        mock_file2 = MagicMock()
+        mock_file2.exists.return_value = True
+        
+        # Add files to the agent's tracking list
+        self.agent.created_files = [mock_file1, mock_file2]
+        
+        # Call the cleanup method
+        count = self.agent.cleanup_files()
+        
+        # Verify only one file was successfully deleted
+        self.assertEqual(count, 1)
+        mock_file1.unlink.assert_called_once()
+        mock_file2.unlink.assert_called_once()
+        
+        # Verify the created_files list was reset
+        self.assertEqual(len(self.agent.created_files), 0)
+
 
 if __name__ == "__main__":
     unittest.main() 

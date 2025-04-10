@@ -14,9 +14,14 @@ if __name__ == "__main__":
         work_pool_name="cogni-pool",
         tags=["cogni", "git"],
         description="GitCogni: Review PRs and commits with AI pedantry",
+        parameters={
+            "pr_url": None,  # Required parameter
+            "test_mode": False  # Optional parameter, default to False
+        }
     )
     
     print("Deployment complete!")
     print("To run, use: prefect deployment run 'gitcogni-review-flow/gitcogni-review'")
     print("Parameter options:")
     print("  --param pr_url='https://github.com/owner/repo/pull/123'  # Required: GitHub PR URL to review")
+    print("  --param test_mode=true                                   # Optional: Clean up files after execution")
