@@ -62,20 +62,24 @@ def main():
             sys.exit(1)
         
         # Print success info
-        if "verdict" in result:
-            print(f"Review completed.")
+        print(f"Review completed.")
+        
+        # Extract decision
+        verdict = result["final_verdict"]
+        if "APPROVE" in verdict:
+            decision = "APPROVE"
+        elif "REQUEST_CHANGES" in verdict:
+            decision = "REQUEST CHANGES"
+        else:
+            decision = "COMMENT"
             
-            # Extract decision
-            verdict = result["final_verdict"]
-            if "APPROVE" in verdict:
-                decision = "APPROVE"
-            elif "REQUEST_CHANGES" in verdict:
-                decision = "REQUEST CHANGES"
-            else:
-                decision = "COMMENT"
-                
-            print(f"Verdict: {decision}")
-            print(f"Results saved in {agent_root}/reviews/ and {agent_root}/summaries/")
+        print(f"Verdict: {decision}")
+        
+        # Show detailed review file location
+        if "details_file" in result:
+            print(f"Detailed review saved to: {result['details_file']}")
+        else:
+            print(f"Review saved in: {agent_root}/reviews/")
         
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
