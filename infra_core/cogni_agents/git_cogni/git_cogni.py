@@ -1,20 +1,15 @@
+#!/usr/bin/env python
 """
-GitCogniAgent module
-
-This module provides the GitCogniAgent implementation for reviewing GitHub PRs.
+GitCogniAgent for reviewing PRs
 """
 
-import sys
 import os
-from pathlib import Path
-from typing import Dict, Any, Optional
-import re
-import json
-from datetime import datetime
 import logging
-
-# Ensure parent directory is in path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+import json
+import re
+from pathlib import Path
+from datetime import datetime
+from typing import Dict, Any, Tuple, List, Optional
 
 from infra_core.cogni_agents.base import CogniAgent
 from infra_core.cogni_spirit.context import get_core_documents, get_guide_for_task

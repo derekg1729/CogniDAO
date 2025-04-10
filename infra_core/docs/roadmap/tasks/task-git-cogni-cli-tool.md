@@ -15,6 +15,7 @@ Refactor the GitCogni CLI tool and Prefect Flow to share implementation, minimiz
 - [x] Ensure Flow uses the same agent methods as CLI
 - [x] Add tests for shared functionality
 - [x] Document unified approach for future enhancements
+- [x] Remove duplicate logging from CLI
 
 ## Notes
 The refactoring has been completed with the following improvements:
@@ -26,6 +27,7 @@ The refactoring has been completed with the following improvements:
 5. Updated Prefect Flow to use the same verdict extraction method
 6. Added tests for the CLI tool
 7. Ensured consistent behavior across CLI and Flow interfaces
+8. Removed duplicate logging from CLI to make it a truly thin wrapper
 
 The unified approach ensures that all functionality, logging, monitoring, and error handling are handled consistently regardless of whether GitCogni is invoked via CLI or Prefect Flow. This will make future maintenance and enhancements much easier.
 

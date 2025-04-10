@@ -64,10 +64,6 @@ def main():
     # Setup logging using agent's method (this returns a logger)
     logger = GitCogniAgent.setup_logging(verbose)
     
-    logger.info(f"Starting PR review: {pr_url}")
-    if test_mode:
-        logger.info("Running in test mode - files will be cleaned up after successful execution")
-    
     # Setup agent
     agent_root = Path(os.path.dirname(os.path.abspath(__file__)))
     agent = GitCogniAgent(agent_root=agent_root)
@@ -79,17 +75,8 @@ def main():
         
         # Check for errors
         if "error" in result:
-            logger.error(f"Review failed: {result['error']}")
             print(f"Error: {result['error']}")
             sys.exit(1)
-        
-        # Log commit stats
-        if "commit_reviews" in result:
-            commit_stats = {
-                "commit_count": len(result["commit_reviews"]),
-                "commit_shas": [c["commit_sha"] for c in result["commit_reviews"]]
-            }
-            logger.info(f"COMMIT STATS: {json.dumps(commit_stats, indent=2)}")
         
         # Get decision using agent's helper
         if "verdict_decision" in result:
@@ -98,8 +85,7 @@ def main():
             # Fallback to helper method
             decision = agent.get_verdict_from_text(result.get("final_verdict", ""))
             
-        # Print final results (not logged)
-        logger.info(f"VERDICT: {decision}")
+        # Print final results
         print("-" * 80)
         print(f"PR Review completed: {decision}")
         
@@ -109,7 +95,6 @@ def main():
         print("-" * 80)
         
     except Exception as e:
-        logger.exception(f"Unexpected error during review process")
         print(f"Unexpected error: {str(e)}")
         sys.exit(1)
 
