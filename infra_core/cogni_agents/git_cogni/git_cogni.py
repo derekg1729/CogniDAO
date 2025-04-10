@@ -460,8 +460,24 @@ class GitCogniAgent(CogniAgent):
         # All checks passed, proceed with review
         results = self.act(input_data)
         
+        # Create a prefix based on the verdict and PR info
+        prefix = ""
+        if "final_verdict" in results and "pr_info" in results:
+            pr_info = results["pr_info"]
+            
+            # Extract verdict (approve, changes, or comment)
+            verdict = "unknown"
+            if "APPROVE" in results["final_verdict"]:
+                verdict = "approve"
+            elif "REQUEST_CHANGES" in results["final_verdict"]:
+                verdict = "changes"
+            else:
+                verdict = "comment"
+                
+            prefix = f"{pr_info['owner']}_{pr_info['repo']}_{pr_info['number']}_{verdict}_"
+        
         # Save the review results using the parent class's record_action method
-        review_file = self.record_action(results, subdir="reviews")
+        review_file = self.record_action(results, subdir="reviews", prefix=prefix)
         
         # Add the file path to the results
         results["review_file"] = str(review_file)

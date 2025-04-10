@@ -65,16 +65,17 @@ class CogniAgent(ABC):
         """
         pass
 
-    def record_action(self, output: Dict[str, Any], subdir: str = "sessions"):
+    def record_action(self, output: Dict[str, Any], subdir: str = "sessions", prefix: str = ""):
         """
         Record the agent's action output to a markdown file.
         
         Args:
             output: Dictionary of output data
             subdir: Subdirectory to save the output in (e.g., 'sessions', 'reviews')
+            prefix: Optional prefix to add to the filename
         """
         timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H-%M-%S")
-        output_path = self.agent_root / subdir / f"{timestamp}.md"
+        output_path = self.agent_root / subdir / f"{prefix}{timestamp}.md"
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(self.format_output_markdown(output))
         return output_path
