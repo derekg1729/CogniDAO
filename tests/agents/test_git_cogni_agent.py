@@ -8,7 +8,7 @@ from datetime import datetime
 # Ensure parent directory is in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from infra_core.cogni_agents.git_cogni import GitCogniAgent
+from infra_core.cogni_agents.git_cogni.git_cogni import GitCogniAgent
 
 
 class TestGitCogniAgent(unittest.TestCase):
@@ -35,7 +35,7 @@ class TestGitCogniAgent(unittest.TestCase):
             # Store the mock for verification
             self.mock_path_class = mock_path_class
     
-    @patch('infra_core.cogni_agents.git_cogni.initialize_openai_client')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.initialize_openai_client')
     def test_initialize_client(self, mock_init_client):
         """Test OpenAI client initialization"""
         # Set up mock
@@ -53,7 +53,7 @@ class TestGitCogniAgent(unittest.TestCase):
         self.agent._initialize_client()
         mock_init_client.assert_not_called()
     
-    @patch('infra_core.cogni_agents.git_cogni.get_core_documents')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.get_core_documents')
     def test_load_core_context(self, mock_get_core):
         """Test loading core context documents"""
         # Set up mock
@@ -65,10 +65,10 @@ class TestGitCogniAgent(unittest.TestCase):
         mock_get_core.assert_called_once()
         self.assertEqual(self.agent.core_context, mock_context)
     
-    @patch('infra_core.cogni_agents.git_cogni.prepare_pr_data')
-    @patch('infra_core.cogni_agents.git_cogni.get_pr_commits')
-    @patch('infra_core.cogni_agents.git_cogni.get_pr_branches')
-    @patch('infra_core.cogni_agents.git_cogni.parse_pr_url')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.prepare_pr_data')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.get_pr_commits')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.get_pr_branches')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.parse_pr_url')
     def test_prepare_input(self, mock_parse, mock_branches, mock_commits, mock_prepare):
         """Test prepare_input method with successful PR data retrieval"""
         # Set up mocks
@@ -100,9 +100,9 @@ class TestGitCogniAgent(unittest.TestCase):
         self.assertEqual(result["commits"], mock_commit_info)
         self.assertEqual(result["pr_data"], mock_pr_data)
     
-    @patch('infra_core.cogni_agents.git_cogni.initialize_openai_client')
-    @patch('infra_core.cogni_agents.git_cogni.get_guide_for_task')
-    @patch('infra_core.cogni_agents.git_cogni.git_cogni_review')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.initialize_openai_client')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.get_guide_for_task')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.git_cogni_review')
     def test_act(self, mock_review, mock_get_guide, mock_init_client):
         """Test act method with PR review flow"""
         # Set up mocks
@@ -155,10 +155,10 @@ class TestGitCogniAgent(unittest.TestCase):
         self.assertEqual(result["summary"], "Good PR")
         self.assertEqual(result["commit_reviews"], [{"sha": "abc123", "feedback": "Looks good"}])
     
-    @patch('infra_core.cogni_agents.git_cogni.GitCogniAgent.prepare_input')
-    @patch('infra_core.cogni_agents.git_cogni.GitCogniAgent.act')
-    @patch('infra_core.cogni_agents.git_cogni.GitCogniAgent.record_action')
-    @patch('infra_core.cogni_agents.git_cogni.GitCogniAgent.load_core_context')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.prepare_input')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.act')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.record_action')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.load_core_context')
     def test_review_and_save_success(self, mock_load, mock_record, mock_act, mock_prepare):
         """Test the review_and_save method with successful flow"""
         # Set up mocks
@@ -214,9 +214,9 @@ class TestGitCogniAgent(unittest.TestCase):
         # Verify result
         self.assertEqual(result, results)
     
-    @patch('infra_core.cogni_agents.git_cogni.GitCogniAgent.prepare_input')
-    @patch('infra_core.cogni_agents.git_cogni.GitCogniAgent.record_action')
-    @patch('infra_core.cogni_agents.git_cogni.GitCogniAgent.load_core_context')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.prepare_input')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.record_action')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.load_core_context')
     def test_review_and_save_pr_parse_error(self, mock_load, mock_record, mock_prepare):
         """Test the review_and_save method with PR parsing error"""
         # Set up mock with failed PR info
@@ -241,9 +241,9 @@ class TestGitCogniAgent(unittest.TestCase):
         # Verify error result was returned
         self.assertEqual(result["error"], "Failed to parse PR URL: Invalid URL format")
     
-    @patch('infra_core.cogni_agents.git_cogni.GitCogniAgent.prepare_input')
-    @patch('infra_core.cogni_agents.git_cogni.GitCogniAgent.record_action')
-    @patch('infra_core.cogni_agents.git_cogni.GitCogniAgent.load_core_context')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.prepare_input')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.record_action')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.load_core_context')
     def test_review_and_save_branch_error(self, mock_load, mock_record, mock_prepare):
         """Test the review_and_save method with branch retrieval error"""
         # Set up mock with failed branch info
@@ -268,9 +268,9 @@ class TestGitCogniAgent(unittest.TestCase):
         # Verify error result was returned
         self.assertEqual(result["error"], "Failed to get branch info: API error")
     
-    @patch('infra_core.cogni_agents.git_cogni.GitCogniAgent.prepare_input')
-    @patch('infra_core.cogni_agents.git_cogni.GitCogniAgent.record_action')
-    @patch('infra_core.cogni_agents.git_cogni.GitCogniAgent.load_core_context')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.prepare_input')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.record_action')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.load_core_context')
     def test_review_and_save_commit_error(self, mock_load, mock_record, mock_prepare):
         """Test the review_and_save method with commit retrieval error"""
         # Set up mock with failed commit info

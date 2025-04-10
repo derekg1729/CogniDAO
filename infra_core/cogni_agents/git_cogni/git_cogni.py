@@ -10,12 +10,12 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 # Ensure parent directory is in path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
-from cogni_agents.base import CogniAgent
-from cogni_spirit.context import get_core_documents, get_guide_for_task
-from openai_handler import initialize_openai_client, create_completion, extract_content
-from flows.gitcogni.gitcogni_flow import (
+from infra_core.cogni_agents.base import CogniAgent
+from infra_core.cogni_spirit.context import get_core_documents, get_guide_for_task
+from infra_core.openai_handler import initialize_openai_client, create_completion, extract_content
+from infra_core.flows.gitcogni.gitcogni_flow import (
     parse_pr_url,
     get_pr_branches,
     get_pr_commits,
