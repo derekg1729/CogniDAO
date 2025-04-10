@@ -36,5 +36,5 @@ V1 has been successfully implemented and tested, with the agent able to review P
 - [ ] Support for private repositories
 - [ ] More efficient handling of very large PRs
 - [ ] LangChain integration (if needed)
-- [ ] End-to-end integration tests
+- [x] End-to-end integration tests
 - [ ] CI pipeline for automated test execution
