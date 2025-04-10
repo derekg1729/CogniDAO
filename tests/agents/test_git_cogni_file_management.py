@@ -175,6 +175,88 @@ class TestFileManagement(unittest.TestCase):
             # Verify cleanup was called
             mock_cleanup.assert_called_once()
 
+    def test_format_output_markdown_structures_commit_reviews(self):
+        """Test that format_output_markdown properly structures commit reviews as markdown"""
+        # Sample data with commit reviews
+        test_data = {
+            "final_verdict": "This PR should be approved",
+            "pr_info": {
+                "owner": "test-owner",
+                "repo": "test-repo",
+                "number": 123
+            },
+            "commit_reviews": [
+                {
+                    "commit_sha": "abc123",
+                    "commit_message": "feat: first test commit",
+                    "review": "1. Code Quality: Good\n2. Alignment: Yes\n3. Rating: ⭐⭐⭐⭐"
+                },
+                {
+                    "commit_sha": "def456",
+                    "commit_message": "fix: second test commit",
+                    "review": "1. Code Quality: Excellent\n2. Alignment: Yes\n3. Rating: ⭐⭐⭐⭐⭐"
+                }
+            ]
+        }
+        
+        # Call the method
+        result = self.agent.format_output_markdown(test_data)
+        
+        # Print the result for inspection
+        print("\n\nGITCOGNI FORMATTED OUTPUT:")
+        print("-" * 40)
+        print(result)
+        print("-" * 40)
+        
+        # Verify the result contains expected formatting
+        self.assertIn("# CogniAgent Output — git-cogni", result)
+        self.assertIn("## final_verdict", result)
+        self.assertIn("This PR should be approved", result)
+        
+        # Verify commit reviews are structured
+        self.assertIn("## commit_reviews", result)
+        self.assertIn("### Commit abc123: feat: first test commit", result)
+        self.assertIn("### Commit def456: fix: second test commit", result)
+        
+        # Verify separator is included between commits
+        self.assertIn("---", result)
+        
+        # Verify content is preserved
+        self.assertIn("1. Code Quality: Good", result)
+        self.assertIn("1. Code Quality: Excellent", result)
+        
+        # Verify structure - make sure we don't have the raw JSON/dict format
+        self.assertNotIn("'commit_sha': 'abc123'", result)
+        self.assertNotIn("[{", result)
+
+    def test_format_output_markdown_replaces_pr_references(self):
+        """Test that format_output_markdown replaces 'PR #X' with '#PR_X' for logseq compatibility"""
+        # Sample data with PR references in text
+        test_data = {
+            "final_verdict": "This PR #123 should be approved. Changes in PR #456 were also considered.",
+            "task_description": "Reviewing PR #123 in test-owner/test-repo",
+            "pr_info": {
+                "owner": "test-owner",
+                "repo": "test-repo",
+                "number": 123
+            }
+        }
+        
+        # Call the method
+        result = self.agent.format_output_markdown(test_data)
+        
+        # Print the result for inspection
+        print("\n\nPR REFERENCE REPLACEMENT TEST:")
+        print("-" * 40)
+        print(result)
+        print("-" * 40)
+        
+        # Verify PR references are replaced with logseq-friendly format
+        self.assertIn("#PR_123", result)
+        self.assertIn("#PR_456", result)
+        self.assertNotIn("PR #123", result)
+        self.assertNotIn("PR #456", result)
+
 
 if __name__ == '__main__':
     unittest.main() 

@@ -403,6 +403,7 @@ class GitCogniAgent(CogniAgent):
         
         # Create output structure
         review_results = {
+            "final_verdict": None,
             "pr_info": {
                 "owner": pr_info['owner'],
                 "repo": pr_info['repo'],
@@ -411,7 +412,6 @@ class GitCogniAgent(CogniAgent):
                 "target_branch": branch_info['target_branch']
             },
             "commit_reviews": [],
-            "final_verdict": None,
             "timestamp": datetime.now().isoformat()
         }
         
@@ -719,4 +719,51 @@ class GitCogniAgent(CogniAgent):
         self.logger.info(f"Cleaned up {count} files in test mode")
         self.created_files = []  # Reset the list
         
-        return count 
+        return count
+
+    def format_output_markdown(self, data: Dict[str, Any]) -> str:
+        """
+        Override the base format_output_markdown to format commit reviews in a structured way.
+        
+        Args:
+            data: Dictionary of output data
+            
+        Returns:
+            Formatted markdown string
+        """
+        lines = [f"# CogniAgent Output — {self.name}", ""]
+        lines.append(f"**Generated**: {datetime.utcnow().isoformat()}")
+        lines.append("")
+        
+        for k, v in data.items():
+            if k == "commit_reviews":
+                lines.append(f"## {k}")
+                # Process each commit review as structured markdown
+                for i, review in enumerate(v):
+                    if i > 0:
+                        lines.append("\n---\n")  # Add separator between reviews
+                    
+                    # Format commit header with sha and message
+                    lines.append(f"### Commit {review['commit_sha']}: {review['commit_message']}")
+                    
+                    # Add the review content
+                    lines.append(f"{review['review']}\n")
+            elif isinstance(v, dict):
+                lines.append(f"## {k}")
+                for sub_k, sub_v in v.items():
+                    lines.append(f"**{sub_k}**:\n{sub_v}\n")
+            else:
+                lines.append(f"## {k}")
+                lines.append(f"{v}\n")
+        
+        lines.append("---")
+        lines.append(f"> Agent: {self.name}")
+        lines.append(f"> Timestamp: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        
+        # Join all lines and apply logseq-friendly replacements
+        output = "\n".join(lines)
+        
+        # Replace "PR #X" with "#PR_X" for better logseq mapping
+        output = re.sub(r"PR #(\d+)", r"#PR_\1", output)
+        
+        return output 
