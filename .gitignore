@@ -17,3 +17,6 @@ pages/
 
 # Cursor IDE files
 .cursor/ 
+
+# macOS system files
+.DS_Store
