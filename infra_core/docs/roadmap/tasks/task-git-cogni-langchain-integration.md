@@ -1,6 +1,6 @@
 # Task: Implement LangChain Integration for GitCogni
 :type: Task
-:status: todo
+:status: in_progress
 :project: [[project-git-cogni-agent]]
 :owner:
 
@@ -14,11 +14,18 @@ Create Git-specific LangChain prompts and output parsers for commit review.
 - [ ] Create final summarization chain for PR review decision
 
 ## Notes
+For the initial MVP, we are considering two approaches:
+
+1. **Direct OpenAI Integration**: A simpler approach that would directly call the OpenAI API with properly formatted prompts containing PR data and spirit context.
+
+2. **Full LangChain Integration**: The more robust but complex approach described in the action items.
+
 The focus is on crafting git-specific prompts that will enable effective code review by the LLM. Output formats will be standardized to ensure consistent, structured feedback across commits.
 
 ## Estimated Effort
-- Hours: 3
+- Hours: 3 (estimated)
+- Hours: 1-2 (for direct OpenAI integration MVP alternative)
 
 ## Dependencies
-- Python environment with LangChain installed
-- Completed spirit guide implementation
+- Python environment with required packages installed
+- Completed spirit guide implementation (✓)

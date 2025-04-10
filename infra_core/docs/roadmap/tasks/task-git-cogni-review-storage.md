@@ -16,8 +16,12 @@ Create markdown formatting for GitCogni review outputs.
 ## Notes
 Instead of implementing dedicated storage, we'll use simple in-memory data structures (lists, dictionaries) passed between Prefect tasks. The final output will be markdown text generated directly within the flow.
 
+This task is dependent on having the LLM integration (either direct OpenAI or LangChain) completed first.
+
 ## Estimated Effort
 - Hours: 1
 
 ## Dependencies
-- Completed LangChain integration
+- Completed LLM integration (Direct OpenAI or LangChain)
+- Completed commit processing (✓)
+- Completed spirit guide context (✓)
