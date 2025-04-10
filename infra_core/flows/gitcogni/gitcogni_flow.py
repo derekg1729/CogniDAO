@@ -2,10 +2,16 @@ import sys, os
 # Ensure parent directory is in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
+# Add project root directory to path for absolute imports
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from prefect import task, flow, get_run_logger
 from pathlib import Path
 import json
-from cogni_agents.git_cogni.git_cogni import GitCogniAgent
+# Import using the relative path approach, similar to ritual_of_presence.py
+from infra_core.cogni_agents.git_cogni.git_cogni import GitCogniAgent
 
 @flow(name="gitcogni-review-flow")
 def gitcogni_review_flow(pr_url=None, test_mode=False):

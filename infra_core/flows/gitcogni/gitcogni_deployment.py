@@ -1,7 +1,6 @@
 from prefect import flow
 
 # Deployment script for the GitCogni flow
-# Now with PR commit information retrieval
 if __name__ == "__main__":
     # Deploy from local source
     print("Deploying GitCogni review flow to cogni-pool...")
