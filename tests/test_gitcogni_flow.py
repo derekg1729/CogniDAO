@@ -4,11 +4,20 @@ import unittest
 from unittest.mock import patch, MagicMock, mock_open
 import json
 from datetime import datetime
+from pathlib import Path
 
 # Ensure parent directory is in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from infra_core.flows.gitcogni.gitcogni_flow import gitcogni_review_flow, parse_pr_url, get_pr_branches, get_pr_commits, prepare_pr_data
+from infra_core.flows.gitcogni.gitcogni_flow import gitcogni_review_flow
+from infra_core.cogni_agents.git_cogni.git_cogni import GitCogniAgent
+
+# Create an instance of GitCogniAgent to access its methods for testing
+_agent = GitCogniAgent(agent_root=Path("infra_core/cogni_agents/git_cogni"))
+parse_pr_url = _agent.parse_pr_url
+get_pr_branches = _agent.get_pr_branches
+get_pr_commits = _agent.get_pr_commits
+prepare_pr_data = _agent.prepare_pr_data
 
 
 class TestGitCogniFlow(unittest.TestCase):
@@ -30,7 +39,7 @@ class TestGitCogniFlow(unittest.TestCase):
         self.assertFalse(result["success"])
         self.assertEqual(result["error"], "No PR URL provided")
         
-    @patch('infra_core.flows.gitcogni.gitcogni_flow.Github')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.Github')
     def test_get_pr_branches(self, mock_github):
         """Test branch retrieval with mocked GitHub API"""
         # Setup mock
@@ -59,7 +68,7 @@ class TestGitCogniFlow(unittest.TestCase):
         mock_github.return_value.get_repo.assert_called_once_with("test-owner/test-repo")
         mock_repo.get_pull.assert_called_once_with(123)
     
-    @patch('infra_core.flows.gitcogni.gitcogni_flow.Github')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.Github')
     def test_get_pr_commits(self, mock_github):
         """Test commit retrieval with mocked GitHub data"""
         # Set up the mocks
@@ -159,7 +168,7 @@ class TestGitCogniFlow(unittest.TestCase):
         mock_repo.get_pull.assert_called_once_with(123)
         mock_pr.get_commits.assert_called_once()
     
-    @patch('infra_core.flows.gitcogni.gitcogni_flow.datetime')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.datetime')
     def test_prepare_pr_data(self, mock_datetime):
         """Test preparation of PR data structure"""
         # Mock datetime to return a fixed timestamp
@@ -211,86 +220,35 @@ class TestGitCogniFlow(unittest.TestCase):
         # Verify no data is returned
         self.assertIsNone(pr_data)
         
-    @patch('infra_core.flows.gitcogni.gitcogni_flow.prepare_pr_data')
-    @patch('infra_core.flows.gitcogni.gitcogni_flow.Github')
-    def test_gitcogni_review_flow(self, mock_github, mock_prepare_data):
+    @patch('infra_core.flows.gitcogni.gitcogni_flow.GitCogniAgent')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.Github')
+    def test_gitcogni_review_flow(self, mock_github, mock_agent_class):
         """Test the entire flow with mocked GitHub data"""
-        # Setup the mocks
-        mock_repo = mock_github.return_value.get_repo.return_value
-        mock_pr = mock_repo.get_pull.return_value
-        
-        # Set the mock values for branches
-        mock_pr.head.ref = "feature/test-branch"
-        mock_pr.base.ref = "main"
-        
-        # Mock commits
-        mock_commit = MagicMock()
-        mock_commit.sha = "abcd1234567890"
-        mock_commit.commit.message = "Test commit"
-        mock_commit.commit.author.name = "Test Author"
-        mock_commit.commit.author.date.isoformat.return_value = "2023-01-01T12:00:00Z"
-        
-        # Set up PR commits list
-        mock_pr.get_commits.return_value = [mock_commit]
-        
-        # Mock full commit objects with file patches
-        patch = "diff --git a/test.py b/test.py\n@@ -1,5 +1,10 @@\n+def new_function():\n+    return True"
-        mock_repo.get_commit.return_value = MagicMock(
-            raw_data={
-                "files": [
-                    {"filename": "test.py", "patch": patch}
-                ]
-            }
-        )
-        
-        # Mock the PR data preparation
-        mock_pr_data = {
+        # Mock GitCogniAgent instance
+        mock_agent = mock_agent_class.return_value
+        mock_agent.review_and_save.return_value = {
             "pr_info": {
                 "owner": "test-owner",
                 "repo": "test-repo",
                 "number": 123,
-                "success": True
-            },
-            "branch_info": {
                 "source_branch": "feature/test-branch",
-                "target_branch": "main",
-                "success": True
+                "target_branch": "main"
             },
-            "commit_info": {
-                "success": True,
-                "commits": [
-                    {
-                        "sha": "abcd1234567890",
-                        "short_sha": "abcd123",
-                        "message": "Test commit",
-                        "author": "Test Author",
-                        "date": "2023-01-01T12:00:00Z",
-                        "files_count": 1,
-                        "files": [
-                            {
-                                "filename": "test.py",
-                                "patch": patch
-                            }
-                        ]
-                    }
-                ]
-            },
-            "metadata": {
-                "timestamp": "2023-01-01T12:00:00",
-                "commit_count": 1
-            }
+            "commit_reviews": [{"commit_sha": "abcd123", "commit_message": "Test commit", "review": "Good code"}],
+            "final_verdict": "APPROVE",
+            "timestamp": "2023-01-01T12:00:00Z",
+            "review_file": "/path/to/review_file.md"
         }
-        mock_prepare_data.return_value = mock_pr_data
         
         # Run the flow with a mock PR URL
         pr_url = "https://github.com/test-owner/test-repo/pull/123"
         message, pr_data = gitcogni_review_flow(pr_url=pr_url)
         
-        # Assert the result matches expected output
-        expected_message = "PR #123 reviewed. Verdict: review_test-owner_test-repo_123_verdict.md, Details: review_test-owner_test-repo_123_details.md"
-        self.assertEqual(message, expected_message)
+        # Verify GitCogniAgent initialization and review_and_save call
+        mock_agent_class.assert_called_once()
+        mock_agent.review_and_save.assert_called_once_with(pr_url)
         
-        # Verify basic structure of the returned data rather than exact equality
+        # Verify basic structure of the returned data
         self.assertIsNotNone(pr_data)
         self.assertIn("pr_info", pr_data)
         self.assertIn("commit_reviews", pr_data)
@@ -303,14 +261,6 @@ class TestGitCogniFlow(unittest.TestCase):
         self.assertEqual(pr_data["pr_info"]["number"], 123)
         self.assertEqual(pr_data["pr_info"]["source_branch"], "feature/test-branch")
         self.assertEqual(pr_data["pr_info"]["target_branch"], "main")
-        
-        # Verify that the right repo and PR number were requested
-        mock_github.return_value.get_repo.assert_called_with("test-owner/test-repo")
-        mock_repo.get_pull.assert_called_with(123)
-        mock_pr.get_commits.assert_called_once()
-        
-        # Verify that prepare_pr_data was called
-        mock_prepare_data.assert_called_once()
 
 
 if __name__ == "__main__":

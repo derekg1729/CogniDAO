@@ -65,11 +65,10 @@ class TestGitCogniAgent(unittest.TestCase):
         mock_get_core.assert_called_once()
         self.assertEqual(self.agent.core_context, mock_context)
     
-    @patch('infra_core.cogni_agents.git_cogni.git_cogni.prepare_pr_data')
-    @patch('infra_core.cogni_agents.git_cogni.git_cogni.get_pr_commits')
-    @patch('infra_core.cogni_agents.git_cogni.git_cogni.get_pr_branches')
-    @patch('infra_core.cogni_agents.git_cogni.git_cogni.parse_pr_url')
-    def test_prepare_input(self, mock_parse, mock_branches, mock_commits, mock_prepare):
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.get_pr_commits')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.get_pr_branches')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.parse_pr_url')
+    def test_prepare_input(self, mock_parse, mock_branches, mock_commits):
         """Test prepare_input method with successful PR data retrieval"""
         # Set up mocks
         mock_pr_info = {"owner": "test-owner", "repo": "test-repo", "number": 123, "success": True}
@@ -81,9 +80,6 @@ class TestGitCogniAgent(unittest.TestCase):
         mock_commit_info = {"commits": [{"sha": "abcd1234"}], "success": True}
         mock_commits.return_value = mock_commit_info
         
-        mock_pr_data = {"test": "data"}
-        mock_prepare.return_value = mock_pr_data
-        
         # Test the method
         result = self.agent.prepare_input("https://github.com/test-owner/test-repo/pull/123")
         
@@ -91,18 +87,16 @@ class TestGitCogniAgent(unittest.TestCase):
         mock_parse.assert_called_once_with("https://github.com/test-owner/test-repo/pull/123")
         mock_branches.assert_called_once_with(mock_pr_info)
         mock_commits.assert_called_once_with(mock_pr_info)
-        mock_prepare.assert_called_once_with(mock_pr_info, mock_branch_info, mock_commit_info)
         
         # Verify result
         self.assertEqual(result["pr_url"], "https://github.com/test-owner/test-repo/pull/123")
         self.assertEqual(result["pr_info"], mock_pr_info)
         self.assertEqual(result["branches"], mock_branch_info)
         self.assertEqual(result["commits"], mock_commit_info)
-        self.assertEqual(result["pr_data"], mock_pr_data)
     
     @patch('infra_core.cogni_agents.git_cogni.git_cogni.initialize_openai_client')
     @patch('infra_core.cogni_agents.git_cogni.git_cogni.get_guide_for_task')
-    @patch('infra_core.cogni_agents.git_cogni.git_cogni.git_cogni_review')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.review_pr')
     def test_act(self, mock_review, mock_get_guide, mock_init_client):
         """Test act method with PR review flow"""
         # Set up mocks
@@ -197,19 +191,10 @@ class TestGitCogniAgent(unittest.TestCase):
         mock_prepare.assert_called_once_with("https://github.com/test-owner/test-repo/pull/123")
         mock_act.assert_called_once_with(input_data)
         
-        # Verify record_action calls (should be called twice - once for review, once for summary)
-        self.assertEqual(mock_record.call_count, 2)
-        # First call should be for the review
-        self.assertEqual(mock_record.call_args_list[0][0][0], results)
-        self.assertEqual(mock_record.call_args_list[0][1]["subdir"], "reviews")
-        
-        # Second call should be for the summary
-        summary_call = mock_record.call_args_list[1][0][0]
-        self.assertEqual(summary_call["pr_url"], "https://github.com/test-owner/test-repo/pull/123")
-        self.assertEqual(summary_call["review_file"], str(Path("/fake/path/review.md")))
-        self.assertEqual(summary_call["commit_count"], 1)
-        self.assertEqual(summary_call["review_timestamp"], "2023-01-01T12:00:00")
-        self.assertEqual(mock_record.call_args_list[1][1]["subdir"], "summaries")
+        # Verify record_action calls - expect only one call for the review
+        self.assertEqual(mock_record.call_count, 1)
+        self.assertEqual(mock_record.call_args[0][0], results)
+        self.assertEqual(mock_record.call_args[1]["subdir"], "reviews")
         
         # Verify result
         self.assertEqual(result, results)
