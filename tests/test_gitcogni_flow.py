@@ -245,7 +245,38 @@ class TestGitCogniFlow(unittest.TestCase):
         
         # Mock the PR data preparation
         mock_pr_data = {
+            "pr_info": {
+                "owner": "test-owner",
+                "repo": "test-repo",
+                "number": 123,
+                "success": True
+            },
+            "branch_info": {
+                "source_branch": "feature/test-branch",
+                "target_branch": "main",
+                "success": True
+            },
+            "commit_info": {
+                "success": True,
+                "commits": [
+                    {
+                        "sha": "abcd1234567890",
+                        "short_sha": "abcd123",
+                        "message": "Test commit",
+                        "author": "Test Author",
+                        "date": "2023-01-01T12:00:00Z",
+                        "files_count": 1,
+                        "files": [
+                            {
+                                "filename": "test.py",
+                                "patch": patch
+                            }
+                        ]
+                    }
+                ]
+            },
             "metadata": {
+                "timestamp": "2023-01-01T12:00:00",
                 "commit_count": 1
             }
         }
@@ -256,8 +287,22 @@ class TestGitCogniFlow(unittest.TestCase):
         message, pr_data = gitcogni_review_flow(pr_url=pr_url)
         
         # Assert the result matches expected output
-        self.assertEqual(message, "PR #123 branches: feature/test-branch → main")
-        self.assertEqual(pr_data, mock_pr_data)
+        expected_message = "PR #123 reviewed. Verdict: review_test-owner_test-repo_123_verdict.md, Details: review_test-owner_test-repo_123_details.md"
+        self.assertEqual(message, expected_message)
+        
+        # Verify basic structure of the returned data rather than exact equality
+        self.assertIsNotNone(pr_data)
+        self.assertIn("pr_info", pr_data)
+        self.assertIn("commit_reviews", pr_data)
+        self.assertIn("final_verdict", pr_data)
+        self.assertIn("timestamp", pr_data)
+        
+        # Check that PR info has expected data
+        self.assertEqual(pr_data["pr_info"]["owner"], "test-owner")
+        self.assertEqual(pr_data["pr_info"]["repo"], "test-repo")
+        self.assertEqual(pr_data["pr_info"]["number"], 123)
+        self.assertEqual(pr_data["pr_info"]["source_branch"], "feature/test-branch")
+        self.assertEqual(pr_data["pr_info"]["target_branch"], "main")
         
         # Verify that the right repo and PR number were requested
         mock_github.return_value.get_repo.assert_called_with("test-owner/test-repo")
