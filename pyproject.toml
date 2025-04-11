@@ -1,0 +1,7 @@
+[tool.ruff]
+line-length = 100
+exclude = ["build", "dist", ".venv", "__pycache__"]
+
+[tool.ruff.lint]
+select = ["E", "F"]        # Enable basic style + logical error checks
+ignore = ["E501"]          # Ignore line length for now 

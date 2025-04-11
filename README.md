@@ -32,6 +32,32 @@ A future where communities are intelligent, self-governing, fair, and scalable â
 
 ---
 
+## Development Setup
+
+### Quick Start
+
+Run the setup script to install dependencies and configure pre-commit hooks:
+
+```bash
+./scripts/setup_dev_environment.sh
+```
+
+### Code Quality
+
+This project uses Ruff for linting. Pre-commit hooks are automatically installed during setup to ensure code quality.
+
+To manually check for linting issues:
+```bash
+ruff check .
+```
+
+To automatically fix safe issues:
+```bash
+ruff check . --fix
+```
+
+---
+
 ## Key Principles
 
 - **AI Stewardship**: All contributions and governance begin with AI agent review. Human community may override by vote.
