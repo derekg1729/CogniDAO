@@ -27,7 +27,7 @@ A future where communities are intelligent, self-governing, fair, and scalable â
 
 ## Core Repositories
 
-- `infra-core`: Shared DAO infrastructure (EVM tools, AI agents, governance systems, workflows, etc.)
+- `infra_core`: Shared DAO infrastructure (EVM tools, AI agents, governance systems, workflows, etc.)
 - `niche-charters`: Templates, knowledge graphs, playbooks, and onboarding content for niche DAOs
 
 ---
