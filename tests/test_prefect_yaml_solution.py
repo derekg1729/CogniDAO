@@ -106,9 +106,9 @@ print(json.dumps(results, default=str))
             
             # Check that both imports succeed with the working directory fix
             self.assertEqual(output.get("flow_import"), "success", 
-                            f"Flow import failed even with proper working directory")
+                            "Flow import failed even with proper working directory")
             self.assertEqual(output.get("agent_import"), "success", 
-                            f"Agent import failed even with proper working directory")
+                            "Agent import failed even with proper working directory")
 
 
 if __name__ == '__main__':

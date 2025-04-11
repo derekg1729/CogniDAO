@@ -1,4 +1,5 @@
-import sys, os
+import sys
+import os
 # Ensure parent directory is in path # Fragile implementation, must be updated when files move
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
@@ -53,7 +54,7 @@ def create_thought():
         logger.info(f"CONTEXT METADATA: {json.dumps(core_context['metadata'], indent=2)}")
         
         # Create the prompt
-        user_prompt = f"Generate a thoughtful reflection from Cogni. Please keep thoughts as short form morsels under 280 characters."
+        user_prompt = "Generate a thoughtful reflection from Cogni. Please keep thoughts as short form morsels under 280 characters."
         
         # Call OpenAI API
         response = create_completion(
@@ -65,7 +66,7 @@ def create_thought():
         
         # Extract the content
         ai_content = extract_content(response)
-        logger.info(f"Successfully generated AI thought")
+        logger.info("Successfully generated AI thought")
         
         # Log the final thought with Prefect logger
         logger.info(f"THOUGHT OUTPUT: {json.dumps({'thought': ai_content}, indent=2)}")

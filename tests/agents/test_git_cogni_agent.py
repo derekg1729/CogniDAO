@@ -1,9 +1,8 @@
 import sys
 import os
 import unittest
-from unittest.mock import patch, MagicMock, Mock
+from unittest.mock import patch, MagicMock
 from pathlib import Path
-from datetime import datetime
 
 # Ensure parent directory is in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))

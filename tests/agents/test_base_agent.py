@@ -1,7 +1,7 @@
 import sys
 import os
 import unittest
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import patch, MagicMock
 from pathlib import Path
 from datetime import datetime
 
@@ -88,9 +88,6 @@ class TestCogniAgent(unittest.TestCase):
     @patch('infra_core.cogni_agents.base.datetime', MockDateTime)
     def test_record_action(self, mock_write_text):
         """Test recording action output"""
-        # Set up the expected formatted timestamp
-        expected_timestamp = "2023-01-01T12-00-00"
-        
         # Create output dir path
         output_dir = MagicMock(spec=Path)
         output_path = MagicMock(spec=Path)

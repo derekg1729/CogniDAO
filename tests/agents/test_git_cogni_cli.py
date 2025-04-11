@@ -1,9 +1,8 @@
 import sys
 import os
 import unittest
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import patch, MagicMock
 from io import StringIO
-from pathlib import Path
 
 # Ensure parent directory is in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -62,7 +61,7 @@ class TestGitCogniCLI(unittest.TestCase):
         
         # Call main with redirected stdout to capture prints
         with patch('sys.stdout', new=StringIO()) as fake_stdout:
-            with patch('sys.exit') as mock_exit:
+            with patch('sys.exit') as mock_exit:  # noqa: F841
                 main()
                 
                 # Verify agent was initialized
@@ -102,7 +101,7 @@ class TestGitCogniCLI(unittest.TestCase):
             mock_agent.review_and_save.assert_called_once_with("https://github.com/owner/repo/pull/123", test_mode=False)
             
             # Verify error was printed
-            mock_print.assert_any_call(f"Error: Failed to parse PR URL")
+            mock_print.assert_any_call("Error: Failed to parse PR URL")
             
             # Verify exit with code 1
             mock_exit.assert_called_once_with(1)
@@ -130,7 +129,7 @@ class TestGitCogniCLI(unittest.TestCase):
             mock_agent.review_and_save.assert_called_once_with("https://github.com/owner/repo/pull/123", test_mode=False)
             
             # Verify exception message was printed
-            mock_print.assert_any_call(f"Unexpected error: Unexpected error")
+            mock_print.assert_any_call("Unexpected error: Unexpected error")
             
             # Verify exit with code 1
             mock_exit.assert_called_once_with(1)
@@ -153,7 +152,7 @@ class TestGitCogniCLI(unittest.TestCase):
         
         # Call main with redirected stdout to capture prints
         with patch('sys.stdout', new=StringIO()) as fake_stdout:
-            with patch('sys.exit') as mock_exit:
+            with patch('sys.exit') as mock_exit:  # noqa: F841
                 main()
                 
                 # Verify agent was initialized

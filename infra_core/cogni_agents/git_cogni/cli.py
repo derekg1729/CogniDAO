@@ -5,7 +5,6 @@ CLI interface for GitCogniAgent
 
 import sys
 import os
-import json
 from pathlib import Path
 
 # Ensure parent directory is in path
@@ -61,8 +60,8 @@ def main():
         print_help()
         sys.exit(1)
     
-    # Setup logging using agent's method (this returns a logger)
-    logger = GitCogniAgent.setup_logging(verbose)
+    # Setup logging using agent's method
+    GitCogniAgent.setup_logging(verbose)
     
     # Setup agent
     agent_root = Path(os.path.dirname(os.path.abspath(__file__)))
