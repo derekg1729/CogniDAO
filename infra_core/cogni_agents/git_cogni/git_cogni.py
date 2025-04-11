@@ -370,6 +370,26 @@ class GitCogniAgent(CogniAgent):
             "pr_data": pr_data
         }
 
+    def _combine_contexts(self, git_context, core_context):
+        """Safely combine git_cogni_context and core_context."""
+        if not core_context:
+            return git_context
+        
+        # If core_context is a string, combine with git_cogni_context
+        if isinstance(core_context, str) and core_context.strip():
+            return f"{git_context}\n\n{core_context}"
+        
+        # If core_context is a dictionary or other object with content
+        if core_context:
+            try:
+                # Try to convert to a string representation if it's not empty
+                return f"{git_context}\n\n{json.dumps(core_context, indent=2)}"
+            except:
+                pass
+        
+        # Default fallback
+        return git_context
+
     def review_pr(self, git_cogni_context, core_context, pr_data):
         """
         Review PR data using staged OpenAI calls for each commit and a final verdict.
@@ -476,7 +496,7 @@ class GitCogniAgent(CogniAgent):
             # Call OpenAI API for this commit, including git-cogni context on all calls
             response = create_completion(
                 client=client,
-                system_message=git_cogni_context,
+                system_message=self._combine_contexts(git_cogni_context, core_context),
                 user_prompt=commit_prompt,
                 temperature=0.3,  # Lower temperature for consistency
             )
@@ -516,19 +536,43 @@ class GitCogniAgent(CogniAgent):
         self.monitor_token_usage("combined_reviews", all_reviews)
         
         final_prompt = f"""
-        You have reviewed all commits in PR #{pr_info['number']} in {pr_info['owner']}/{pr_info['repo']}.
-        Source Branch: {branch_info['source_branch']}
-        Target Branch: {branch_info['target_branch']}
-        
-        Individual commit reviews:
-        
+        You are GitCogni, the spirit-guided code reviewer for PR #{pr_info['number']} in {pr_info['owner']}/{pr_info['repo']}.
+
+        - This PR should be evaluated as a whole, not as isolated commits. 
+        - Your goal is to determine whether the final state of the PR (HEAD) aligns with project goals, core directives, and addresses previous shortcomings—even if some commits were imperfect.
+        - You are encouraged to recognize iterative improvement, refactor clarity, and the inclusion of tests—even if fixes came in later commits.
+
+        **Context:**
+        - Source Branch: {branch_info['source_branch']}
+        - Target Branch: {branch_info['target_branch']}
+
+        **Individual Commit Reviews (for context):**
+
         {all_reviews}
-        
-        Please provide a final verdict on this pull request:
-        1. Summarize the overall changes and their purpose
-        2. List any consistent issues or concerns found across commits
-        3. Provide general recommendations for improvement
-        4. Give a final decision: APPROVE, REQUEST_CHANGES, or COMMENT
+
+        ---
+
+        ### Please provide a final verdict on this pull request:
+
+        1. **Overall Summary**  
+           - Describe the purpose and scope of the PR as it stands in its final state.
+           - Highlight key components, systems touched, and architectural intent.
+
+        2. **Consistent Issues (if any)**  
+           - Are there still problems that persist in the final version?
+           - If issues from earlier commits were later resolved, acknowledge this explicitly.
+
+        3. **Recommendations for Improvement**  
+           - Suggest areas to strengthen, even if the PR is approvable.
+           - Be constructive and aligned with long-term maintainability.
+
+        4. **Final Decision**  
+           - Choose one: `APPROVE`, `REQUEST_CHANGES`, or `COMMENT`
+           - Justify your decision based on the final state of the code and spirit-guided alignment.
+
+        ---
+
+        **Important:** Do not reject a PR solely due to earlier commits if the final state resolves those issues. Prioritize clarity, functionality, and long-term alignment.
         
         Format your verdict as markdown with clear sections.
         """
@@ -539,7 +583,7 @@ class GitCogniAgent(CogniAgent):
         # Call OpenAI for final verdict
         final_response = create_completion(
             client=client,
-            system_message=git_cogni_context,
+            system_message=self._combine_contexts(git_cogni_context, core_context),
             user_prompt=final_prompt,
             temperature=0.3,
         )
