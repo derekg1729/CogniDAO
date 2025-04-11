@@ -3,20 +3,17 @@
 GitCogniAgent for reviewing PRs
 """
 
-import os
 import logging
 import json
 import re
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, Tuple, List, Optional
+from typing import Dict, Any
 
 from infra_core.cogni_agents.base import CogniAgent
 from infra_core.cogni_spirit.context import get_core_documents, get_guide_for_task
-from infra_core.openai_handler import initialize_openai_client, create_completion, extract_content, create_thread, thread_completion
+from infra_core.openai_handler import initialize_openai_client, create_completion, extract_content, create_thread, thread_completion  # noqa: F401
 from github import Github
-from prefect import task
-from prefect.tasks import NO_CACHE
 
 # Setup base logger
 logger = logging.getLogger(__name__)
@@ -171,7 +168,7 @@ class GitCogniAgent(CogniAgent):
             try:
                 # Try to convert to a string representation if it's not empty
                 return f"{git_context}\n\n{json.dumps(core_context, indent=2)}"
-            except:
+            except Exception:
                 pass
         
         # Default fallback

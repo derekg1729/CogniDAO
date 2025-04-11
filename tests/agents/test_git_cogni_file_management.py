@@ -1,9 +1,8 @@
 import sys
 import os
 import unittest
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import patch, MagicMock
 from pathlib import Path
-import json
 
 # Ensure parent directory is in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -24,8 +23,8 @@ class TestFileManagement(unittest.TestCase):
     def test_record_action_tracking(self):
         """Test that created files are properly tracked"""
         # Setup the mocks
-        with patch('pathlib.Path.mkdir', autospec=True) as mock_mkdir, \
-             patch('pathlib.Path.write_text', autospec=True) as mock_write_text:
+        with patch('pathlib.Path.mkdir', autospec=True), \
+             patch('pathlib.Path.write_text', autospec=True):
             
             # Configure the mock path to resolve and exist properly
             output_path = MagicMock(spec=Path)
@@ -41,7 +40,8 @@ class TestFileManagement(unittest.TestCase):
             with patch('infra_core.cogni_agents.base.CogniAgent.record_action', 
                       return_value=output_path) as mock_record_action:
                 
-                result = self.agent.record_action(test_data, subdir="test", prefix="prefix_")
+                # Call the method without storing result
+                self.agent.record_action(test_data, subdir="test", prefix="prefix_")
                 
                 # Verify parent method was called
                 mock_record_action.assert_called_once()
@@ -134,7 +134,7 @@ class TestFileManagement(unittest.TestCase):
             mock_record.return_value = output_path
             
             # Call review_and_save
-            result = self.agent.review_and_save("https://github.com/test-owner/test-repo/pull/123")
+            result = self.agent.review_and_save("https://github.com/test-owner/test-repo/pull/123")  # noqa: F841
             
             # Verify record_action was called with the correct prefix
             call_args = mock_record.call_args[1]
@@ -170,7 +170,7 @@ class TestFileManagement(unittest.TestCase):
             self.agent.record_action.return_value = output_path
             
             # Call review_and_save with test_mode=True
-            result = self.agent.review_and_save("https://github.com/test-owner/test-repo/pull/123", test_mode=True)
+            result = self.agent.review_and_save("https://github.com/test-owner/test-repo/pull/123", test_mode=True)  # noqa: F841
             
             # Verify cleanup was called
             mock_cleanup.assert_called_once()

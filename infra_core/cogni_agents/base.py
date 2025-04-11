@@ -4,11 +4,10 @@ CogniAgent base module
 This module provides the abstract base class for all Cogni agents.
 """
 
-import os
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 
 class CogniAgent(ABC):

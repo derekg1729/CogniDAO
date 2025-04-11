@@ -8,7 +8,6 @@ from pathlib import Path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from infra_core.cogni_agents.git_cogni.git_cogni import GitCogniAgent
-from infra_core.openai_handler import create_completion, extract_content, create_thread, thread_completion
 
 
 class TestGitCogniOpenAIIntegration(unittest.TestCase):

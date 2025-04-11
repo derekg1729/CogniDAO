@@ -1,8 +1,7 @@
 import sys
 import os
 import unittest
-import json
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 from pathlib import Path
 
 # Ensure parent directory is in path

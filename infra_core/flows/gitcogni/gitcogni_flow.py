@@ -1,4 +1,5 @@
-import sys, os
+import sys
+import os
 # Ensure parent directory is in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
@@ -7,11 +8,11 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from prefect import task, flow, get_run_logger
-from pathlib import Path
-import json
+from prefect import flow, get_run_logger  # noqa: E402
+from pathlib import Path  # noqa: E402
+import json  # noqa: E402
 # Import using the relative path approach, similar to ritual_of_presence.py
-from infra_core.cogni_agents.git_cogni.git_cogni import GitCogniAgent
+from infra_core.cogni_agents.git_cogni.git_cogni import GitCogniAgent  # noqa: E402
 
 @flow(name="gitcogni-review-flow")
 def gitcogni_review_flow(pr_url=None, test_mode=False):
@@ -89,7 +90,7 @@ def gitcogni_review_flow(pr_url=None, test_mode=False):
                 logger.info(f"VERDICT SUMMARY: {json.dumps({'verdict': verdict_summary, 'decision': decision}, indent=2)}")
         
         # Success!
-        logger.info(f"PR review completed successfully")
+        logger.info("PR review completed successfully")
         message = f"PR reviewed. Details: {review_results.get('review_file', 'See reviews directory')}"
         logger.info(f"Success! {message}")
         

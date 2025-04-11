@@ -1,8 +1,7 @@
 import sys
 import os
 import unittest
-from unittest.mock import patch, MagicMock, call
-from typing import Dict, Any
+from unittest.mock import patch, MagicMock
 
 # Ensure parent directory is in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -121,8 +120,8 @@ class TestThreadedHandler(unittest.TestCase):
         self.assertEqual(response, expected_response)
     
     def test_thread_completion_polling(self):
-        """Test polling for completion when run is not immediately completed."""
-        # Set up run to be in progress, then completed
+        """Test polling behavior when waiting for completion."""
+        # Set up in-progress and completed run states
         run_in_progress = MagicMock()
         run_in_progress.id = "run_123456"
         run_in_progress.status = "in_progress"
@@ -138,7 +137,7 @@ class TestThreadedHandler(unittest.TestCase):
         
         # Mock time.sleep to avoid waiting
         with patch('time.sleep') as mock_sleep:
-            response = thread_completion(
+            response = thread_completion(  # noqa: F841
                 client=self.mock_client,
                 thread_id="thread_123456",
                 assistant_id="asst_123456",

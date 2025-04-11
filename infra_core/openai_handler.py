@@ -4,14 +4,13 @@ OpenAI API Handler
 Handles communication with OpenAI API following their standards.
 """
 import os
-from typing import Dict, List, Optional, Union, Any, Tuple
+from typing import Dict, Optional, Union, Any, Tuple
 from prefect import task
 from prefect.blocks.system import Secret
-from prefect.tasks import task_input_hash
 from prefect.tasks import NO_CACHE  # correct import path for Prefect 3.3.3
 
 try:
-    import openai
+    import openai  # noqa: F401
     from openai import OpenAI
 except ImportError:
     raise ImportError("OpenAI package not installed. Install with 'pip install openai'")

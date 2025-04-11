@@ -1,33 +1,30 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 import os
 import sys
-import json
-from datetime import datetime
+import importlib.util
 
 # Add the parent directory to the path so we can import the module
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Create mock modules
-mock_get_core_documents = MagicMock()
-mock_get_core_documents.return_value = {
+# Mock the core documents function
+mock_get_core_documents = MagicMock(return_value={
     "context": {
         "role": "system",
         "content": "Test context"
     },
     "metadata": {
-        "core_docs": {"TEST": {"length": 100}},
-        "total_sections": 1,
-        "total_core_docs_length": 100,
-        "total_context_length": 120
+        "core_docs": {"charter": "Test charter content", "manifesto": "Test manifesto content"},
+        "total_sections": 2,
+        "total_core_docs_length": 200,
+        "total_context_length": 220
     }
-}
+})
 
+# Mock the OpenAI functions
 mock_initialize_openai = MagicMock()
-mock_create_completion = MagicMock()
-mock_create_completion.return_value = {"choices": [{"message": {"content": "Test thought content"}}]}
-mock_extract_content = MagicMock()
-mock_extract_content.return_value = "Test thought content"
+mock_create_completion = MagicMock(return_value={"choices": [{"message": {"content": "Test thought content"}}]})
+mock_extract_content = MagicMock(return_value="Test thought content")
 
 # Mock needed modules before importing ritual_of_presence
 sys.modules['cogni_spirit'] = MagicMock()
@@ -40,8 +37,7 @@ sys.modules['openai_handler'].initialize_openai_client = mock_initialize_openai
 sys.modules['openai_handler'].create_completion = mock_create_completion
 sys.modules['openai_handler'].extract_content = mock_extract_content
 
-# Now import the module to test
-import importlib.util
+# Now import the module to test (must be after mocking)  # noqa: E402
 spec = importlib.util.spec_from_file_location(
     "ritual_of_presence",
     os.path.join(os.path.dirname(__file__), "../infra_core/flows/rituals/ritual_of_presence.py")
