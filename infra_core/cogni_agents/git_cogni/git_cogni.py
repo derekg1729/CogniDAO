@@ -15,6 +15,8 @@ from infra_core.cogni_agents.base import CogniAgent
 from infra_core.cogni_spirit.context import get_core_documents, get_guide_for_task
 from infra_core.openai_handler import initialize_openai_client, create_completion, extract_content, create_thread, thread_completion
 from github import Github
+from prefect import task
+from prefect.tasks import NO_CACHE
 
 # Setup base logger
 logger = logging.getLogger(__name__)
@@ -816,5 +818,6 @@ class GitCogniAgent(CogniAgent):
         
         # Replace "PR #X" with "#PR_X" for better logseq mapping
         output = re.sub(r"PR #(\d+)", r"#PR_\1", output)
+        output = re.sub(r"Pull Request #(\d+)", r"#PR_\1", output)
         
         return output 

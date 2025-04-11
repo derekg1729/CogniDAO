@@ -103,8 +103,9 @@ def extract_content(response: Dict[str, Any]) -> str:
         return response["choices"][0]["message"]["content"]
     except (KeyError, IndexError) as e:
         raise ValueError(f"Could not extract content from response: {e}")
-
-@task
+    
+    
+@task(cache_policy=NO_CACHE)
 def create_thread(client: OpenAI, instructions: str, model: str = "gpt-4-turbo") -> Tuple[str, str]:
     """
     Create a thread and assistant for reuse across multiple completion calls.
