@@ -67,13 +67,14 @@ class TestGitCogniContextInclusion(unittest.TestCase):
             }
         }
     
-    @patch('infra_core.cogni_agents.git_cogni.git_cogni.create_completion')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.create_thread')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.thread_completion')
     @patch('infra_core.cogni_agents.git_cogni.git_cogni.extract_content')
-    def test_contexts_in_commit_reviews(self, mock_extract, mock_create):
+    def test_contexts_in_commit_reviews(self, mock_extract, mock_thread_completion, mock_create_thread):
         """Test that both contexts are included in commit review AI calls"""
         # Set up mocks
-        mock_response = {"choices": [{"message": {"content": "Test review"}}]}
-        mock_create.return_value = mock_response
+        mock_create_thread.return_value = ("thread_123", "asst_123")
+        mock_thread_completion.return_value = {"choices": [{"message": {"content": "Test review"}}]}
         mock_extract.return_value = "Test review"
         
         # Call the review_pr method
@@ -83,26 +84,37 @@ class TestGitCogniContextInclusion(unittest.TestCase):
             pr_data=self.pr_data
         )
         
-        # Verify the number of create_completion calls (1 per commit + 1 for verdict)
-        self.assertEqual(mock_create.call_count, 3)
+        # Verify create_thread was called with combined context
+        mock_create_thread.assert_called_once()
+        combined_context = mock_create_thread.call_args[0][1]
+        self.assertIn(self.git_cogni_context, combined_context)
+        self.assertIn(self.core_context, combined_context)
         
-        # Check that the first two calls (commit reviews) include both contexts
-        for i in range(2):  # For each commit review call
-            system_message = mock_create.call_args_list[i][1]['system_message']
-            self.assertEqual(
-                system_message,
-                self.git_cogni_context + "\n\n" + self.core_context,
-                f"Commit review call {i+1} is missing complete context"
-            )
+        # Verify thread_completion was called multiple times
+        self.assertEqual(mock_thread_completion.call_count, 3)  # 2 commits + final verdict
+        
+        # Check that all thread_completion calls use the same thread ID
+        for call_args in mock_thread_completion.call_args_list:
+            self.assertEqual(call_args[1]["thread_id"], "thread_123")
+            self.assertEqual(call_args[1]["assistant_id"], "asst_123")
     
-    @patch('infra_core.cogni_agents.git_cogni.git_cogni.create_completion')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.create_thread')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.thread_completion')
     @patch('infra_core.cogni_agents.git_cogni.git_cogni.extract_content')
-    def test_contexts_in_final_verdict(self, mock_extract, mock_create):
+    def test_contexts_in_final_verdict(self, mock_extract, mock_thread_completion, mock_create_thread):
         """Test that both contexts are included in the final verdict AI call"""
         # Set up mocks
-        mock_response = {"choices": [{"message": {"content": "APPROVE\nTest verdict"}}]}
-        mock_create.return_value = mock_response
-        mock_extract.return_value = "APPROVE\nTest verdict"
+        mock_create_thread.return_value = ("thread_123", "asst_123")
+        mock_thread_completion.return_value = {"choices": [{"message": {"content": "Test review"}}]}
+        mock_extract.return_value = "Test review"
+        
+        # Set up different responses for different calls
+        def side_effect(client, thread_id, assistant_id, user_prompt):
+            if "verdict" in user_prompt.lower() or "final" in user_prompt.lower():
+                return {"choices": [{"message": {"content": "APPROVE Test verdict"}}]}
+            return {"choices": [{"message": {"content": "Test commit review"}}]}
+        
+        mock_thread_completion.side_effect = side_effect
         
         # Call the review_pr method
         self.agent.review_pr(
@@ -111,25 +123,26 @@ class TestGitCogniContextInclusion(unittest.TestCase):
             pr_data=self.pr_data
         )
         
-        # Verify the number of create_completion calls (1 per commit + 1 for verdict)
-        self.assertEqual(mock_create.call_count, 3)
+        # Verify create_thread was called with combined context
+        mock_create_thread.assert_called_once()
+        combined_context = mock_create_thread.call_args[0][1]
+        self.assertIn(self.git_cogni_context, combined_context)
+        self.assertIn(self.core_context, combined_context)
         
-        # Check that the final call (verdict) includes both contexts
-        final_call = mock_create.call_args_list[2]
-        system_message = final_call[1]['system_message']
-        self.assertEqual(
-            system_message,
-            self.git_cogni_context + "\n\n" + self.core_context,
-            "Final verdict call is missing complete context"
-        )
+        # Get the last call (final verdict)
+        last_call = mock_thread_completion.call_args_list[-1]
+        
+        # Verify last call is for verdict
+        self.assertIn("verdict", last_call[1]["user_prompt"].lower())
     
-    @patch('infra_core.cogni_agents.git_cogni.git_cogni.create_completion')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.create_thread')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.thread_completion')
     @patch('infra_core.cogni_agents.git_cogni.git_cogni.extract_content')
-    def test_all_calls_include_consistent_contexts(self, mock_extract, mock_create):
-        """Test that contexts are consistently included in all AI calls"""
+    def test_all_calls_include_consistent_contexts(self, mock_extract, mock_thread_completion, mock_create_thread):
+        """Test that threads are used consistently for all API calls"""
         # Set up mocks
-        mock_response = {"choices": [{"message": {"content": "Test review"}}]}
-        mock_create.return_value = mock_response
+        mock_create_thread.return_value = ("thread_123", "asst_123")
+        mock_thread_completion.return_value = {"choices": [{"message": {"content": "Test review"}}]}
         mock_extract.return_value = "Test review"
         
         # Call the review_pr method
@@ -139,36 +152,26 @@ class TestGitCogniContextInclusion(unittest.TestCase):
             pr_data=self.pr_data
         )
         
-        # Get all system messages from all calls
-        system_messages = [
-            call_args[1]['system_message'] 
-            for call_args in mock_create.call_args_list
-        ]
+        # Verify create_thread was called exactly once
+        mock_create_thread.assert_called_once()
         
-        # Check that all system messages are identical and contain both contexts
-        expected_system_message = self.git_cogni_context + "\n\n" + self.core_context
+        # Verify thread_completion was called multiple times
+        self.assertEqual(mock_thread_completion.call_count, 3)  # 2 commits + final verdict
         
-        for i, message in enumerate(system_messages):
-            self.assertEqual(
-                message,
-                expected_system_message,
-                f"AI call #{i+1} has inconsistent context"
-            )
-        
-        # Verify all calls have the same system message
-        self.assertTrue(
-            all(message == system_messages[0] for message in system_messages),
-            "System messages are not consistent across all AI calls"
-        )
+        # Check that all API calls use the same thread
+        for call_args in mock_thread_completion.call_args_list:
+            self.assertEqual(call_args[1]["thread_id"], "thread_123")
+            self.assertEqual(call_args[1]["assistant_id"], "asst_123")
     
     @patch('infra_core.cogni_agents.git_cogni.git_cogni.get_guide_for_task')
-    @patch('infra_core.cogni_agents.git_cogni.git_cogni.create_completion')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.create_thread')
+    @patch('infra_core.cogni_agents.git_cogni.git_cogni.thread_completion')
     @patch('infra_core.cogni_agents.git_cogni.git_cogni.extract_content')
-    def test_comprehensive_workflow(self, mock_extract, mock_create, mock_get_guide):
+    def test_comprehensive_workflow(self, mock_extract, mock_thread_completion, mock_create_thread, mock_get_guide):
         """Test the entire workflow to verify context inclusion in both commit reviews and final verdict"""
         # Set up mocks
-        mock_response = {"choices": [{"message": {"content": "Test review"}}]}
-        mock_create.return_value = mock_response
+        mock_create_thread.return_value = ("thread_123", "asst_123")
+        mock_thread_completion.return_value = {"choices": [{"message": {"content": "Test review"}}]}
         mock_extract.return_value = "Test review"
         mock_get_guide.return_value = self.git_cogni_context
         
@@ -185,24 +188,21 @@ class TestGitCogniContextInclusion(unittest.TestCase):
         # Call the act method (which calls review_pr)
         self.agent.act(test_input)
         
-        # Verify create_completion was called multiple times (once per commit + verdict)
-        self.assertTrue(mock_create.call_count >= 3, f"Expected at least 3 AI calls, got {mock_create.call_count}")
+        # Verify create_thread was called once
+        mock_create_thread.assert_called_once()
         
-        # Get all system messages from all calls
-        system_messages = [
-            call_args[1]['system_message'] 
-            for call_args in mock_create.call_args_list
-        ]
+        # Verify thread_completion was called multiple times
+        self.assertGreaterEqual(mock_thread_completion.call_count, 3)
         
-        # Check that all system messages contain both contexts
-        expected_system_message = self.git_cogni_context + "\n\n" + self.core_context
+        # Verify all calls used the same thread
+        for call_args in mock_thread_completion.call_args_list:
+            self.assertEqual(call_args[1]["thread_id"], "thread_123")
+            self.assertEqual(call_args[1]["assistant_id"], "asst_123")
         
-        for i, message in enumerate(system_messages):
-            self.assertEqual(
-                message,
-                expected_system_message,
-                f"AI call #{i+1} is missing complete context"
-            )
+        # Check context was combined in create_thread call
+        combined_context = mock_create_thread.call_args[0][1]
+        self.assertIn(self.git_cogni_context, combined_context)
+        self.assertIn(self.core_context, combined_context)
 
 
 if __name__ == "__main__":

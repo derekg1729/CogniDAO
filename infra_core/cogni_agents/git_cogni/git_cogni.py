@@ -13,7 +13,7 @@ from typing import Dict, Any, Tuple, List, Optional
 
 from infra_core.cogni_agents.base import CogniAgent
 from infra_core.cogni_spirit.context import get_core_documents, get_guide_for_task
-from infra_core.openai_handler import initialize_openai_client, create_completion, extract_content
+from infra_core.openai_handler import initialize_openai_client, create_completion, extract_content, create_thread, thread_completion
 from github import Github
 
 # Setup base logger
@@ -152,6 +152,28 @@ class GitCogniAgent(CogniAgent):
         """Initialize OpenAI client if not already initialized."""
         if self.openai_client is None:
             self.openai_client = initialize_openai_client()
+            self.thread_id = None
+            self.assistant_id = None
+
+    def _combine_contexts(self, git_context, core_context):
+        """Safely combine git_cogni_context and core_context."""
+        if not core_context:
+            return git_context
+        
+        # If core_context is a string, combine with git_cogni_context
+        if isinstance(core_context, str) and core_context.strip():
+            return f"{git_context}\n\n{core_context}"
+        
+        # If core_context is a dictionary or other object with content
+        if core_context:
+            try:
+                # Try to convert to a string representation if it's not empty
+                return f"{git_context}\n\n{json.dumps(core_context, indent=2)}"
+            except:
+                pass
+        
+        # Default fallback
+        return git_context
 
     def load_core_context(self):
         """Load core context from charter, manifesto, etc."""
@@ -370,26 +392,6 @@ class GitCogniAgent(CogniAgent):
             "pr_data": pr_data
         }
 
-    def _combine_contexts(self, git_context, core_context):
-        """Safely combine git_cogni_context and core_context."""
-        if not core_context:
-            return git_context
-        
-        # If core_context is a string, combine with git_cogni_context
-        if isinstance(core_context, str) and core_context.strip():
-            return f"{git_context}\n\n{core_context}"
-        
-        # If core_context is a dictionary or other object with content
-        if core_context:
-            try:
-                # Try to convert to a string representation if it's not empty
-                return f"{git_context}\n\n{json.dumps(core_context, indent=2)}"
-            except:
-                pass
-        
-        # Default fallback
-        return git_context
-
     def review_pr(self, git_cogni_context, core_context, pr_data):
         """
         Review PR data using staged OpenAI calls for each commit and a final verdict.
@@ -405,6 +407,11 @@ class GitCogniAgent(CogniAgent):
         # Initialize OpenAI client
         self._initialize_client()
         client = self.openai_client
+        
+        # Always create a new thread and assistant for this PR review
+        combined_context = self._combine_contexts(git_cogni_context, core_context)
+        self.thread_id, self.assistant_id = create_thread(client, combined_context)
+        self.logger.info(f"Created thread {self.thread_id} and assistant {self.assistant_id}")
         
         # 1. Extract commit data for review
         commits = pr_data['commit_info']['commits']
@@ -493,12 +500,12 @@ class GitCogniAgent(CogniAgent):
             # Monitor prompt size
             self.monitor_token_usage(f"commit_prompt_{commit['short_sha']}", commit_prompt)
             
-            # Call OpenAI API for this commit, including git-cogni context on all calls
-            response = create_completion(
+            # Call OpenAI API for this commit using thread
+            response = thread_completion(
                 client=client,
-                system_message=self._combine_contexts(git_cogni_context, core_context),
-                user_prompt=commit_prompt,
-                temperature=0.3,  # Lower temperature for consistency
+                thread_id=self.thread_id,
+                assistant_id=self.assistant_id,
+                user_prompt=commit_prompt
             )
             
             # Extract content
@@ -580,12 +587,12 @@ class GitCogniAgent(CogniAgent):
         # Monitor final prompt size
         self.monitor_token_usage("final_prompt", final_prompt)
         
-        # Call OpenAI for final verdict
-        final_response = create_completion(
+        # Call OpenAI for final verdict using thread
+        final_response = thread_completion(
             client=client,
-            system_message=self._combine_contexts(git_cogni_context, core_context),
-            user_prompt=final_prompt,
-            temperature=0.3,
+            thread_id=self.thread_id,
+            assistant_id=self.assistant_id,
+            user_prompt=final_prompt
         )
         
         # Extract final verdict

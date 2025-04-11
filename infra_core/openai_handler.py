@@ -4,7 +4,7 @@ OpenAI API Handler
 Handles communication with OpenAI API following their standards.
 """
 import os
-from typing import Dict, List, Optional, Union, Any
+from typing import Dict, List, Optional, Union, Any, Tuple
 from prefect import task
 from prefect.blocks.system import Secret
 from prefect.tasks import task_input_hash
@@ -102,4 +102,101 @@ def extract_content(response: Dict[str, Any]) -> str:
     try:
         return response["choices"][0]["message"]["content"]
     except (KeyError, IndexError) as e:
-        raise ValueError(f"Could not extract content from response: {e}") 
+        raise ValueError(f"Could not extract content from response: {e}")
+
+@task
+def create_thread(client: OpenAI, instructions: str, model: str = "gpt-4-turbo") -> Tuple[str, str]:
+    """
+    Create a thread and assistant for reuse across multiple completion calls.
+    
+    Args:
+        client: OpenAI client instance
+        instructions: System instructions for the assistant (like system message)
+        model: Model to use for the assistant
+        
+    Returns:
+        Tuple of (thread_id, assistant_id)
+    """
+    # Create a thread
+    thread = client.beta.threads.create()
+    
+    # Create an assistant
+    assistant = client.beta.assistants.create(
+        name="ThreadedCompletion",
+        instructions=instructions,
+        model=model
+    )
+    
+    return thread.id, assistant.id
+
+@task(cache_policy=NO_CACHE)
+def thread_completion(
+    client: OpenAI,
+    thread_id: str,
+    assistant_id: str,
+    user_prompt: str,
+) -> Dict[str, Any]:
+    """
+    Send a message to a thread and get the assistant's response.
+    
+    Args:
+        client: OpenAI client instance
+        thread_id: ID of the thread to use
+        assistant_id: ID of the assistant to use
+        user_prompt: User message to send
+        
+    Returns:
+        Response in the same format as create_completion
+    """
+    # Add message to thread
+    client.beta.threads.messages.create(
+        thread_id=thread_id,
+        role="user",
+        content=user_prompt
+    )
+    
+    # Run the assistant
+    run = client.beta.threads.runs.create(
+        thread_id=thread_id,
+        assistant_id=assistant_id
+    )
+    
+    # Poll for completion
+    while True:
+        run_status = client.beta.threads.runs.retrieve(
+            thread_id=thread_id,
+            run_id=run.id
+        )
+        
+        if run_status.status == 'completed':
+            break
+        elif run_status.status in ['failed', 'cancelled', 'expired']:
+            raise ValueError(f"Assistant run failed with status: {run_status.status}")
+            
+        # Wait before polling again
+        import time
+        time.sleep(0.5)
+    
+    # Get the response
+    messages = client.beta.threads.messages.list(
+        thread_id=thread_id,
+        order="desc",
+        limit=1
+    )
+    
+    for message in messages.data:
+        if message.role == "assistant":
+            # Format response to match the structure expected by extract_content
+            content = message.content[0].text.value if hasattr(message.content[0], 'text') else str(message.content[0])
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": content
+                        }
+                    }
+                ]
+            }
+    
+    # No assistant message found
+    return {"choices": [{"message": {"content": ""}}]} 
