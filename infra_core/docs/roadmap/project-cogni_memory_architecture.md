@@ -7,34 +7,40 @@
 We have implemented several key components of the Cogni Memory Architecture:
 
 1. **Memory Indexer** (`memory_indexer.py`):
-   - Basic parsing of Logseq files with `load_md_files()` and `extract_blocks()`
-   - Integration with OpenAI embeddings via `init_embedding_function()`
-   - ChromaDB storage with `init_chroma_client()` and `index_blocks()`
-   - Main entry point with `run_indexing()`
+   - Enhanced CLI with proper argument parsing
+   - Robust error handling and progress reporting
+   - Integration with LogseqParser for Logseq files
+   - ChromaDB storage with improved collection handling
+   - Configurable embedding models and target tags
 
-2. **Schema Definitions** (`schema.py`):
+2. **Parser** (`parser.py`):
+   - Dedicated LogseqParser class for markdown processing
+   - Metadata extraction including frontmatter, dates, and block references
+   - Filtering based on customizable tags
+   - Backwards compatibility with existing code
+   
+3. **Schema Definitions** (`schema.py`):
    - `MemoryBlock` model for structured memory representation
    - `ArchiveIndex` model for the archive index system
    - Various request/response models for the API
 
-3. **Storage Systems** (`storage.py`):
+4. **Storage Systems** (`storage.py`):
    - `ChromaStorage` for vector database (hot storage)
    - `ArchiveStorage` for JSON-based cold storage
    - `CombinedStorage` for unified access
 
-4. **Memory Client** (`memory_client.py` and `memory_tool.py`):
+5. **Memory Client** (`memory_client.py` and `memory_tool.py`):
    - Unified `CogniMemoryClient` interface for all memory operations
    - Simple memory tool for agent integration
    - Comprehensive test coverage
 
-5. **Tests**:
+6. **Tests**:
    - Unit tests for all components in `tests/`
    - End-to-end tests for basic functionality
 
 Next Steps:
-1. Enhance command-line arguments and error handling
-2. Integrate with BroadcastCogni
-3. Create the MCP server
+1. Integrate with BroadcastCogni
+2. Create the MCP server
 
 - ## Description
   Establish a multi-tiered memory system for Cogni that supports human-readable working context, fast AI lookup, and long-term memory preservation. This project powers selective oversight, state awareness, and structured evolution of Cogni agents.
@@ -59,11 +65,11 @@ Next Steps:
 - Cross-agent memory syncing with MCP hooks
 - Training of tone/style classifiers from historical human approvals
 - ## Implementation Flow
-  1. [/] [[task-parse_logseq_blocks]] - Parse Logseq blocks from markdown files (basic implementation in memory_indexer.py)
-  2. [/] [[task-save_vector_db_records]] - Embed and store blocks in ChromaDB (basic implementation in memory_indexer.py)
+  1. [x] [[task-parse_logseq_blocks]] - Parse Logseq blocks from markdown files
+  2. [x] [[task-save_vector_db_records]] - Embed and store blocks in ChromaDB
   3. [x] [[task-create_memory_index_json]] - Create archive system with JSON indexing
   4. [x] [[task-build_cogni_memory_client]] - Build unified memory client interface
-  5. [/] [[task-memory_indexer_main]] - Create main entry point script (basic functionality working)
+  5. [x] [[task-memory_indexer_main]] - Create main entry point script
   6. [ ] [[task-integrate_into_broadcastcogni]] - Integrate with BroadcastCogni agent
   7. [ ] [[task-create_memory_mcp_server]] - Create Memory Control Protocol server for external tools
 - ## Testing Strategy
@@ -74,13 +80,13 @@ Next Steps:
   3. End-to-end tests of the complete pipeline
   4. Agent integration tests with BroadcastCogni
 - ## Key Components
-- Logseq `.md` file parser and tag indexer (`extract_blocks()` in `memory_indexer.py`)
-- OpenAI embedding integration (`init_embedding_function()` in `memory_indexer.py`)
+- Logseq `.md` file parser and tag indexer (`LogseqParser` in `parser.py`) ✅
+- OpenAI embedding integration (`init_embedding_function()` in `memory_indexer.py`) ✅
 - ChromaDB storage system (`ChromaStorage` in `storage.py`) ✅
 - Cold archive system with JSON metadata (`ArchiveStorage` in `storage.py`) ✅
 - Unified memory access interface (`CogniMemoryClient` in `memory_client.py`) ✅
 - Memory tool for agent integration (`memory_tool.py`) ✅
-- Main entry point script (`run_indexing()` in `memory_indexer.py`) (basic functionality) ✅
+- Main entry point script (`run_indexing()` in `memory_indexer.py`) ✅
 - Memory Control Protocol server (`memory_mcp_server.py` - not yet implemented)
 - ## Key Libraries
 - [ChromaDB](https://github.com/chroma-core/chroma) - Vector database
@@ -108,7 +114,8 @@ Next Steps:
 - WebSocket connections enable real-time memory updates
 - ## Progress Summary
 - **Completed**:
-  - Basic memory indexer with Logseq parsing and ChromaDB storage
+  - Dedicated Logseq parser with comprehensive metadata extraction
+  - Memory indexer with CLI, error handling, and progress reporting
   - Archive system for cold storage with JSON indexing
   - Schema definitions for memory blocks and indices
   - Unified CogniMemoryClient interface with memory_tool.py for agent integration
@@ -117,4 +124,3 @@ Next Steps:
 - **Next Steps**:
   - Integrate the memory system with BroadcastCogni
   - Create the MCP server for external tools
-  - Enhance error handling and optimize performance
