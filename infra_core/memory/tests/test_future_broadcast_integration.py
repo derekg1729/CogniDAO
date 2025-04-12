@@ -1,5 +1,8 @@
 """
-Tests for integration with BroadcastCogni agent.
+Tests for future integration with BroadcastCogni agent.
+
+Note: These tests are currently PLACEHOLDERS for when BroadcastCogni agent is built.
+They document planned interactions between the memory system and agents.
 """
 
 import os
@@ -12,8 +15,8 @@ import pytest
 # from infra_core.memory.client import CogniMemoryClient
 
 
-class TestBroadcastCogniIntegration:
-    """Tests for integrating memory system with BroadcastCogni agent."""
+class TestFutureBroadcastIntegration:
+    """Placeholder tests for future integration between memory system and BroadcastCogni agent."""
 
     @pytest.fixture
     def test_memory_client(self):
@@ -44,12 +47,12 @@ class TestBroadcastCogniIntegration:
             shutil.rmtree(chroma_dir)
 
     def test_context_generation(self, test_memory_client):
-        """Test generating context for BroadcastCogni with memory."""
+        """Placeholder test for generating context for BroadcastCogni with memory."""
         # Verify test data is correct before skipping
         assert os.path.exists(test_memory_client)
         
         # Skip test until integration is implemented
-        pytest.skip("BroadcastCogni integration not yet implemented")
+        pytest.skip("PLACEHOLDER: BroadcastCogni integration will be implemented in the future")
         
         # Code to uncomment when integration is implemented:
         # with patch("infra_core.cogni_agents.broadcast.BroadcastCogni") as mock_broadcast:
@@ -68,9 +71,9 @@ class TestBroadcastCogniIntegration:
         #     # More specific assertions would depend on the actual implementation
 
     def test_broadcast_archiving(self, test_memory_client):
-        """Test archiving broadcasts to memory."""
+        """Placeholder test for archiving broadcasts to memory."""
         # Skip test until integration is implemented
-        pytest.skip("BroadcastCogni integration not yet implemented")
+        pytest.skip("PLACEHOLDER: BroadcastCogni integration will be implemented in the future")
         
         # Code to uncomment when integration is implemented:
         # with patch("infra_core.cogni_agents.broadcast.BroadcastCogni") as mock_broadcast:
@@ -100,9 +103,9 @@ class TestBroadcastCogniIntegration:
         #     assert "#approved" in blocks[0].tags
 
     def test_memory_weighted_prompt_construction(self, test_memory_client):
-        """Test constructing prompts with memory weighting."""
+        """Placeholder test for constructing prompts with memory weighting."""
         # Skip test until integration is implemented
-        pytest.skip("BroadcastCogni integration not yet implemented")
+        pytest.skip("PLACEHOLDER: BroadcastCogni integration will be implemented in the future")
         
         # Code to uncomment when integration is implemented:
         # # Create a client that will return mock results
@@ -141,9 +144,9 @@ class TestBroadcastCogniIntegration:
         #     assert "Critical system update announcement" in str(prompt["relevant_context"])
 
     def test_logging_memory_operations(self, test_memory_client):
-        """Test logging of memory operations in agent workflows."""
+        """Placeholder test for logging of memory operations in agent workflows."""
         # Skip test until integration is implemented
-        pytest.skip("BroadcastCogni integration not yet implemented")
+        pytest.skip("PLACEHOLDER: BroadcastCogni integration will be implemented in the future")
         
         # Code to uncomment when integration is implemented:
         # with patch("logging.Logger.info") as mock_logger:
@@ -162,9 +165,9 @@ class TestBroadcastCogniIntegration:
         #     assert any("memory" in call_args[0][0].lower() for call_args in mock_logger.call_args_list)
 
     def test_end_to_end_agent_memory_flow(self, test_memory_client):
-        """Test full end-to-end agent memory flow."""
+        """Placeholder test for full end-to-end agent memory flow."""
         # Skip test until all components are implemented
-        pytest.skip("Complete memory-agent integration not yet implemented")
+        pytest.skip("PLACEHOLDER: Complete memory-agent integration will be implemented in the future")
         
         # Code to uncomment when all components are implemented:
         # # This test will simulate a complete flow:
