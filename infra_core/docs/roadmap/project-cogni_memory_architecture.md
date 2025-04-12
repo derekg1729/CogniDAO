@@ -72,8 +72,14 @@ Next Steps:
   3. [x] [[task-create_memory_index_json]] - Create archive system with JSON indexing
   4. [x] [[task-build_cogni_memory_client]] - Build unified memory client interface
   5. [x] [[task-memory_indexer_main]] - Create main entry point script
-  6. [ ] [[task-integrate_into_broadcastcogni]] - Integrate with BroadcastCogni agent
-  7. [ ] [[task-create_memory_mcp_server]] - Create Memory Control Protocol server for external tools
+  6. [] [[project-cogni_memory_architecture_v2.md]] v2 memoryClient
+  10. [] replace context.py calls with memory_client
+
+
+
+  Future:
+   [ ] [[task-integrate_into_broadcastcogni]] - Integrate with BroadcastCogni agent
+   [ ] [[task-create_memory_mcp_server]] - Create Memory Control Protocol server for external tools
 - ## Testing Strategy
   Each component includes specific test criteria as outlined in the individual task files.
   The testing strategy progresses from:
