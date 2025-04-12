@@ -38,8 +38,15 @@ class ChromaStorage:
         # Create directory if it doesn't exist
         os.makedirs(self.persist_directory, exist_ok=True)
         
-        # Initialize client and collection
-        self.client = chromadb.PersistentClient(path=str(self.persist_directory))
+        # Initialize client and collection - add standardized settings to avoid conflicts
+        self.client = chromadb.PersistentClient(
+            path=str(self.persist_directory),
+            settings=chromadb.Settings(
+                anonymized_telemetry=False,  # Disable telemetry for privacy
+                allow_reset=True,  # Allow resetting collection if needed
+                chroma_server_ssl_enabled=False  # Disable SSL for local dev
+            )
+        )
         
         try:
             self.collection = self.client.get_collection(name=self.collection_name)

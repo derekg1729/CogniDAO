@@ -1,6 +1,6 @@
 # Task:[Create Memory Index JSON]
 :type: Task
-:status: in-progress
+:status: completed
 :project: [project-cogni_memory_architecture]
 :owner: 
 

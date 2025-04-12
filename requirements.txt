@@ -7,3 +7,5 @@ PyGithub>=2.1.1
 ruff>=0.3.3
 pre-commit
 chromadb>=1.0.0
+sentence-transformers>=2.2.2
+tqdm>=4.65.0

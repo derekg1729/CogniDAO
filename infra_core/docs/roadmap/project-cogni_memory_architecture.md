@@ -11,7 +11,9 @@ We have implemented several key components of the Cogni Memory Architecture:
    - Robust error handling and progress reporting
    - Integration with LogseqParser for Logseq files
    - ChromaDB storage with improved collection handling
-   - Configurable embedding models and target tags
+   - Configurable embedding models with BGE implementation
+   - Intelligent device detection (CPU/GPU/MPS)
+   - Optimized logging with verbose/quiet modes
 
 2. **Parser** (`parser.py`):
    - Dedicated LogseqParser class for markdown processing
@@ -81,7 +83,7 @@ Next Steps:
   4. Agent integration tests with BroadcastCogni
 - ## Key Components
 - Logseq `.md` file parser and tag indexer (`LogseqParser` in `parser.py`) ✅
-- OpenAI embedding integration (`init_embedding_function()` in `memory_indexer.py`) ✅
+- Embedding model integration with BGE (`init_embedding_function()` in `memory_indexer.py`) ✅
 - ChromaDB storage system (`ChromaStorage` in `storage.py`) ✅
 - Cold archive system with JSON metadata (`ArchiveStorage` in `storage.py`) ✅
 - Unified memory access interface (`CogniMemoryClient` in `memory_client.py`) ✅
@@ -90,7 +92,7 @@ Next Steps:
 - Memory Control Protocol server (`memory_mcp_server.py` - not yet implemented)
 - ## Key Libraries
 - [ChromaDB](https://github.com/chroma-core/chroma) - Vector database
-- [OpenAI API](https://platform.openai.com/) - Text embeddings
+- [Sentence-Transformers](https://www.sbert.net/) - Text embeddings (BGE model)
 - [Pydantic](https://docs.pydantic.dev/) - Schema validation
 - [Pytest](https://docs.pytest.org/) - Testing framework
 - [Frontmatter](https://github.com/eyeseast/python-frontmatter) - Markdown parsing
@@ -100,8 +102,8 @@ Next Steps:
 - [WebSockets](https://websockets.readthedocs.io/) - Real-time communication
 - ## Dependencies
 - Existing Logseq graph format and tagging conventions
-- OpenAI API access for embeddings
 - Python 3.8+ environment
+- CUDA/MPS/CPU for embedding generation
 - ## Success Criteria
 - Memory indexer successfully processes Logseq files ✅
 - ChromaDB collection is created with embedded blocks ✅
@@ -119,7 +121,10 @@ Next Steps:
   - Archive system for cold storage with JSON indexing
   - Schema definitions for memory blocks and indices
   - Unified CogniMemoryClient interface with memory_tool.py for agent integration
-  - Essential unit tests with good coverage
+  - BGE embedding model integration with device optimization
+  - Standardized ChromaDB settings and improved error handling
+  - Optimized logging system with proper verbose/quiet modes
+  - Comprehensive test suite with end-to-end testing
   
 - **Next Steps**:
   - Integrate the memory system with BroadcastCogni
