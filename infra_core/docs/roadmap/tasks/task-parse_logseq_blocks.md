@@ -1,6 +1,6 @@
 # Task:[Parse Logseq Blocks]
 :type: Task
-:status: todo
+:status: in-progress
 :project: [project-cogni_memory_architecture]
 :owner: 
 
@@ -8,12 +8,12 @@
 Implement the parsing logic to scan and extract high-signal blocks from Logseq `.md` files. Focus on blocks tagged with #thought, #broadcast, #approved or other designated tags.
 
 ## Action Items
-- [ ] Create parser module to scan through .md files in a given Logseq directory
-- [ ] Implement regex or markdown parser to extract individual blocks
-- [ ] Add filtering logic to identify blocks with specific tags (#thought, #broadcast, #approved)
-- [ ] Create data structure to store block text, tags, source file, and unique identifier
+- [x] Create parser module to scan through .md files in a given Logseq directory (basic implementation in memory_indexer.py)
+- [x] Implement regex or markdown parser to extract individual blocks (basic line-based parsing)
+- [x] Add filtering logic to identify blocks with specific tags (#thought, #broadcast, #approved)
+- [x] Create data structure to store block text, tags, source file, and unique identifier
 - [ ] Add metadata extraction for blocks (timestamp, references, etc.)
-- [ ] Include unit tests for parser functionality
+- [/] Include unit tests for parser functionality (basic tests implemented)
 
 ## Deliverables
 1. A `parser.py` module with functions to:
@@ -25,9 +25,9 @@ Implement the parsing logic to scan and extract high-signal blocks from Logseq `
 2. Unit tests demonstrating parser functionality with sample data
 
 ## Test Criteria
-- [ ] Test with sample Logseq markdown files containing various blocks
-- [ ] Verify all blocks with #thought, #broadcast, #approved tags are detected
-- [ ] Confirm parser extracts correct metadata (file source, tags, etc.)
+- [x] Test with sample Logseq markdown files containing various blocks
+- [x] Verify all blocks with #thought, #broadcast, #approved tags are detected
+- [x] Confirm parser extracts correct metadata (file source, tags, etc.)
 - [ ] Validate parser handling of malformed markdown without crashing
 - [ ] Verify extraction of block text preserves formatting
 

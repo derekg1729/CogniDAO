@@ -14,8 +14,8 @@
 	- archive old blocks
 - ## MVP Flow
   1. [ ] Description - [[task-template]]
-  2. [ ] Parse Logseq blocks → extract approved, tagged content
-  3. [ ] Save block data + metadata to vector DB (Chroma or Qdrant)
+  2. [x] Parse Logseq blocks → extract approved, tagged content (basic implementation)
+  3. [x] Save block data + metadata to vector DB (Chroma or Qdrant) (basic implementation)
   4. [ ] Archive old `.md` blocks to cold storage with JSON index
   5. [ ] Build `CogniMemoryClient` interface for: query / save / archive
 - ### Future Vision
@@ -25,13 +25,13 @@
 - Cross-agent memory syncing with MCP hooks
 - Training of tone/style classifiers from historical human approvals
 - ## Implementation Flow
-  1. [[task-parse_logseq_blocks]] - Parse Logseq blocks from markdown files
-  2. [[task-save_vector_db_records]] - Embed and store blocks in ChromaDB
-  3. [[task-create_memory_index_json]] - Create archive system with JSON indexing
-  4. [[task-build_cogni_memory_client]] - Build unified memory client interface
-  5. [[task-memory_indexer_main]] - Create main entry point script
-  6. [[task-integrate_into_broadcastcogni]] - Integrate with BroadcastCogni agent
-  7. [[task-create_memory_mcp_server]] - Create Memory Control Protocol server for external tools
+  1. [/] [[task-parse_logseq_blocks]] - Parse Logseq blocks from markdown files (basic implementation in memory_indexer.py)
+  2. [/] [[task-save_vector_db_records]] - Embed and store blocks in ChromaDB (basic implementation in memory_indexer.py)
+  3. [ ] [[task-create_memory_index_json]] - Create archive system with JSON indexing
+  4. [ ] [[task-build_cogni_memory_client]] - Build unified memory client interface
+  5. [/] [[task-memory_indexer_main]] - Create main entry point script (basic functionality working)
+  6. [ ] [[task-integrate_into_broadcastcogni]] - Integrate with BroadcastCogni agent
+  7. [ ] [[task-create_memory_mcp_server]] - Create Memory Control Protocol server for external tools
 - ## Testing Strategy
   Each component includes specific test criteria as outlined in the individual task files.
   The testing strategy progresses from:

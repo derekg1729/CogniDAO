@@ -6,3 +6,4 @@ pytest-mock>=3.10.0
 PyGithub>=2.1.1
 ruff>=0.3.3
 pre-commit
+chromadb>=1.0.0

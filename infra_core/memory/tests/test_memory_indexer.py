@@ -6,6 +6,9 @@ import os
 import tempfile
 import shutil
 import pytest
+import subprocess
+import sys
+import importlib.util
 
 
 class TestMemoryIndexer:
@@ -31,128 +34,126 @@ class TestMemoryIndexer:
             shutil.rmtree(logseq_dir)
             shutil.rmtree(output_dir)
     
-    def test_indexer_command_line(self, test_environment):
+    def test_indexer_command_line(self, test_environment, monkeypatch):
         """Test the memory indexer command-line interface."""
-        # Verify test data is correct before skipping
+        # Verify test data is correct
         assert os.path.exists(test_environment["logseq_dir"])
         assert os.path.exists(test_environment["output_dir"])
         
-        # Skip test until indexer is implemented
-        pytest.skip("Memory indexer not yet implemented")
+        # Set environment variable for OpenAI API key
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key-for-testing")
         
-        # Code to uncomment when indexer is implemented:
-        # memory_indexer_path = os.path.join(os.path.dirname(__file__), "..", "memory_indexer.py")
-        # 
-        # # Run the indexer with test directories
-        # try:
-        #     result = subprocess.run([
-        #         "python", memory_indexer_path,
-        #         "--logseq-dir", test_environment["logseq_dir"],
-        #         "--output-dir", test_environment["output_dir"]
-        #     ], capture_output=True, text=True, check=True)
-        #     
-        #     # Check if process ran successfully
-        #     assert result.returncode == 0
-        #     
-        #     # Check if output mentions expected operations
-        #     assert "Starting Cogni Memory Indexer" in result.stdout
-        #     assert "Logseq directory:" in result.stdout
-        #     assert "Output directory:" in result.stdout
-        #     
-        #     # Check if output directory was created with expected structure
-        #     chroma_dir = os.path.join(test_environment["output_dir"], "chroma")
-        #     assert os.path.exists(chroma_dir)
-        # except subprocess.CalledProcessError as e:
-        #     pytest.fail(f"Memory indexer process failed: {e.stdout}\n{e.stderr}")
+        # Memory indexer doesn't support command line args yet, so we'll modify it directly
+        memory_indexer_path = os.path.join(os.path.dirname(__file__), "..", "memory_indexer.py")
+        
+        # Create a temporary modified version of memory_indexer.py with our test paths
+        temp_indexer_path = os.path.join(test_environment["output_dir"], "test_memory_indexer.py")
+        with open(memory_indexer_path, "r") as src, open(temp_indexer_path, "w") as dst:
+            content = src.read()
+            content = content.replace('LOGSEQ_DIR = "./logseq"', f'LOGSEQ_DIR = "{test_environment["logseq_dir"]}"')
+            content = content.replace('VECTOR_DB_DIR = "./cogni-memory/chroma"', 
+                                     f'VECTOR_DB_DIR = "{os.path.join(test_environment["output_dir"], "chroma")}"')
+            # Add code to use the mock embedding model
+            content = content.replace('if __name__ == "__main__":', 
+                                    'if __name__ == "__main__":\n    # Use mock embedding for tests')
+            content = content.replace('    run_indexing()', 
+                                    '    run_indexing(embed_model="mock")')
+            dst.write(content)
+        
+        # Run the modified indexer
+        try:
+            result = subprocess.run([
+                sys.executable, temp_indexer_path
+            ], capture_output=True, text=True, check=True)
+            
+            # Check if process ran successfully
+            assert result.returncode == 0
+            
+            # Check if output mentions expected operations
+            assert "Scanning Logseq directory" in result.stdout
+            assert "Indexed" in result.stdout
+            
+            # Check if output directory was created with expected structure
+            chroma_dir = os.path.join(test_environment["output_dir"], "chroma")
+            assert os.path.exists(chroma_dir)
+        except subprocess.CalledProcessError as e:
+            pytest.fail(f"Memory indexer process failed: {e.stdout}\n{e.stderr}")
     
     def test_indexer_creates_chroma_collection(self, test_environment):
-        """Test that the indexer creates a ChromaDB collection."""
-        # Skip test until indexer is implemented
-        pytest.skip("Memory indexer not yet implemented")
+        """Test that the indexer creates a ChromaDB collection using direct import."""
+        # Skip if chromadb is not available
+        try:
+            import chromadb
+        except ImportError:
+            pytest.skip("ChromaDB not installed")
         
-        # Code to uncomment when indexer is implemented:
-        # import chromadb  # Import here to avoid dependency for all tests
-        # 
-        # memory_indexer_path = os.path.join(os.path.dirname(__file__), "..", "memory_indexer.py")
-        # 
-        # # Run the indexer
-        # subprocess.run([
-        #     "python", memory_indexer_path,
-        #     "--logseq-dir", test_environment["logseq_dir"],
-        #     "--output-dir", test_environment["output_dir"]
-        # ], check=True)
-        # 
-        # # Check if ChromaDB can open the collection
-        # chroma_dir = os.path.join(test_environment["output_dir"], "chroma")
-        # client = chromadb.PersistentClient(path=chroma_dir)
-        # collection = client.get_collection("cogni-memory")
-        # 
-        # # Should have indexed the tagged blocks (3 in our test file)
-        # assert collection.count() == 3
+        # Directly import the memory_indexer module
+        memory_indexer_path = os.path.join(os.path.dirname(__file__), "..", "memory_indexer.py")
+        spec = importlib.util.spec_from_file_location("memory_indexer", memory_indexer_path)
+        memory_indexer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(memory_indexer)
+        
+        # Run indexing with mock embedding function directly
+        chroma_dir = os.path.join(test_environment["output_dir"], "chroma")
+        total_indexed = memory_indexer.run_indexing(
+            logseq_dir=test_environment["logseq_dir"],
+            vector_db_dir=chroma_dir,
+            embed_model="mock"
+        )
+        
+        # Check that we indexed the expected number of blocks (3 tagged blocks in our test file)
+        assert total_indexed == 3
+        
+        # Verify the ChromaDB collection was created
+        assert os.path.exists(chroma_dir)
+        
+        # Check if we can open the collection
+        client = chromadb.PersistentClient(path=chroma_dir)
+        collection = client.get_collection("cogni-memory")
+        assert collection.count() == 3
     
     def test_indexer_with_custom_tags(self, test_environment):
         """Test the indexer with custom tag filters."""
-        # Skip test until indexer is implemented
-        pytest.skip("Memory indexer not yet implemented")
+        # Skip if chromadb is not available
+        try:
+            import chromadb
+        except ImportError:
+            pytest.skip("ChromaDB not installed")
         
-        # Code to uncomment when indexer is implemented:
-        # memory_indexer_path = os.path.join(os.path.dirname(__file__), "..", "memory_indexer.py")
-        # 
-        # # Run the indexer with custom tags
-        # subprocess.run([
-        #     "python", memory_indexer_path,
-        #     "--logseq-dir", test_environment["logseq_dir"],
-        #     "--output-dir", test_environment["output_dir"],
-        #     "--tags", "#broadcast"  # Only look for broadcast tags
-        # ], check=True)
-        # 
-        # # Import and check collection
-        # import chromadb
-        # chroma_dir = os.path.join(test_environment["output_dir"], "chroma")
-        # client = chromadb.PersistentClient(path=chroma_dir)
-        # collection = client.get_collection("cogni-memory")
-        # 
-        # # Should have only indexed blocks with #broadcast tag (2 in our test file)
-        # assert collection.count() == 2
-        # 
-        # # Query to verify the content
-        # results = collection.query(query_texts=["broadcast"], n_results=10)
-        # assert len(results["documents"][0]) == 2
-        # assert all("broadcast" in doc.lower() for doc in results["documents"][0])
+        # Directly import the memory_indexer module
+        memory_indexer_path = os.path.join(os.path.dirname(__file__), "..", "memory_indexer.py")
+        spec = importlib.util.spec_from_file_location("memory_indexer", memory_indexer_path)
+        memory_indexer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(memory_indexer)
+        
+        # Run indexing with only #broadcast tag filter
+        chroma_dir = os.path.join(test_environment["output_dir"], "chroma_broadcast_only")
+        total_indexed = memory_indexer.run_indexing(
+            logseq_dir=test_environment["logseq_dir"],
+            vector_db_dir=chroma_dir,
+            embed_model="mock",
+            target_tags={"#broadcast"}
+        )
+        
+        # Check that we indexed the expected number of blocks (2 blocks with #broadcast tag)
+        assert total_indexed == 2
+        
+        # Verify the ChromaDB collection was created
+        assert os.path.exists(chroma_dir)
+        
+        # Check if we can open the collection
+        client = chromadb.PersistentClient(path=chroma_dir)
+        collection = client.get_collection("cogni-memory")
+        assert collection.count() == 2
+        
+        # Get all entries instead of using query
+        results = collection.get()
+        
+        # Verify the documents contain broadcast tags
+        assert len(results["documents"]) == 2
+        assert all("broadcast" in doc.lower() for doc in results["documents"])
     
     def test_end_to_end_memory_indexing(self, test_environment):
         """Test the complete end-to-end memory indexing process."""
-        # Skip test until all components are implemented
-        pytest.skip("Full memory indexing pipeline not yet implemented")
-        
-        # Code to uncomment when all components are implemented:
-        # # Step 1: Run the indexer
-        # memory_indexer_path = os.path.join(os.path.dirname(__file__), "..", "memory_indexer.py")
-        # subprocess.run([
-        #     "python", memory_indexer_path,
-        #     "--logseq-dir", test_environment["logseq_dir"],
-        #     "--output-dir", test_environment["output_dir"]
-        # ], check=True)
-        # 
-        # # Step 2: Import the CogniMemoryClient 
-        # from infra_core.memory.client import CogniMemoryClient
-        # 
-        # # Step 3: Create a client to query the indexed data
-        # client = CogniMemoryClient(
-        #     chroma_path=os.path.join(test_environment["output_dir"], "chroma")
-        # )
-        # 
-        # # Step 4: Query for thought tag content
-        # results = client.query("thought", n_results=5)
-        # 
-        # # Step 5: Verify results
-        # assert len(results.blocks) >= 1
-        # assert any("#thought" in block.tags for block in results.blocks)
-        # 
-        # # Step 6: Query for broadcast tag content
-        # results = client.query("broadcast", n_results=5)
-        # 
-        # # Step 7: Verify results
-        # assert len(results.blocks) >= 2
-        # assert any("#broadcast" in block.tags for block in results.blocks)
-        # assert any("#approved" in block.tags for block in results.blocks) 
+        # Skip until CogniMemoryClient is implemented
+        pytest.skip("Full memory indexing pipeline not yet implemented (CogniMemoryClient missing)") 

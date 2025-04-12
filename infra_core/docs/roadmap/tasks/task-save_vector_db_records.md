@@ -1,6 +1,6 @@
 # Task:[Save Vector DB Records]
 :type: Task
-:status: todo
+:status: in-progress
 :project: [project-cogni_memory_architecture]
 :owner: 
 
@@ -8,10 +8,10 @@
 Implement functionality to embed extracted Logseq blocks using OpenAI embeddings and store them in a ChromaDB collection with appropriate metadata.
 
 ## Action Items
-- [ ] Set up OpenAI integration for text-embedding-3-small
+- [x] Set up OpenAI integration for text-embedding-3-small (implemented in memory_indexer.py)
 - [ ] Create embeddings batch processing logic with rate limiting
-- [ ] Configure ChromaDB local persistence
-- [ ] Define schema for block storage with metadata (text, tags, source_file, uuid)
+- [x] Configure ChromaDB local persistence
+- [x] Define schema for block storage with metadata (text, tags, source_file, uuid)
 - [ ] Implement saving logic with error handling and retry mechanisms
 - [ ] Add versioning for embedded records
 
@@ -29,7 +29,7 @@ Implement functionality to embed extracted Logseq blocks using OpenAI embeddings
 3. Configuration for local ChromaDB persistence in `cogni-memory/chroma/`
 
 ## Test Criteria
-- [ ] Verify embedding generation with sample text:
+- [x] Verify embedding generation with sample text:
 ```python
 def test_embedding_generation():
     embedder = OpenAIEmbedder()
@@ -41,7 +41,7 @@ def test_embedding_generation():
     assert all(isinstance(x, float) for x in embedding)
 ```
 
-- [ ] Test ChromaDB storage and retrieval:
+- [x] Test ChromaDB storage and retrieval:
 ```python
 def test_chroma_storage():
     # Setup
@@ -69,7 +69,7 @@ def test_chroma_storage():
 
 - [ ] Verify batch processing with multiple blocks
 - [ ] Validate error handling with simulated API failures
-- [ ] Confirm all metadata is properly stored and retrievable
+- [x] Confirm all metadata is properly stored and retrievable
 
 ## Notes
 - Use text-embedding-3-small model for efficiency and cost
