@@ -15,8 +15,5 @@ Brief description of this specific task.
 ## Notes
 Additional context or implementation details.
 
-## Estimated Effort
-- Hours: X
-
 ## Dependencies
 - Dependency 1 
