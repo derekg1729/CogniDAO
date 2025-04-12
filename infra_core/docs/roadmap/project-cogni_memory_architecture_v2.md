@@ -49,10 +49,10 @@ CogniMemoryClient V2 will provide a unified interface with two distinct layers:
 - No vector embedding, focuses on file I/O
 
 ## Implementation Flow
-- [/] Add scan_logseq() - Extract blocks without embedding
+- [x] Add scan_logseq() - Extract blocks without embedding
   - [x] Design task document with requirements
   - [x] Create stubbed tests
-  - [ ] Implementation
+  - [x] Implementation
 - [/] Add get_page() - Load full content of markdown files
   - [x] Design task document with requirements
   - [x] Create stubbed tests

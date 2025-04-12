@@ -8,7 +8,7 @@ This module provides a unified interface for memory operations:
 """
 
 import os
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, Set
 
 from infra_core.memory.schema import MemoryBlock, QueryResult
 from infra_core.memory.storage import CombinedStorage, ChromaStorage, ArchiveStorage
@@ -203,3 +203,52 @@ class CogniMemoryClient:
             "cold_storage": cold_count,
             "total": hot_count + cold_count
         } 
+    
+    def scan_logseq(
+        self, 
+        logseq_dir: str, 
+        tag_filter: Optional[Union[List[str], Set[str], str]] = None
+    ) -> List[MemoryBlock]:
+        """
+        Scan Logseq directory for blocks with specified tags without embedding.
+        
+        Args:
+            logseq_dir: Path to directory containing Logseq .md files
+            tag_filter: Optional tag or list of tags to filter for
+                       (default: {"#thought", "#broadcast", "#approved"})
+                       
+        Returns:
+            List of MemoryBlock instances (without embeddings)
+            
+        Raises:
+            FileNotFoundError: If the logseq_dir does not exist
+        """
+        # Convert tag_filter to a set for efficient filtering
+        if tag_filter is None:
+            target_tags = {"#thought", "#broadcast", "#approved"}
+        elif isinstance(tag_filter, str):
+            target_tags = {tag_filter}
+        else:
+            target_tags = set(tag_filter)
+            
+        # Create LogseqParser instance
+        from infra_core.memory.parser import LogseqParser
+        parser = LogseqParser(logseq_dir=logseq_dir, target_tags=target_tags)
+        
+        # Extract blocks from files
+        raw_blocks = parser.extract_all_blocks()
+        
+        # Convert to MemoryBlock instances (without embeddings)
+        blocks = []
+        for raw_block in raw_blocks:
+            block = MemoryBlock(
+                id=raw_block["id"],
+                text=raw_block["text"],
+                tags=raw_block["tags"],
+                source_file=raw_block["source_file"],
+                source_uri=raw_block.get("source_uri"),
+                metadata=raw_block.get("metadata"),
+            )
+            blocks.append(block)
+            
+        return blocks 

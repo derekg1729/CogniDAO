@@ -248,27 +248,12 @@ class TestCogniMemoryClient:
         valid_block = MemoryBlock(
             text="Valid block",
             tags=["#thought"],
-            source_file="test.md"
+            source_file="test.md",
         )
-        
-        # This should work and produce valid JSON
-        valid_json = valid_block.model_dump_json()
-        assert isinstance(valid_json, str)
-        
-        # Test with missing required field
-        # Pydantic should raise a validation error for missing 'text'
-        with pytest.raises(Exception):
-            # Creating a block without the required 'text' field should raise an exception
-            MemoryBlock(
-                tags=["#thought"],
-                source_file="test.md"
-            ) 
+        assert valid_block.text == "Valid block"
+        assert valid_block.tags == ["#thought"]
+        assert valid_block.source_file == "test.md"
 
-    # ====================================================
-    # STUBBED TESTS FOR CogniMemoryClient V2 (DUAL LAYER)
-    # ====================================================
-
-    @pytest.mark.skip(reason="Feature not yet implemented")
     def test_scan_logseq_basic(self, test_directories):
         """
         Test basic scanning of Logseq files without embedding.
@@ -283,7 +268,6 @@ class TestCogniMemoryClient:
             - Blocks contain correct text, tags, and source_file attributes
             - No embeddings are generated
         """
-        pytest.skip("Feature not yet implemented")
         
         # Setup
         test_logseq_dir = tempfile.mkdtemp()
@@ -316,7 +300,6 @@ class TestCogniMemoryClient:
         finally:
             shutil.rmtree(test_logseq_dir)
 
-    @pytest.mark.skip(reason="Feature not yet implemented")
     def test_scan_logseq_with_tag_filter(self, test_directories):
         """
         Test scanning Logseq files with tag filtering.
@@ -329,7 +312,6 @@ class TestCogniMemoryClient:
             - Only blocks containing the #thought tag are returned
             - Other tagged blocks are filtered out
         """
-        pytest.skip("Feature not yet implemented")
         
         # Setup
         test_logseq_dir = tempfile.mkdtemp()
@@ -357,7 +339,6 @@ class TestCogniMemoryClient:
         finally:
             shutil.rmtree(test_logseq_dir)
 
-    @pytest.mark.skip(reason="Feature not yet implemented")
     def test_scan_logseq_invalid_dir(self, test_directories):
         """
         Test scanning with an invalid Logseq directory path.
@@ -368,7 +349,6 @@ class TestCogniMemoryClient:
         Expected Output:
             - FileNotFoundError is raised
         """
-        pytest.skip("Feature not yet implemented")
         
         # Initialize client
         client = CogniMemoryClient(

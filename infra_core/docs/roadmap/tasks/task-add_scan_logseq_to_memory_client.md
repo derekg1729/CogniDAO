@@ -1,24 +1,24 @@
 # Task:[Add scan_logseq() to CogniMemoryClient]
 :type: Task
-:status: todo
+:status: completed
 :project: [project-cogni_memory_architecture]
 :owner: 
 
 ## Current Status
 - [x] Task design document completed
 - [x] Comprehensive stubbed tests created in test_memory_client.py
-- [ ] Implementation not yet started
+- [x] Implementation completed
 
 ## Description
 Add a `scan_logseq()` method to CogniMemoryClient that extracts high-signal blocks from Logseq .md files without embedding them. This enables applications to quickly scan and filter Logseq content without the overhead of vector embedding.
 
 ## Action Items
-- [ ] Add a `scan_logseq(logseq_dir, tag_filter=None)` method to CogniMemoryClient
-- [ ] Reuse the existing LogseqParser functionality to extract blocks
-- [ ] Implement tag filtering with both string and list inputs
-- [ ] Add error handling for invalid directories
-- [ ] Return structured MemoryBlock instances without embedding them
-- [ ] Add type hints and comprehensive docstrings
+- [x] Add a `scan_logseq(logseq_dir, tag_filter=None)` method to CogniMemoryClient
+- [x] Reuse the existing LogseqParser functionality to extract blocks
+- [x] Implement tag filtering with both string and list inputs
+- [x] Add error handling for invalid directories
+- [x] Return structured MemoryBlock instances without embedding them
+- [x] Add type hints and comprehensive docstrings
 - [x] Write unit tests in test_memory_client.py
 
 ## Deliverables
