@@ -4,16 +4,33 @@
 :project: [project-cogni_memory_architecture]
 :owner: 
 
+## Current Status
+Basic parsing functionality is implemented directly in `memory_indexer.py` rather than as a separate module. The current implementation can:
+- Scan directories for .md files
+- Extract blocks from lines in markdown files
+- Filter blocks based on tags
+- Create structured data with metadata
+
+To complete this task, we would need to:
+1. Extract the parsing logic to a dedicated `parser.py` module
+2. Add support for better metadata extraction
+3. Add more robust error handling
+4. Create comprehensive unit tests
+
 ## Description
 Implement the parsing logic to scan and extract high-signal blocks from Logseq `.md` files. Focus on blocks tagged with #thought, #broadcast, #approved or other designated tags.
 
 ## Action Items
 - [x] Create parser module to scan through .md files in a given Logseq directory (basic implementation in memory_indexer.py)
+  - Implemented in `memory_indexer.py` with `load_md_files()` function
 - [x] Implement regex or markdown parser to extract individual blocks (basic line-based parsing)
+  - Implemented in `memory_indexer.py` with `extract_blocks()` function
 - [x] Add filtering logic to identify blocks with specific tags (#thought, #broadcast, #approved)
+  - Implemented in `memory_indexer.py` with filtering in `extract_blocks()` using TARGET_TAGS set
 - [x] Create data structure to store block text, tags, source file, and unique identifier
+  - Implemented in `memory_indexer.py` as dictionary in `extract_blocks()` and in `schema.py` as `MemoryBlock` model
 - [ ] Add metadata extraction for blocks (timestamp, references, etc.)
-- [/] Include unit tests for parser functionality (basic tests implemented)
+- [ ] Include unit tests for parser functionality
 
 ## Deliverables
 1. A `parser.py` module with functions to:
@@ -26,8 +43,11 @@ Implement the parsing logic to scan and extract high-signal blocks from Logseq `
 
 ## Test Criteria
 - [x] Test with sample Logseq markdown files containing various blocks
+  - Tested in `test_memory_indexer.py` with sample files created in test fixtures
 - [x] Verify all blocks with #thought, #broadcast, #approved tags are detected
+  - Tested in `test_memory_indexer.py` with custom tag filtering tests
 - [x] Confirm parser extracts correct metadata (file source, tags, etc.)
+  - Tested in various parts of `test_memory_indexer.py` and `test_storage.py`
 - [ ] Validate parser handling of malformed markdown without crashing
 - [ ] Verify extraction of block text preserves formatting
 
