@@ -4,6 +4,11 @@
 :project: [project-cogni_memory_architecture]
 :owner: 
 
+## Current Status
+- [x] Task design document completed
+- [ ] Implementation not yet started
+- Note: This task only requires documentation updates, not code changes or tests
+
 ## Description
 Clarify the behavior of existing `save_blocks()` and `query()` methods in CogniMemoryClient, emphasizing that they operate on the vector database only, with no direct file I/O. This will help developers understand the clear separation between vectorized "hot" memory and file-based "structured" memory operations.
 

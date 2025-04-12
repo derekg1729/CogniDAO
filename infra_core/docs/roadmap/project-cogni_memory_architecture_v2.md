@@ -50,10 +50,24 @@ CogniMemoryClient V2 will provide a unified interface with two distinct layers:
 
 ## Implementation Flow
 - [/] Add scan_logseq() - Extract blocks without embedding
-- [ ] Add get_page() - Load full content of markdown files
-- [ ] Add write_page() - Write or append to markdown files
-- [ ] Refactor memory_indexer.py - Extract logic to CogniMemoryClient
-- [ ] Document save_blocks() and query() - Clarify vector-only behavior
+  - [x] Design task document with requirements
+  - [x] Create stubbed tests
+  - [ ] Implementation
+- [/] Add get_page() - Load full content of markdown files
+  - [x] Design task document with requirements
+  - [x] Create stubbed tests
+  - [ ] Implementation
+- [/] Add write_page() - Write or append to markdown files
+  - [x] Design task document with requirements
+  - [x] Create stubbed tests
+  - [ ] Implementation
+- [/] Refactor memory_indexer.py - Extract logic to CogniMemoryClient
+  - [x] Design task document with requirements
+  - [x] Create stubbed tests
+  - [ ] Implementation
+- [/] Document save_blocks() and query() - Clarify vector-only behavior
+  - [x] Design task document with requirements
+  - [ ] Implementation
 
 ## Success Criteria
 1. Agent systems can directly scan and extract blocks from Logseq files without embedding overhead
