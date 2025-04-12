@@ -1,7 +1,7 @@
 # git-cogni-agent
 :type: Project
 :status: completed-v1
-:project: [[Epic_Presence_and_Control_Loops]]
+:epic: [[Epic_Presence_and_Control_Loops]]
 
 ## Description
 Launch a single Git-Cogni agent, guided by spirit context, that reviews the diff and outputs a markdown review.

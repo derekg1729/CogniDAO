@@ -1,23 +1,29 @@
-# Project:[]
+
+# template-project
 :type: Project
-:status: todo
-:epic: []
-:owner: 
+:status: in-progress
+:epic: [[epic-template]]
 
 ## Description
-Brief description of this project's purpose and scope.
+Brief, understandable, actionable signal.
 
-## Steps
-- [ ] Step 1
-- [ ] Step 2
-- [ ] Step 3
+### MVP
 
-## Tasks
-- [[]]
+### Future Vision
+
+## MVP Flow
+1. [ ] Description - [[task-template]]
+
+
+## Key Components
+- 
+
+
+## Key Libraries
+- Key open source libraries to use
 
 ## Dependencies
-- Dependency 1
+- 
 
-## Timeline
-- Start: YYYY-MM-DD
-- Target completion: YYYY-MM-DD 
+## Implementation Tasks
+- [[task-template]] - Full list of tasks here
