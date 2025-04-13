@@ -8,7 +8,7 @@ This module provides a unified interface for memory operations:
 """
 
 import os
-from typing import List, Dict, Optional, Union, Set
+from typing import List, Dict, Optional, Union, Set, Tuple
 
 from infra_core.memory.schema import MemoryBlock, QueryResult
 from infra_core.memory.storage import CombinedStorage, ChromaStorage, ArchiveStorage
@@ -251,4 +251,58 @@ class CogniMemoryClient:
             )
             blocks.append(block)
             
-        return blocks 
+        return blocks
+    
+    def get_page(
+        self, 
+        filepath: str,
+        extract_frontmatter: bool = False
+    ) -> Union[str, Tuple[str, Dict]]:
+        """
+        Load the full content of a markdown file.
+        
+        Args:
+            filepath: Path to the markdown file (absolute or relative path)
+            extract_frontmatter: Whether to extract frontmatter metadata (default: False)
+            
+        Returns:
+            If extract_frontmatter is False:
+                Raw markdown content as a string
+            If extract_frontmatter is True:
+                Tuple of (content, frontmatter_dict)
+                
+        Raises:
+            FileNotFoundError: If the file does not exist
+            PermissionError: If the file cannot be read due to permissions
+        """
+        # Ensure file exists
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"File not found: {filepath}")
+        
+        # Read file
+        try:
+            if extract_frontmatter:
+                # Use frontmatter library to extract metadata
+                import frontmatter
+                from datetime import date, datetime
+                
+                post = frontmatter.load(filepath)
+                
+                # Convert date objects to strings for consistent output
+                metadata = {}
+                for key, value in post.metadata.items():
+                    if isinstance(value, (date, datetime)):
+                        metadata[key] = value.isoformat()
+                    else:
+                        metadata[key] = value
+                
+                return post.content, metadata
+            else:
+                # Standard file read
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    return f.read()
+        except PermissionError:
+            raise PermissionError(f"Permission denied when trying to read {filepath}")
+        except Exception as e:
+            # Re-raise unexpected errors with context
+            raise IOError(f"Error reading file {filepath}: {str(e)}") from e 

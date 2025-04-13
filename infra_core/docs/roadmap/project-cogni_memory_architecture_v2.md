@@ -53,10 +53,10 @@ CogniMemoryClient V2 will provide a unified interface with two distinct layers:
   - [x] Design task document with requirements
   - [x] Create stubbed tests
   - [x] Implementation
-- [/] Add get_page() - Load full content of markdown files
+- [x] Add get_page() - Load full content of markdown files
   - [x] Design task document with requirements
   - [x] Create stubbed tests
-  - [ ] Implementation
+  - [x] Implementation
 - [/] Add write_page() - Write or append to markdown files
   - [x] Design task document with requirements
   - [x] Create stubbed tests

@@ -360,7 +360,6 @@ class TestCogniMemoryClient:
         with pytest.raises(FileNotFoundError):
             client.scan_logseq("/non/existent/directory")
 
-    @pytest.mark.skip(reason="Feature not yet implemented")
     def test_get_page_basic(self, test_directories):
         """
         Test basic page content retrieval.
@@ -372,7 +371,6 @@ class TestCogniMemoryClient:
             - Raw string content of the file
             - Content matches the original file exactly
         """
-        pytest.skip("Feature not yet implemented")
         
         # Setup
         test_dir = tempfile.mkdtemp()
@@ -400,7 +398,6 @@ class TestCogniMemoryClient:
         finally:
             shutil.rmtree(test_dir)
 
-    @pytest.mark.skip(reason="Feature not yet implemented")
     def test_get_page_with_frontmatter(self, test_directories):
         """
         Test page retrieval with frontmatter extraction.
@@ -414,7 +411,6 @@ class TestCogniMemoryClient:
             - Frontmatter dictionary contains expected key/value pairs
             - Content contains the body without frontmatter
         """
-        pytest.skip("Feature not yet implemented")
         
         # Setup
         test_dir = tempfile.mkdtemp()
@@ -454,7 +450,6 @@ This is a test page with frontmatter."""
         finally:
             shutil.rmtree(test_dir)
 
-    @pytest.mark.skip(reason="Feature not yet implemented")
     def test_get_page_file_not_found(self, test_directories):
         """
         Test error handling for non-existent file.
@@ -465,7 +460,6 @@ This is a test page with frontmatter."""
         Expected Output:
             - FileNotFoundError is raised
         """
-        pytest.skip("Feature not yet implemented")
         
         # Initialize client
         client = CogniMemoryClient(
