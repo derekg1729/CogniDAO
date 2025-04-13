@@ -4,68 +4,100 @@
 :project: [project-cogni_memory_architecture]
 
 ## Current Status
-The `context.py` module provides functionality to load spirit guides and core documents as context for AI model API calls. Now that we have implemented a robust `CogniMemoryClient` that can handle standard markdown files without requiring conversion, we need to replace `context.py` with the memory client to standardize context access across all agents.
+The `infra_core/cogni_spirit/context.py` module currently handles loading spirit guides and core documents. We need to replace it with the more robust `CogniMemoryClient` functionality while maintaining the same behavior. This is our second attempt, with focus on minimal, targeted changes.
 
 ## Description
-Migrate all functionality and usage of `infra_core/cogni_spirit/context.py` to use the new `CogniMemoryClient`. This will provide a unified interface for all memory operations and take advantage of the improved parsing capabilities.
+Instead of replacing every context.py call in consuming code, we'll implement the context.py functions directly in CogniMemoryClient and update context.py to delegate to them. This approach minimizes code changes and risk while providing a clear migration path.
 
 ## Action Items
-- [ ] Scan codebase and identify all locations where context.py is used
-  - Known locations:
-    - infra_core/flows/rituals/ritual_of_presence.py
-    - infra_core/cogni_agents/git_cogni/git_cogni.py
-    - tests/test_context.py
-
-- [ ] Create test fixtures and baselines to verify consistent behavior
-
-- [ ] One at a time, replace context.py calls with MemoryClient calls that have the same behavior
-  - [ ] Replace get_core_documents() with memory_client.get_page() calls
-  - [ ] Replace get_guide() with memory_client.get_page() for spirit guides
-  - [ ] Replace get_guide_for_task() with appropriate memory_client methods
-  - [ ] Replace get_core_context() with memory_client implementation
-
-- [ ] Ensure sufficient test coverage for new implementations
-  - [ ] Add tests for any functionality not covered by existing tests
-  - [ ] Verify memory_client produces equivalent results to context.py
-
-- [ ] Run tests, iterate, and repeat until all uses are migrated
-
-- [ ] Update documentation referencing context.py to point to memory_client
-  - [ ] Update any relevant README files or documentation
-  - [ ] Add examples of new usage patterns with memory_client
-
-- [ ] Clean up after migration is complete
-  - [ ] Add deprecation warning to context.py
-  - [ ] Remove context.py when no longer referenced (separate task)
+- [ ] Scan codebase and identify all context.py functions that need to be implemented
+  - [ ] get_guide(guide_name, guides_dir=None)
+  - [ ] get_specific_guides(guides, provider="openai", guides_dir=None)
+  - [ ] get_core_documents(provider="openai", guides_dir=None)
+  - [ ] get_guide_for_task(task="", guides=None, provider="openai", guides_dir=None)
+  - [ ] get_core_context(provider="openai", guides_dir=None)
+- [ ] Add these functions to CogniMemoryClient with identical signatures
+  - [ ] Implement each function using existing memory_client methods (get_page(), scan_logseq())
+  - [ ] Ensure exact output format compatibility (for different providers: OpenAI, Anthropic)
+- [ ] Update context.py to import and delegate to CogniMemoryClient
+  - [ ] Keep the same function signatures
+  - [ ] Make context.py a thin compatibility layer
+- [ ] Write tests to verify the new implementations match the original behavior
+- [ ] Add deprecation notes to context.py documenting the migration path
 
 ## Deliverables
-1. Updated code in affected files now using memory_client
-2. Tests verifying correct behavior of the replacements
-3. Updated documentation showing new usage patterns
+1. Updated CogniMemoryClient with new methods matching context.py functions
+2. Updated context.py that delegates to CogniMemoryClient 
+3. Tests that verify the same behavior is maintained
+4. Documentation noting the deprecation path
 
 ## Test Criteria
-- [ ] All existing tests pass with memory_client implementations
-- [ ] New tests verify compatibility with old behavior
-- [ ] Integration tests confirm the system works end-to-end
-- [ ] No regression in functionality
+- [ ] All existing tests pass with the new implementation
+- [ ] New tests verify CogniMemoryClient methods match original context.py behavior
+- [ ] Integration tests confirm system-wide behavior is unchanged
+- [ ] Verify that output formatting for different providers (OpenAI, Anthropic) is maintained
 
-## Implementation Notes
-The memory_client provides several methods that should be used to replace context.py functionality:
+## Implementation Guidance
+- **Be Minimal**: Every line of code must be earned. Make the smallest possible change that maintains behavior.
+- **Be Targeted**: Focus only on the specific function being implemented.
+- **Be Thorough**: Test each implementation against the original before moving to the next.
 
+## Function-Specific Implementation Guide
+
+### Add to CogniMemoryClient:
 ```python
-# Instead of:
-from infra_core.cogni_spirit.context import get_core_documents
-
-# Use:
-from infra_core.memory.memory_client import CogniMemoryClient
-
-memory_client = CogniMemoryClient(chroma_path="./memory/chroma", archive_path="./memory/archive")
-charter = memory_client.get_page("CHARTER.md")
+def get_guide(self, guide_name: str, guides_dir: Optional[str] = None) -> Optional[str]:
+    """
+    Get a specific spirit guide by name.
+    
+    Args:
+        guide_name: Name of the guide (without .md extension)
+        guides_dir: Optional custom directory to load guides from
+        
+    Returns:
+        The guide content as a string, or None if not found
+    """
+    # Default guides directory logic
+    if guides_dir is None:
+        module_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        guides_dir = os.path.join(module_dir, "cogni_spirit", "spirits")
+    
+    # Get the guide using get_page
+    guide_path = os.path.join(guides_dir, f"{guide_name}.md")
+    try:
+        return self.get_page(guide_path)
+    except:
+        return None
 ```
 
-The main advantage of using memory_client is the improved parser that can extract content from all markdown elements, not just bullet points, providing more complete context.
+### Update context.py to delegate:
+```python
+def get_guide(guide_name: str, guides_dir: Optional[str] = None) -> Optional[str]:
+    """
+    Get a specific spirit guide by name.
+    
+    Args:
+        guide_name: Name of the guide (without .md extension)
+        guides_dir: Optional custom directory to load guides from
+        
+    Returns:
+        The guide content as a string, or None if not found
+    """
+    # Import here to avoid circular imports
+    from infra_core.memory.memory_client import CogniMemoryClient
+    
+    # Create client instance
+    memory_client = CogniMemoryClient(
+        chroma_path=os.environ.get("COGNI_MEMORY_CHROMA_PATH", "./memory/chroma"),
+        archive_path=os.environ.get("COGNI_MEMORY_ARCHIVE_PATH", "./memory/archive")
+    )
+    
+    # Delegate to memory client
+    return memory_client.get_guide(guide_name, guides_dir)
+```
 
-## Dependencies
-- CogniMemoryClient fully implemented
-- LogseqParser with improved content extraction
-- Existing tests for context.py functionality 
+## Notes
+- This is our second attempt - focus on extreme precision and minimal changes
+- The goal is to make context.py a thin delegation layer that can be safely deprecated later
+- Using this pattern reduces risk and minimizes changes to consuming code
+- Add appropriate deprecation warnings in context.py docstrings 
