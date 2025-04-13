@@ -65,9 +65,9 @@ CogniMemoryClient V2 will provide a unified interface with two distinct layers:
   - [x] Design task document with requirements
   - [x] Create stubbed tests
   - [x] Implementation
-- [/] Document save_blocks() and query() - Clarify vector-only behavior
+- [x] Document save_blocks() and query() - Clarify vector-only behavior
   - [x] Design task document with requirements
-  - [ ] Implementation
+  - [x] Implementation
 
 ## Success Criteria
 1. Agent systems can directly scan and extract blocks from Logseq files without embedding overhead

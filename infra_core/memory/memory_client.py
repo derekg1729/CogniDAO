@@ -60,10 +60,20 @@ class CogniMemoryClient:
     
     def save_blocks(self, blocks: List[Union[MemoryBlock, Dict]]):
         """
-        Save memory blocks to hot storage (ChromaDB).
+        Save memory blocks to hot storage (ChromaDB vector database).
+        
+        IMPORTANT: This method only affects the vector database, NOT markdown files.
+        Blocks are embedded and saved for semantic search, but no files are written.
+        Use write_page() if you need to write to disk.
         
         Args:
             blocks: List of MemoryBlock objects or dictionaries
+                   If dictionaries are provided, they must have at minimum
+                   the following fields: text, tags, source_file
+        
+        Raises:
+            ValueError: If blocks are missing required fields
+            Exception: For embedding or storage errors
         """
         self.storage.add_blocks(blocks)
     
@@ -84,7 +94,11 @@ class CogniMemoryClient:
         filter_tags: Optional[List[str]] = None
     ) -> QueryResult:
         """
-        Query memory blocks with semantic search.
+        Query memory blocks with semantic search using the vector database.
+        
+        This method performs a similarity search against the vector embeddings
+        stored in ChromaDB. It does NOT search markdown files directly.
+        Use scan_logseq() if you need to extract blocks from markdown files.
         
         Args:
             query_text: Text to search for
@@ -93,7 +107,13 @@ class CogniMemoryClient:
             filter_tags: Optional filter for specific tags
             
         Returns:
-            QueryResult object with the search results
+            QueryResult object with blocks sorted by relevance to the query
+            
+        Notes:
+            - Results are ranked by semantic similarity to the query
+            - Performance is optimized for speed over exhaustive search
+            - Very large result sets may impact performance
+            - Only blocks previously saved with save_blocks() or index_from_logseq() will be found
         """
         # Perform the query using the combined storage
         raw_results = self.storage.query(
