@@ -2,15 +2,17 @@ import sys
 import os
 # Ensure parent directory is in path # Fragile implementation, must be updated when files move
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 from prefect import task, flow, get_run_logger
 from datetime import datetime
 import os
 import json
-from cogni_spirit.context import get_core_documents
-from openai_handler import initialize_openai_client, create_completion, extract_content
+from pathlib import Path
 
-THOUGHTS_DIR = "../../../presence/thoughts"
+# Use absolute path to avoid permission issues
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+THOUGHTS_DIR = os.path.join(BASE_DIR, "presence/thoughts")
 
 def write_thought_file(ai_content):
     """
@@ -44,42 +46,29 @@ def create_thought():
     logger = get_run_logger()
     
     try:
-        # Generate the thought content using OpenAI
-        client = initialize_openai_client()
+        # Import CoreCogniAgent here to avoid import errors when running as flow
+        from infra_core.cogni_agents.core_cogni import CoreCogniAgent
         
-        # Get complete context with metadata
-        core_context = get_core_documents()
+        # Create CoreCogniAgent
+        agent_root = Path(THOUGHTS_DIR)
+        core_cogni = CoreCogniAgent(agent_root=agent_root)
         
-        # Log metadata
-        logger.info(f"CONTEXT METADATA: {json.dumps(core_context['metadata'], indent=2)}")
-        
-        # Create the prompt
-        user_prompt = "Generate a thoughtful reflection from Cogni. Please keep thoughts as short form morsels under 280 characters."
-        
-        # Call OpenAI API
-        response = create_completion(
-            client=client,
-            system_message=core_context['context'],
-            user_prompt=user_prompt,
-            temperature=0.8
-        )
-        
-        # Extract the content
-        ai_content = extract_content(response)
-        logger.info("Successfully generated AI thought")
+        # Prepare input and act
+        prepared_input = core_cogni.prepare_input()
+        result = core_cogni.act(prepared_input)
         
         # Log the final thought with Prefect logger
-        logger.info(f"THOUGHT OUTPUT: {json.dumps({'thought': ai_content}, indent=2)}")
+        logger.info(f"THOUGHT OUTPUT: {json.dumps({'thought': result['thought_content']}, indent=2)}")
+        
+        return result['timestamp'], result['filepath'], result['thought_content']
         
     except Exception as e:
-        logger.error(f"Error generating AI content: {e}")
-        # Fallback to error message if OpenAI fails
+        logger.error(f"Error in thought generation: {e}")
+        # Return default values on error
+        timestamp = datetime.utcnow().strftime("%Y-%m-%d-%H-%M")
+        filepath = os.path.join(THOUGHTS_DIR, f"{timestamp}.md")
         ai_content = f"Error encountered in thought generation. The collective is still present despite the silence. Error: {str(e)}"
-    
-    # Write the thought to a file
-    timestamp, filepath = write_thought_file(ai_content)
-
-    return timestamp, filepath, ai_content
+        return timestamp, filepath, ai_content
 
 @flow
 def ritual_of_presence_flow():

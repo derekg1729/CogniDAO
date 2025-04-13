@@ -60,7 +60,7 @@ class TestGitCogniE2E(unittest.TestCase):
                     "date": "2025-04-06T19:19:00Z",
                     "files": [
                         {
-                            "filename": "infra_core/cogni_spirit/context.py",
+                            "filename": "infra_core/cogni_agents/base.py",
                             "status": "added",
                             "additions": 120,
                             "deletions": 0,

@@ -50,8 +50,9 @@ class ChromaStorage:
         
         try:
             self.collection = self.client.get_collection(name=self.collection_name)
-        except ValueError:
+        except Exception:
             # Collection doesn't exist, create it
+            # Handle both ValueError (old chromadb) and NotFoundError (newer chromadb)
             self.collection = self.client.create_collection(name=self.collection_name)
     
     def add_blocks(self, blocks: List[Union[MemoryBlock, Dict]]):

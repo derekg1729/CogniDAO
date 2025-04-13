@@ -19,8 +19,8 @@ def memory_tool(
     n_results: int = 5,
     include_archived: bool = False,
     filter_tags: Optional[List[str]] = None,
-    chroma_path: str = "./cogni-memory/chroma",
-    archive_path: str = "./cogni-memory/archive",
+    chroma_path: str = "infra_core/memory/chroma",
+    archive_path: str = "infra_core/memory/archive",
     collection_name: str = "cogni-memory",
     blocks_to_save: Optional[List[Dict[str, Any]]] = None,
     block_ids_to_archive: Optional[List[str]] = None

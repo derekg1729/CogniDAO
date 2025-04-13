@@ -11,7 +11,6 @@ from datetime import datetime
 from typing import Dict, Any
 
 from infra_core.cogni_agents.base import CogniAgent
-from infra_core.cogni_spirit.context import get_core_documents, get_guide_for_task
 from infra_core.openai_handler import initialize_openai_client, create_completion, extract_content, create_thread, thread_completion  # noqa: F401
 from github import Github
 
@@ -173,18 +172,6 @@ class GitCogniAgent(CogniAgent):
         
         # Default fallback
         return git_context
-
-    def load_core_context(self):
-        """Load core context from charter, manifesto, etc."""
-        self.logger.info("Loading core context documents")
-        self.core_context = get_core_documents()
-        if self.core_context and 'metadata' in self.core_context:
-            # Count documents from core_docs dictionary
-            metadata = self.core_context['metadata']
-            document_count = len(metadata.get('core_docs', {}))
-            if 'core_spirit' in metadata:
-                document_count += 1
-            self.logger.info(f"Loaded {document_count} core context documents")
 
     def parse_pr_url(self, pr_url):
         """
@@ -624,7 +611,8 @@ class GitCogniAgent(CogniAgent):
         pr_info = prepared_input["pr_info"]
         task_description = f"Reviewing PR #{pr_info['number']} in {pr_info['owner']}/{pr_info['repo']}"
         
-        git_cogni_context = get_guide_for_task(
+        # Get guide using the base class method
+        git_cogni_context = self.get_guide_for_task(
             task=task_description,
             guides=["git-cogni"]
         )
@@ -654,7 +642,7 @@ class GitCogniAgent(CogniAgent):
             Dictionary with review results
         """
         self.logger.info(f"Starting review for PR: {pr_url}")
-        self.load_core_context()
+        self.load_core_context()  # Load core context from the base class
         
         self.logger.info("Preparing input data")
         input_data = self.prepare_input(pr_url)
@@ -742,7 +730,7 @@ class GitCogniAgent(CogniAgent):
         Returns:
             Path to the saved file
         """
-        # Call parent class method to save the file
+        # Use the base class method to save the file
         output_path = super().record_action(output, subdir, prefix)
         
         # Track the created file
