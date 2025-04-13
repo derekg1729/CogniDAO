@@ -73,7 +73,7 @@ Next Steps:
   4. [x] [[task-build_cogni_memory_client]] - Build unified memory client interface
   5. [x] [[task-memory_indexer_main]] - Create main entry point script
   6. [] [[project-cogni_memory_architecture_v2.md]] v2 memoryClient
-  10. [] replace context.py calls with memory_client
+  10. [] [[task-replace-context-with-memory-client]] replace context.py calls with memory_client
 
 
 
