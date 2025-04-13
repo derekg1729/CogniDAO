@@ -471,7 +471,6 @@ This is a test page with frontmatter."""
         with pytest.raises(FileNotFoundError):
             client.get_page("/path/to/nonexistent/file.md")
 
-    @pytest.mark.skip(reason="Feature not yet implemented")
     def test_write_page_new_file(self, test_directories):
         """
         Test writing content to a new file.
@@ -484,7 +483,6 @@ This is a test page with frontmatter."""
             - New file is created with the exact content provided
             - Function returns the path to the created file
         """
-        pytest.skip("Feature not yet implemented")
         
         # Setup
         test_dir = tempfile.mkdtemp()
@@ -512,7 +510,6 @@ This is a test page with frontmatter."""
         finally:
             shutil.rmtree(test_dir)
 
-    @pytest.mark.skip(reason="Feature not yet implemented")
     def test_write_page_append(self, test_directories):
         """
         Test appending content to an existing file.
@@ -526,7 +523,6 @@ This is a test page with frontmatter."""
             - File exists with combination of original content + appended content
             - Content order is preserved correctly
         """
-        pytest.skip("Feature not yet implemented")
         
         # Setup
         test_dir = tempfile.mkdtemp()
@@ -559,7 +555,6 @@ This is a test page with frontmatter."""
         finally:
             shutil.rmtree(test_dir)
 
-    @pytest.mark.skip(reason="Feature not yet implemented")
     def test_write_page_with_frontmatter(self, test_directories):
         """
         Test writing a new file with frontmatter.
@@ -574,7 +569,6 @@ This is a test page with frontmatter."""
             - Body content follows the frontmatter
             - Frontmatter contains the expected key/value pairs
         """
-        pytest.skip("Feature not yet implemented")
         
         # Setup
         test_dir = tempfile.mkdtemp()
@@ -611,6 +605,13 @@ This is a test page with frontmatter."""
             assert "title: Test Page" in content
             assert "tags:" in content
             assert "# Page With Frontmatter" in content
+            
+            # Parse frontmatter to verify
+            import frontmatter
+            parsed = frontmatter.loads(content)
+            assert parsed["title"] == "Test Page"
+            assert "test" in parsed["tags"]
+            
         except Exception as e:  # Added except clause
             pytest.fail(f"Test failed with error: {e}")
         finally:

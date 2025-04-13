@@ -305,4 +305,62 @@ class CogniMemoryClient:
             raise PermissionError(f"Permission denied when trying to read {filepath}")
         except Exception as e:
             # Re-raise unexpected errors with context
-            raise IOError(f"Error reading file {filepath}: {str(e)}") from e 
+            raise IOError(f"Error reading file {filepath}: {str(e)}") from e
+    
+    def write_page(
+        self, 
+        filepath: str, 
+        content: str, 
+        append: bool = False,
+        frontmatter: Optional[Dict] = None
+    ) -> str:
+        """
+        Write or append content to a markdown file.
+        
+        Args:
+            filepath: Path to the markdown file (absolute or relative path)
+            content: Content to write to the file
+            append: Whether to append to the file (default: False)
+            frontmatter: Optional frontmatter to add to new pages
+            
+        Returns:
+            Path to the written file
+            
+        Raises:
+            PermissionError: If the file cannot be written due to permissions
+            OSError: For other file system errors
+        """
+        # Create directory structure if it doesn't exist
+        directory = os.path.dirname(filepath)
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory, exist_ok=True)
+        
+        try:
+            # Handle frontmatter for new files
+            if frontmatter and (not os.path.exists(filepath) or not append):
+                import frontmatter as fm
+                
+                # Create a post with frontmatter and content
+                post = fm.Post(content, **frontmatter)
+                
+                # Write to file
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(fm.dumps(post))
+            
+            # Handle append mode
+            elif append and os.path.exists(filepath):
+                with open(filepath, 'a', encoding='utf-8') as f:
+                    f.write(content)
+            
+            # Handle standard overwrite/create mode
+            else:
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(content)
+            
+            return filepath
+        
+        except PermissionError:
+            raise PermissionError(f"Permission denied when trying to write to {filepath}")
+        except Exception as e:
+            # Re-raise unexpected errors with context
+            raise OSError(f"Error writing to file {filepath}: {str(e)}") from e 

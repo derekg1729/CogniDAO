@@ -57,10 +57,10 @@ CogniMemoryClient V2 will provide a unified interface with two distinct layers:
   - [x] Design task document with requirements
   - [x] Create stubbed tests
   - [x] Implementation
-- [/] Add write_page() - Write or append to markdown files
+- [x] Add write_page() - Write or append to markdown files
   - [x] Design task document with requirements
   - [x] Create stubbed tests
-  - [ ] Implementation
+  - [x] Implementation
 - [/] Refactor memory_indexer.py - Extract logic to CogniMemoryClient
   - [x] Design task document with requirements
   - [x] Create stubbed tests
