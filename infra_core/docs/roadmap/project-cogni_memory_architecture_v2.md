@@ -61,10 +61,10 @@ CogniMemoryClient V2 will provide a unified interface with two distinct layers:
   - [x] Design task document with requirements
   - [x] Create stubbed tests
   - [x] Implementation
-- [/] Refactor memory_indexer.py - Extract logic to CogniMemoryClient
+- [x] Refactor memory_indexer.py - Extract logic to CogniMemoryClient
   - [x] Design task document with requirements
   - [x] Create stubbed tests
-  - [ ] Implementation
+  - [x] Implementation
 - [/] Document save_blocks() and query() - Clarify vector-only behavior
   - [x] Design task document with requirements
   - [ ] Implementation
