@@ -10,7 +10,6 @@ import tempfile
 from pathlib import Path
 
 from infra_core.memory.memory_client import CogniMemoryClient
-from infra_core.memory.tests.convert_to_logseq import convert_to_logseq
 
 
 class TestRealLogseqE2E:
@@ -30,7 +29,7 @@ class TestRealLogseqE2E:
         """
         Tests the complete memory pipeline in 4 simple steps:
         1. SCAN: Find the project's markdown files
-        2. INDEX: Convert to Logseq format and index content
+        2. INDEX: Index the markdown content directly (no conversion needed with improved parser)
         3. TRANSFORM: Let the system handle embedding and storage
         4. QUERY: Retrieve relevant information and assert it's meaningful
         """
@@ -72,51 +71,52 @@ class TestRealLogseqE2E:
         
         assert found_docs, "No markdown files found to test with"
         
-        # Create a temporary directory to store converted files
-        with tempfile.TemporaryDirectory() as temp_logseq_dir:
-            # Convert files to Logseq format
-            converted_files = []
+        # Create a temporary directory to store test files
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Copy files to the temporary directory
+            copied_files = []
             for doc_path in found_docs:
-                # Create a temporary converted file with Logseq format
+                # Create a file copy in the temp directory
                 doc_name = os.path.basename(doc_path)
-                converted_path = os.path.join(temp_logseq_dir, f"{doc_name}")
-                converted_files.append(converted_path)
+                copied_path = os.path.join(temp_dir, f"{doc_name}")
+                copied_files.append(copied_path)
                 
-                # Convert the file to Logseq format
-                convert_to_logseq(doc_path, converted_path)
-                print(f"Converted {doc_name} to Logseq format")
+                # Copy the file content
+                with open(doc_path, 'r', encoding='utf-8') as src, open(copied_path, 'w', encoding='utf-8') as dst:
+                    content = src.read()
+                    dst.write(content)
+                print(f"Copied {doc_name} to temporary directory")
             
-            # Count expected blocks in converted files
-            print("\n=== 📏 ANALYZING CONVERTED FILES ===")
+            # Count content lines in files
+            print("\n=== 📏 ANALYZING FILES ===")
             total_lines = 0
-            bullet_lines = 0
-            for doc in converted_files:
+            content_lines = 0
+            for doc in copied_files:
                 with open(doc, 'r', encoding='utf-8') as f:
                     lines = f.readlines()
                     doc_lines = len(lines)
-                    doc_bullets = sum(1 for line in lines if line.strip().startswith('-') or line.strip().startswith('*'))
-                    print(f"File {os.path.basename(doc)}: {doc_lines} lines, {doc_bullets} bullet points")
+                    doc_content = doc_lines - sum(1 for line in lines if not line.strip())
+                    print(f"File {os.path.basename(doc)}: {doc_lines} lines, {doc_content} content lines")
                     total_lines += doc_lines
-                    bullet_lines += doc_bullets
+                    content_lines += doc_content
             
-            print(f"Total: {total_lines} lines, {bullet_lines} bullet points across all files")
+            print(f"Total: {total_lines} lines, {content_lines} content lines across all files")
             
-            # STEP 2: INDEX - Process the converted markdown files
+            # STEP 2: INDEX - Process the markdown files directly
             print("\n=== 📝 STEP 2: INDEX CONTENT ===")
-            # Process only the converted files in the temp directory
+            # Process the files in the temp directory
             num_indexed = client.index_from_logseq(
-                logseq_dir=temp_logseq_dir,
+                logseq_dir=temp_dir,
                 tag_filter=None,  # Include all blocks regardless of tags
                 verbose=True
             )
             
-            print(f"Indexed {num_indexed} blocks from converted files")
-            print(f"Bullet points: {bullet_lines}, Indexed blocks: {num_indexed}")
+            print(f"Indexed {num_indexed} blocks from files")
             
-            # Expected percentage based on bullet points vs indexed
-            if bullet_lines > 0:
-                indexing_ratio = (num_indexed / bullet_lines) * 100
-                print(f"Indexing ratio: {indexing_ratio:.2f}% of bullet points indexed")
+            # Expected percentage based on content lines vs indexed
+            if content_lines > 0:
+                indexing_ratio = (num_indexed / content_lines) * 100
+                print(f"Indexing ratio: {indexing_ratio:.2f}% of content lines indexed")
                 
             assert num_indexed > 0, "Failed to index any blocks"
             
@@ -163,6 +163,109 @@ class TestRealLogseqE2E:
             
             print("\n=== ✅ E2E PIPELINE TEST COMPLETED SUCCESSFULLY ===")
             print(f"Indexed {num_indexed} blocks, {successful_queries}/{len(queries)} queries successful")
+    
+    def test_direct_markdown_extraction(self, test_dirs):
+        """
+        Tests that the improved parser can extract content directly from standard markdown files
+        without requiring conversion to Logseq format.
+        """
+        # Find project root
+        project_root = self._find_project_root()
+        
+        # Initialize client
+        client = CogniMemoryClient(
+            chroma_path=test_dirs["chroma"],
+            archive_path=test_dirs["archive"]
+        )
+        
+        print("\n=== 🧪 RUNNING DIRECT MARKDOWN EXTRACTION TEST ===")
+        print(f"Project root: {project_root}")
+        
+        # Find a standard markdown file for testing
+        found_docs = []
+        key_files = ["CHARTER.md", "MANIFESTO.md", "cogni_graph.md"]
+        
+        for filename in key_files:
+            file_path = os.path.join(project_root, filename)
+            if os.path.exists(file_path):
+                found_docs.append(file_path)
+                print(f"Found: {filename} at {file_path}")
+                break  # Just need one file for this test
+        
+        # If no key files found, try to look for any markdown file
+        if not found_docs:
+            print("No key files found, looking for any markdown file...")
+            for md_file in Path(project_root).glob("**/*.md"):
+                # Skip env files or other likely non-important directories
+                skip_dirs = ["env", "node_modules", ".git", "__pycache__"]
+                if not any(d in str(md_file) for d in skip_dirs):
+                    found_docs.append(str(md_file))
+                    print(f"Found alternative file: {md_file}")
+                    break  # Just need one file
+        
+        assert found_docs, "No markdown files found to test with"
+        test_file = found_docs[0]
+        
+        # Analyze for content metrics
+        print("\n=== 📏 ANALYZING FILE CONTENT ===")
+        
+        # Copy the file to a temporary directory for direct indexing
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Copy the file
+            direct_file = os.path.join(temp_dir, os.path.basename(test_file))
+            with open(test_file, 'r', encoding='utf-8') as src, open(direct_file, 'w', encoding='utf-8') as dst:
+                content = src.read()
+                dst.write(content)
+            
+            # Analyze content
+            with open(direct_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                total_lines = len(lines)
+                bullet_lines = sum(1 for line in lines if line.strip().startswith('-') or line.strip().startswith('*'))
+                content_lines = total_lines - sum(1 for line in lines if not line.strip())
+                print(f"File: {total_lines} lines, {bullet_lines} bullet points, {content_lines} content lines")
+            
+            # Index directly with improved parser
+            direct_indexed = client.index_from_logseq(
+                logseq_dir=temp_dir,
+                tag_filter=None,  # Include all blocks
+                verbose=True
+            )
+            print(f"Indexed blocks: {direct_indexed}")
+            
+            # Calculate capture percentage
+            content_capture = (direct_indexed / max(1, content_lines)) * 100
+            bullet_capture = (direct_indexed / max(1, bullet_lines)) * 100 if bullet_lines > 0 else 0
+            
+            print(f"Content capture: {content_capture:.1f}%")
+            if bullet_lines > 0:
+                print(f"Bullet points capture: {bullet_capture:.1f}%")
+            
+            # Compare with previous 7% mentioned in handoff doc
+            print("\n=== 📊 EXTRACTION IMPROVEMENT ===")
+            print("Previous parser (mentioned in handoff): Only captured 7% of content")
+            print(f"Improved parser: Capturing {content_capture:.1f}% of content")
+            
+            # Verify significant improvement in content capture
+            # The handoff doc mentioned only 7% was captured before
+            assert content_capture > 50, "Should capture more than 50% of content"
+            
+            # Query the index with a related query
+            print("\n=== 🔍 TESTING QUERY RESULTS ===")
+            query = "What is the main purpose?"
+            results = client.query(query, n_results=3)
+            
+            print(f"Query results: {len(results.blocks)} results")
+            if results and len(results.blocks) > 0:
+                # Print the first result (abbreviated)
+                block = results.blocks[0]
+                preview = block.text[:150] + ("..." if len(block.text) > 150 else "")
+                print(f"First result: {preview}")
+            
+            # Verify we get reasonable results from the direct indexing
+            assert len(results.blocks) > 0, "Should find results via direct indexing"
+            
+            print("\n=== ✅ DIRECT EXTRACTION TEST COMPLETED SUCCESSFULLY ===")
     
     def _find_project_root(self):
         """Find the project root directory containing markdown files."""
