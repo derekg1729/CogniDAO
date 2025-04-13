@@ -7,6 +7,7 @@ This module provides the abstract base class for all Cogni agents.
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
+import os
 from typing import Dict, Any, List, Optional
 
 from infra_core.memory.memory_client import CogniMemoryClient
@@ -36,10 +37,18 @@ class CogniAgent(ABC):
         self.spirit = None
         self.core_context = None
         
-        # Initialize memory client
+        # Get the project root directory (3 levels up from this file)
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+        
+        # Use absolute paths for memory locations
+        chroma_path = os.path.join(project_root, "infra_core/memory/chroma")
+        archive_path = os.path.join(project_root, "infra_core/memory/archive")
+        
+        # Initialize memory client with absolute paths
+        # Use collection_name 'infra_core-memory' to avoid creating a 'cogni-memory' directory
         self.memory_client = CogniMemoryClient(
-            chroma_path="infra_core/memory/chroma",
-            archive_path="infra_core/memory/archive",
+            chroma_path=chroma_path,
+            archive_path=archive_path,
             collection_name="cogni-memory"
         )
 

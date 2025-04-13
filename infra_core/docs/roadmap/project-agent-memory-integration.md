@@ -36,11 +36,14 @@
 - [ ] Migrate BroadcastCogni to use the new Agent base class
 	- [ ] Update initialization
 	- [ ] Refactor context usage
-- [ ] Migrate Ritual of Presence to use CoreCogni agent
-- [ ] Update tests to use the new architecture
+- [x] Migrate Ritual of Presence to use CoreCogni agent
+    - [x] Create CoreCogni agent implementation
+    - [x] Update Ritual of Presence flow
+    - [x] Fix memory directory issues
+- [x] Update tests to use the new architecture
 	- [x] Create mock MemoryClient for testing
 	- [x] Update GitCogni agent tests
-	- [ ] Update BroadcastCogni agent tests
+	- [x] Update Ritual of Presence tests
 - [ ] Deprecate context.py
 	- [ ] Add deprecation notices
 	- [ ] Create migration guide
@@ -63,6 +66,6 @@
 - [x] [[task-implement-agent-base-memory]] - Implement the base Agent class with MemoryClient
 - [x] [[task-migrate-git-cogni]] - Migrate GitCogni to the new architecture
 - [ ] [[task-migrate-broadcast-cogni]] - Migrate BroadcastCogni to the new architecture
-- [ ] [[task-migrate-ritual-of-presence]] - Migrate Ritual of Presence to use CoreCogni agent
-- [ ] [[task-update-agent-tests]] - Update all tests to work with the new architecture
+- [x] [[task-migrate-ritual-of-presence]] - Migrate Ritual of Presence to use CoreCogni agent
+- [/] [[task-update-agent-tests]] - Update all tests to work with the new architecture
 - [ ] [[task-deprecate-context-module]] - Add deprecation notices to context.py
