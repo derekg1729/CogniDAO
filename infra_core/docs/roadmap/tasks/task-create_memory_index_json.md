@@ -50,7 +50,7 @@ Implement a system to archive older blocks to cold storage with JSON metadata in
 
 2. Directory structure for cold storage:
    ```
-   cogni-memory/
+   infra_core/memory/
    ├── chroma/      # Hot storage (vector DB)
    └── archive/     # Cold storage
        ├── blocks/  # Individual block JSON files

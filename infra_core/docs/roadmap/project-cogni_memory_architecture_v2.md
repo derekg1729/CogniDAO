@@ -126,9 +126,33 @@ results = memory_client.query(
 )
 ```
 
+### Case 4: GitCogniAgent Integration
+```python
+# Load spirit guide context for PR review
+git_cogni_context = memory_client.query(
+    f"Reviewing PR #{pr_number} in {repo_owner}/{repo_name}",
+    filter_tags=["#spirit-guide", "#git-cogni"]
+)
+
+# Load core documents for context
+core_context = memory_client.query(
+    "core manifesto charter",
+    filter_tags=["#core-docs"]
+)
+
+# Store PR review results
+review_file_path = f"./reviews/{repo}_{pr_number}_{decision}.md"
+memory_client.write_page(
+    review_file_path,
+    formatted_review_content,
+    append=False
+)
+```
+
 ## Benefits
 1. **Human-Agent Alignment**: Enables agents to read from and write to the same files humans use
 2. **Dual-Speed Access**: Fast vector search when needed, direct file access when appropriate
 3. **Visibility**: Agent actions become visible in Logseq interface
 4. **Flexibility**: Different access patterns for different use cases
 5. **Clean Architecture**: Clear separation between vector and file operations 
+6. **Agent Standardization**: Consistent knowledge access across all Cogni agents 

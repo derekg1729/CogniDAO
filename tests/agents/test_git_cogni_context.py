@@ -162,7 +162,7 @@ class TestGitCogniContextInclusion(unittest.TestCase):
             self.assertEqual(call_args[1]["thread_id"], "thread_123")
             self.assertEqual(call_args[1]["assistant_id"], "asst_123")
     
-    @patch('infra_core.cogni_agents.git_cogni.git_cogni.get_guide_for_task')
+    @patch('infra_core.cogni_agents.base.CogniAgent.get_guide_for_task')
     @patch('infra_core.cogni_agents.git_cogni.git_cogni.create_thread')
     @patch('infra_core.cogni_agents.git_cogni.git_cogni.thread_completion')
     @patch('infra_core.cogni_agents.git_cogni.git_cogni.extract_content')

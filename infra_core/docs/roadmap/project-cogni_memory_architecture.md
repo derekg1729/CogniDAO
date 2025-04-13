@@ -2,48 +2,46 @@
 :type: Project
 :status: in-progress
 :epic: [[Epic_Presence_and_Control_Loops]]
-
-## Implementation Status
-We have implemented several key components of the Cogni Memory Architecture:
-
-1. **Memory Indexer** (`memory_indexer.py`):
-   - Enhanced CLI with proper argument parsing
-   - Robust error handling and progress reporting
-   - Integration with LogseqParser for Logseq files
-   - ChromaDB storage with improved collection handling
-   - Configurable embedding models with BGE implementation
-   - Intelligent device detection (CPU/GPU/MPS)
-   - Optimized logging with verbose/quiet modes
-
-2. **Parser** (`parser.py`):
-   - Dedicated LogseqParser class for markdown processing
-   - Metadata extraction including frontmatter, dates, and block references
-   - Filtering based on customizable tags
-   - Backwards compatibility with existing code
-   
-3. **Schema Definitions** (`schema.py`):
-   - `MemoryBlock` model for structured memory representation
-   - `ArchiveIndex` model for the archive index system
-   - Various request/response models for the API
-
-4. **Storage Systems** (`storage.py`):
-   - `ChromaStorage` for vector database (hot storage)
-   - `ArchiveStorage` for JSON-based cold storage
-   - `CombinedStorage` for unified access
-
-5. **Memory Client** (`memory_client.py` and `memory_tool.py`):
-   - Unified `CogniMemoryClient` interface for all memory operations
-   - Simple memory tool for agent integration
-   - Comprehensive test coverage
-
-6. **Tests**:
-   - Unit tests for all components in `tests/`
-   - End-to-end tests for basic functionality
-
-Next Steps:
-1. Integrate with BroadcastCogni
-2. Create the MCP server
-
+- ## Implementation Status
+  We have implemented several key components of the Cogni Memory Architecture:
+  
+  1. **Memory Indexer** (`memory_indexer.py`):
+	- Enhanced CLI with proper argument parsing
+	- Robust error handling and progress reporting
+	- Integration with LogseqParser for Logseq files
+	- ChromaDB storage with improved collection handling
+	- Configurable embedding models with BGE implementation
+	- Intelligent device detection (CPU/GPU/MPS)
+	- Optimized logging with verbose/quiet modes
+	  
+	  2. **Parser** (`parser.py`):
+	- Dedicated LogseqParser class for markdown processing
+	- Metadata extraction including frontmatter, dates, and block references
+	- Filtering based on customizable tags
+	- Backwards compatibility with existing code
+	  
+	  3. **Schema Definitions** (`schema.py`):
+	- `MemoryBlock` model for structured memory representation
+	- `ArchiveIndex` model for the archive index system
+	- Various request/response models for the API
+	  
+	  4. **Storage Systems** (`storage.py`):
+	- `ChromaStorage` for vector database (hot storage)
+	- `ArchiveStorage` for JSON-based cold storage
+	- `CombinedStorage` for unified access
+	  
+	  5. **Memory Client** (`memory_client.py` and `memory_tool.py`):
+	- Unified `CogniMemoryClient` interface for all memory operations
+	- Simple memory tool for agent integration
+	- Comprehensive test coverage
+	  
+	  6. **Tests**:
+	- Unit tests for all components in `tests/`
+	- End-to-end tests for basic functionality
+	  
+	  Next Steps:
+	  1. Integrate with BroadcastCogni
+	  2. Create the MCP server
 - ## Description
   Establish a multi-tiered memory system for Cogni that supports human-readable working context, fast AI lookup, and long-term memory preservation. This project powers selective oversight, state awareness, and structured evolution of Cogni agents.
 - ### MVP
@@ -72,14 +70,13 @@ Next Steps:
   3. [x] [[task-create_memory_index_json]] - Create archive system with JSON indexing
   4. [x] [[task-build_cogni_memory_client]] - Build unified memory client interface
   5. [x] [[task-memory_indexer_main]] - Create main entry point script
-  6. [] [[project-cogni_memory_architecture_v2.md]] v2 memoryClient
-  10. [] [[task-replace-context-with-memory-client]] replace context.py calls with memory_client
-
-
-
+  6. [x] [[project-cogni_memory_architecture_v2.md]] - v2 memoryClient with dual layers
+  7. [ ] [[task-replace-git-cogni-with-memory-client]] - Integrate GitCogniAgent with memory client
+  8. [ ] [[task-replace-context-with-memory-client]] - Replace all context.py calls with memory_client
+  
   Future:
-   [ ] [[task-integrate_into_broadcastcogni]] - Integrate with BroadcastCogni agent
-   [ ] [[task-create_memory_mcp_server]] - Create Memory Control Protocol server for external tools
+- [ ] [[task-integrate_into_broadcastcogni]] - Integrate with BroadcastCogni agent
+- [ ] [[task-create_memory_mcp_server]] - Create Memory Control Protocol server for external tools
 - ## Testing Strategy
   Each component includes specific test criteria as outlined in the individual task files.
   The testing strategy progresses from:
@@ -122,16 +119,15 @@ Next Steps:
 - WebSocket connections enable real-time memory updates
 - ## Progress Summary
 - **Completed**:
-  - Dedicated Logseq parser with comprehensive metadata extraction
-  - Memory indexer with CLI, error handling, and progress reporting
-  - Archive system for cold storage with JSON indexing
-  - Schema definitions for memory blocks and indices
-  - Unified CogniMemoryClient interface with memory_tool.py for agent integration
-  - BGE embedding model integration with device optimization
-  - Standardized ChromaDB settings and improved error handling
-  - Optimized logging system with proper verbose/quiet modes
-  - Comprehensive test suite with end-to-end testing
-  
+	- Dedicated Logseq parser with comprehensive metadata extraction
+	- Memory indexer with CLI, error handling, and progress reporting
+	- Archive system for cold storage with JSON indexing
+	- Schema definitions for memory blocks and indices
+	- Unified CogniMemoryClient interface with memory_tool.py for agent integration
+	- BGE embedding model integration with device optimization
+	- Standardized ChromaDB settings and improved error handling
+	- Optimized logging system with proper verbose/quiet modes
+	- Comprehensive test suite with end-to-end testing
 - **Next Steps**:
-  - Integrate the memory system with BroadcastCogni
-  - Create the MCP server for external tools
+	- Integrate the memory system with BroadcastCogni
+	- Create the MCP server for external tools

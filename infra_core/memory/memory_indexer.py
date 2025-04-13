@@ -36,7 +36,7 @@ for module in ["chromadb", "urllib3", "sentence_transformers", "huggingface_hub"
 # === CONFIG ===
 LOGSEQ_DIR = "./logseq"  # Path to your .md files
 TARGET_TAGS = {"#thought", "#broadcast", "#approved"}
-VECTOR_DB_DIR = "./cogni-memory/chroma"
+VECTOR_DB_DIR = "infra_core/memory/chroma"
 # Default embedding model: BGE is an open-source model that performs well without API keys
 # This can be configured via:
 # 1. Command line argument (--embed-model)

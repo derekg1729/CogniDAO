@@ -1,53 +1,46 @@
 # Task:[Update Agent Tests for Memory Integration]
 :type: Task
-:status: todo
+:status: in-progress
 :project: [Agent Memory Integration]
-
-## Current Status
-With the implementation of the new Agent base class and migration of GitCogni and BroadcastCogni to use it, we need to update all tests to work with the new architecture. This includes creating proper mocking patterns for the MemoryClient in agent tests.
-
-## Description
-Update all agent tests to work with the new Agent base class architecture. Create standardized mocking patterns for MemoryClient to ensure consistent and reliable testing. This will maintain test coverage and ensure the new implementation behaves correctly.
-
-## Action Items
-- [ ] Create standardized mocking patterns for MemoryClient
-  - [ ] Create a MockMemoryClient class for testing
-  - [ ] Define standard responses for common method calls
-  - [ ] Document usage patterns for agent tests
-- [ ] Update GitCogni tests
-  - [ ] Replace context.py mocks with MemoryClient mocks
-  - [ ] Update test cases to work with the new Agent base class
-  - [ ] Add tests for new query_relevant_context functionality
+- ## Current Status
+  With the implementation of the new Agent base class and migration of GitCogni and BroadcastCogni to use it, we need to update all tests to work with the new architecture. This includes creating proper mocking patterns for the MemoryClient in agent tests. GitCogni tests have been successfully updated and are now passing.
+- ## Description
+  Update all agent tests to work with the new Agent base class architecture. Create standardized mocking patterns for MemoryClient to ensure consistent and reliable testing. This will maintain test coverage and ensure the new implementation behaves correctly.
+- ## Action Items
+- [x] Create standardized mocking patterns for MemoryClient
+	- [x] Create a MockMemoryClient class for testing
+	- [x] Define standard responses for common method calls
+	- [x] Document usage patterns for agent tests
+- [x] Update GitCogni tests
+	- [x] Replace context.py mocks with MemoryClient mocks
+	- [x] Update test cases to work with the new Agent base class
+	- [x] Add tests for new query_relevant_context functionality
 - [ ] Update BroadcastCogni tests
-  - [ ] Replace context.py mocks with MemoryClient mocks
-  - [ ] Update test cases to work with the new Agent base class
-  - [ ] Add tests for new query_relevant_context functionality
+	- [ ] Replace context.py mocks with MemoryClient mocks
+	- [ ] Update test cases to work with the new Agent base class
+	- [ ] Add tests for new query_relevant_context functionality
 - [ ] Update integration tests
-  - [ ] Ensure end-to-end tests work with the new architecture
-  - [ ] Update test fixtures and mocks as needed
-
-## Deliverables
-1. MockMemoryClient implementation for testing
-2. Updated GitCogni tests
-3. Updated BroadcastCogni tests
-4. Updated integration tests
-5. Documentation for testing with the new architecture
-
-## Test Criteria
+	- [ ] Ensure end-to-end tests work with the new architecture
+	- [ ] Update test fixtures and mocks as needed
+- ## Deliverables
+  1. MockMemoryClient implementation for testing
+  2. Updated GitCogni tests
+  3. Updated BroadcastCogni tests
+  4. Updated integration tests
+  5. Documentation for testing with the new architecture
+- ## Test Criteria
 - [ ] All tests pass
 - [ ] Test coverage maintained or improved
 - [ ] Mocking patterns are consistent across all tests
 - [ ] New functionality is adequately tested
-
-## Implementation Notes
-
-### MockMemoryClient Example:
-```python
-# test_utils.py
-from unittest.mock import MagicMock
-from typing import Dict, List, Optional, Any, Union
-
-class MockMemoryClient:
+- ## Implementation Notes
+- ### MockMemoryClient Example:
+  ```python
+  # test_utils.py
+  from unittest.mock import MagicMock
+  from typing import Dict, List, Optional, Any, Union
+  
+  class MockMemoryClient:
     """Mock implementation of CogniMemoryClient for testing."""
     
     def __init__(self, mock_pages: Optional[Dict[str, str]] = None, mock_queries: Optional[Dict[str, List[Dict]]] = None):
@@ -101,11 +94,10 @@ class MockMemoryClient:
         result.total_results = len(result_blocks)
         
         return result
-```
-
-### Example Test Case:
-```python
-def test_git_cogni_review_with_mock_memory():
+  ```
+- ### Example Test Case:
+  ```python
+  def test_git_cogni_review_with_mock_memory():
     """Test GitCogni review with MockMemoryClient."""
     # Create mock memory client with test data
     mock_memory = MockMemoryClient(
@@ -135,10 +127,9 @@ def test_git_cogni_review_with_mock_memory():
     assert mock_memory.get_page_calls  # get_page was called
     assert mock_memory.query_calls  # query was called
     assert any("test commit message" in call["query"] for call in mock_memory.query_calls)  # Query used commit message
-```
-
-## Dependencies
+  ```
+- ## Dependencies
 - Completed [[task-implement-agent-base-memory]]
 - Completed [[task-migrate-git-cogni]]
 - Completed [[task-migrate-broadcast-cogni]]
-- Understanding of existing testing patterns 
+- Understanding of existing testing patterns
