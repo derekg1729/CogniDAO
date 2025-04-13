@@ -7,37 +7,29 @@ import importlib.util
 # Add the parent directory to the path so we can import the module
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Mock the core documents function
-mock_get_core_documents = MagicMock(return_value={
-    "context": {
-        "role": "system",
-        "content": "Test context"
-    },
-    "metadata": {
-        "core_docs": {"charter": "Test charter content", "manifesto": "Test manifesto content"},
-        "total_sections": 2,
-        "total_core_docs_length": 200,
-        "total_context_length": 220
-    }
+# Mock the CogniMemoryClient
+mock_memory_client = MagicMock()
+mock_memory_client.get_page = MagicMock(return_value="Test content")
+mock_memory_client.write_page = MagicMock()
+
+# Mock the CoreCogniAgent
+mock_core_cogni = MagicMock()
+mock_core_cogni.prepare_input = MagicMock(return_value={"prompt": "Test prompt", "temperature": 0.8})
+mock_core_cogni.act = MagicMock(return_value={
+    "timestamp": "2023-01-01-01-01",
+    "filepath": "/test/path/2023-01-01-01-01.md",
+    "thought_content": "Test thought content",
+    "formatted_content": "tags:: #thought\n\n# Thought 2023-01-01-01-01\n\nTest thought content\n\nTime: 2023-01-01T01:01:00"
 })
 
-# Mock the OpenAI functions
-mock_initialize_openai = MagicMock()
-mock_create_completion = MagicMock(return_value={"choices": [{"message": {"content": "Test thought content"}}]})
-mock_extract_content = MagicMock(return_value="Test thought content")
+# Mock initialization of CoreCogniAgent
+mock_core_cogni_init = MagicMock(return_value=mock_core_cogni)
 
-# Mock needed modules before importing ritual_of_presence
-sys.modules['cogni_spirit'] = MagicMock()
-sys.modules['cogni_spirit.context'] = MagicMock()
-sys.modules['cogni_spirit.context'].get_core_documents = mock_get_core_documents
+# Mock the modules
+sys.modules['infra_core.cogni_agents.core_cogni'] = MagicMock()
+sys.modules['infra_core.cogni_agents.core_cogni'].CoreCogniAgent = mock_core_cogni_init
 
-# Also mock the openai_handler module
-sys.modules['openai_handler'] = MagicMock()
-sys.modules['openai_handler'].initialize_openai_client = mock_initialize_openai
-sys.modules['openai_handler'].create_completion = mock_create_completion
-sys.modules['openai_handler'].extract_content = mock_extract_content
-
-# Now import the module to test (must be after mocking)  # noqa: E402
+# Now import the module to test (must be after mocking)
 spec = importlib.util.spec_from_file_location(
     "ritual_of_presence",
     os.path.join(os.path.dirname(__file__), "../infra_core/flows/rituals/ritual_of_presence.py")
@@ -46,7 +38,6 @@ ritual_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ritual_module)
 
 # Import specific functions from the module
-write_thought_file = ritual_module.write_thought_file
 create_thought = ritual_module.create_thought
 ritual_of_presence_flow = ritual_module.ritual_of_presence_flow
 THOUGHTS_DIR = ritual_module.THOUGHTS_DIR
@@ -68,37 +59,24 @@ def temp_thoughts_dir(tmpdir):
     # Restore the original value
     ritual_module.THOUGHTS_DIR = original_dir
 
-def test_write_thought_file(temp_thoughts_dir):
-    """Test that thought files are written correctly"""
-    test_content = "This is a test thought"
-    timestamp, filepath = write_thought_file(test_content)
-    
-    # Verify file exists and contains the correct content
-    assert os.path.exists(filepath)
-    with open(filepath, "r") as f:
-        content = f.read()
-    
-    assert "tags:: #thought" in content
-    assert test_content in content
-    assert timestamp in filepath
-
 def test_create_thought(temp_thoughts_dir):
     """Test the create_thought task"""
     # Reset mock call counts
-    mock_get_core_documents.reset_mock()
-    mock_create_completion.reset_mock()
-    mock_extract_content.reset_mock()
+    mock_core_cogni_init.reset_mock()
+    mock_core_cogni.prepare_input.reset_mock()
+    mock_core_cogni.act.reset_mock()
     
     timestamp, filepath, content = create_thought()
     
     # Verify the function calls
-    assert mock_get_core_documents.call_count >= 1
-    assert mock_create_completion.call_count >= 1
-    assert mock_extract_content.call_count >= 1
+    assert mock_core_cogni_init.call_count >= 1
+    assert mock_core_cogni.prepare_input.call_count >= 1
+    assert mock_core_cogni.act.call_count >= 1
     
     # Verify outputs
     assert isinstance(timestamp, str)
-    assert os.path.exists(filepath)
+    assert timestamp == "2023-01-01-01-01"
+    assert filepath == "/test/path/2023-01-01-01-01.md"
     assert content == "Test thought content"
 
 def test_ritual_of_presence_flow(temp_thoughts_dir, monkeypatch):
