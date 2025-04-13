@@ -423,7 +423,9 @@ class CogniMemoryClient:
         
         # Convert tag_filter to appropriate format for LogseqParser
         if tag_filter is None:
-            target_tags = {"#thought", "#broadcast", "#approved"}
+            # Empty set means "include all blocks" regardless of tags
+            # This is different from passing None, which would use default tags
+            target_tags = set()
         elif isinstance(tag_filter, str):
             target_tags = {tag_filter}
         else:

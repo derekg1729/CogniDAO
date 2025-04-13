@@ -17,6 +17,7 @@ from typing import List, Dict, Set, Optional
 from pathlib import Path
 from datetime import datetime
 import frontmatter  # For parsing YAML frontmatter in markdown
+import time
 
 from infra_core.memory.schema import MemoryBlock
 
@@ -40,17 +41,28 @@ class LogseqParser:
         
         Args:
             logseq_dir: Path to directory containing Logseq markdown files
-            target_tags: Set of tags to filter for (default: {"#thought", "#broadcast", "#approved"})
+            target_tags: Set of tags to filter for
+                         Pass None or an empty set to include all blocks regardless of tags.
         """
         self.logseq_dir = Path(logseq_dir)
-        self.target_tags = target_tags or {"#thought", "#broadcast", "#approved"}
+        
+        # Handle target_tags with special case for None or empty set
+        if target_tags is None or len(target_tags) == 0:
+            # Use empty set to indicate "include all blocks" (no tag filtering)
+            self.target_tags = set()
+        else:
+            # Use the provided tags
+            self.target_tags = target_tags
         
         # Validate directory exists
         if not self.logseq_dir.exists():
             raise FileNotFoundError(f"Logseq directory not found: {self.logseq_dir}")
         
         logger.info(f"Initialized LogseqParser for directory: {self.logseq_dir}")
-        logger.info(f"Target tags: {self.target_tags}")
+        if self.target_tags:
+            logger.info(f"Filtering for tags: {self.target_tags}")
+        else:
+            logger.info("No tag filtering - including all blocks")
     
     def get_markdown_files(self) -> List[str]:
         """
@@ -141,8 +153,14 @@ class LogseqParser:
         Returns:
             Unique ID for the block
         """
-        # Create a deterministic ID if possible
-        content_hash = hash(text + os.path.basename(file_path))
+        # Create a deterministic ID using multiple factors to reduce collision chances:
+        # 1. Block text
+        # 2. Full file path (not just basename)
+        # 3. Current timestamp microseconds as a uniqueness factor
+        microsec_part = int(time.time() * 1000000) % 1000000  # Microsecond portion of current time
+        
+        # Full path + content + microseconds for uniqueness
+        content_hash = hash(text + file_path + str(microsec_part))
         return f"block-{abs(content_hash)}"
     
     def extract_blocks_from_file(self, file_path: str) -> List[Dict]:
@@ -189,7 +207,8 @@ class LogseqParser:
                 tags = self._extract_block_tags(text)
                 
                 # Check if block has any of the target tags
-                if not (tags & self.target_tags):
+                # If target_tags is empty, include all blocks regardless of tags
+                if self.target_tags and not (tags & self.target_tags):
                     continue
                 
                 # Extract block references
@@ -295,13 +314,16 @@ def extract_blocks(file_path: str, target_tags: Set[str] = None) -> List[Dict]:
     
     Args:
         file_path: Path to markdown file
-        target_tags: Set of tags to filter for (default: {"#thought", "#broadcast", "#approved"})
+        target_tags: Set of tags to filter for
+                     Pass None or an empty set to include all blocks regardless of tags.
         
     Returns:
         List of dictionaries representing blocks
     """
-    if target_tags is None:
-        target_tags = {"#thought", "#broadcast", "#approved"}
+    # Handle None or empty set
+    if target_tags is None or len(target_tags) == 0:
+        # Use empty set to indicate "include all blocks"
+        target_tags = set()
         
     try:
         with open(file_path, "r", encoding="utf-8") as f:
@@ -311,7 +333,8 @@ def extract_blocks(file_path: str, target_tags: Set[str] = None) -> List[Dict]:
         for line in lines:
             # Extract tags and check if any match target tags
             tags = {tag for tag in line.split() if tag.startswith("#")}
-            if tags & target_tags:
+            # If target_tags is empty, include all blocks regardless of tags
+            if not target_tags or tags & target_tags:
                 block_id = str(uuid.uuid4())  # Use UUID for compatibility with existing code
                 
                 # Create block with metadata

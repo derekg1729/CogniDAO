@@ -274,6 +274,66 @@ class TestMemoryIntegration:
         
         # Verify tool results
         assert len(tool_results["results"]) > 0
+        
+        # Step 11: Test index_from_logseq integration
+        # Create a new collection for testing index_from_logseq
+        index_collection_name = "index-test-collection"
+        index_chroma_path = os.path.join(test_environment["output_dir"], "index-chroma")
+        index_archive_path = os.path.join(test_environment["output_dir"], "index-archive")
+        
+        os.makedirs(index_chroma_path, exist_ok=True)
+        os.makedirs(index_archive_path, exist_ok=True)
+        os.makedirs(os.path.join(index_archive_path, "blocks"), exist_ok=True)
+        os.makedirs(os.path.join(index_archive_path, "index"), exist_ok=True)
+        
+        # Create a new client for indexing
+        index_client = CogniMemoryClient(
+            chroma_path=index_chroma_path,
+            archive_path=index_archive_path,
+            collection_name=index_collection_name
+        )
+        
+        # Create a mock embedding function that returns consistent dimension
+        from unittest.mock import patch
+        
+        # Get the dimensions from the collection - it should be 384 from our test setup
+        dimension = 384
+        
+        # Define a mock function that returns the right dimension
+        def mock_embedding_function(texts):
+            return [[0.1] * dimension for _ in range(len(texts))]
+        
+        # Patch the init_embedding_function method to return our mock
+        with patch("infra_core.memory.memory_indexer.init_embedding_function", 
+                  return_value=mock_embedding_function):
+            
+            # Run the indexing
+            num_indexed = index_client.index_from_logseq(
+                logseq_dir=test_environment["logseq_dir"],
+                tag_filter="#thought",
+                embed_model="mock",
+                verbose=True
+            )
+            
+            # Verify correct number of blocks were indexed
+            assert num_indexed == 3, f"Expected 3 blocks with #thought tag, got {num_indexed}"
+            
+            # Test querying with the same mock
+            with patch("infra_core.memory.memory_indexer.init_embedding_function", 
+                      return_value=mock_embedding_function):
+                
+                # Query for thought content
+                index_results = index_client.query("test query", n_results=10)
+                
+                # Verify results
+                assert len(index_results.blocks) > 0, "No results returned from index query"
+                
+                # Verify all results have the #thought tag
+                for block in index_results.blocks:
+                    assert "#thought" in block.tags, f"Block missing #thought tag, has {block.tags}"
+                    print(f"Index result: {block.text}")
+        
+        # Test completed successfully
     
     def test_verify_test_data(self, test_environment):
         """Verify test data was created correctly."""
@@ -300,4 +360,108 @@ class TestMemoryIntegration:
         
         # Verify we have the expected number of tagged blocks
         assert thought_count == 3
-        assert broadcast_count == 3 
+        assert broadcast_count == 3
+        
+    def test_index_from_logseq_e2e(self, test_environment):
+        """
+        End-to-end test for the index_from_logseq method.
+        
+        Tests that the method can:
+        1. Correctly scan and parse Logseq files
+        2. Index blocks with appropriate tags
+        3. Create proper embeddings
+        4. Allow querying the indexed content
+        5. Apply tag filtering correctly
+        """
+        # Create required directories
+        chroma_path = os.path.join(test_environment["output_dir"], "index_chroma")
+        archive_path = os.path.join(test_environment["output_dir"], "index_archive")
+        os.makedirs(chroma_path, exist_ok=True)
+        os.makedirs(archive_path, exist_ok=True)
+        os.makedirs(os.path.join(archive_path, "blocks"), exist_ok=True)
+        os.makedirs(os.path.join(archive_path, "index"), exist_ok=True)
+        
+        # Create memory client
+        memory_client = CogniMemoryClient(
+            chroma_path=chroma_path,
+            archive_path=archive_path,
+            collection_name="cogni-memory-e2e"
+        )
+        
+        # Mock embeddings for testing
+        from unittest.mock import MagicMock
+        mock_embedder = MagicMock()
+        mock_embedder.return_value = [[0.1] * 384 for _ in range(10)]
+        
+        # Index from Logseq with tag filter for #thought
+        with pytest.MonkeyPatch().context() as mp:
+            # Patch the embedding function to return mock embeddings
+            mp.setattr("infra_core.memory.memory_indexer.init_embedding_function", lambda model_name: mock_embedder)
+            
+            # Run indexing with tag filter
+            num_indexed = memory_client.index_from_logseq(
+                logseq_dir=test_environment["logseq_dir"],
+                tag_filter="#thought",
+                embed_model="mock",
+                verbose=True
+            )
+        
+        # Verify the right number of blocks were indexed
+        assert num_indexed == 3, f"Expected 3 #thought blocks to be indexed, got {num_indexed}"
+        
+        # Query for thought content
+        with pytest.MonkeyPatch().context() as mp:
+            # For query we need to mock the embedding function again
+            mp.setattr("infra_core.memory.memory_indexer.init_embedding_function", lambda model_name: mock_embedder)
+            
+            # Query for thought-related content
+            thought_results = memory_client.query("thought concept", n_results=10)
+        
+        # Verify we got results matching our indexed content
+        assert len(thought_results.blocks) > 0, "No results returned from query"
+        
+        # All results should have #thought tag
+        for block in thought_results.blocks:
+            assert "#thought" in block.tags, f"Block has tags {block.tags} but missing #thought tag"
+        
+        # Now try indexing with a different tag filter
+        chroma_path2 = os.path.join(test_environment["output_dir"], "index_chroma2")
+        archive_path2 = os.path.join(test_environment["output_dir"], "index_archive2")
+        os.makedirs(chroma_path2, exist_ok=True)
+        os.makedirs(archive_path2, exist_ok=True)
+        os.makedirs(os.path.join(archive_path2, "blocks"), exist_ok=True)
+        os.makedirs(os.path.join(archive_path2, "index"), exist_ok=True)
+        
+        # Create a new client
+        memory_client2 = CogniMemoryClient(
+            chroma_path=chroma_path2,
+            archive_path=archive_path2,
+            collection_name="cogni-memory-e2e2"
+        )
+        
+        # Index with broadcast tag filter
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setattr("infra_core.memory.memory_indexer.init_embedding_function", lambda model_name: mock_embedder)
+            
+            num_indexed2 = memory_client2.index_from_logseq(
+                logseq_dir=test_environment["logseq_dir"],
+                tag_filter="#broadcast",
+                embed_model="mock",
+                verbose=True
+            )
+        
+        # Verify the right number of blocks were indexed
+        assert num_indexed2 == 3, f"Expected 3 #broadcast blocks to be indexed, got {num_indexed2}"
+        
+        # Query for broadcast content
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setattr("infra_core.memory.memory_indexer.init_embedding_function", lambda model_name: mock_embedder)
+            
+            broadcast_results = memory_client2.query("announcement", n_results=10)
+        
+        # Verify we got results matching our indexed content
+        assert len(broadcast_results.blocks) > 0, "No results returned from query"
+        
+        # All results should have #broadcast tag
+        for block in broadcast_results.blocks:
+            assert "#broadcast" in block.tags, f"Block has tags {block.tags} but missing #broadcast tag" 

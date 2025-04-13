@@ -626,7 +626,7 @@ This is a test page with frontmatter."""
             - Mock embedding function to avoid API calls
         
         Expected Output:
-            - Returns the number of blocks indexed (should be 2)
+            - Returns the number of blocks indexed (should be 3 - all blocks including untagged)
             - Blocks are properly saved in ChromaDB
             - Querying returns relevant results
         """
@@ -662,8 +662,8 @@ This is a test page with frontmatter."""
                     embed_model="mock"
                 )
             
-            # Assert
-            assert total_indexed == 2
+            # Assert - updated to expect 3 blocks (all blocks including untagged)
+            assert total_indexed == 3
             
             # Override client's query method to avoid embedding dimension issues
             with patch.object(client.storage.chroma.collection, "query") as mock_query:
@@ -682,11 +682,12 @@ This is a test page with frontmatter."""
                 results = client.query("test block")
                 assert len(results.blocks) > 0
                 assert "#thought" in results.blocks[0].tags or "#broadcast" in results.blocks[0].tags
-                
+            
         except Exception as e:  # Added except clause
             pytest.fail(f"Test failed with error: {e}")
         finally:
-            shutil.rmtree(test_logseq_dir)
+            # Clean up
+            shutil.rmtree(test_logseq_dir, ignore_errors=True)
 
     def test_index_from_logseq_with_tag_filter(self, test_directories):
         """
