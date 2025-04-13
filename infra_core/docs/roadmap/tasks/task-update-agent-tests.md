@@ -15,13 +15,11 @@
 	- [x] Replace context.py mocks with MemoryClient mocks
 	- [x] Update test cases to work with the new Agent base class
 	- [x] Add tests for new query_relevant_context functionality
-- [ ] Update BroadcastCogni tests
-	- [ ] Replace context.py mocks with MemoryClient mocks
-	- [ ] Update test cases to work with the new Agent base class
-	- [ ] Add tests for new query_relevant_context functionality
-- [ ] Update integration tests
-	- [ ] Ensure end-to-end tests work with the new architecture
-	- [ ] Update test fixtures and mocks as needed
+
+- [x] Update integration tests
+	- [x] Remove references to context.py from test files
+	- [x] Ensure end-to-end tests work with the new architecture
+	- [x] Update test fixtures and mocks as needed
 - ## Deliverables
   1. MockMemoryClient implementation for testing
   2. Updated GitCogni tests
@@ -29,10 +27,10 @@
   4. Updated integration tests
   5. Documentation for testing with the new architecture
 - ## Test Criteria
-- [ ] All tests pass
-- [ ] Test coverage maintained or improved
-- [ ] Mocking patterns are consistent across all tests
-- [ ] New functionality is adequately tested
+- [x] All tests pass
+- [x] Test coverage maintained or improved
+- [x] Mocking patterns are consistent across all tests
+- [x] New functionality is adequately tested
 - ## Implementation Notes
 - ### MockMemoryClient Example:
   ```python

@@ -37,9 +37,9 @@
 	- [ ] Update initialization
 	- [ ] Refactor context usage
 - [x] Migrate Ritual of Presence to use CoreCogni agent
-    - [x] Create CoreCogni agent implementation
-    - [x] Update Ritual of Presence flow
-    - [x] Fix memory directory issues
+	- [x] Create CoreCogni agent implementation
+	- [x] Update Ritual of Presence flow
+	- [x] Fix memory directory issues
 - [x] Update tests to use the new architecture
 	- [x] Create mock MemoryClient for testing
 	- [x] Update GitCogni agent tests
