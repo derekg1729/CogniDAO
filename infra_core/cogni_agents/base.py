@@ -139,28 +139,53 @@ class CogniAgent(ABC):
     def act(self, prepared_input: Dict[str, Any]) -> Dict[str, Any]:
         pass
 
-    def record_action(self, output: Dict[str, Any], subdir: str = "sessions", prefix: str = "") -> Path:
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        # Calculate the intended external path (might be used for logging/reference)
-        # but don't actually write the file here anymore.
-        filename = f"{prefix}{timestamp}.md" if prefix else f"{self.name}_{timestamp}.md"
-        output_path = self.agent_root / subdir / filename
-        # output_path.parent.mkdir(parents=True, exist_ok=True) # REMOVED
+    def record_action(self, output: Dict[str, Any], subdir: str = "sessions", prefix: str = "") -> None:
+        """
+        Formats output as Markdown, saves it to a file within the **memory bank session**,
+        and logs a pointer to it in the session's decisions.jsonl.
 
-        output_content = self.format_output_markdown(output)
-        # output_path.write_text(output_content, encoding="utf-8") # REMOVED
+        Args:
+            output (Dict[str, Any]): Data returned by the agent's act method.
+            subdir (str): **UNUSED** - Kept for signature compatibility if needed elsewhere, but ignored.
+            prefix (str): Prefix for the filename (e.g., 'thought_', 'reflection_').
 
-        # Write to memory bank (KEEP THIS)
-        memory_filename = f"action_{timestamp}.md"
-        self.memory.write_context(memory_filename, output_content)
-        self.memory.log_decision({
-            "agent": self.name,
-            "action_filename": memory_filename, # Log the name used in the memory bank
-            "output_path": str(output_path) # Log the intended external path for reference
-        })
+        Returns:
+            None: This method now primarily performs logging within the memory bank.
+        """
+        # 1. Format output data as Markdown
+        output_markdown = self.format_output_markdown(output)
+        
+        # 2. Generate descriptive filename for the Markdown file
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S_%f")
+        agent_name_slug = self.__class__.__name__ # Get agent class name
+        markdown_filename = f"{agent_name_slug}_{prefix}{timestamp}.md" 
 
-        # Return the calculated (but not written) external path
-        return output_path
+        # 3. Save the Markdown file directly into the current memory bank session
+        try:
+            # Use write_context to save the non-JSON markdown content
+            self.memory.write_context(markdown_filename, output_markdown, is_json=False) 
+        except Exception as e:
+             # Log error specific to writing context file
+             print(f"Error writing memory context file {markdown_filename}: {e}") # Replace with logger
+             # Decide if we should still log the decision or return/raise
+             # For now, we'll proceed to log the decision attempt
+
+        # 4. Log metadata (including a pointer to the MD file) to decisions.jsonl
+        try:
+            self.memory.log_decision({
+                "agent_name": self.name, 
+                "agent_class": agent_name_slug, 
+                "action_type": prefix, # Log the type of action
+                "markdown_filename": markdown_filename, # Pointer to the saved MD file
+                # Timestamp added automatically by log_decision
+            })
+        except Exception as e:
+             # Log error specific to logging decision
+             print(f"Error logging decision for action {markdown_filename}: {e}") # Replace with logger
+
+        # 5. External file writing is REMOVED
+        # No longer returning the external path
+        return None
 
     def format_output_markdown(self, data: Dict[str, Any]) -> str:
         lines = [f"# CogniAgent Output — {self.name}\n", f"**Generated**: {datetime.utcnow().isoformat()}\n"]

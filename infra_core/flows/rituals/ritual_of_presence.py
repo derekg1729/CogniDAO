@@ -159,15 +159,20 @@ def ritual_of_presence_flow():
     memory_root = Path(MEMORY_ROOT_DIR)
     memory_root.mkdir(parents=True, exist_ok=True)
     
-    core_memory_bank = CogniMemoryBank(memory_bank_root=memory_root, project_name=project_name)
+    fixed_session_id = "ritual-session" # Define a constant session ID
+    core_memory_bank = CogniMemoryBank(
+        memory_bank_root=memory_root, 
+        project_name=project_name,
+        session_id=fixed_session_id # Pass the fixed session ID
+    )
     shared_memory_adapter = CogniLangchainMemoryAdapter(memory_bank=core_memory_bank)
-    session_id = core_memory_bank.session_id
+    session_id = core_memory_bank.session_id # This will now be "ritual-session"
     session_path = core_memory_bank._get_session_path()
     logger.info(f"Initialized shared memory for project '{project_name}', session '{session_id}' at {session_path}")
 
     # Clear any previous state for this session ID (optional, good for clean runs)
-    shared_memory_adapter.clear()
-    logger.info("Cleared previous memory session state (if any). ")
+    # shared_memory_adapter.clear() # Commented out to allow persistence
+    # logger.info("Cleared previous memory session state (if any). ") # Commented out log message
 
     # --- Run Agent Tasks Sequentially ---
     initial_result = create_initial_thought(memory_adapter=shared_memory_adapter)
