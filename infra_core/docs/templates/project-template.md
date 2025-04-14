@@ -1,5 +1,7 @@
-# Project:[]
+
+# template-project
 :type: Project
+
 :status: todo
 :epic: [[epic-template]]
 :owner: 
@@ -42,5 +44,4 @@ The testing strategy progresses from:
 - Existing Logseq graph format and tagging conventions
 - OpenAI API access for embeddings
 - Python 3.8+ environment
-
 

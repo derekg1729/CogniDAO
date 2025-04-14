@@ -1,0 +1,10 @@
+{
+  "queue": [],
+  "history": [],
+  "metadata": {
+    "last_updated": "",
+    "version": "1.0",
+    "post_interval_minutes": 60,
+    "posts_per_batch": 2
+  }
+} 

@@ -1,7 +1,7 @@
 # git-cogni-agent
 :type: Project
 :status: completed-v1
-:project: [[Epic_Presence_and_Control_Loops]]
+:epic: [[Epic_Presence_and_Control_Loops]]
 
 ## Memory Client Integration
 
