@@ -1,0 +1,3 @@
+prefect
+langchain-core
+python-dotenv 
