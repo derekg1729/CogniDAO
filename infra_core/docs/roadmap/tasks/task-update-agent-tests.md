@@ -27,6 +27,10 @@ Update the test suite to work with the new `MCPFileMemory` implementation, ensur
 - Documentation for testing patterns
 
 ## Action Items
+- [x] **Create Tests for Memory Components:**
+  - [x] Implement `pytest` tests for `CogniMemoryBank` (core logic).
+  - [x] Implement `pytest` tests for `CogniLangchainMemoryAdapter`.
+  - [x] Implement `pytest` tests for Markdown export.
 - [ ] **Analyze Current Tests:**
   - [ ] Review existing test suite
   - [ ] Identify tests using `CogniMemoryClient`

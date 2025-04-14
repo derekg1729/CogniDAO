@@ -167,6 +167,26 @@ class CogniMemoryBank(BaseModel):
             except OSError as e:
                  print(f"Error clearing session directory {session_path}: {e}") # Replace with logger
 
+    # --- Export Functionality ---
+
+    def export_history_markdown(self) -> str:
+        """Exports the conversation history as a Markdown formatted string."""
+        history_dicts = self.read_history_dicts()
+        markdown_lines = ["# Conversation History"]
+
+        if not history_dicts:
+            return "# Conversation History\n\n*No history found.*"
+
+        for msg_dict in history_dicts:
+            msg_type = msg_dict.get("type", "unknown").capitalize()
+            msg_content = msg_dict.get("data", {}).get("content", "*No content*")
+
+            markdown_lines.append(f"\n## {msg_type}")
+            # Basic formatting - assumes content is plain text
+            markdown_lines.append(msg_content)
+
+        return "\n".join(markdown_lines)
+
 
 # --- LangChain Adapter Class ---
 
@@ -231,138 +251,4 @@ class CogniLangchainMemoryAdapter(BaseMemory):
         """Clear the underlying session memory in the memory bank."""
         self.memory_bank.clear_session()
 
-# --- Example Usage (Updated for new structure) ---
-if __name__ == "__main__":
-    # Configure root and project
-    bank_root = Path("./_memory_banks_test") # Use a distinct test root
-    project = "test_project_core"
-    session = datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f') # Explicit session for test
-
-    # --- Test Initialization and Path ---
-    memory_bank = CogniMemoryBank(
-        memory_bank_root=bank_root,
-        project_name=project,
-        session_id=session
-    )
-    print(f"Session ID: {memory_bank.session_id}")
-    print(f"Session Path: {memory_bank._get_session_path()}")
-    memory_bank.clear_session() # Start clean
-
-    # --- Test History Read/Write ---
-    print("\n--- Testing History Read/Write ---")
-    initial_history = memory_bank.read_history_dicts()
-    print(f"Initial history: {initial_history}")
-
-    # Simulate message dicts (as the adapter would create)
-    history1 = [
-        {"type": "human", "data": {"content": "Hello Bank!"}},
-        {"type": "ai", "data": {"content": "Hello Core!"}},
-    ]
-    memory_bank.write_history_dicts(history1)
-    print("Saved first history batch.")
-
-    loaded_after_1 = memory_bank.read_history_dicts()
-    print(f"History after 1 save: {loaded_after_1}")
-    assert loaded_after_1 == history1
-
-    history2 = loaded_after_1 + [
-        {"type": "human", "data": {"content": "How does this work?"}},
-        {"type": "ai", "data": {"content": "Via file I/O."}},
-    ]
-    memory_bank.write_history_dicts(history2)
-    print("Saved second history batch.")
-
-    loaded_after_2 = memory_bank.read_history_dicts()
-    print(f"History after 2 saves: {loaded_after_2}")
-    assert loaded_after_2 == history2
-
-    # --- Test Other Methods ---
-    print("\n--- Testing Other Methods ---")
-    memory_bank.write_context("thought.txt", "This is an intermediate thought.")
-    thought_content = memory_bank._read_file("thought.txt")
-    print(f"Read thought.txt: {thought_content}")
-    assert thought_content == "This is an intermediate thought."
-
-    tool_output = {"tool": "calculator", "result": 42}
-    memory_bank.write_context("tool_output.json", tool_output, is_json=True)
-    tool_content = memory_bank._read_file("tool_output.json")
-    print(f"Read tool_output.json: {tool_content}")
-    assert json.loads(tool_content) == tool_output # type: ignore
-
-    memory_bank.log_decision({"action": "used_calculator", "parameters": {"input": "6*7"}})
-    memory_bank.log_decision({"action": "wrote_thought"})
-    decision_content = memory_bank._read_file("decisions.jsonl")
-    print(f"Read decisions.jsonl:\n{decision_content}")
-    assert decision_content is not None and decision_content.count('\n') == 2 # Check for two lines
-
-    memory_bank.update_progress({"status": "testing", "step": 5})
-    progress_content = memory_bank._read_file("progress.json")
-    print(f"Read progress.json: {progress_content}")
-    assert json.loads(progress_content) == {"status": "testing", "step": 5} # type: ignore
-
-    # --- Test Clear ---
-    print("\n--- Testing Clear Session ---")
-    session_path = memory_bank._get_session_path()
-    # Ensure the directory exists before clearing
-    memory_bank._ensure_session_path_exists()
-    assert session_path.exists()
-    memory_bank.clear_session()
-    print(f"Session path exists after clear: {session_path.exists()}")
-    assert not session_path.exists()
-
-    print(f"\nCogniMemoryBank Test run complete. Check the contents of {bank_root} (should be empty or just contain the project dir).")
-
-    # --- Test Adapter ---
-    print("\n--- Testing CogniLangchainMemoryAdapter ---")
-    # Recreate bank instance for adapter test
-    bank_for_adapter = CogniMemoryBank(
-        memory_bank_root=bank_root,
-        project_name=project,
-        session_id=session + "_adapter" # Use a different session
-    )
-    adapter = CogniLangchainMemoryAdapter(memory_bank=bank_for_adapter)
-    adapter.clear() # Start clean
-
-    # Test initial load
-    initial_adapter_load = adapter.load_memory_variables({})
-    print(f"Initial adapter history: {initial_adapter_load}")
-    assert initial_adapter_load == {"history": []}
-
-    # Test save context 1
-    inputs1 = {"input": "Hello Adapter!"}
-    outputs1 = {"output": "Hello Langchain!"}
-    adapter.save_context(inputs1, outputs1)
-    print("Saved first interaction via adapter.")
-
-    # Test load after save 1
-    loaded_adapter_1 = adapter.load_memory_variables({})
-    print(f"Adapter history after 1 save: {loaded_adapter_1}")
-    assert len(loaded_adapter_1['history']) == 2
-    assert loaded_adapter_1['history'][0].content == "Hello Adapter!"
-    assert loaded_adapter_1['history'][1].content == "Hello Langchain!"
-    assert isinstance(loaded_adapter_1['history'][0], HumanMessage)
-    assert isinstance(loaded_adapter_1['history'][1], AIMessage)
-
-    # Test save context 2
-    inputs2 = {"input": "How is the wrapping?"}
-    outputs2 = {"output": "Seems functional."}
-    adapter.save_context(inputs2, outputs2)
-    print("Saved second interaction via adapter.")
-
-    # Test load after save 2
-    loaded_adapter_2 = adapter.load_memory_variables({})
-    print(f"Adapter history after 2 saves: {loaded_adapter_2}")
-    assert len(loaded_adapter_2['history']) == 4
-    assert loaded_adapter_2['history'][2].content == "How is the wrapping?"
-    assert loaded_adapter_2['history'][3].content == "Seems functional."
-
-    # Test clear
-    print("Testing adapter clear...")
-    adapter_session_path = bank_for_adapter._get_session_path()
-    # Ensure the directory exists before clearing (save_context creates it)
-    assert adapter_session_path.exists()
-    adapter.clear()
-    assert not adapter_session_path.exists()
     print("Adapter clear successful.")
-
-    print(f"\nAdapter Test run complete. Check {bank_root}")

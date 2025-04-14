@@ -2,7 +2,8 @@ from pathlib import Path # For memory bank root
 from typing import Any, Dict
 
 from dotenv import load_dotenv
-from prefect import flow, task, get_run_logger
+# Comment out Prefect imports
+# from prefect import flow, task, get_run_logger
 from langchain_core.memory import BaseMemory
 from langchain_core.messages import HumanMessage
 # Removed LangChain LLM/Runnable/Prompt imports
@@ -14,8 +15,8 @@ from langchain_core.messages import HumanMessage
 # Import from existing handler
 from infra_core.openai_handler import initialize_openai_client, create_completion, extract_content
 
-# Import the new memory class
-from .cogni_memory_bank import CogniMemoryBank
+# Import the new memory classes
+from .cogni_memory_bank import CogniMemoryBank, CogniLangchainMemoryAdapter
 
 # Load environment variables (for OPENAI_API_KEY needed by the handler)
 load_dotenv()
@@ -25,11 +26,12 @@ load_dotenv()
 
 # --- Prefect Tasks --- 
 
-@task
+# Comment out @task decorator
+# @task
 def agent_task(agent_name: str, system_prompt: str, input_data: Dict[str, Any], memory: BaseMemory, input_key: str = "input"):
-    """Generic Prefect task to run an agent using infra_core.openai_handler."""
-    logger = get_run_logger()
-    logger.info(f"Running {agent_name} with input: {input_data}")
+    """Generic function to run an agent using infra_core.openai_handler."""
+    # logger = get_run_logger()
+    print(f"Running {agent_name} with input: {input_data}") # Use print instead of logger
 
     # Initialize OpenAI client using the handler task
     # Note: This runs the task within the task. Consider initializing once in the flow if performance matters.
@@ -38,7 +40,8 @@ def agent_task(agent_name: str, system_prompt: str, input_data: Dict[str, Any], 
     # Load history from memory
     memory_vars = memory.load_memory_variables({}) # receives {"history": [BaseMessage, ...]}
     history_messages = memory_vars.get("history", [])
-    logger.info(f"{agent_name} loaded {len(history_messages)} messages from history.")
+    # logger.info(f"{agent_name} loaded {len(history_messages)} messages from history.")
+    print(f"{agent_name} loaded {len(history_messages)} messages from history.")
 
     # Construct the user prompt
     user_input = input_data[input_key]
@@ -53,7 +56,8 @@ def agent_task(agent_name: str, system_prompt: str, input_data: Dict[str, Any], 
         # Prepend history to the *current* user input for the prompt
         full_user_prompt = f"{history_str}\nHuman: {user_input}"
 
-    logger.info(f"{agent_name} constructed user prompt: '{full_user_prompt[:200]}...'") # Log truncated prompt
+    # logger.info(f"{agent_name} constructed user prompt: '{full_user_prompt[:200]}...'") # Log truncated prompt
+    print(f"{agent_name} constructed user prompt: '{full_user_prompt[:200]}...'")
 
     # Call the completion task from the handler
     # Using .fn() to call the underlying function directly to avoid Prefect overhead/complexity here
@@ -66,29 +70,35 @@ def agent_task(agent_name: str, system_prompt: str, input_data: Dict[str, Any], 
             model="gpt-3.5-turbo", # Keep model consistent
             temperature=0 # Keep temp consistent
         )
-        logger.info(f"{agent_name} received completion response.")
+        # logger.info(f"{agent_name} received completion response.")
+        print(f"{agent_name} received completion response.")
 
         # Extract the content using the handler task's function
         response = extract_content.fn(completion_response)
-        logger.info(f"{agent_name} extracted response: {response}")
+        # logger.info(f"{agent_name} extracted response: {response}")
+        print(f"{agent_name} extracted response: {response}")
 
     except Exception as e:
-        logger.error(f"{agent_name} failed during OpenAI call: {e}")
+        # logger.error(f"{agent_name} failed during OpenAI call: {e}")
+        print(f"ERROR: {agent_name} failed during OpenAI call: {e}")
         response = f"Error: Could not get response from AI. Details: {e}"
 
     # Save context back to memory
     memory.save_context(input_data, {"output": response})
-    logger.info(f"{agent_name} saved context.")
+    # logger.info(f"{agent_name} saved context.")
+    print(f"{agent_name} saved context.")
 
     return response
 
-# --- Prefect Flow --- 
+# --- Prefect Flow (now just a regular function) --- 
 
-@flow(name="MVP 2-Agent CogniMemoryBank Workflow") # Updated flow name
+# Comment out @flow decorator
+# @flow(name="MVP 2-Agent CogniMemoryBank Workflow") # Updated flow name
 def two_agent_flow():
     """Demonstrates two agents interacting via shared CogniMemoryBank."""
-    logger = get_run_logger()
-    
+    # logger = get_run_logger()
+    print("Starting two_agent_flow...") # Use print
+
     # Define Memory Bank Configuration
     memory_root = Path("./_memory_banks_experiment") # Define root directory for this experiment's banks
     project = "mvp_flow_test"
@@ -96,17 +106,24 @@ def two_agent_flow():
 
     # Ensure root exists
     memory_root.mkdir(exist_ok=True)
-    logger.info(f"Using memory bank root: {memory_root.resolve()}")
+    # logger.info(f"Using memory bank root: {memory_root.resolve()}")
+    print(f"Using memory bank root: {memory_root.resolve()}")
 
-    # Initialize shared memory using CogniMemoryBank
-    # A single session ID is generated here and reused if the flow retries, which is desired.
-    # If tasks needed different sessions, memory would be initialized within tasks.
-    shared_memory = CogniMemoryBank(memory_bank_root=memory_root, project_name=project)
-    session_path = shared_memory._get_session_path() # Get the generated session path for logging
-    logger.info(f"Initialized CogniMemoryBank for project '{project}', session: {shared_memory.session_id}")
-    logger.info(f"Session path: {session_path}")
-    
-    shared_memory.clear() # Ensure clean state for this specific session
+    # Initialize the core memory bank first
+    core_memory_bank = CogniMemoryBank(memory_bank_root=memory_root, project_name=project)
+    session_path = core_memory_bank._get_session_path() # Get the generated session path for logging
+    # logger.info(f"Initialized CogniMemoryBank core for project '{project}', session: {core_memory_bank.session_id}")
+    # logger.info(f"Session path: {session_path}")
+    print(f"Initialized CogniMemoryBank core for project '{project}', session: {core_memory_bank.session_id}")
+    print(f"Session path: {session_path}")
+
+    # Create the LangChain adapter, wrapping the core bank
+    shared_memory_adapter = CogniLangchainMemoryAdapter(memory_bank=core_memory_bank)
+
+    # Clear the session via the adapter (which calls core_memory_bank.clear_session())
+    shared_memory_adapter.clear()
+    # logger.info(f"Cleared session {core_memory_bank.session_id} via adapter.")
+    print(f"Cleared session {core_memory_bank.session_id} via adapter.")
 
     # Define System Prompts
     agent_1_system_prompt = "You are Agent 1. Your job is to receive a fact and state clearly that you have recorded it. Only state that you recorded it."
@@ -115,33 +132,36 @@ def two_agent_flow():
     # Agent 1 introduces a fact
     fact_to_introduce = "The project uses CogniMemoryBank for state management."
     agent_1_input = {"input": fact_to_introduce}
-    # Run Agent 1 task
-    agent_1_result = agent_task.submit(
+    # Run Agent 1 task - change .submit to direct call
+    agent_task(
         agent_name="Agent 1 (Fact Recorder)",
         system_prompt=agent_1_system_prompt,
         input_data=agent_1_input,
-        memory=shared_memory,
+        memory=shared_memory_adapter, # Pass the adapter instance
         input_key="input"
     )
 
     # Agent 2 asks a question that requires the fact
     question = "What component manages state in this project?"
     agent_2_input = {"input": question}
-    # Run Agent 2 task, ensuring it waits for Agent 1
-    agent_2_result = agent_task.submit(
+    # Run Agent 2 task - change .submit to direct call, remove wait_for
+    agent_2_result = agent_task(
         agent_name="Agent 2 (Question Answerer)",
         system_prompt=agent_2_system_prompt,
         input_data=agent_2_input,
-        memory=shared_memory,
-        input_key="input",
-        wait_for=[agent_1_result] # Ensure Agent 1 finishes first
+        memory=shared_memory_adapter, # Pass the adapter instance
+        input_key="input"
+        # wait_for=[agent_1_result] # Remove wait_for
     )
 
-    final_response = agent_2_result.result()
-    logger.info(f"Final response from Agent 2: {final_response}")
+    # Get result directly from variable
+    final_response = agent_2_result
+    # logger.info(f"Final response from Agent 2: {final_response}")
+    print(f"Final response from Agent 2: {final_response}")
 
     # Keep session files for inspection
-    logger.info(f"Flow completed. Memory session files kept for inspection: {session_path}")
+    # logger.info(f"Flow completed. Memory session files kept for inspection: {session_path}")
+    print(f"Flow completed. Memory session files kept for inspection: {session_path}")
 
 
 if __name__ == "__main__":
