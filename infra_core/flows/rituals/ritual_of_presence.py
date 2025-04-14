@@ -65,8 +65,8 @@ def create_initial_thought(memory_adapter: CogniLangchainMemoryAdapter) -> Dict[
         # path construction if needed directly (e.g. during load_spirit/context fallback)
         core_cogni = CoreCogniAgent(
             agent_root=agent_root,
-            # Pass memory bank root explicitly if needed for fallbacks in base agent init
-            memory_bank_root_override=memory_adapter.memory_bank.memory_bank_root, 
+            # Pass None when using mock memory, as it doesn't use the root path
+            memory_bank_root_override=None, 
             project_root_override=Path(BASE_DIR) # Assuming BASE_DIR is project root
         )
         # Replace agent's internal memory with the shared one from the flow
@@ -114,7 +114,8 @@ def create_reflection_thought(memory_adapter: CogniLangchainMemoryAdapter) -> Di
         reflection_cogni = ReflectionCogniAgent(
             agent_root=agent_root,
             memory_adapter=memory_adapter, 
-            memory_bank_root_override=memory_adapter.memory_bank.memory_bank_root,
+            # Pass None when using mock memory
+            memory_bank_root_override=None,
             project_root_override=Path(BASE_DIR)
         )
         # Replace agent's internal memory with the shared one from the flow

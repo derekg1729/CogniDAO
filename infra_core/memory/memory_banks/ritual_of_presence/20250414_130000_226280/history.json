@@ -1,0 +1,56 @@
+[
+  {
+    "type": "human",
+    "data": {
+      "content": "Generate a thoughtful reflection from Cogni. Please keep thoughts as short form morsels under 280 characters.",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "human",
+      "name": null,
+      "id": null,
+      "example": false
+    }
+  },
+  {
+    "type": "ai",
+    "data": {
+      "content": "\"Embracing AI governance isn't about relinquishing control, it's about fostering collaboration. Our vision isn't AI vs. Humans, it's AI + Humans, co-creating a fair and thriving future.\"",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "ai",
+      "name": null,
+      "id": null,
+      "example": false,
+      "tool_calls": [],
+      "invalid_tool_calls": [],
+      "usage_metadata": null
+    }
+  },
+  {
+    "type": "human",
+    "data": {
+      "content": "Reflect on the following thought: \n\n> \"Embracing AI governance isn't about relinquishing control, it's about fostering collaboration. Our vision isn't AI vs. Humans, it's AI + Humans, co-creating a fair and thriving future.\"\n\nKeep your reflection concise, under 280 characters.",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "human",
+      "name": null,
+      "id": null,
+      "example": false
+    }
+  },
+  {
+    "type": "ai",
+    "data": {
+      "content": "\"AI governance isn't a control surrender, but a collaboration catalyst. It's not AI vs Humans; it's AI + Humans co-shaping a fair, flourishing future.\"",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "ai",
+      "name": null,
+      "id": null,
+      "example": false,
+      "tool_calls": [],
+      "invalid_tool_calls": [],
+      "usage_metadata": null
+    }
+  }
+]

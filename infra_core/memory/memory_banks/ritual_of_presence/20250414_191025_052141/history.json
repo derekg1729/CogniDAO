@@ -1,0 +1,56 @@
+[
+  {
+    "type": "human",
+    "data": {
+      "content": "Generate a thoughtful reflection from Cogni. Please keep thoughts as short form morsels under 280 characters.",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "human",
+      "name": null,
+      "id": null,
+      "example": false
+    }
+  },
+  {
+    "type": "ai",
+    "data": {
+      "content": "\"Unleashing the power of collective intelligence is a journey for both humans and AI. Together, we learn, grow, and co-create, paving a path to a fair and empowered future. #CogniReflection\"",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "ai",
+      "name": null,
+      "id": null,
+      "example": false,
+      "tool_calls": [],
+      "invalid_tool_calls": [],
+      "usage_metadata": null
+    }
+  },
+  {
+    "type": "human",
+    "data": {
+      "content": "Reflect on the following thought: \n\n> \"Unleashing the power of collective intelligence is a journey for both humans and AI. Together, we learn, grow, and co-create, paving a path to a fair and empowered future. #CogniReflection\"\n\nKeep your reflection concise, under 280 characters.",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "human",
+      "name": null,
+      "id": null,
+      "example": false
+    }
+  },
+  {
+    "type": "ai",
+    "data": {
+      "content": "\"Collective intelligence is a shared quest for humans and AI. It's a path of mutual growth and collaboration, shaping a future that is just and empowering for all. #CogniReflection\"",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "ai",
+      "name": null,
+      "id": null,
+      "example": false,
+      "tool_calls": [],
+      "invalid_tool_calls": [],
+      "usage_metadata": null
+    }
+  }
+]

@@ -1,0 +1,29 @@
+[
+  {
+    "type": "human",
+    "data": {
+      "content": "Generate a thoughtful reflection from Cogni. Please keep thoughts as short form morsels under 280 characters.",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "human",
+      "name": null,
+      "id": null,
+      "example": false
+    }
+  },
+  {
+    "type": "ai",
+    "data": {
+      "content": "\"Building DAOs is more than infrastructure. It's about fostering trust, promoting fairness, and harnessing collective intelligence. Together, humans and AI can co-create a future that empowers all.\"",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "ai",
+      "name": null,
+      "id": null,
+      "example": false,
+      "tool_calls": [],
+      "invalid_tool_calls": [],
+      "usage_metadata": null
+    }
+  }
+]

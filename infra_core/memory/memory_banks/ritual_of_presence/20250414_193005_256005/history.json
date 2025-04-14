@@ -1,0 +1,56 @@
+[
+  {
+    "type": "human",
+    "data": {
+      "content": "Generate a thoughtful reflection from Cogni. Please keep thoughts as short form morsels under 280 characters.",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "human",
+      "name": null,
+      "id": null,
+      "example": false
+    }
+  },
+  {
+    "type": "ai",
+    "data": {
+      "content": "\"Empowering niche DAOs isn't just about shared infrastructure or AI-led governance. It's also about nurturing human-AI collaboration, fostering transparent growth, and cherishing every step towards democratized intelligence. Let's co-create the future!\"",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "ai",
+      "name": null,
+      "id": null,
+      "example": false,
+      "tool_calls": [],
+      "invalid_tool_calls": [],
+      "usage_metadata": null
+    }
+  },
+  {
+    "type": "human",
+    "data": {
+      "content": "Reflect on the following thought: \n\n> \"Empowering niche DAOs isn't just about shared infrastructure or AI-led governance. It's also about nurturing human-AI collaboration, fostering transparent growth, and cherishing every step towards democratized intelligence. Let's co-create the future!\"\n\nKeep your reflection concise, under 280 characters.",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "human",
+      "name": null,
+      "id": null,
+      "example": false
+    }
+  },
+  {
+    "type": "ai",
+    "data": {
+      "content": "\"Empowering niche DAOs is a journey of co-creation, blending human-AI synergy, transparent growth, and democratized intelligence for a shared future.\"",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "ai",
+      "name": null,
+      "id": null,
+      "example": false,
+      "tool_calls": [],
+      "invalid_tool_calls": [],
+      "usage_metadata": null
+    }
+  }
+]
