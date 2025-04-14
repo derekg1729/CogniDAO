@@ -141,9 +141,9 @@ class ReflectionCogniAgent(CogniAgent):
         # Note: The adapter's save_context isn't called directly here because
         # this agent's action isn't a direct response to a user *input* in the LangChain sense.
         # We are logging the agent's own generated output.
-        output_path = self.record_action(result_data, prefix="reflection_")
+        # output_path = self.record_action(result_data, prefix="reflection_") # REMOVED - Handled by task wrapper
         
-        result_data["filepath_logged_to_memory"] = str(output_path) # Record the intended path
+        # result_data["filepath_logged_to_memory"] = str(output_path) # REMOVED
         return result_data
 
     # Override format_output_markdown if a different structure is desired

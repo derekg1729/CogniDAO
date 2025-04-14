@@ -372,29 +372,30 @@ def test_record_action(mock_write_context, mock_log_decision, agent_root, spirit
     # with freeze_time("2023-10-27 10:00:00 UTC"):
     output_path = agent.record_action(action_output, subdir="test_sessions", prefix="rec_")
 
-    # 1. Check file system write (remains the same)
+    # 1. Check file system path (should still be calculated correctly)
     assert output_path.parent == agent_root / "test_sessions"
     assert output_path.name.startswith("rec_")
     assert output_path.name.endswith(".md")
-    assert output_path.exists()
-    content = output_path.read_text()
-    assert "# CogniAgent Output — test_record" in content
-    assert "## step\n1\n" in content
-    assert "## decision\nproceed\n" in content
-    assert "## details" in content
-    assert "**info**:\nabc\n" in content # Check sub-dict formatting
-    assert "**value**:\n123\n" in content
-    assert "> Agent: test_record" in content
+    # assert output_path.exists() # REMOVED - File is no longer created
 
-    # 2. Check memory bank write_context call (made ONLY during record_action)
-    timestamp = output_path.stem.replace("rec_", "") # Extract timestamp
-    expected_memory_filename = f"action_{timestamp}.md"
-    mock_write_context.assert_called_once_with(expected_memory_filename, content)
-    
-    # 3. Check memory bank log_decision call (made ONLY during record_action)
-    expected_log_data = {
-        "agent": "test_record",
-        "action_filename": expected_memory_filename,
-        "output_path": str(output_path)
-    }
-    mock_log_decision.assert_called_once_with(expected_log_data) 
+    # 2. Check Memory Bank Writes
+    # Check write_context call
+    mock_write_context.assert_called_once()
+    args_wc, kwargs_wc = mock_write_context.call_args
+    assert args_wc[0].startswith("action_") # Check memory filename format
+    assert args_wc[0].endswith(".md")
+    assert "# CogniAgent Output — test_record" in args_wc[1] # Check formatted content
+    assert "## step\n1" in args_wc[1]
+    assert "## details" in args_wc[1]
+    assert "**info**:" in args_wc[1]
+
+    # Check log_decision call
+    mock_log_decision.assert_called_once()
+    args_ld, kwargs_ld = mock_log_decision.call_args
+    decision_log = args_ld[0]
+    assert decision_log["agent"] == "test_record"
+    assert decision_log["action_filename"] == args_wc[0] # Ensure it matches write_context filename
+    assert decision_log["output_path"] == str(output_path) # Ensure it logged the calculated external path
+
+    # 3. Check return value
+    assert isinstance(output_path, Path) 

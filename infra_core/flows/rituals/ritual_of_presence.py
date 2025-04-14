@@ -1,18 +1,28 @@
 import sys
 import os
-# Ensure parent directory is in path # Fragile implementation, must be updated when files move
+# Ensure parent directory is in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 from prefect import task, flow, get_run_logger
 from datetime import datetime
 import os
-import json
 from pathlib import Path
+from typing import Dict, Any # Added Any
+
+# --- Memory Imports ---
+from infra_core.memory.memory_bank import CogniMemoryBank, CogniLangchainMemoryAdapter
+
+# --- Agent Imports ---
+from infra_core.cogni_agents.core_cogni import CoreCogniAgent
+from infra_core.cogni_agents.reflection_cogni import ReflectionCogniAgent
 
 # Use absolute path to avoid permission issues
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+# Keep THOUGHTS_DIR for defining agent_root, even if we don't write external files directly here
 THOUGHTS_DIR = os.path.join(BASE_DIR, "presence/thoughts")
+# Define root for memory banks used by this flow
+MEMORY_ROOT_DIR = os.path.join(BASE_DIR, "infra_core/memory/memory_banks")
 
 def write_thought_file(ai_content):
     """
@@ -39,46 +49,143 @@ def write_thought_file(ai_content):
     return timestamp, filepath
 
 @task
-def create_thought():
+def create_initial_thought(memory_adapter: CogniLangchainMemoryAdapter) -> Dict[str, Any]:
     """
-    Create a thought with full core context including all guides and documents.
+    Creates the initial thought using CoreCogniAgent and saves context to shared memory.
     """
     logger = get_run_logger()
     
     try:
-        # Import CoreCogniAgent here to avoid import errors when running as flow
-        from infra_core.cogni_agents.core_cogni import CoreCogniAgent
-        
-        # Create CoreCogniAgent
+        logger.info("Creating initial thought...")
+        # Agent root defines where agent *would* write files if record_action did
+        # It might also be used internally by the agent for other purposes.
         agent_root = Path(THOUGHTS_DIR)
-        core_cogni = CoreCogniAgent(agent_root=agent_root)
         
-        # Prepare input and act
+        # CoreCogniAgent doesn't take adapter in init, uses base class logic for memory bank
+        # path construction if needed directly (e.g. during load_spirit/context fallback)
+        core_cogni = CoreCogniAgent(
+            agent_root=agent_root,
+            # Pass memory bank root explicitly if needed for fallbacks in base agent init
+            memory_bank_root_override=memory_adapter.memory_bank.memory_bank_root, 
+            project_root_override=Path(BASE_DIR) # Assuming BASE_DIR is project root
+        )
+        # Replace agent's internal memory with the shared one from the flow
+        core_cogni.memory = memory_adapter.memory_bank
+        
         prepared_input = core_cogni.prepare_input()
-        result = core_cogni.act(prepared_input)
+        # Get the prompt used for saving context
+        initial_prompt = prepared_input.get("prompt", "Generate initial thought.")
         
-        # Log the final thought with Prefect logger
-        logger.info(f"THOUGHT OUTPUT: {json.dumps({'thought': result['thought_content']}, indent=2)}")
-        
-        return result['timestamp'], result['filepath'], result['thought_content']
+        # Act returns the result dictionary without saving internally
+        result_data = core_cogni.act(prepared_input)
+        initial_thought = result_data.get("thought_content", "[No thought content]")
+
+        # Save context using the LangChain adapter pattern
+        memory_adapter.save_context(inputs={"input": initial_prompt}, outputs={"output": initial_thought})
+        logger.info("Saved initial thought context to history via adapter.")
+
+        # Optional: Log detailed action using record_action (writes action_*.md, decisions.jsonl)
+        try:
+            core_cogni.record_action(result_data, prefix="thought_")
+            logger.info("Logged detailed initial thought action via record_action.")
+        except Exception as e:
+            logger.warning(f"Could not log detailed action for initial thought: {e}")
+
+        logger.info(f"INITIAL THOUGHT OUTPUT: {initial_thought}")
+        return result_data
         
     except Exception as e:
-        logger.error(f"Error in thought generation: {e}")
-        # Return default values on error
-        timestamp = datetime.utcnow().strftime("%Y-%m-%d-%H-%M")
-        filepath = os.path.join(THOUGHTS_DIR, f"{timestamp}.md")
-        ai_content = f"Error encountered in thought generation. The collective is still present despite the silence. Error: {str(e)}"
-        return timestamp, filepath, ai_content
+        logger.error(f"Error in initial thought generation: {e}")
+        # Return error structure
+        return {"error": str(e)}
+
+@task
+def create_reflection_thought(memory_adapter: CogniLangchainMemoryAdapter) -> Dict[str, Any]:
+    """
+    Creates a reflection thought using ReflectionCogniAgent based on shared memory history.
+    """
+    logger = get_run_logger()
+
+    try:
+        logger.info("Creating reflection thought...")
+        agent_root = Path(THOUGHTS_DIR)
+        
+        # ReflectionCogniAgent takes the adapter instance in init
+        reflection_cogni = ReflectionCogniAgent(
+            agent_root=agent_root,
+            memory_adapter=memory_adapter, 
+            memory_bank_root_override=memory_adapter.memory_bank.memory_bank_root,
+            project_root_override=Path(BASE_DIR)
+        )
+        # Replace agent's internal memory with the shared one from the flow
+        reflection_cogni.memory = memory_adapter.memory_bank
+        
+        prepared_input = reflection_cogni.prepare_input()
+        # Get the prompt used for saving context
+        reflection_prompt = prepared_input.get("prompt", "Generate reflection.")
+
+        # Act returns the result dictionary without saving internally
+        result_data = reflection_cogni.act(prepared_input)
+        reflection = result_data.get("reflection_content", "[No reflection content]")
+
+        # Save context using the LangChain adapter pattern
+        memory_adapter.save_context(inputs={"input": reflection_prompt}, outputs={"output": reflection})
+        logger.info("Saved reflection context to history via adapter.")
+
+        # Optional: Log detailed action using record_action
+        try:
+            reflection_cogni.record_action(result_data, prefix="reflection_")
+            logger.info("Logged detailed reflection action via record_action.")
+        except Exception as e:
+            logger.warning(f"Could not log detailed action for reflection: {e}")
+
+        logger.info(f"REFLECTION OUTPUT: {reflection}")
+        return result_data
+
+    except Exception as e:
+        logger.error(f"Error in reflection generation: {e}")
+        return {"error": str(e)}
+
 
 @flow
 def ritual_of_presence_flow():
-    """Flow that generates thoughts using full core context including all docs and guides."""
-    # Create thought only
-    thought_info = create_thought()
-    timestamp, filepath, _ = thought_info
-    return f"Thought created successfully at {filepath}"
+    """Flow that generates an initial thought and a reflection using shared memory."""
+    logger = get_run_logger()
+    logger.info("Starting dual-agent Ritual of Presence flow...")
+
+    # --- Initialize Shared Memory ---
+    project_name = "ritual_of_presence"
+    memory_root = Path(MEMORY_ROOT_DIR)
+    memory_root.mkdir(parents=True, exist_ok=True)
+    
+    core_memory_bank = CogniMemoryBank(memory_bank_root=memory_root, project_name=project_name)
+    shared_memory_adapter = CogniLangchainMemoryAdapter(memory_bank=core_memory_bank)
+    session_id = core_memory_bank.session_id
+    session_path = core_memory_bank._get_session_path()
+    logger.info(f"Initialized shared memory for project '{project_name}', session '{session_id}' at {session_path}")
+
+    # Clear any previous state for this session ID (optional, good for clean runs)
+    shared_memory_adapter.clear()
+    logger.info("Cleared previous memory session state (if any). ")
+
+    # --- Run Agent Tasks Sequentially ---
+    initial_result = create_initial_thought(memory_adapter=shared_memory_adapter)
+    
+    if "error" in initial_result:
+        logger.error("Flow aborted due to error in initial thought generation.")
+        return f"Flow failed during initial thought: {initial_result['error']}"
+
+    # Pass the shared adapter; Reflection agent reads history via adapter
+    reflection_result = create_reflection_thought(memory_adapter=shared_memory_adapter)
+
+    if "error" in reflection_result:
+        logger.error("Flow completed with error in reflection generation.")
+        return f"Flow completed with error during reflection: {reflection_result['error']}"
+    
+    logger.info("Dual-agent Ritual of Presence flow completed successfully.")
+    return f"Ritual of Presence completed. Session: {session_id}. See logs and memory bank: {session_path}"
 
 if __name__ == "__main__":
-    # Run the ritual of presence
-    result = ritual_of_presence_flow()
-    print(result)
+    # Run the updated ritual of presence
+    result_message = ritual_of_presence_flow()
+    print(result_message)

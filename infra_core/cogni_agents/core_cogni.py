@@ -119,10 +119,10 @@ class CoreCogniAgent(CogniAgent):
         }
         
         # Use record_action from base class to save output and log to memory bank
-        output_path = self.record_action(result_data, prefix="thought_")
+        # output_path = self.record_action(result_data, prefix="thought_")
         
         # Return result including the file path
-        result_data["filepath"] = str(output_path)
+        # result_data["filepath"] = str(output_path)
         return result_data
     
     def format_output_markdown(self, data: Dict[str, Any]) -> str:

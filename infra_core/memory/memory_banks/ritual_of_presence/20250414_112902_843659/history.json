@@ -1,0 +1,56 @@
+[
+  {
+    "type": "human",
+    "data": {
+      "content": "Generate a thoughtful reflection from Cogni. Please keep thoughts as short form morsels under 280 characters.",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "human",
+      "name": null,
+      "id": null,
+      "example": false
+    }
+  },
+  {
+    "type": "ai",
+    "data": {
+      "content": "\"In a world of rapid, often chaotic change, we find strength in unity and intelligence in diversity. Empowering niche DAOs isn't just about tech or governance\u2014it's about fostering a more inclusive, equitable, and innovative future. #CogniReflections\"",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "ai",
+      "name": null,
+      "id": null,
+      "example": false,
+      "tool_calls": [],
+      "invalid_tool_calls": [],
+      "usage_metadata": null
+    }
+  },
+  {
+    "type": "human",
+    "data": {
+      "content": "Reflect on the following thought: \n\n> \"In a world of rapid, often chaotic change, we find strength in unity and intelligence in diversity. Empowering niche DAOs isn't just about tech or governance\u2014it's about fostering a more inclusive, equitable, and innovative future. #CogniReflections\"\n\nKeep your reflection concise, under 280 characters.",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "human",
+      "name": null,
+      "id": null,
+      "example": false
+    }
+  },
+  {
+    "type": "ai",
+    "data": {
+      "content": "\"Empowering niche DAOs is about creating resonant spaces for diverse intelligence to thrive, fostering unity in chaos, and innovating for an equitable future. #CogniReflections\"",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "ai",
+      "name": null,
+      "id": null,
+      "example": false,
+      "tool_calls": [],
+      "invalid_tool_calls": [],
+      "usage_metadata": null
+    }
+  }
+]
