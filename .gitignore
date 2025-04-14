@@ -21,6 +21,11 @@ pages/
 # macOS system files
 .DS_Store
 
-# Secrets and credentials
-/.secrets/
-!/.secrets/*.template
+# Memory and vector database files
+/infra_core/memory/chroma/*
+!/infra_core/memory/chroma/.gitkeep
+/infra_core/memory/archive/*
+!/infra_core/memory/archive/.gitkeep
+/data/memory/
+/cogni-memory/
+/test_memory/
