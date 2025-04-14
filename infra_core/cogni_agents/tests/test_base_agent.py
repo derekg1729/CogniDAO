@@ -86,9 +86,10 @@ def test_agent_initialization(agent_root, spirit_file, memory_bank_root, temp_di
     assert agent.project_root == temp_dir # Check project_root override was set
     assert isinstance(agent.memory, CogniMemoryBank)
     assert agent.memory.memory_bank_root == memory_bank_root
-    assert agent.memory.project_name == "cogni_agents"
-    # The session_id should be the agent name
-    expected_session_path = memory_bank_root / "cogni_agents" / "test_dummy"
+    assert agent.memory.project_name == agent.name
+    assert agent.memory.session_id == agent.name
+    # The project_name and session_id are now both agent.name
+    expected_session_path = memory_bank_root / agent.name / agent.name # Corrected path
     # assert agent.memory.session_path == expected_session_path # Removed: session_path is not a public attribute
     # Check if the session directory was created by CogniMemoryBank init
     assert expected_session_path.exists()

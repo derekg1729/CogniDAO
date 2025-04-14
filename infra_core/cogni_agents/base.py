@@ -8,6 +8,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
+# Import the centralized constant
+from infra_core.constants import MEMORY_BANKS_ROOT
+
 from infra_core.memory.memory_bank import CogniMemoryBank
 
 
@@ -27,18 +30,16 @@ class CogniAgent(ABC):
         # Determine project root for fallbacks
         self.project_root = project_root_override or Path(__file__).resolve().parent.parent.parent
 
-        # Resolve memory bank location
-        if memory_bank_root_override:
-            memory_bank_root = memory_bank_root_override
-        else:
-            # Use self.project_root for consistency if no override
-            memory_bank_root = self.project_root / "infra_core/memory/memory_banks"
-
-        # Initialize memory bank (one folder per agent)
+        # Resolve memory bank location using the centralized constant as fallback
+        # Use MEMORY_BANKS_ROOT constant if no override is provided
+        memory_bank_root = memory_bank_root_override or MEMORY_BANKS_ROOT 
+        
+        # Initialize memory bank
+        # Use agent name as the default project name for better isolation
         self.memory = CogniMemoryBank(
-            memory_bank_root=memory_bank_root,
-            project_name="cogni_agents",
-            session_id=self.name  # simple and stable session id
+            memory_bank_root=memory_bank_root, 
+            project_name=self.name, # Use agent name as default project_name
+            session_id=self.name  # Using name for session_id seems fine for agent-specific banks
         )
 
         # Load agent-specific data
