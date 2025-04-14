@@ -1,27 +1,27 @@
 # Task: Create MVP Prefect Flow for 2-Agent Workflow
 :type: Task
-:status: todo
+:status: in-progress
 :project: [[project-langchain-memory-integration]]
 
 ## Current Status
-This task defines the creation of a basic Prefect flow within the `experiments/langchain_agents/` directory to orchestrate an MVP 2-agent LangChain workflow, showcasing shared memory usage.
+Basic Prefect flow structure (`mvp_flow.py`) created in `experiments/langchain_agents/`. Includes a mock `BaseMemory` implementation (`MockFileMemory`) using a temporary JSON file and placeholder agent functions. The flow successfully runs end-to-end, demonstrating task orchestration and basic memory interaction (Agent 1 writes, Agent 2 reads).
 
 ## Action Items
-- [ ] Set up basic Prefect flow structure in `experiments/langchain_agents/`.
-- [ ] Define a simple LangChain-compatible agent (Agent 1):
+- [x] Set up basic Prefect flow structure in `experiments/langchain_agents/` (`mvp_flow.py`)
+- [/] Define a simple LangChain-compatible agent (Agent 1): (`run_agent` placeholder in `mvp_flow.py`)
   - Introduces a fact into memory (e.g., "The project uses LangChain memory.")
-- [ ] Define a second agent (Agent 2):
+- [/] Define a second agent (Agent 2): (`run_agent` placeholder in `mvp_flow.py`)
   - Responds to a question using the fact from shared memory (e.g., "What kind of memory is used?")
-- [ ] Implement or mock a basic shared memory mechanism:
+- [x] Implement or mock a basic shared memory mechanism: (`MockFileMemory` in `mvp_flow.py`)
   - Should minimally implement `BaseMemory` methods (e.g., wrapping a `dict` or writing to a temporary JSON file)
-- [ ] Create `mvp_flow.py` with a `@flow`-decorated function that:
+- [x] Create `mvp_flow.py` with a `@flow`-decorated function that:
   - Initializes the shared memory
   - Runs Agent 1 → writes to memory
   - Runs Agent 2 → reads from memory
-- [ ] Ensure the flow can be executed via `python mvp_flow.py` or `prefect deployment run`
+- [x] Ensure the flow can be executed via `python mvp_flow.py` or `prefect deployment run`
 
 ## Test Criteria
-- [ ] Flow executes without errors
-- [ ] Logs clearly show:
+- [x] Flow executes without errors
+- [x] Logs clearly show:
   - Agent 1 writing a fact to memory
   - Agent 2 recalling that fact and using it in its response 
