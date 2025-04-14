@@ -1,0 +1,54 @@
+{
+  "name": "@allpepper/memory-bank-mcp",
+  "version": "0.2.1",
+  "description": "MCP server for remote management of project memory banks",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alioshr/memory-bank-mcp.git"
+  },
+  "keywords": [
+    "mcp",
+    "memory-bank",
+    "project-management",
+    "documentation",
+    "cline"
+  ],
+  "bugs": {
+    "url": "https://github.com/alioshr/memory-bank-mcp/issues"
+  },
+  "homepage": "https://github.com/alioshr/memory-bank-mcp#readme",
+  "main": "dist/main/index.js",
+  "files": [
+    "dist"
+  ],
+  "author": "Aliosh Pimenta (alioshr)",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "mcp-server-memory-bank": "dist/main/index.js"
+  },
+  "scripts": {
+    "build": "tsc && shx chmod +x dist/**/*.js",
+    "prepare": "npm run build",
+    "dev": "ts-node src/main/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.5.0",
+    "fs-extra": "^11.2.0"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^20.11.19",
+    "@vitest/coverage-istanbul": "^3.0.8",
+    "@vitest/coverage-v8": "^3.1.1",
+    "@vitest/ui": "^3.0.8",
+    "shx": "^0.4.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.8"
+  }
+}

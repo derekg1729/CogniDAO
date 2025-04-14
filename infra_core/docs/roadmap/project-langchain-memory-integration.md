@@ -24,12 +24,6 @@
   │   (Human-Readable)     │
   └────────────────────────┘
   ```
-- ## MVP Scope Clarification
-  This project will begin in a new Git branch (`feat/langchain_memory_agents`) and isolate its first MVP in a standalone directory (`experiments/langchain_agents/`). The MVP goal is to demonstrate two agents using a LangChain-compatible memory adapter to persist and recall structured memory.
-
-  The adapter will initially use the existing MCP-style JSON format as the storage layer. Integration with Cogni's full MemoryClient will come after the MVP.
-
-  Markdown export is a secondary priority, to be added after successful agent memory round-trips are validated.
 - ## Implementation Flow
 - [ ] Design the LangChain Memory Architecture
 	- [ ] Define MCP schema for memory blocks
@@ -72,7 +66,6 @@
 - [ ] [[task-design-langchain-memory-architecture]] - Design the overall architecture
 - [ ] [[task-implement-mcp-file-memory]] - Implement the MCPFileMemory adapter
 - [ ] [[task-create-markdown-export-utility]] - Create minimal utility for human-readable exports
-- [ ] [[task-create-mvp-prefect-flow]] - Create a basic Prefect flow for the 2-agent MVP
 - [ ] [[task-refactor-cogni-agent-for-langchain]] - Refactor base agent to use LangChain memory
 - [ ] [[task-update-agent-tests]] - Update tests for new memory system
 - ## Notes
