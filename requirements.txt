@@ -1,11 +1,22 @@
+# Core dependencies
 prefect
 tweepy
 openai>=1.0.0
-pytest>=7.0.0
-pytest-mock>=3.10.0
 PyGithub>=2.1.1
-ruff>=0.3.3
-pre-commit
+python-dotenv # From experimental
+
+# Langchain related (from experimental)
+langchain-core 
+
+# ChromaDB and Embeddings
 chromadb>=1.0.0
 sentence-transformers>=2.2.2
+
+# Testing and Linting
+pytest>=7.0.0
+pytest-mock>=3.10.0
+ruff>=0.3.3
+pre-commit
+
+# Utilities
 tqdm>=4.65.0

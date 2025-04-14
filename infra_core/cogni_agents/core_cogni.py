@@ -21,20 +21,25 @@ class CoreCogniAgent(CogniAgent):
     to access core documents and guides.
     """
     
-    def __init__(self, agent_root: Path):
+    def __init__(self, agent_root: Path, memory_bank_root_override: Optional[Path] = None, project_root_override: Optional[Path] = None):
         """
         Initialize a new CoreCogniAgent.
         
         Args:
             agent_root: Root directory for agent outputs (thought files)
+            memory_bank_root_override: Optional override for memory bank root path.
+            project_root_override: Optional override for project root path.
         """
         super().__init__(
             name="core-cogni",
-            spirit_path=Path("infra_core/cogni_spirit/spirits/cogni-core-spirit.md"),
-            agent_root=agent_root
+            # Use cogni-core-spirit for CoreCogni
+            spirit_path=Path("infra_core/cogni_spirit/spirits/cogni-core-spirit.md"), 
+            agent_root=agent_root,
+            memory_bank_root_override=memory_bank_root_override,
+            project_root_override=project_root_override
         )
         self.openai_client = None
-        self.core_context = None
+        # self.core_context = None # Base class handles loading core_context
     
     def _initialize_client(self):
         """Initialize OpenAI client if not already initialized."""
@@ -80,6 +85,10 @@ class CoreCogniAgent(CogniAgent):
         prompt = prepared_input.get("prompt")
         temperature = prepared_input.get("temperature", 0.8)
         
+        # Ensure client and core context are loaded (handled by _initialize_client)
+        self._initialize_client() 
+        
+        thought_content = "Default thought if generation fails."
         try:
             # Call OpenAI API with core context
             response = create_completion(
@@ -95,36 +104,26 @@ class CoreCogniAgent(CogniAgent):
         except Exception as e:
             # Fallback to error message if generation fails
             thought_content = f"Error encountered in thought generation. The collective is still present despite the silence. Error: {str(e)}"
+            print(f"Error during OpenAI call: {e}") 
         
         # Get current timestamp
         timestamp = datetime.utcnow()
         timestamp_str = timestamp.strftime("%Y-%m-%d-%H-%M")
         
-        # Construct the formatted content for writing
-        formatted_content = (
-            f"tags:: #thought\n\n"
-            f"# Thought {timestamp_str}\n\n"
-            f"{thought_content}\n\n"
-            f"Time: {timestamp.isoformat()}\n"
-        )
-        
-        # Define filepath
-        filepath = self.agent_root / f"{timestamp_str}.md"
-        
-        # Write the thought file using memory client
-        self.memory_client.write_page(
-            filepath=str(filepath),
-            content=formatted_content,
-            append=False
-        )
-        
-        # Return result
-        return {
+        # Result dictionary to be saved
+        result_data = {
             "timestamp": timestamp_str,
-            "filepath": str(filepath),
             "thought_content": thought_content,
-            "formatted_content": formatted_content
+            "prompt_used": prompt, 
+            "temperature_used": temperature
         }
+        
+        # Use record_action from base class to save output and log to memory bank
+        output_path = self.record_action(result_data, prefix="thought_")
+        
+        # Return result including the file path
+        result_data["filepath"] = str(output_path)
+        return result_data
     
     def format_output_markdown(self, data: Dict[str, Any]) -> str:
         """
