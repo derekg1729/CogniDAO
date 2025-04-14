@@ -3,20 +3,14 @@ from pathlib import Path
 from datetime import datetime, timezone # Import timezone for UTC
 import pytest
 
-# Imports for classes under test
-# Adjust the import path based on your project structure if needed
-# Assuming tests directory is at the same level as the cogni_memory_bank.py file's parent directory
-try:
-    from experiments.langchain_agents.cogni_memory_bank import CogniMemoryBank, CogniLangchainMemoryAdapter
-except ImportError:
-    # Fallback if running pytest from a different CWD, adjust as necessary
-    import sys
-    # Construct path relative to this test file's location
-    current_dir = Path(__file__).parent
-    project_root = current_dir.parent.parent # Go up two levels (tests -> langchain_agents -> experiments)
-    sys.path.insert(0, str(project_root)) # Add experiments directory to path temporarily
-    from langchain_agents.cogni_memory_bank import CogniMemoryBank, CogniLangchainMemoryAdapter
-
+# Updated imports
+from infra_core.memory.memory_bank import CogniMemoryBank, CogniLangchainMemoryAdapter
+# Assuming adapter is also moved or will be moved to infra_core.memory.adapters
+# For now, let's try importing from the expected future location
+# If this fails later, we know we need to move the adapter file too.
+# from infra_core.memory.adapters.langchain_adapter import CogniLangchainMemoryAdapter 
+# --> Commenting out Adapter import for now as its location is unconfirmed and tests might not need it directly.
+# --> If tests *do* need it, we'll need to locate and move that file first.
 
 # Imports for LangChain messages used in tests
 from langchain_core.messages import HumanMessage, AIMessage

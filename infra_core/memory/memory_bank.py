@@ -163,7 +163,7 @@ class CogniMemoryBank(BaseModel):
         if session_path.exists() and session_path.is_dir():
             try:
                 shutil.rmtree(session_path)
-                print(f"Cleared session directory: {session_path}") # Replace with logger
+                # print(f"Cleared session directory: {session_path}") # Removed print for cleaner test output
             except OSError as e:
                  print(f"Error clearing session directory {session_path}: {e}") # Replace with logger
 
