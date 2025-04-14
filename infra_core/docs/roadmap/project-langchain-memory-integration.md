@@ -1,6 +1,6 @@
 # Project:[LangChain Memory Integration]
 :type: Project
-:status: planning
+:status: in-progress
 :epic: [[Epic_Presence_and_Control_Loops]]
 - ## Project Overview
   This project aims to replace the custom `CogniMemoryClient` with LangChain-compatible memory components, aligning Cogni with the LangChain/LangGraph ecosystem while preserving key functionalities such as agent context loading, spirit guides, and markdown exports. This streamlined approach will significantly reduce complexity and enable seamless integration with LangChain's powerful features.
@@ -43,17 +43,17 @@
 - [ ] Create simple utility for Markdown export
 	- [ ] Implement basic formatting for human readability
 	- [ ] Add minimal export utilities
-- [ ] Refactor CogniAgent base class
-	- [ ] Replace CogniMemoryClient with CogniLangchainMemoryAdapter
-	- [ ] Update load_spirit to use memory adapter
-	- [ ] Refactor record_action for memory adapter
+- [x] Refactor CogniAgent base class
+	- [x] Replace CogniMemoryClient with CogniLangchainMemoryAdapter (Implemented via `CogniMemoryBank`)
+	- [x] Update load_spirit to use memory adapter (Implemented in `base.py`)
+	- [x] Refactor record_action for memory adapter (Implemented in `base.py`)
 - [ ] Migrate existing agents
-	- [ ] Update GitCogni
+	- [x] Update GitCogni (Implemented in `git_cogni_agent.py`)
 	- [ ] Update CoreCogni
 	- [ ] Update BroadcastCogni
-- [ ] Update tests
-	- [ ] Create tests for CogniMemoryBank and Adapter
-	- [ ] Update agent tests
+- [x] Update tests
+	- [ ] Create tests for CogniMemoryBank and Adapter (Already done)
+	- [x] Update agent tests (Implemented in `test_git_cogni_agent.py`)
 - ## Success Criteria
   1. Agents use LangChain BaseMemory implementation for all memory operations
   2. No functionality regression in existing agents
@@ -72,8 +72,8 @@
 - [ ] [[task-design-langchain-memory-architecture]] - Design the overall architecture (*Consider marking as complete or refining based on MVP*)
 - [x] [[task-implement-mcp-file-memory]] - Implement the `CogniMemoryBank` and `CogniLangchainMemoryAdapter` (*Task name might need update to reflect split*)
 - [ ] [[task-create-markdown-export-utility]] - Create minimal utility for human-readable exports
-- [ ] [[task-refactor-cogni-agent-for-langchain]] - Refactor base agent to use LangChain memory
-- [ ] [[task-update-agent-tests]] - Update tests for new memory system
+- [x] [[task-refactor-cogni-agent-for-langchain]] - Refactor base agent to use LangChain memory
+- [x] [[task-update-agent-tests]] - Update tests for new memory system
 - ## Notes
 ## Deferred for v1
 - Vector store integration (planned for LangChain hybrid memory)

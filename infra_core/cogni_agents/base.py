@@ -47,10 +47,24 @@ class CogniAgent(ABC):
 
     def load_spirit(self):
         """Load the spirit guide contents from markdown using memory bank."""
+        # Attempt to read from memory first using the filename
         spirit_text = self.memory._read_file(self.spirit_path.name)
-        if not spirit_text and self.spirit_path.exists():
-            spirit_text = self.spirit_path.read_text()
-            self.memory.write_context(self.spirit_path.name, spirit_text)
+        
+        # If not in memory, check filesystem relative to project_root
+        # Construct the potential path relative to the (potentially overridden) project root
+        fallback_path = self.project_root / self.spirit_path 
+        
+        if not spirit_text and fallback_path.exists():
+            try:
+                spirit_text = fallback_path.read_text()
+                # Write to memory bank if successfully read from filesystem
+                self.memory.write_context(self.spirit_path.name, spirit_text)
+            except Exception as e:
+                # Log error reading fallback file
+                print(f"Error reading spirit fallback file {fallback_path}: {e}") # Replace with logger
+                spirit_text = None # Ensure spirit is None if read fails
+
+        # Set final spirit value
         self.spirit = spirit_text or "⚠️ Spirit guide not found."
 
     def load_core_context(self):

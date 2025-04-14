@@ -250,5 +250,3 @@ class CogniLangchainMemoryAdapter(BaseMemory):
     def clear(self) -> None:
         """Clear the underlying session memory in the memory bank."""
         self.memory_bank.clear_session()
-
-    print("Adapter clear successful.")
