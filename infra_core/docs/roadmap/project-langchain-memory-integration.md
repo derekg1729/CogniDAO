@@ -49,11 +49,11 @@
 	- [x] Refactor record_action for memory adapter (Implemented in `base.py`)
 - [ ] Migrate existing agents
 	- [x] Update GitCogni (Implemented in `git_cogni_agent.py`)
-	- [ ] Update CoreCogni
+	- [x] Update CoreCogni (Implemented in `core_cogni.py`)
 	- [ ] Update BroadcastCogni
 - [x] Update tests
-	- [ ] Create tests for CogniMemoryBank and Adapter (Already done)
-	- [x] Update agent tests (Implemented in `test_git_cogni_agent.py`)
+	- [x] Create tests for CogniMemoryBank and Adapter (Already done in `test_memory_bank.py`)
+	- [x] Update agent tests (Implemented in `test_git_cogni_agent.py` and `test_core_cogni.py`)
 - ## Success Criteria
   1. Agents use LangChain BaseMemory implementation for all memory operations
   2. No functionality regression in existing agents

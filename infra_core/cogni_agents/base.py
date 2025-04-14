@@ -141,22 +141,25 @@ class CogniAgent(ABC):
 
     def record_action(self, output: Dict[str, Any], subdir: str = "sessions", prefix: str = "") -> Path:
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        # Calculate the intended external path (might be used for logging/reference)
+        # but don't actually write the file here anymore.
         filename = f"{prefix}{timestamp}.md" if prefix else f"{self.name}_{timestamp}.md"
         output_path = self.agent_root / subdir / filename
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        # output_path.parent.mkdir(parents=True, exist_ok=True) # REMOVED
 
         output_content = self.format_output_markdown(output)
-        output_path.write_text(output_content, encoding="utf-8")
+        # output_path.write_text(output_content, encoding="utf-8") # REMOVED
 
-        # Write to memory bank
+        # Write to memory bank (KEEP THIS)
         memory_filename = f"action_{timestamp}.md"
         self.memory.write_context(memory_filename, output_content)
         self.memory.log_decision({
             "agent": self.name,
             "action_filename": memory_filename, # Log the name used in the memory bank
-            "output_path": str(output_path) # Log the path where the file was written externally
+            "output_path": str(output_path) # Log the intended external path for reference
         })
 
+        # Return the calculated (but not written) external path
         return output_path
 
     def format_output_markdown(self, data: Dict[str, Any]) -> str:
