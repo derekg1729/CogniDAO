@@ -4,24 +4,24 @@
 :project: [[project-langchain-memory-integration]]
 
 ## Current Status
-Basic Prefect flow structure (`mvp_flow.py`) created in `experiments/langchain_agents/`. Includes a mock `BaseMemory` implementation (`MockFileMemory`) using a temporary JSON file and placeholder agent functions. The flow successfully runs end-to-end, demonstrating task orchestration and basic memory interaction (Agent 1 writes, Agent 2 reads).
+The Prefect flow (`mvp_flow.py`) successfully orchestrates a 2-agent interaction using `infra_core.openai_handler`. State is passed using `MockFileMemory`. The next step is to implement a new memory adapter, `CogniMemoryBank`, based on the design patterns from the `alioshr/memory-bank-mcp` TypeScript repository ([https://github.com/alioshr/memory-bank-mcp](https://github.com/alioshr/memory-bank-mcp)). This requires analysis of the reference repo (see [[task-analyze-mcp-memory-bank-repo]]) before implementing the Python equivalent.
 
 ## Action Items
 - [x] Set up basic Prefect flow structure in `experiments/langchain_agents/` (`mvp_flow.py`)
-- [/] Define a simple LangChain-compatible agent (Agent 1): (`run_agent` placeholder in `mvp_flow.py`)
-  - Introduces a fact into memory (e.g., "The project uses LangChain memory.")
-- [/] Define a second agent (Agent 2): (`run_agent` placeholder in `mvp_flow.py`)
-  - Responds to a question using the fact from shared memory (e.g., "What kind of memory is used?")
-- [x] Implement or mock a basic shared memory mechanism: (`MockFileMemory` in `mvp_flow.py`)
-  - Should minimally implement `BaseMemory` methods (e.g., wrapping a `dict` or writing to a temporary JSON file)
-- [x] Create `mvp_flow.py` with a `@flow`-decorated function that:
-  - Initializes the shared memory
-  - Runs Agent 1 → writes to memory
-  - Runs Agent 2 → reads from memory
-- [x] Ensure the flow can be executed via `python mvp_flow.py` or `prefect deployment run`
+- [x] Define Agent 1 & 2 logic using `openai_handler` in `mvp_flow.py`.
+- [x] Implement mock shared memory mechanism (`MockFileMemory` in `mvp_flow.py`).
+- [x] Create `mvp_flow.py` with a `@flow`-decorated function.
+- [x] Ensure flow execution via `python -m experiments.langchain_agents.mvp_flow`.
+- [ ] Replace `MockFileMemory` with `CogniMemoryBank` implementation (Python equivalent of `memory-bank-mcp` design):
+  - [ ] Define requirements based on analysis from [[task-analyze-mcp-memory-bank-repo]].
+  - [ ] Create `experiments/langchain_agents/cogni_memory_bank.py`.
+  - [ ] Implement `BaseMemory` interface (`load_memory_variables`, `save_context`, `clear`).
+  - [ ] Implement core logic mirroring `memory-bank-mcp` (file layout, session tracking, context writing, decision logging etc.).
+  - [ ] Integrate `CogniMemoryBank` into `mvp_flow.py`.
 
 ## Test Criteria
-- [x] Flow executes without errors
-- [x] Logs clearly show:
-  - Agent 1 writing a fact to memory
-  - Agent 2 recalling that fact and using it in its response 
+- [x] Flow executes without errors using `infra_core.openai_handler` and `MockFileMemory`.
+- [x] Logs show state transfer via `MockFileMemory`.
+- [ ] Flow executes without errors using `CogniMemoryBank`.
+- [ ] `CogniMemoryBank` creates files/directories mirroring the structure observed in `memory-bank-mcp`.
+- [ ] Files created by `CogniMemoryBank` contain expected context/history in appropriate format (Markdown/JSON). 
