@@ -367,35 +367,51 @@ def test_record_action(mock_write_context, mock_log_decision, agent_root, spirit
 
     action_output = {"step": 1, "decision": "proceed", "details": {"info": "abc", "value": 123}}
     
-    # Freeze time slightly for predictable filenames/timestamps if needed (optional)
-    # from freezegun import freeze_time
     # with freeze_time("2023-10-27 10:00:00 UTC"):
-    output_path = agent.record_action(action_output, subdir="test_sessions", prefix="rec_")
+    # Note: record_action now returns None
+    result = agent.record_action(action_output, subdir="test_sessions", prefix="rec_")
 
-    # 1. Check file system path (should still be calculated correctly)
-    assert output_path.parent == agent_root / "test_sessions"
-    assert output_path.name.startswith("rec_")
-    assert output_path.name.endswith(".md")
-    # assert output_path.exists() # REMOVED - File is no longer created
+    # 1. Check return value
+    assert result is None, "record_action should now return None"
 
-    # 2. Check Memory Bank Writes
-    # Check write_context call
+    # --- Assertions based on the NEW behavior of record_action ---
+
+    # 2. Check Memory Bank write_context call (saves MD file)
     mock_write_context.assert_called_once()
     args_wc, kwargs_wc = mock_write_context.call_args
-    assert args_wc[0].startswith("action_") # Check memory filename format
-    assert args_wc[0].endswith(".md")
-    assert "# CogniAgent Output — test_record" in args_wc[1] # Check formatted content
-    assert "## step\n1" in args_wc[1]
-    assert "## details" in args_wc[1]
-    assert "**info**:" in args_wc[1]
+    
+    markdown_filename = args_wc[0]
+    markdown_content = args_wc[1]
+    
+    # Check filename format (uses class name, prefix, timestamp, .md extension)
+    assert markdown_filename.startswith("DummyAgent_rec_") 
+    assert markdown_filename.endswith(".md")
+    
+    # Check content is the formatted Markdown
+    assert "# CogniAgent Output — test_record" in markdown_content 
+    assert "## step\n1" in markdown_content
+    assert "## details" in markdown_content
+    assert "**info**:" in markdown_content
+    
+    # Check is_json=False was passed
+    assert kwargs_wc.get('is_json') is False
 
-    # Check log_decision call
+    # 3. Check Memory Bank log_decision call
     mock_log_decision.assert_called_once()
     args_ld, kwargs_ld = mock_log_decision.call_args
     decision_log = args_ld[0]
-    assert decision_log["agent"] == "test_record"
-    assert decision_log["action_filename"] == args_wc[0] # Ensure it matches write_context filename
-    assert decision_log["output_path"] == str(output_path) # Ensure it logged the calculated external path
+    
+    # Check logged metadata
+    assert decision_log.get("agent_name") == "test_record"
+    assert decision_log.get("agent_class") == "DummyAgent"
+    assert decision_log.get("action_type") == "rec_"
+    
+    # Check pointer to the saved Markdown file
+    assert decision_log.get("markdown_filename") == markdown_filename 
+    
+    # Ensure old fields are not present
+    assert "action_filename" not in decision_log # Renamed to markdown_filename
+    assert "output_path" not in decision_log # External path is no longer relevant here
 
-    # 3. Check return value
-    assert isinstance(output_path, Path) 
+    # 4. External file system checks are REMOVED
+    # No need to check output_path.parent or output_path.exists() 

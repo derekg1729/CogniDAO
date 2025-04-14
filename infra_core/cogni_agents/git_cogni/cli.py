@@ -5,12 +5,14 @@ CLI interface for GitCogniAgent
 
 import sys
 import os
-from pathlib import Path
 
 # Ensure parent directory is in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 from infra_core.cogni_agents.git_cogni.git_cogni import GitCogniAgent
+
+# Import the constant for memory bank root
+from infra_core.constants import MEMORY_BANKS_ROOT, AGENTS_DATA_ROOT
 
 
 def print_help():
@@ -64,8 +66,18 @@ def main():
     GitCogniAgent.setup_logging(verbose)
     
     # Setup agent
-    agent_root = Path(os.path.dirname(os.path.abspath(__file__)))
-    agent = GitCogniAgent(agent_root=agent_root)
+    # Define agent-specific root for external files (e.g., reviews/errors)
+    # This should ideally also come from constants or config
+    # agent_root = Path(os.path.dirname(os.path.abspath(__file__)))
+    # Let's use the AGENTS_DATA_ROOT/git-cogni for consistency
+    agent_root = AGENTS_DATA_ROOT / "git-cogni"
+    agent_root.mkdir(parents=True, exist_ok=True) # Ensure it exists
+    
+    agent = GitCogniAgent(
+        agent_root=agent_root, # Root for external files
+        # Explicitly pass the centralized memory bank root
+        memory_bank_root_override=MEMORY_BANKS_ROOT 
+    )
     
     # Run review
     try:

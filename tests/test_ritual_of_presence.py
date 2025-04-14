@@ -3,8 +3,12 @@ import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 from prefect import flow
+import shutil # Import shutil for cleanup
 
-# --- Move imports to top ---
+# --- Project Constants Import (Moved up) ---
+from infra_core.constants import MEMORY_BANKS_ROOT
+
+# --- Memory & Langchain Imports ---
 from infra_core.memory.memory_bank import CogniMemoryBank, CogniLangchainMemoryAdapter # Real implementation
 from infra_core.memory.mock_memory import MockMemoryBank # Mock implementation
 from infra_core.flows.rituals.ritual_of_presence import (
@@ -19,7 +23,7 @@ from langchain_core.messages import HumanMessage, AIMessage, messages_to_dict
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-# --- Constants ---
+# --- Test Constants ---
 TEST_PROJECT_NAME = "test_ritual_of_presence"
 
 # --- Fixtures ---
@@ -37,6 +41,18 @@ def mock_memory_adapter():
     adapter.clear() # Ensure clean state
     yield adapter
     # No explicit cleanup needed for the in-memory mock
+
+@pytest.fixture(scope="function")
+def cleanup_ritual_session():
+    """Ensures the test ritual-session directory is removed after test run."""
+    session_path = MEMORY_BANKS_ROOT / "ritual_of_presence" / "ritual-session"
+    # Optional: Clear before test if needed, though flow doesn't clear anymore
+    # if session_path.exists():
+    #    shutil.rmtree(session_path)
+    yield # Run the test
+    # Cleanup after test
+    if session_path.exists():
+        shutil.rmtree(session_path, ignore_errors=True)
 
 # --- Test Class ---
 
@@ -150,10 +166,9 @@ class TestRitualOfPresenceFlow:
         memory_adapter.save_context({"input": f"Reflecting on: {history}"}, {"output": "Mock reflection thought generated"})
         return {"output": "Mock reflection thought generated"}
 
-    # Patch the agent flows and the CogniMemoryBank class
     @patch('infra_core.flows.rituals.ritual_of_presence.create_reflection_thought', new=mock_create_reflection_thought)
     @patch('infra_core.flows.rituals.ritual_of_presence.create_initial_thought', new=mock_create_initial_thought)
-    @patch('infra_core.flows.rituals.ritual_of_presence.CogniMemoryBank') # Patch CogniMemoryBank used within the flow
+    @patch('infra_core.flows.rituals.ritual_of_presence.CogniMemoryBank')
     def test_flow_with_mock_memory_and_mock_agents(self, mock_cogni_memory_bank_class):
         """
         Test the end-to-end flow with mocked CogniMemoryBank and mocked agent tasks.
@@ -165,7 +180,6 @@ class TestRitualOfPresenceFlow:
         mock_instance.session_id = 'flow-mock-session-123' # Directly set the attribute
         mock_session_path = Path('/mock/memory/ritual_of_presence/flow-mock-session-123')
         mock_instance._get_session_path.return_value = mock_session_path
-        mock_instance.clear_session = MagicMock(name="clear_session_mock") # Add mock for clear_session
         mock_cogni_memory_bank_class.return_value = mock_instance
 
         # --- Mock the adapter separately if needed, or rely on the bank mock ---
@@ -186,7 +200,7 @@ class TestRitualOfPresenceFlow:
 
         # 2. Check if the mock bank's methods were called as expected by the adapter/flow
         # The adapter calls the bank's clear_session method.
-        mock_instance.clear_session.assert_called_once() # Verify clear_session is called on the bank instance
+        # mock_instance.clear_session.assert_called_once() # REMOVED - clear is no longer called by the flow
 
         # 3. Check the final result message
         expected_session_id = 'flow-mock-session-123'
@@ -204,4 +218,40 @@ class TestRitualOfPresenceFlow:
         # If specific calls/interactions within agents need checking, add assertions here
         # or mock the adapter passed to them and check calls on that adapter.
 
-    # --- End of Class TestRitualOfPresenceFlow ---
+    # --- New Integration Test --- 
+    @patch('infra_core.cogni_agents.reflection_cogni.ReflectionCogniAgent.act')
+    @patch('infra_core.cogni_agents.core_cogni.CoreCogniAgent.act')
+    def test_flow_creates_memory_files_in_correct_location(
+        self,
+        mock_core_act, 
+        mock_reflection_act,
+        cleanup_ritual_session # Use the cleanup fixture
+    ):
+        """
+        Tests that the flow run creates expected files in the correct memory bank session.
+        Mocks only the agent 'act' methods.
+        """
+        # --- Configure Mocks ---
+        mock_core_act.return_value = {"thought_content": "Mock initial thought"}
+        mock_reflection_act.return_value = {"reflection_content": "Mock reflection"}
+
+        # --- Execute Flow ---
+        result_message = ritual_of_presence_flow()
+        print(f"Flow result: {result_message}") # For debugging
+
+        # --- Verification ---
+        expected_session_path = MEMORY_BANKS_ROOT / "ritual_of_presence" / "ritual-session"
+        assert expected_session_path.is_dir(), f"Session directory not found: {expected_session_path}"
+
+        core_thought_files = list(expected_session_path.glob("CoreCogniAgent_thought_*.md"))
+        assert len(core_thought_files) >= 1, f"No CoreCogniAgent thought file found in {expected_session_path}"
+        print(f"Found core thought file: {core_thought_files[0]}")
+
+        reflection_files = list(expected_session_path.glob("ReflectionCogniAgent_reflection_*.md"))
+        assert len(reflection_files) >= 1, f"No ReflectionCogniAgent reflection file found in {expected_session_path}"
+        print(f"Found reflection file: {reflection_files[0]}")
+
+        assert (expected_session_path / "history.json").is_file(), "history.json not found"
+        assert (expected_session_path / "decisions.jsonl").is_file(), "decisions.jsonl not found"
+
+# Test class ends implicitly here

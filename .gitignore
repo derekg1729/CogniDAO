@@ -29,3 +29,7 @@ pages/
 /data/memory/
 /cogni-memory/
 /test_memory/
+
+# # Data Directories - keeping committed in Cogni repo for now
+# /data/
+# /memory_banks/ # Also ignore if created at top level directly

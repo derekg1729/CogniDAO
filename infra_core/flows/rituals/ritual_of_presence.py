@@ -10,19 +10,15 @@ import os
 from pathlib import Path
 from typing import Dict, Any # Added Any
 
+# --- Project Constants Import ---
+from infra_core.constants import MEMORY_BANKS_ROOT, THOUGHTS_DIR, BASE_DIR
+
 # --- Memory Imports ---
 from infra_core.memory.memory_bank import CogniMemoryBank, CogniLangchainMemoryAdapter
 
 # --- Agent Imports ---
 from infra_core.cogni_agents.core_cogni import CoreCogniAgent
 from infra_core.cogni_agents.reflection_cogni import ReflectionCogniAgent
-
-# Use absolute path to avoid permission issues
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
-# Keep THOUGHTS_DIR for defining agent_root, even if we don't write external files directly here
-THOUGHTS_DIR = os.path.join(BASE_DIR, "presence/thoughts")
-# Define root for memory banks used by this flow
-MEMORY_ROOT_DIR = os.path.join(BASE_DIR, "infra_core/memory/memory_banks")
 
 def write_thought_file(ai_content):
     """
@@ -57,8 +53,7 @@ def create_initial_thought(memory_adapter: CogniLangchainMemoryAdapter) -> Dict[
     
     try:
         logger.info("Creating initial thought...")
-        # Agent root defines where agent *would* write files if record_action did
-        # It might also be used internally by the agent for other purposes.
+        # Use imported THOUGHTS_DIR and BASE_DIR
         agent_root = Path(THOUGHTS_DIR)
         
         # CoreCogniAgent doesn't take adapter in init, uses base class logic for memory bank
@@ -67,7 +62,7 @@ def create_initial_thought(memory_adapter: CogniLangchainMemoryAdapter) -> Dict[
             agent_root=agent_root,
             # Pass None when using mock memory, as it doesn't use the root path
             memory_bank_root_override=None, 
-            project_root_override=Path(BASE_DIR) # Assuming BASE_DIR is project root
+            project_root_override=Path(BASE_DIR) # Use imported BASE_DIR
         )
         # Replace agent's internal memory with the shared one from the flow
         core_cogni.memory = memory_adapter.memory_bank
@@ -108,6 +103,7 @@ def create_reflection_thought(memory_adapter: CogniLangchainMemoryAdapter) -> Di
 
     try:
         logger.info("Creating reflection thought...")
+        # Use imported THOUGHTS_DIR and BASE_DIR
         agent_root = Path(THOUGHTS_DIR)
         
         # ReflectionCogniAgent takes the adapter instance in init
@@ -116,7 +112,7 @@ def create_reflection_thought(memory_adapter: CogniLangchainMemoryAdapter) -> Di
             memory_adapter=memory_adapter, 
             # Pass None when using mock memory
             memory_bank_root_override=None,
-            project_root_override=Path(BASE_DIR)
+            project_root_override=Path(BASE_DIR) # Use imported BASE_DIR
         )
         # Replace agent's internal memory with the shared one from the flow
         reflection_cogni.memory = memory_adapter.memory_bank
@@ -156,7 +152,8 @@ def ritual_of_presence_flow():
 
     # --- Initialize Shared Memory ---
     project_name = "ritual_of_presence"
-    memory_root = Path(MEMORY_ROOT_DIR)
+    # Use imported MEMORY_BANKS_ROOT
+    memory_root = Path(MEMORY_BANKS_ROOT)
     memory_root.mkdir(parents=True, exist_ok=True)
     
     fixed_session_id = "ritual-session" # Define a constant session ID
