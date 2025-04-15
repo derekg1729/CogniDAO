@@ -29,6 +29,9 @@ pages/
 /data/memory/
 /cogni-memory/
 /test_memory/
+.cache/
+**/.cache/
+**/.cache/**
 
 # # Data Directories - keeping committed in Cogni repo for now
 # /data/

@@ -8,9 +8,9 @@ from prefect import task, flow, get_run_logger
 from datetime import datetime
 import os
 from pathlib import Path
-from typing import Dict, Any # Added Any
-import json # Added for JSON tool
-from prefect.blocks.system import Secret # Added for Prefect Secret
+from typing import Dict, Any
+import json
+from prefect.blocks.system import Secret
 
 # --- Project Constants Import ---
 from infra_core.constants import MEMORY_BANKS_ROOT, THOUGHTS_DIR, BASE_DIR
@@ -20,9 +20,7 @@ from infra_core.memory.memory_bank import CogniMemoryBank, CogniLangchainMemoryA
 
 # --- Agent Imports ---
 from infra_core.cogni_agents.core_cogni import CoreCogniAgent
-
-# --- AutoGen Imports (Standard Pattern) ---
-from autogen import AssistantAgent, UserProxyAgent, GroupChat, GroupChatManager
+from infra_core.cogni_agents.swarm_cogni import CogniSwarmAgent
 
 def format_as_json(analysis_data: str) -> str:
     """
@@ -88,9 +86,9 @@ def create_initial_thought(memory_adapter: CogniLangchainMemoryAdapter) -> Dict[
         
         # Instantiate agent, passing the flow's shared memory bank
         core_cogni = CoreCogniAgent(
-            agent_root=Path(THOUGHTS_DIR), # <--- Corrected to pass Path(THOUGHTS_DIR) directly
-            memory=memory_adapter.memory_bank, # Pass the flow's bank instance
-            project_root_override=Path(BASE_DIR) # Pass project root for context loading
+            agent_root=Path(THOUGHTS_DIR),
+            memory=memory_adapter.memory_bank,
+            project_root_override=Path(BASE_DIR)
         )
         
         prepared_input = core_cogni.prepare_input()
@@ -111,194 +109,72 @@ def create_initial_thought(memory_adapter: CogniLangchainMemoryAdapter) -> Dict[
         
     except Exception as e:
         logger.error(f"Error in initial thought generation: {e}", exc_info=True)
-        return {"error": str(e), "thought_content": "[Error generating thought]"} # Ensure key exists
+        return {"error": str(e), "thought_content": "[Error generating thought]"}
 
 @task
-async def run_reflection_groupchat(initial_thought_content: str, memory_adapter: CogniLangchainMemoryAdapter) -> Dict[str, Any]:
+async def process_with_swarm(initial_thought_content: str, memory_adapter: CogniLangchainMemoryAdapter) -> Dict[str, Any]:
     """
-    Asynchronously runs an AutoGen GroupChat to reflect, explore, analyze, and output JSON.
+    Process the initial thought using the CogniSwarmAgent.
     """
     logger = get_run_logger()
 
     if not initial_thought_content or "[Error generating thought]" in initial_thought_content or "[No thought content]" in initial_thought_content:
-        logger.warning("Skipping reflection groupchat due to missing or invalid initial thought content.")
-        return {"final_response": "[Skipped GroupChat]", "messages": []}
+        logger.warning("Skipping swarm processing due to missing or invalid initial thought content.")
+        return {"output": "[Skipped Swarm Processing]", "raw_result": []}
 
     try:
-        logger.info(f"Starting reflection groupchat for thought: '{initial_thought_content[:100]}...'")
-
-        # --- Define LLM Config (using Prefect Secret) ---
-        logger.info("Preparing LLM configuration using Prefect Secret...")
+        logger.info(f"Processing thought with SwarmCogni: '{initial_thought_content[:100]}...'")
         
-        # 1. Define desired models
-        # We still need a basic config_list structure for AutoGen agents
-        desired_models = ["gpt-4o", "gpt-4", "gpt-3.5-turbo"]
-        config_list = [{"model": model_name} for model_name in desired_models]
-        logger.info(f"Base config_list created for models: {desired_models}")
-
-        # 2. Load API Key from Prefect Secret Block
+        # Load OpenAI API key from Prefect Secret
         try:
             logger.info("Loading OpenAI API key from Prefect Secret block 'openai-api-key'...")
-            openai_api_key_block = await Secret.load("openai-api-key") # Added await
+            openai_api_key_block = await Secret.load("openai-api-key")
             openai_api_key = openai_api_key_block.get()
             logger.info("Successfully loaded OpenAI API key from Prefect Secret block.")
-
-            # 3. Inject the loaded API key into the config_list for OpenAI models
-            for config in config_list:
-                # Check if it's an OpenAI model config (adjust this check if needed)
-                if isinstance(config, dict) and config.get("model", "").startswith("gpt"):
-                    config["api_key"] = openai_api_key
-                    logger.debug(f"Injected Prefect secret into config for model: {config.get('model')}")
-
         except ValueError as e:
-            logger.error(f"Failed to load Prefect Secret 'openai-api-key': {e}. Ensure the block exists and is accessible.", exc_info=True)
+            logger.error(f"Failed to load Prefect Secret 'openai-api-key': {e}.")
             raise ValueError("Failed to load required 'openai-api-key' Prefect Secret block.") from e
         except Exception as e:
-            logger.error(f"An unexpected error occurred while loading or injecting the Prefect secret: {e}", exc_info=True)
-            raise # Reraise the original exception
-
-        # --- LLM Config Definitions ---
-        # Base config for Manager and non-tool agents
-        base_llm_config = {
-            "config_list": config_list,
-            "cache_seed": 42, 
-            "timeout": 120,
-        }
-
-        # Specific config for the agent that needs to call the tool
-        tool_agent_llm_config = base_llm_config.copy() # Start with base config
-        tool_agent_llm_config["tools"] = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "format_as_json",
-                    "description": "Formats the provided analysis data string into a JSON string.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "analysis_data": {
-                                "type": "string",
-                                "description": "A string containing the reflection, exploration, and analysis insights."
-                            }
-                        },
-                        "required": ["analysis_data"],
-                    },
-                }
-            }
-        ]
-
-        logger.info(f"Loaded LLM Config for models: {[cfg.get('model') for cfg in config_list]}")
+            logger.error(f"An unexpected error occurred while loading the Prefect secret: {e}")
+            raise
+            
+        # Initialize the CogniSwarmAgent
+        swarm_cogni = CogniSwarmAgent(
+            agent_root=Path(THOUGHTS_DIR),
+            memory=memory_adapter.memory_bank,
+            project_root_override=Path(BASE_DIR),
+            openai_api_key=openai_api_key
+        )
         
+        # Process the thought
+        prepared_input = swarm_cogni.prepare_input(thought=initial_thought_content)
+        result_data = await swarm_cogni.a_act(prepared_input)
+        
+        # Save to memory
         try:
-            # --- Define Agents ---
-            reflector = AssistantAgent(
-                name="Reflector",
-                system_message="You are the Reflector. Reflect deeply on the input thought: Extract meaning, assumptions, implications. Provide a concise reflection, 1 brief sentence.",
-                llm_config=base_llm_config, # Use base config
+            memory_adapter.save_context(
+                inputs={"input": initial_thought_content}, 
+                outputs={"output": result_data["output"]}
             )
-            explorer = AssistantAgent(
-                name="Explorer",
-                system_message="You are the Explorer. Based *only* on the Reflector's output, list exactly 1 distinct topic/question for further exploration.",
-                llm_config=base_llm_config, # Use base config
-            )
-            analyzer = AssistantAgent(
-                name="Analyzer",
-                system_message="You are the Analyzer. Review the Reflector's reflection and Explorer's points. Provide a brief, synthesized analysis text. **This text will be passed to the JSON_Outputter.**",
-                llm_config=base_llm_config, # Use base config
-            )
+            logger.info("Saved swarm processing results to memory.")
             
-            # Define JSON_Outputter with updated prompt directly
-            json_outputter = AssistantAgent(
-                name="JSON_Outputter",
-                llm_config=tool_agent_llm_config, # Use config with tool schema
-                system_message="First, call the function 'format_as_json' with the analysis text provided by the Analyzer as the 'analysis_data' argument. " \
-                              "Then, on the very next line, output the single word TERMINATE."
-            )
-
-            # User Proxy Agent - acts as initiator and executor
-            user_proxy = UserProxyAgent(
-                name="ExecutorAgent", # Keep name for clarity
-                human_input_mode="NEVER",
-                max_consecutive_auto_reply=4, # Reset to lower value
-                is_termination_msg=lambda x: x.get("content", "").strip().endswith("TERMINATE"), # Standard check
-                code_execution_config=False, # Keep False
-                # Revert system message - just execute functions
-                system_message="A proxy agent that executes function calls when requested."
-                # Remove llm_config - not needed for basic execution
-            )
-
-            # Register the function with the User Proxy Agent
-            user_proxy.register_function(function_map={"format_as_json": format_as_json})
-
-            # --- Create Group Chat & Manager ---
-            groupchat = GroupChat(
-                agents=[user_proxy, reflector, explorer, analyzer, json_outputter],
-                messages=[],
-                max_round=15, 
-                speaker_selection_method="auto" 
-            )
-            manager = GroupChatManager(groupchat=groupchat, llm_config=base_llm_config)
-
-            # --- Run Group Chat ---
-            task_prompt = f"Initial Thought to process:\n\n{initial_thought_content}"
-            logger.info("Initiating group chat...")
-
-            # Initiate chat FROM UserProxy TO the Manager
-            chat_result = await user_proxy.a_initiate_chat(
-                manager, 
-                message=task_prompt,
-            )
-
-            # --- Process Results ---
-            final_output = "[No function execution result found]"
-            all_messages = chat_result.chat_history if chat_result and chat_result.chat_history else []
-            
-            # Extract the last message or summary
-            # Prioritize extracting the content from the specific function call result
-            function_result_found = False
-            if chat_result and chat_result.chat_history:
-                for msg in reversed(chat_result.chat_history): # Check recent messages first
-                    # Check for role 'tool' or 'function' for robustness
-                    if (msg.get("role") == "tool" or msg.get("role") == "function") and msg.get("name") == "format_as_json":
-                        final_output = msg.get("content", final_output)
-                        logger.info("Extracted final output from format_as_json function result.")
-                        function_result_found = True
-                        break # Found the result, stop searching
-                # Fallback logic ONLY if the function result wasn't found in the history
-                if not function_result_found:
-                    if chat_result.summary: # Fallback to summary
-                        final_output = chat_result.summary
-                        logger.info("Using chat summary as final output.")
-            
-            logger.info(f"GROUP CHAT FINAL OUTPUT/SUMMARY: {final_output}")
-            
-            result_data = {
-                "final_response": final_output,
-                "messages": all_messages
-            }
-
-            # --- Save Context (Simplified) ---
-            try:
-                memory_adapter.save_context(inputs={"input": task_prompt}, outputs={"output": final_output})
-                logger.info("Saved group chat input/output context to history.")
-            except Exception as e:
-                logger.warning(f"Could not save group chat context to memory adapter: {e}")
-
-            return result_data
-
+            # Record detailed action
+            swarm_cogni.record_action(result_data, prefix="swarm_reflection_")
+            logger.info("Logged detailed swarm reflection action.")
         except Exception as e:
-            logger.error(f"Error during reflection groupchat execution: {e}", exc_info=True)
-            return {"error": str(e), "final_response": "[Error during groupchat execution]", "messages": []}
-
+            logger.warning(f"Could not save context or record action: {e}")
+            
+        return result_data
+        
     except Exception as e:
-        logger.error(f"Error in reflection groupchat execution: {e}", exc_info=True)
-        return {"error": str(e), "final_response": "[Error during groupchat execution]", "messages": []}
+        logger.error(f"Error in swarm processing: {e}", exc_info=True)
+        return {"error": str(e), "output": "[Error during swarm processing]", "raw_result": []}
 
 @flow
 def ritual_of_presence_flow():
     """Flow generating an initial thought and using a swarm for reflection."""
     logger = get_run_logger()
-    logger.info("Starting Ritual of Presence flow (Core Cogni + Reflection GroupChat)...")
+    logger.info("Starting Ritual of Presence flow (Core Cogni + SwarmCogni)...")
 
     # --- Initialize Shared Memory ---
     flow_project_name = "ritual_of_presence"
@@ -319,6 +195,7 @@ def ritual_of_presence_flow():
     logger.info(f"Initialized shared memory for project 'flows/{flow_project_name}', session '{session_id}' at {session_path}")
 
     # --- Run Agent Tasks Sequentially ---
+    # 1. Create initial thought with CoreCogniAgent
     initial_result = create_initial_thought(memory_adapter=shared_memory_adapter)
     
     if "error" in initial_result:
@@ -328,36 +205,30 @@ def ritual_of_presence_flow():
     # Extract the thought content to pass to the swarm
     initial_thought_content = initial_result.get("thought_content", "[Missing thought content]")
 
-    # Run the async swarm task (Prefect handles scheduling async tasks)
-    groupchat_result_future = run_reflection_groupchat.submit(
+    # 2. Process with SwarmCogni
+    swarm_result_future = process_with_swarm.submit(
         initial_thought_content=initial_thought_content, 
         memory_adapter=shared_memory_adapter
     )
     # Wait for the future to complete and get the result
-    groupchat_result = groupchat_result_future.result()
+    swarm_result = swarm_result_future.result()
 
-    # Check result after await resolves if run_reflection_groupchat was waited on, 
-    # or handle the future if not awaited directly in flow context.
-    # Since Prefect runs it, we check the result object directly.
-    if isinstance(groupchat_result, dict) and "error" in groupchat_result:
-        logger.error("Flow completed with error in reflection groupchat execution.")
-        # Ensure groupchat_result['error'] exists and is stringifiable
-        error_msg = str(groupchat_result.get('error', 'Unknown groupchat error'))
-        return f"Flow completed with error during reflection groupchat: {error_msg}"
-    elif isinstance(groupchat_result, Exception): # Handle case where task submission itself failed
-        logger.error(f"Flow failed during reflection groupchat task submission/execution: {groupchat_result}")
-        return f"Flow failed: {groupchat_result}"
+    # Check result
+    if isinstance(swarm_result, dict) and "error" in swarm_result:
+        logger.error("Flow completed with error in swarm processing.")
+        error_msg = str(swarm_result.get('error', 'Unknown swarm error'))
+        return f"Flow completed with error during swarm processing: {error_msg}"
+    elif isinstance(swarm_result, Exception):
+        logger.error(f"Flow failed during swarm processing task: {swarm_result}")
+        return f"Flow failed: {swarm_result}"
     
-    logger.info("Ritual of Presence flow (Core + GroupChat) completed successfully.")
-    return f"Ritual of Presence (GroupChat) completed. Session: {session_id}. See logs and memory bank: {session_path}"
+    logger.info("Ritual of Presence flow (Core + SwarmCogni) completed successfully.")
+    return f"Ritual of Presence completed. Session: {session_id}. See logs and memory bank: {session_path}"
 
 if __name__ == "__main__":
-    # Ensure necessary environment variables (like OPENAI_API_KEY) are set
-    # or llm_config.json is present
-    print("Running Ritual of Presence (Core + GroupChat)...")
+    # Ensure necessary environment variables are set
+    print("Running Ritual of Presence (Core + SwarmCogni)...")
     
-    # Prefect flows can be run directly
-    # If run as a script, the flow decorator handles execution.
-    # No need for explicit asyncio.run typically.
+    # Run the flow
     result_message = ritual_of_presence_flow()
     print(result_message)
