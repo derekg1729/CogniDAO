@@ -1,8 +1,11 @@
 import json
 import shutil # Added for directory removal
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from datetime import datetime
+
+# Import the new base class
+from .base import BaseCogniMemory
 
 # Required imports for the two classes
 from pydantic import Field, BaseModel # Use BaseModel for standard Pydantic class
@@ -10,9 +13,9 @@ from langchain_core.memory import BaseMemory
 from langchain_core.messages import BaseMessage, messages_from_dict, messages_to_dict, HumanMessage, AIMessage
 
 
-# --- Core Memory Bank Class (No LangChain Inheritance) ---
-class CogniMemoryBank(BaseModel):
-    """Core logic for managing memory files for a specific project and session.
+# --- Core Memory Bank Class (Implements BaseCogniMemory) ---
+class CogniMemoryBank(BaseModel, BaseCogniMemory):
+    """Core logic for managing memory files, implementing BaseCogniMemory.
 
     Handles file I/O operations within a structured directory:
     <memory_bank_root>/<project_name>/<session_id>/
@@ -78,7 +81,31 @@ class CogniMemoryBank(BaseModel):
             print(f"Error reading file {file_path}: {e}") # Replace with logger
             return None
 
-    # --- History Management ---
+    # --- NEW METHOD ---
+    def load_or_seed_file(self, file_name: str, fallback_path: Optional[Path] = None) -> Optional[str]:
+        """Attempt to read a file from memory bank. If missing, fallback to disk and seed."""
+        # 1. Attempt to read from the bank first
+        content = self._read_file(file_name)
+        if content is not None: # Explicit check for None, as empty string is valid content
+            return content
+        
+        # 2. If missing, try fallback path if provided and exists
+        if fallback_path and fallback_path.exists():
+            try:
+                print(f"Seeding {file_name} into {self._get_session_path()} from {fallback_path}") # Log seeding action
+                content = fallback_path.read_text()
+                # 3. Write the fallback content into the bank
+                self._write_file(file_name, content) 
+                return content
+            except Exception as e:
+                # Log error during fallback read/write but don't crash
+                print(f"Error reading from fallback {fallback_path} or writing to {self._get_file_path(file_name)}: {e}")
+        
+        # 4. Return None if read from bank failed and fallback failed or wasn't applicable
+        return None
+    # --- END NEW METHOD ---
+
+    # --- History Management (Implements BaseCogniMemory methods) ---
 
     def read_history_dicts(self) -> List[Dict[str, Any]]:
         """Reads the conversation history from history.json.
@@ -113,7 +140,7 @@ class CogniMemoryBank(BaseModel):
         except (TypeError, OSError) as e:
             print(f"Error saving history file {history_path}: {e}") # Replace with logger
 
-    # --- General Context/Logging Methods ---
+    # --- General Context/Logging Methods (Implements BaseCogniMemory methods) ---
 
     def write_context(self, file_name: str, content: Any, is_json: bool = False):
         """Writes arbitrary context data to a file within the session directory."""
@@ -155,7 +182,7 @@ class CogniMemoryBank(BaseModel):
         except (TypeError, OSError) as e:
             print(f"Error updating progress file {file_path}: {e}") # Replace with logger
 
-
+    # --- Session Clearing (Implements BaseCogniMemory method) ---
     # Renamed 'clear' to 'clear_session' and changed functionality
     def clear_session(self) -> None:
         """Clears the memory for the current session by deleting its directory."""
@@ -191,15 +218,16 @@ class CogniMemoryBank(BaseModel):
 # --- LangChain Adapter Class ---
 
 class CogniLangchainMemoryAdapter(BaseMemory):
-    """LangChain BaseMemory adapter for CogniMemoryBank.
+    """LangChain BaseMemory adapter for a BaseCogniMemory implementation.
 
-    Wraps a CogniMemoryBank instance to provide the standard LangChain
-    memory interface (load_memory_variables, save_context, clear).
+    Wraps a BaseCogniMemory instance (like CogniMemoryBank) to provide the
+    standard LangChain memory interface (load_memory_variables, save_context, clear).
     Handles the conversion between LangChain message objects and the
     dictionary format used by CogniMemoryBank.
     """
 
-    memory_bank: CogniMemoryBank
+    # Now expects any BaseCogniMemory implementation
+    memory_bank: BaseCogniMemory
 
     # Input/Output keys - adapt based on how Runnable/Chain expects them
     # These might need to become configurable.
@@ -248,5 +276,5 @@ class CogniLangchainMemoryAdapter(BaseMemory):
         self.memory_bank.write_history_dicts(history_dicts)
 
     def clear(self) -> None:
-        """Clear the underlying session memory in the memory bank."""
+        """Calls the underlying memory bank's clear_session method."""
         self.memory_bank.clear_session()

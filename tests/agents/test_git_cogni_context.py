@@ -17,7 +17,7 @@ class TestGitCogniContextInclusion(unittest.TestCase):
         """Set up test environment before each test"""
         # Create a test agent with a mock agent_root
         self.agent_root = MagicMock(spec=Path)
-        self.agent = GitCogniAgent(agent_root=self.agent_root)
+        self.agent = GitCogniAgent(agent_root=self.agent_root, memory=MagicMock())
         
         # Mock the OpenAI client
         self.agent.openai_client = MagicMock()

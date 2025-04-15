@@ -21,7 +21,7 @@ class TestCoreCogniAgent(unittest.TestCase):
 
         self.project_root_override = Path(self.temp_project_dir.name)
         self.agent_root = Path(self.temp_agent_dir.name)
-        self.memory_bank_root_override = Path(self.temp_memory_dir.name)
+        self.memory_bank_root = Path(self.temp_memory_dir.name)
 
         # Create dummy core files needed by base agent init
         core_files_content = {}
@@ -77,10 +77,23 @@ class TestCoreCogniAgent(unittest.TestCase):
         mock_create_completion.return_value = mock_openai_response 
         mock_extract_content.return_value = "Test thought generated."
 
+        # Reset memory mocks *after* init and *before* act
+        mock_read.reset_mock()
+        mock_write.reset_mock()
+        mock_log.reset_mock()
+
+        # Create a memory bank instance to pass to the agent
+        from infra_core.memory.memory_bank import CogniMemoryBank
+        memory = CogniMemoryBank(
+            memory_bank_root=self.memory_bank_root,
+            project_name="core-cogni",
+            session_id="test-session"
+        )
+
         # Instantiate the agent (load_core_context is patched)
         agent = CoreCogniAgent(
             agent_root=self.agent_root,
-            memory_bank_root_override=self.memory_bank_root_override,
+            memory=memory,
             project_root_override=self.project_root_override
         )
 
@@ -94,11 +107,6 @@ class TestCoreCogniAgent(unittest.TestCase):
 
         # Prepare input
         prepared_input = {"prompt": "generate thought"} 
-
-        # Reset memory mocks *after* init and *before* act
-        mock_read.reset_mock()
-        mock_write.reset_mock()
-        mock_log.reset_mock()
 
         # Add assertion to check openai_client state before act
         # self.assertIsNone(agent.openai_client, "openai_client should be None before act call")

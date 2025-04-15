@@ -54,6 +54,7 @@
 - [x] Update tests
 	- [x] Create tests for CogniMemoryBank and Adapter (Already done in `test_memory_bank.py`)
 	- [x] Update agent tests (Implemented in `test_git_cogni_agent.py` and `test_core_cogni.py`)
+- [x] [[task-dual-agent-presence]] - Implement dual-agent Ritual of Presence flow
 - ## Success Criteria
   1. Agents use LangChain BaseMemory implementation for all memory operations
   2. No functionality regression in existing agents

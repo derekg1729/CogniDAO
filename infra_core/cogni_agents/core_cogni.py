@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional
 
 from infra_core.cogni_agents.base import CogniAgent
 from infra_core.openai_handler import initialize_openai_client, create_completion, extract_content
+from infra_core.cogni_agents.base import BaseCogniMemory
 
 
 class CoreCogniAgent(CogniAgent):
@@ -21,21 +22,20 @@ class CoreCogniAgent(CogniAgent):
     to access core documents and guides.
     """
     
-    def __init__(self, agent_root: Path, memory_bank_root_override: Optional[Path] = None, project_root_override: Optional[Path] = None):
+    def __init__(self, agent_root: Path, memory: BaseCogniMemory, project_root_override: Optional[Path] = None):
         """
         Initialize a new CoreCogniAgent.
         
         Args:
             agent_root: Root directory for agent outputs (thought files)
-            memory_bank_root_override: Optional override for memory bank root path.
+            memory: The memory bank instance this agent should use.
             project_root_override: Optional override for project root path.
         """
         super().__init__(
-            name="core-cogni",
-            # Use cogni-core-spirit for CoreCogni
+            name="core-cogni", # Name is required by base class
             spirit_path=Path("infra_core/cogni_spirit/spirits/cogni-core-spirit.md"), 
             agent_root=agent_root,
-            memory_bank_root_override=memory_bank_root_override,
+            memory=memory, # Pass the memory instance
             project_root_override=project_root_override
         )
         self.openai_client = None
@@ -119,10 +119,10 @@ class CoreCogniAgent(CogniAgent):
         }
         
         # Use record_action from base class to save output and log to memory bank
-        output_path = self.record_action(result_data, prefix="thought_")
+        # output_path = self.record_action(result_data, prefix="thought_")
         
         # Return result including the file path
-        result_data["filepath"] = str(output_path)
+        # result_data["filepath"] = str(output_path)
         return result_data
     
     def format_output_markdown(self, data: Dict[str, Any]) -> str:
