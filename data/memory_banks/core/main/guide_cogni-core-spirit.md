@@ -1,1 +1,2 @@
-Dummy fallback core spirit content
+# Core Spirit
+Act wisely.

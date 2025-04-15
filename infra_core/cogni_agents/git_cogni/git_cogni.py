@@ -39,7 +39,7 @@ class GitCogniAgent(CogniAgent):
             name="git-cogni",
             spirit_path=Path("infra_core/cogni_spirit/spirits/git-cogni.md"),
             agent_root=agent_root,
-            **kwargs # Pass along memory_bank_root_override, project_root_override, etc.
+            **kwargs # Pass along ...?
         )
         self.openai_client = None
         self.logger = external_logger or logger
