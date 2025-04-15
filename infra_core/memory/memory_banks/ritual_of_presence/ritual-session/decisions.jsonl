@@ -1,6 +1,0 @@
-{"timestamp": "2025-04-14T21:09:36.615499", "agent_name": "core-cogni", "agent_class": "CoreCogniAgent", "action_type": "thought_", "markdown_filename": "CoreCogniAgent_thought_20250414_210936_615228.md"}
-{"timestamp": "2025-04-14T21:09:38.655209", "agent_name": "reflection-cogni", "agent_class": "ReflectionCogniAgent", "action_type": "reflection_", "markdown_filename": "ReflectionCogniAgent_reflection_20250414_210938_654845.md"}
-{"timestamp": "2025-04-14T21:11:10.920682", "agent_name": "core-cogni", "agent_class": "CoreCogniAgent", "action_type": "thought_", "markdown_filename": "CoreCogniAgent_thought_20250414_211110_920350.md"}
-{"timestamp": "2025-04-14T21:11:13.580608", "agent_name": "reflection-cogni", "agent_class": "ReflectionCogniAgent", "action_type": "reflection_", "markdown_filename": "ReflectionCogniAgent_reflection_20250414_211113_580217.md"}
-{"timestamp": "2025-04-14T21:12:12.270696", "agent_name": "core-cogni", "agent_class": "CoreCogniAgent", "action_type": "thought_", "markdown_filename": "CoreCogniAgent_thought_20250414_211212_270408.md"}
-{"timestamp": "2025-04-14T21:12:14.713073", "agent_name": "reflection-cogni", "agent_class": "ReflectionCogniAgent", "action_type": "reflection_", "markdown_filename": "ReflectionCogniAgent_reflection_20250414_211214_712717.md"}
