@@ -233,6 +233,16 @@ class TestAgentBase:
 - Add thread safety tests for concurrent operations
 - Test both agent-specific and shared memory scenarios
 
+## Core Context Loading Investigation (Post-Task)
+- **Issue:** Agents (`CoreCogniAgent`, `ReflectionCogniAgent`) were silently failing to load core context (`CHARTER.md`, guides, etc.) during runtime execution (e.g., in `ritual_of_presence_flow`) because the expected directory `infra_core/memory/banks/core/main/` did not exist.
+- **Code Analysis:** `CogniAgent.load_core_context` and `CogniAgent.get_guide_for_task` in `infra_core/cogni_agents/base.py` are hardcoded to read from this specific directory. They print warnings but do not error if files/directory are missing.
+- **Test Environment:** Tests passed because `setUp` methods created temporary directories and populated them with mock context, or used `project_root_override`. This masked the runtime issue.
+- **Resolution (Immediate):** The `infra_core/memory/banks/core/main/` directory was created, and the necessary core files (`CHARTER.md`, `MANIFESTO.md`, `guide_cogni-core-spirit.md`, `guide_git-cogni.md`, etc.) were copied into it from their canonical source locations (project root, `infra_core/cogni_spirit/spirits/`). This allows the current agent code to function as expected.
+- **Future Consideration:** Relying on the presence of this pre-populated directory is fragile. A more robust solution might involve:
+    - A dedicated setup script (`scripts/setup_core_bank.py`) to run once after cloning/setup.
+    - Modifying agent initialization or a central app setup routine to perform this copy on first run.
+    - (Rejected) Refactoring agents to read directly from canonical source paths instead of the `core/main` bank.
+
 ## Dependencies
 - MCPFileMemory implementation
 - Refactored CogniAgent base class

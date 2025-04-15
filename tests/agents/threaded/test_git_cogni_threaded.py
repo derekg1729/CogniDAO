@@ -17,7 +17,7 @@ class TestGitCogniThreaded(unittest.TestCase):
         """Set up test environment before each test."""
         # Create a test agent with a mock agent_root
         self.agent_root = MagicMock(spec=Path)
-        self.agent = GitCogniAgent(agent_root=self.agent_root)
+        self.agent = GitCogniAgent(agent_root=self.agent_root, memory=MagicMock())
         
         # Mock logger
         self.agent.logger = MagicMock()

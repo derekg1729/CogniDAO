@@ -86,10 +86,9 @@ def test_agent_initialization(agent_root, spirit_file, memory_bank_root, temp_di
     assert agent.project_root == temp_dir # Check project_root override was set
     assert isinstance(agent.memory, CogniMemoryBank)
     assert agent.memory.memory_bank_root == memory_bank_root
-    assert agent.memory.project_name == agent.name
-    assert agent.memory.session_id == agent.name
-    # The project_name and session_id are now both agent.name
-    expected_session_path = memory_bank_root / agent.name / agent.name # Corrected path
+    assert agent.memory.project_name == "cogni_agents"
+    # The session_id should be the agent name
+    expected_session_path = memory_bank_root / "cogni_agents" / "test_dummy"
     # assert agent.memory.session_path == expected_session_path # Removed: session_path is not a public attribute
     # Check if the session directory was created by CogniMemoryBank init
     assert expected_session_path.exists()
@@ -368,51 +367,133 @@ def test_record_action(mock_write_context, mock_log_decision, agent_root, spirit
 
     action_output = {"step": 1, "decision": "proceed", "details": {"info": "abc", "value": 123}}
     
+    # Freeze time slightly for predictable filenames/timestamps if needed (optional)
+    # from freezegun import freeze_time
     # with freeze_time("2023-10-27 10:00:00 UTC"):
-    # Note: record_action now returns None
-    result = agent.record_action(action_output, subdir="test_sessions", prefix="rec_")
+    output_path = agent.record_action(action_output, subdir="test_sessions", prefix="rec_")
 
-    # 1. Check return value
-    assert result is None, "record_action should now return None"
+    # 1. Check file system path (should still be calculated correctly)
+    assert output_path.parent == agent_root / "test_sessions"
+    assert output_path.name.startswith("rec_")
+    assert output_path.name.endswith(".md")
+    # assert output_path.exists() # REMOVED - File is no longer created
 
-    # --- Assertions based on the NEW behavior of record_action ---
-
-    # 2. Check Memory Bank write_context call (saves MD file)
+    # 2. Check Memory Bank Writes
+    # Check write_context call
     mock_write_context.assert_called_once()
     args_wc, kwargs_wc = mock_write_context.call_args
-    
-    markdown_filename = args_wc[0]
-    markdown_content = args_wc[1]
-    
-    # Check filename format (uses class name, prefix, timestamp, .md extension)
-    assert markdown_filename.startswith("DummyAgent_rec_") 
-    assert markdown_filename.endswith(".md")
-    
-    # Check content is the formatted Markdown
-    assert "# CogniAgent Output — test_record" in markdown_content 
-    assert "## step\n1" in markdown_content
-    assert "## details" in markdown_content
-    assert "**info**:" in markdown_content
-    
-    # Check is_json=False was passed
-    assert kwargs_wc.get('is_json') is False
+    assert args_wc[0].startswith("action_") # Check memory filename format
+    assert args_wc[0].endswith(".md")
+    assert "# CogniAgent Output — test_record" in args_wc[1] # Check formatted content
+    assert "## step\n1" in args_wc[1]
+    assert "## details" in args_wc[1]
+    assert "**info**:" in args_wc[1]
 
-    # 3. Check Memory Bank log_decision call
+    # Check log_decision call
     mock_log_decision.assert_called_once()
     args_ld, kwargs_ld = mock_log_decision.call_args
     decision_log = args_ld[0]
-    
-    # Check logged metadata
-    assert decision_log.get("agent_name") == "test_record"
-    assert decision_log.get("agent_class") == "DummyAgent"
-    assert decision_log.get("action_type") == "rec_"
-    
-    # Check pointer to the saved Markdown file
-    assert decision_log.get("markdown_filename") == markdown_filename 
-    
-    # Ensure old fields are not present
-    assert "action_filename" not in decision_log # Renamed to markdown_filename
-    assert "output_path" not in decision_log # External path is no longer relevant here
+    assert decision_log["agent"] == "test_record"
+    assert decision_log["action_filename"] == args_wc[0] # Ensure it matches write_context filename
+    assert decision_log["output_path"] == str(output_path) # Ensure it logged the calculated external path
 
-    # 4. External file system checks are REMOVED
-    # No need to check output_path.parent or output_path.exists() 
+    # 3. Check return value
+    assert isinstance(output_path, Path) 
+
+@patch.object(CogniMemoryBank, 'load_or_seed_file') # Patch the correct method
+def test_load_core_context_reads_from_core_bank(mock_load_seed_file, agent_root, spirit_file, mock_memory_instance, temp_dir):
+    """Verify load_core_context reads files from the 'core/main' bank."""
+    # The mock_load_seed_file is now patched at the class level
+
+    # Set up the side effect for the mocked method
+    def core_load_seed_effect(file_name, fallback_path=None):
+        if file_name == "CHARTER.md": 
+            return "Test Charter Content"
+        if file_name == "MANIFESTO.md": 
+            return "Test Manifesto Content"
+        if file_name == "guide_cogni-core-spirit.md": 
+            return "Test Core Spirit Content"
+        return None # Simulate LICENSE and README missing
+    mock_load_seed_file.side_effect = core_load_seed_effect
+
+    # Initialize agent, patching the other load method called during init
+    with patch.object(DummyAgent, 'load_spirit'):
+        agent = DummyAgent(
+            name="test_core_load", spirit_path=spirit_file,
+            agent_root=agent_root, memory=mock_memory_instance,
+            project_root_override=temp_dir
+        )
+        # Manually call the method under test
+        agent.load_core_context()
+
+    # Assertions
+    # Check that load_or_seed_file was called for expected files
+    expected_core_calls = [
+        call(file_name="CHARTER.md", fallback_path=temp_dir / "CHARTER.md"),
+        call(file_name="MANIFESTO.md", fallback_path=temp_dir / "MANIFESTO.md"),
+        call(file_name="LICENSE.md", fallback_path=temp_dir / "LICENSE.md"),
+        call(file_name="README.md", fallback_path=temp_dir / "README.md"),
+        call(file_name="guide_cogni-core-spirit.md", fallback_path=temp_dir / "infra_core/cogni_spirit/spirits/cogni-core-spirit.md")
+    ]
+    # Verify calls made to the mock
+    mock_load_seed_file.assert_has_calls(expected_core_calls, any_order=True)
+
+    # Verify the content loaded into the agent
+    assert "Test Charter Content" in agent.core_context['context']['content']
+    assert "Test Manifesto Content" in agent.core_context['context']['content']
+    assert "Test Core Spirit Content" in agent.core_context['context']['content']
+    assert "LICENSE.md" not in agent.core_context['context']['content'] # Should not be present
+
+@patch.object(CogniMemoryBank, 'load_or_seed_file') # Patch the correct method
+def test_load_spirit_reads_from_core_bank(mock_load_seed_file, agent_root, spirit_file, mock_memory_instance, temp_dir):
+    """Verify load_spirit (called during init) reads the correct guide from the 'core/main' bank."""
+    expected_guide_filename = f"guide_{spirit_file.stem}.md"
+    expected_spirit_content = "Test Dummy Spirit Content from Core"
+    expected_fallback_path = temp_dir / spirit_file # Resolve spirit_file against temp_dir
+
+    # Simulate load_or_seed_file returning the content
+    mock_load_seed_file.return_value = expected_spirit_content
+
+    # Initialize agent, patching the other load method called during init
+    # load_spirit will be called automatically by __init__
+    with patch.object(DummyAgent, 'load_core_context'):
+        agent = DummyAgent(
+            name="test_spirit_load", spirit_path=spirit_file,
+            agent_root=agent_root, memory=mock_memory_instance,
+            project_root_override=temp_dir
+        )
+
+    # Assertions check the state *after* init
+    # Check load_or_seed_file was called correctly during init
+    mock_load_seed_file.assert_called_once_with(
+        file_name=expected_guide_filename,
+        fallback_path=expected_fallback_path
+    )
+    # Check the loaded spirit content
+    assert agent.spirit == expected_spirit_content
+
+@patch.object(CogniMemoryBank, 'load_or_seed_file') # Patch the correct method
+def test_load_spirit_not_found_in_core_bank(mock_load_seed_file, agent_root, spirit_file, mock_memory_instance, temp_dir):
+    """Verify load_spirit (called during init) handles guide missing from core bank."""
+    expected_guide_filename = f"guide_{spirit_file.stem}.md"
+    expected_fallback_path = temp_dir / spirit_file # Resolve spirit_file against temp_dir
+
+    # Simulate load_or_seed_file returning None (not found in bank or fallback)
+    mock_load_seed_file.return_value = None
+
+    # Initialize agent, load_spirit called by init
+    with patch.object(DummyAgent, 'load_core_context'):
+        agent = DummyAgent(
+            name="test_spirit_missing", spirit_path=spirit_file,
+            agent_root=agent_root, memory=mock_memory_instance,
+            project_root_override=temp_dir
+        )
+
+    # Assertions check state after init
+    # Check load_or_seed_file was called correctly during init
+    mock_load_seed_file.assert_called_once_with(
+        file_name=expected_guide_filename,
+        fallback_path=expected_fallback_path
+    )
+    # Check the loaded spirit content (should be the warning)
+    assert agent.spirit == "⚠️ Spirit guide not found." 

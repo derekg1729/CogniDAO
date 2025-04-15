@@ -10,6 +10,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 from infra_core.cogni_agents.git_cogni.git_cogni import GitCogniAgent
+from infra_core.memory.memory_bank import CogniMemoryBank
 
 # Import the constant for memory bank root
 from infra_core.constants import MEMORY_BANKS_ROOT, AGENTS_DATA_ROOT
@@ -73,10 +74,17 @@ def main():
     agent_root = AGENTS_DATA_ROOT / "git-cogni"
     agent_root.mkdir(parents=True, exist_ok=True) # Ensure it exists
     
+    # Create a default memory bank instance for the agent
+    # CLI runs are typically transient, so a default session is okay.
+    cli_memory = CogniMemoryBank(
+        memory_bank_root=MEMORY_BANKS_ROOT,
+        project_name="core", # Or a CLI-specific project?
+        session_id="main" # Default main session
+    )
+    
     agent = GitCogniAgent(
         agent_root=agent_root, # Root for external files
-        # Explicitly pass the centralized memory bank root
-        memory_bank_root_override=MEMORY_BANKS_ROOT 
+        memory=cli_memory # Pass the memory bank instance
     )
     
     # Run review

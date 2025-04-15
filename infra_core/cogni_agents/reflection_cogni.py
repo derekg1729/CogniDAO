@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional
 
 # Import base agent and memory adapter
 from infra_core.cogni_agents.base import CogniAgent
-from infra_core.memory.memory_bank import CogniLangchainMemoryAdapter # Needed for type hint/checks
+from infra_core.memory.memory_bank import CogniLangchainMemoryAdapter, BaseCogniMemory # Needed for type hint/checks
 
 # Import OpenAI handler specifics
 from infra_core.openai_handler import initialize_openai_client, create_completion, extract_content
@@ -24,27 +24,26 @@ class ReflectionCogniAgent(CogniAgent):
     It accesses shared memory to retrieve the previous thought and generate a reflection.
     """
     
-    def __init__(self, agent_root: Path, memory_adapter: CogniLangchainMemoryAdapter, memory_bank_root_override: Optional[Path] = None, project_root_override: Optional[Path] = None):
+    def __init__(self, agent_root: Path, memory: BaseCogniMemory, memory_adapter: CogniLangchainMemoryAdapter, project_root_override: Optional[Path] = None):
         """
         Initialize a new ReflectionCogniAgent.
         
         Args:
-            agent_root: Root directory for agent outputs (reflection files, though likely unused directly).
-            memory_adapter: The shared CogniLangchainMemoryAdapter instance.
-            memory_bank_root_override: Optional override for memory bank root path (passed to base, but adapter is primary).
+            agent_root: Root directory for agent outputs.
+            memory: The memory bank instance this agent should use (for base class).
+            memory_adapter: The shared CogniLangchainMemoryAdapter instance (for Langchain history).
             project_root_override: Optional override for project root path.
         """
         super().__init__(
-            name="reflection-cogni",
+            name="reflection-cogni", # Name is required by base class
             # This agent might not need its own specific spirit, 
             # but core context might still be useful.
             spirit_path=Path("infra_core/cogni_spirit/spirits/cogni-core-spirit.md"), 
             agent_root=agent_root,
-            memory_bank_root_override=memory_bank_root_override,
+            memory=memory, # Pass the memory instance to base
             project_root_override=project_root_override
         )
-        # Crucially, store the passed-in adapter. Base class uses CogniMemoryBank directly.
-        # We need the adapter for LangChain message handling.
+        # Crucially, store the passed-in adapter for LangChain interactions.
         self.memory_adapter = memory_adapter 
         self.openai_client = None
     

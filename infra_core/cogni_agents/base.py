@@ -11,126 +11,185 @@ from typing import Dict, Any, List, Optional
 # Import the centralized constant
 from infra_core.constants import MEMORY_BANKS_ROOT
 
-from infra_core.memory.memory_bank import CogniMemoryBank
+# Import BaseCogniMemory for type hinting
+from infra_core.memory.memory_bank import CogniMemoryBank, BaseCogniMemory
 
 
 class CogniAgent(ABC):
     """
-    Abstract base class for all Cogni agents.
-    Each agent represents an autonomous entity with a specific role and spirit guide.
+    Base abstract class for Cogni Agents.
+    Provides core functionality like spirit/context loading and action recording.
+    Requires a memory bank instance to be passed during initialization.
     """
 
-    def __init__(self, name: str, spirit_path: Path, agent_root: Path, memory_bank_root_override: Optional[Path] = None, project_root_override: Optional[Path] = None):
+    def __init__(self, name: str, spirit_path: Path, agent_root: Path, memory: BaseCogniMemory, project_root_override: Optional[Path] = None):
+        """
+        Initializes the CogniAgent.
+
+        Args:
+            name (str): The unique name of the agent instance.
+            spirit_path (Path): Path to the agent's specific spirit guide markdown file (relative to project root).
+            agent_root (Path): Root directory for agent-specific non-memory outputs (if any).
+            memory (BaseCogniMemory): The memory bank instance this agent should use for runtime operations.
+            project_root_override (Optional[Path]): Optional override for the project root path.
+        """
         self.name = name
-        self.spirit_path = spirit_path
-        self.agent_root = agent_root
+        self.spirit_path = spirit_path # Path relative to project root, used by load_spirit
+        self.agent_root = agent_root # Path for potential external outputs, TBD if needed
+        self.memory = memory # Assign the provided memory bank instance
         self.spirit = None
         self.core_context = None
 
-        # Determine project root for fallbacks
+        # Determine project root for fallbacks when loading static context/guides
         self.project_root = project_root_override or Path(__file__).resolve().parent.parent.parent
 
-        # Resolve memory bank location using the centralized constant as fallback
-        # Use MEMORY_BANKS_ROOT constant if no override is provided
-        memory_bank_root = memory_bank_root_override or MEMORY_BANKS_ROOT 
-        
-        # Initialize memory bank
-        # Use agent name as the default project name for better isolation
-        self.memory = CogniMemoryBank(
-            memory_bank_root=memory_bank_root, 
-            project_name=self.name, # Use agent name as default project_name
-            session_id=self.name  # Using name for session_id seems fine for agent-specific banks
-        )
+        # REMOVED internal memory bank creation logic
+        # The agent now expects the memory bank for its operational context
+        # (e.g., flow session bank) to be provided externally.
 
-        # Load agent-specific data
+        # Load agent-specific data (uses methods that will be refactored next)
         self.load_spirit()
         self.load_core_context()
 
     def load_spirit(self):
-        """Load the spirit guide contents from markdown using memory bank."""
-        # Attempt to read from memory first using the filename
-        spirit_text = self.memory._read_file(self.spirit_path.name)
-        
-        # If not in memory, check filesystem relative to project_root
-        # Construct the potential path relative to the (potentially overridden) project root
-        fallback_path = self.project_root / self.spirit_path 
-        
-        if not spirit_text and fallback_path.exists():
-            try:
-                spirit_text = fallback_path.read_text()
-                # Write to memory bank if successfully read from filesystem
-                self.memory.write_context(self.spirit_path.name, spirit_text)
-            except Exception as e:
-                # Log error reading fallback file
-                print(f"Error reading spirit fallback file {fallback_path}: {e}") # Replace with logger
-                spirit_text = None # Ensure spirit is None if read fails
+        """Loads the agent's specific spirit guide, attempting to read from the agent's memory bank first, falling back to the canonical path and seeding the bank."""
+        # Determine the expected filename convention (e.g., guide_agent-name.md)
+        # Uses the filename part of the spirit_path (e.g., "git-cogni" from ".../git-cogni.md")
+        spirit_name = self.spirit_path.stem
+        bank_filename = f"guide_{spirit_name}.md"
 
-        # Set final spirit value
-        self.spirit = spirit_text or "⚠️ Spirit guide not found."
+        # Determine the canonical fallback path
+        fallback_path = self.project_root / self.spirit_path
+
+        # Use the agent's own memory bank instance (self.memory)
+        spirit_text = self.memory.load_or_seed_file(
+            file_name=bank_filename,
+            fallback_path=fallback_path
+        )
+
+        if spirit_text is not None:
+            self.spirit = spirit_text
+        else:
+            # Raise an error if spirit couldn't be loaded/seeded
+            error_msg = (
+                f"Spirit guide '{bank_filename}' could not be loaded from bank "
+                f"or seeded from fallback path: {fallback_path}"
+            )
+            raise FileNotFoundError(error_msg)
+        
+        # OLD DIRECT READ LOGIC:
+        # # Construct the absolute path to the spirit file
+        # spirit_full_path = self.project_root / self.spirit_path
+        # try:
+        #     # Read directly from the canonical file path
+        #     self.spirit = spirit_full_path.read_text()
+        # except FileNotFoundError:
+        #     print(f"Warning: Spirit guide file not found at expected path: {spirit_full_path}")
+        #     self.spirit = "⚠️ Spirit guide not found."
+        # except Exception as e:
+        #     print(f"Error reading spirit guide file {spirit_full_path}: {e}")
+        #     self.spirit = "⚠️ Error loading spirit guide."
 
     def load_core_context(self):
-        """Load core context documents (charter, manifesto, etc)."""
-        doc_files = ["CHARTER.md", "MANIFESTO.md", "LICENSE.md", "README.md"]
+        """Loads core context documents (Charter, Manifesto, Core Spirit) from the central core memory bank."""
+        # Define the location of the central core memory bank.
+        # Use the absolute path defined in constants, do NOT prepend self.project_root
+        core_bank_root = Path(MEMORY_BANKS_ROOT)
+        core_bank = CogniMemoryBank(
+            memory_bank_root=core_bank_root,
+            project_name="core", 
+            session_id="main"
+        )
+        
+        # Core documents expected in the central bank
+        # Mapping: filename in core bank -> key in context dict / section header
+        doc_files = {
+            "CHARTER.md": "CHARTER.md",
+            "MANIFESTO.md": "MANIFESTO.md",
+            "LICENSE.md": "LICENSE.md", 
+            "README.md": "README.md",
+            "guide_cogni-core-spirit.md": "cogni-core-spirit" # Changed filename to match guide convention
+        }
+        
+        # Define fallback paths for core documents relative to project root
+        # Define BEFORE the loop so it's accessible in the error message formatting
+        fallback_map = {
+            "CHARTER.md": self.project_root / "CHARTER.md",
+            "MANIFESTO.md": self.project_root / "MANIFESTO.md",
+            "LICENSE.md": self.project_root / "LICENSE.md",
+            "README.md": self.project_root / "README.md",
+            # Assuming the canonical source for the core spirit guide is here:
+            "guide_cogni-core-spirit.md": self.project_root / "infra_core/cogni_spirit/spirits/cogni-core-spirit.md"
+        }
+
         context_parts = ["# Cogni Core Documents"]
         metadata = {}
-        
-        # Determine the project root to find the core files
-        # Use the instance's project_root attribute
-        project_root_for_core_files = self.project_root
 
-        for fname in doc_files:
-            text = self.memory._read_file(fname)
-            if not text:
-                # Construct the absolute path relative to the project root
-                file_path = project_root_for_core_files / fname
-                if file_path.exists():
-                    text = file_path.read_text()
-                    self.memory.write_context(fname, text)
+        # Define critical core files that MUST exist
+        critical_files = ["CHARTER.md", "guide_cogni-core-spirit.md"]
+
+        for bank_filename, context_key in doc_files.items():
+            # Read directly from the core_bank instance, using fallback if needed
+            text = core_bank.load_or_seed_file(
+                file_name=bank_filename,
+                fallback_path=fallback_map.get(bank_filename) # Get path from map
+            )
+
             if text:
-                context_parts.append(f"## {fname}\n\n{text}")
-                metadata[fname] = {"length": len(text)}
+                context_parts.append(f"## {context_key}\n\n{text}")
+                metadata[context_key] = {"length": len(text)}
+            else:
+                # Handle missing core documents
+                # Construct the fallback path string safely, handling None
+                fallback_path_str = str(fallback_map.get(bank_filename)) if fallback_map.get(bank_filename) else "[No Fallback Defined]"
+                error_msg = (
+                    f"Core document '{bank_filename}' could not be loaded from core bank "
+                    f"or seeded from fallback path: {fallback_path_str}"
+                )
+                if bank_filename in critical_files:
+                    raise FileNotFoundError(error_msg)
+                else:
+                    # Print warning for non-critical missing files
+                    print(f"Warning: {error_msg}")
 
-        # Load core spirit
-        core_spirit_relative_path = "infra_core/cogni_spirit/spirits/cogni-core-spirit.md"
-        core_spirit_filename = "core_spirit.md" # Use a simplified filename for the memory bank
-        spirit_text = self.memory._read_file(core_spirit_filename)
-        if not spirit_text:
-            spirit_path_abs = project_root_for_core_files / core_spirit_relative_path
-            if spirit_path_abs.exists():
-                spirit_text = spirit_path_abs.read_text()
-                self.memory.write_context(core_spirit_filename, spirit_text)
-        if spirit_text:
-            context_parts.append(f"## cogni-core-spirit\n\n{spirit_text}")
-            metadata["core_spirit"] = {"length": len(spirit_text)}
+        # File system fallback and writing to session memory are REMOVED.
 
         full_context = "\n".join(context_parts)
+        # Store the loaded context and metadata on the agent instance
         self.core_context = {
             "context": {"role": "system", "content": full_context},
             "metadata": metadata
         }
 
     def get_guide_for_task(self, task: str, guides: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Get context from specific spirit guides for a task."""
-        guides = guides or ["cogni-core-spirit"]
+        """Gets context from specified spirit guides, reading them from the central core memory bank."""
+        guides = guides or ["cogni-core-spirit"] # Default guide
         context_parts = [f"# Cogni Spirit Context for: {task}"]
 
-        # Determine the project root to find the guide files
-        # Use the instance's project_root attribute
-        project_root_for_guides = self.project_root
+        # Define the location of the central core memory bank, respecting project_root_override
+        core_bank_root = self.project_root / "infra_core/memory/banks"
+        core_bank = CogniMemoryBank(
+            memory_bank_root=core_bank_root, # Use calculated path
+            project_name="core",
+            session_id="main"
+        )
 
         for guide in guides:
-            guide_filename_in_memory = f"guide_{guide}.md" # Filename for memory bank
-            guide_relative_path = f"infra_core/cogni_spirit/spirits/{guide}.md" # Relative path in repo
+            # Convention: Filename in core bank is "guide_<guide_name>.md"
+            core_bank_filename = f"guide_{guide}.md"
             
-            content = self.memory._read_file(guide_filename_in_memory)
-            if not content:
-                guide_path_abs = project_root_for_guides / guide_relative_path
-                if guide_path_abs.exists():
-                    content = guide_path_abs.read_text()
-                    self.memory.write_context(guide_filename_in_memory, content)
+            # Read directly from the core_bank instance
+            content = core_bank._read_file(core_bank_filename)
+
+            # Filesystem fallback and writing to session memory are REMOVED.
+
             if content:
                 context_parts.append(f"## {guide}\n\n{content}")
+            else:
+                 # Log a warning if a specific guide is missing from the central bank
+                print(f"Warning: Guide '{core_bank_filename}' not found in core memory bank at {core_bank_root}.") # Updated log
 
+        # Return the combined context as a dictionary suitable for system messages
         return {"role": "system", "content": "\n".join(context_parts)}
 
     def prepare_input(self, *args, **kwargs):

@@ -1,18 +1,22 @@
 import sys
 import os
+import datetime
+import json
+from pathlib import Path
+
 # Ensure parent directory is in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
-# Add project root directory to path for absolute imports
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+# Restore the check and insertion for project_root
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from prefect import flow, get_run_logger  # noqa: E402
-from pathlib import Path  # noqa: E402
-import json  # noqa: E402
-# Import using the relative path approach, similar to ritual_of_presence.py
-from infra_core.cogni_agents.git_cogni.git_cogni import GitCogniAgent  # noqa: E402
+from prefect import flow, get_run_logger # noqa: E402
+
+# Project-specific imports
+from infra_core.cogni_agents.git_cogni.git_cogni import GitCogniAgent # noqa: E402
+from infra_core.memory.memory_bank import CogniMemoryBank # noqa: E402
+from infra_core.constants import MEMORY_BANKS_ROOT # noqa: E402
 
 @flow(name="gitcogni-review-flow")
 def gitcogni_review_flow(pr_url=None, test_mode=False):
@@ -39,9 +43,33 @@ def gitcogni_review_flow(pr_url=None, test_mode=False):
     
     # Initialize GitCogniAgent
     logger.info("Initializing GitCogniAgent...")
-    base_path = Path(__file__).resolve().parent.parent.parent
-    agent_root = base_path / "cogni_agents" / "git_cogni"
-    agent = GitCogniAgent(agent_root=agent_root, external_logger=logger)
+    project_root = Path(__file__).resolve().parent.parent.parent.parent # Navigate up to project root
+    agent_root = project_root / "infra_core" / "cogni_agents" / "git_cogni" # Define agent_root relative to project root
+
+    # Standardize Memory Bank Creation
+    flow_project_name = "gitcogni_reviews"
+    memory_root = Path(MEMORY_BANKS_ROOT)
+    memory_root.mkdir(parents=True, exist_ok=True) # Ensure root exists
+
+    # Create a memory bank instance for this flow run
+    session_id = f"review_{datetime.datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')}" # Keep unique session ID
+    agent_memory = CogniMemoryBank(
+        memory_bank_root=memory_root, # Use standardized root
+        project_name=f"flows/{flow_project_name}", # Use standardized project name structure
+        session_id=session_id
+    )
+
+    # Log effective paths
+    effective_session_id = agent_memory.session_id
+    session_path = agent_memory._get_session_path()
+    logger.info(f"Initialized memory for project 'flows/{flow_project_name}', session '{effective_session_id}' at {session_path}")
+    
+    # Pass memory to the agent
+    agent = GitCogniAgent(
+        agent_root=agent_root, 
+        memory=agent_memory, # Pass the memory instance
+        external_logger=logger
+    )
     
     if test_mode:
         logger.info("Running in test mode - files will be cleaned up after successful execution")
@@ -123,9 +151,20 @@ if __name__ == "__main__":
         if "verdict_decision" in review_results:
             decision = review_results["verdict_decision"]
         elif review_results.get("final_verdict"):
-            # Get by using the agent's helper method to provide consistent extraction
+            # Define agent_root specifically for this CLI context
             agent_root = Path(os.path.dirname(os.path.abspath(__file__))).parent.parent / "cogni_agents" / "git_cogni"
-            agent = GitCogniAgent(agent_root=agent_root)
+            # We already have project_root and agent_root defined above
+            
+            # Also need to provide memory here for the agent instance
+            memory_root = Path(MEMORY_BANKS_ROOT) # Use constant
+            cli_project_name = "gitcogni_cli_helper" # Keep distinct project name
+            cli_memory = CogniMemoryBank(
+                memory_bank_root=memory_root,
+                project_name=f"flows/{cli_project_name}", # Use flows/ prefix here too? Let's keep it separate for now.
+                session_id="cli_verdict_extraction" # Use a fixed or temp session
+            )
+            # Pass memory when creating agent for verdict extraction
+            agent = GitCogniAgent(agent_root=agent_root, memory=cli_memory) 
             decision = agent.get_verdict_from_text(review_results["final_verdict"])
         else:
             decision = "UNKNOWN"

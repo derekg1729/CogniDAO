@@ -1,0 +1,1 @@
+Dummy fallback core spirit content

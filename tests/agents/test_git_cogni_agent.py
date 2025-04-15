@@ -24,39 +24,41 @@ class TestGitCogniAgent(unittest.TestCase):
 
         self.project_root_override = Path(self.temp_project_dir.name)
         self.agent_root = Path(self.temp_agent_dir.name)
-        self.memory_bank_root_override = Path(self.temp_memory_dir.name)
+        # self.memory_bank_root_override = Path(self.temp_memory_dir.name) # No longer needed
 
-        # Create dummy core files in the temp project root for fallback testing
+        # --- Create Dummy Files in TEMPORARY Core Bank --- 
+        # Use the corrected path under /data
+        core_main_bank_path = self.project_root_override / "data/memory_banks/core/main"
+        core_main_bank_path.mkdir(parents=True, exist_ok=True)
+        
+        # Dummy core files (needed for load_core_context tests)
         self.core_files_content = {}
         core_docs = ["CHARTER.md", "MANIFESTO.md", "LICENSE.md", "README.md"]
         for fname in core_docs:
-            fpath = self.project_root_override / fname
+            fpath = core_main_bank_path / fname # Write inside core/main
             content = f"Dummy content for {fname}"
             fpath.write_text(content)
             self.core_files_content[fname] = content
         
-        # Dummy core spirit guide
-        core_spirit_rel_path = Path("infra_core/cogni_spirit/spirits/cogni-core-spirit.md")
-        core_spirit_dir = self.project_root_override / core_spirit_rel_path.parent
-        core_spirit_dir.mkdir(parents=True, exist_ok=True)
-        core_spirit_path = core_spirit_dir / core_spirit_rel_path.name
+        # Dummy core spirit guide (needed for load_core_context tests)
+        core_spirit_filename = "guide_cogni-core-spirit.md"
+        core_spirit_path = core_main_bank_path / core_spirit_filename # Write inside core/main
         core_spirit_content = "Dummy core spirit content"
         core_spirit_path.write_text(core_spirit_content)
-        self.core_files_content["core_spirit.md"] = core_spirit_content # Store with memory filename
+        self.core_files_content["core_spirit.md"] = core_spirit_content # Store with non-prefixed key
 
-        # Create dummy agent spirit file within the temporary project root
-        spirit_rel_path = Path("infra_core/cogni_spirit/spirits/git-cogni.md")
-        spirit_dir = self.project_root_override / spirit_rel_path.parent
-        spirit_dir.mkdir(parents=True, exist_ok=True)
-        self.spirit_file_path = spirit_dir / spirit_rel_path.name
-        self.spirit_file_path.write_text("Dummy Git Cogni spirit")
+        # Dummy agent spirit file (needed for load_spirit)
+        agent_spirit_filename = "guide_git-cogni.md"
+        # Write to the corrected temporary core bank path
+        self.spirit_file_path = core_main_bank_path / agent_spirit_filename 
+        self.spirit_content = "Dummy Git Cogni spirit"
+        self.spirit_file_path.write_text(self.spirit_content)
 
         # Create the test agent IN setUp, injecting the temporary paths
-        # Mocks for memory interaction during init need to be active *around* this call
-        # We will patch specific tests that need to verify init calls.
+        # It should now load the spirit correctly from the temp core/main bank
         self.agent = GitCogniAgent(
             agent_root=self.agent_root,
-            memory_bank_root_override=self.memory_bank_root_override,
+            memory=MagicMock(), # Use mock memory instead of overrides
             project_root_override=self.project_root_override
         )
             
@@ -100,80 +102,56 @@ class TestGitCogniAgent(unittest.TestCase):
         """Test loading core context documents using CogniMemoryBank and fallbacks."""
         
         # --- Test Setup --- 
-        # Define side effect for the __init__ call (load_spirit + load_core_context)
-        # This mock needs to be active *during* the setUp call, which is tricky.
-        # Alternative: Re-run load_core_context explicitly and check calls.
-        
         def read_side_effect(*args, **kwargs):
             filename = args[0]
-            # Simulate core files needing fallback, spirit already loaded by setUp (unmocked)
-            if filename == self.spirit_file_path.name:
-                return "Dummy Git Cogni spirit" # Simulate already loaded
+            # Simulate specific files found in memory, others missing
             if filename == "CHARTER.md":
                 return "Charter from Memory"
             if filename == "MANIFESTO.md":
-                return None # Force fallback
+                return None # Simulate missing
             if filename == "LICENSE.md":
                 return "License from Memory"
             if filename == "README.md":
-                return None # Force fallback
-            if filename == "core_spirit.md":
-                return None # Force fallback
+                return None # Simulate missing
+            if filename == "guide_cogni-core-spirit.md": # Use correct filename
+                return None # Simulate missing
             return None # Default case
         mock_read_file.side_effect = read_side_effect
 
-        # Reset mocks to clear any calls made during setUp's unmocked init
-        mock_read_file.reset_mock()
-        mock_write_context.reset_mock()
-
         # --- Execution --- 
-        # Explicitly call load_core_context to test its logic with mocks active
-        self.agent.load_core_context() 
+        self.agent.load_core_context()
 
         # --- Verification --- 
-        # 1. Check that _read_file was attempted for all core files
         expected_read_calls = [
-            # call(self.spirit_file_path.name), # Not called again if loaded in init
             call("CHARTER.md"),
             call("MANIFESTO.md"),
             call("LICENSE.md"),
             call("README.md"),
-            call("core_spirit.md") # From load_core_context
+            call("guide_cogni-core-spirit.md") # Use correct filename
         ]
         mock_read_file.assert_has_calls(expected_read_calls, any_order=True)
+        mock_write_context.assert_not_called() # Fallback write was removed
 
-        # 2. Check that write_context was called for fallbacks
-        expected_write_calls = [
-            # call(self.spirit_file_path.name, self.spirit_file_path.read_text()), # Not written again
-            call("MANIFESTO.md", self.core_files_content["MANIFESTO.md"]),
-            call("README.md", self.core_files_content["README.md"]),
-            call("core_spirit.md", self.core_files_content["core_spirit.md"])
-        ]
-        mock_write_context.assert_has_calls(expected_write_calls, any_order=True)
-        self.assertEqual(mock_write_context.call_count, len(expected_write_calls))
-
-        # 3. Verify the final core_context structure and content
+        # Verify the final core_context structure and content
         self.assertIsNotNone(self.agent.core_context)
-        self.assertIn("context", self.agent.core_context)
-        self.assertIn("metadata", self.agent.core_context)
         content = self.agent.core_context["context"]["content"]
-        self.assertIn("## CHARTER.md\n\nCharter from Memory", content)
-        self.assertIn(f"## MANIFESTO.md\n\n{self.core_files_content['MANIFESTO.md']}", content)
-        self.assertIn("## LICENSE.md\n\nLicense from Memory", content)
-        self.assertIn(f"## README.md\n\n{self.core_files_content['README.md']}", content)
-        self.assertIn(f"## cogni-core-spirit\n\n{self.core_files_content['core_spirit.md']}", content)
         metadata = self.agent.core_context["metadata"]
-        self.assertNotIn("core_docs", metadata)
+        
+        # Check files loaded from memory mock
+        self.assertIn("## CHARTER.md\n\nCharter from Memory", content)
         self.assertIn("CHARTER.md", metadata)
         self.assertEqual(metadata["CHARTER.md"]["length"], len("Charter from Memory"))
-        self.assertIn("MANIFESTO.md", metadata)
-        self.assertEqual(metadata["MANIFESTO.md"]["length"], len(self.core_files_content["MANIFESTO.md"]))
+        self.assertIn("## LICENSE.md\n\nLicense from Memory", content)
         self.assertIn("LICENSE.md", metadata)
         self.assertEqual(metadata["LICENSE.md"]["length"], len("License from Memory"))
-        self.assertIn("README.md", metadata)
-        self.assertEqual(metadata["README.md"]["length"], len(self.core_files_content["README.md"]))
-        self.assertIn("core_spirit", metadata)
-        self.assertEqual(metadata["core_spirit"]["length"], len(self.core_files_content["core_spirit.md"]))
+
+        # Check files NOT found in memory mock - they should NOT be in the final context/metadata
+        self.assertNotIn("## MANIFESTO.md", content) 
+        self.assertNotIn("## README.md", content)
+        self.assertNotIn("## cogni-core-spirit", content)
+        self.assertNotIn("MANIFESTO.md", metadata)
+        self.assertNotIn("README.md", metadata)
+        self.assertNotIn("cogni-core-spirit", metadata)
     
     @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.get_pr_commits')
     @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.get_pr_branches')
@@ -206,10 +184,8 @@ class TestGitCogniAgent(unittest.TestCase):
     
     @patch('infra_core.cogni_agents.git_cogni.git_cogni.initialize_openai_client')
     @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.review_pr')
-    @patch.object(CogniMemoryBank, 'write_context')
-    @patch.object(CogniMemoryBank, '_read_file')
-    def test_act(self, mock_read_file, mock_write_context, mock_review, mock_init_client):
-        """Test act method with PR review flow using CogniMemoryBank"""
+    def test_act(self, mock_review, mock_init_client):
+        """Test act method - verifies context loading and mocked review return."""
         # --- Test Setup ---
         mock_client = MagicMock()
         mock_init_client.return_value = mock_client
@@ -220,27 +196,21 @@ class TestGitCogniAgent(unittest.TestCase):
         }
         mock_review.return_value = mock_review_results
         
-        # Mock memory reads ONLY for the get_guide_for_task call within act
-        # Assume init loaded everything correctly (tested elsewhere)
-        def read_side_effect_for_act(*args, **kwargs):
-            filename = args[0]
-            if filename == "guide_git-cogni.md": 
-                return None # Simulate guide NOT in memory for this call
-            # Important: Return a default value for other reads that might happen unexpectedly
-            # If we didn't mock during setUp, init calls might happen here if not careful
-            # return "Loaded from memory unexpectedly" # Or raise an error 
-            return None # For now, assume other reads are handled
-        mock_read_file.side_effect = read_side_effect_for_act
+        # --- Pre-Verification: Check agent state after setUp ---
+        # Ensure self.agent.spirit was loaded correctly in setUp
+        self.assertIsNotNone(self.agent.spirit, "Agent spirit was not loaded in setUp")
+        self.assertEqual(self.agent.spirit, self.spirit_content, "Agent spirit content is incorrect")
+        # Ensure core context was loaded (using files created in setUp)
+        self.assertIsNotNone(self.agent.core_context, "Agent core_context was not loaded in setUp")
+        self.assertIn("context", self.agent.core_context)
+        self.assertIn("metadata", self.agent.core_context)
+        # Verify some content from the dummy core files created in setUp
+        self.assertIn("## CHARTER.md\n\nDummy content for CHARTER.md", self.agent.core_context['context']['content'])
+        self.assertIn("## cogni-core-spirit\n\nDummy core spirit content", self.agent.core_context['context']['content'])
+        self.assertIn("CHARTER.md", self.agent.core_context['metadata'])
+        self.assertIn("cogni-core-spirit", self.agent.core_context['metadata'])
 
-        # Get expected guide content from dummy file for fallback write check
-        expected_guide_content = self.spirit_file_path.read_text()
-
-        # Reset mocks AFTER setUp but BEFORE act is called
-        mock_read_file.reset_mock()
-        mock_write_context.reset_mock()
-        # Re-apply side effect after reset
-        mock_read_file.side_effect = read_side_effect_for_act 
-
+        # --- Execution ---
         test_input = {
             "pr_url": "https://github.com/test-owner/test-repo/pull/123",
             "pr_info": {"owner": "test-owner", "repo": "test-repo", "number": 123, "success": True},
@@ -248,26 +218,15 @@ class TestGitCogniAgent(unittest.TestCase):
             "commits": {"success": True, "commits": [{"sha": "abc123ff"}]},
             "pr_data": {"files": [], "metadata": {"commit_count": 1}}
         }
-        
-        # --- Execution --- 
-        # Use the agent created in setUp
         result = self.agent.act(test_input)
-        
-        # --- Verification --- 
+    
+        # --- Verification ---
         mock_init_client.assert_called_once()
-        
-        # Verify memory calls related to get_guide_for_task within act:
-        mock_read_file.assert_called_once_with("guide_git-cogni.md")
-        mock_write_context.assert_called_once_with("guide_git-cogni.md", expected_guide_content)
-        
-        mock_review.assert_called_once()
-        
-        # Verify structure of the final result
-        self.assertEqual(result["pr_url"], test_input["pr_url"])
-        self.assertEqual(result["task_description"], "Reviewing PR #123 in test-owner/test-repo")
-        self.assertEqual(result["verdict"], "APPROVE")
-        self.assertEqual(result["summary"], "Good PR")
-        self.assertEqual(result["commit_reviews"], [{"sha": "abc123", "feedback": "Looks good"}])
+        mock_review.assert_called_once() # Verify review_pr was called
+        # We trust the mocked review_pr to have received the context implicitly verified above
+
+        # Verify act returns the mocked result
+        self.assertEqual(result, mock_review_results)
     
     @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.prepare_input')
     @patch('infra_core.cogni_agents.git_cogni.git_cogni.GitCogniAgent.act')

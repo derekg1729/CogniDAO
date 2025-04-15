@@ -11,7 +11,7 @@ from infra_core.flows.gitcogni.gitcogni_flow import gitcogni_review_flow
 from infra_core.cogni_agents.git_cogni.git_cogni import GitCogniAgent
 
 # Create an instance of GitCogniAgent to access its methods for testing
-_agent = GitCogniAgent(agent_root=Path("infra_core/cogni_agents/git_cogni"))
+_agent = GitCogniAgent(agent_root=Path("infra_core/cogni_agents/git_cogni"), memory=MagicMock())
 parse_pr_url = _agent.parse_pr_url
 get_pr_branches = _agent.get_pr_branches
 get_pr_commits = _agent.get_pr_commits
@@ -69,7 +69,7 @@ class TestGitCogniFlow(unittest.TestCase):
     def test_get_pr_commits(self):
         """Test commit retrieval using direct testing"""
         # Create a minimal mock with just the necessary functionality
-        agent = GitCogniAgent(agent_root=Path("infra_core/cogni_agents/git_cogni"))
+        agent = GitCogniAgent(agent_root=Path("infra_core/cogni_agents/git_cogni"), memory=MagicMock())
     
         # Create test PR info
         pr_info = {

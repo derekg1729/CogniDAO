@@ -1,7 +1,7 @@
 import json
 import shutil # Added for directory removal
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from datetime import datetime
 
 # Import the new base class
@@ -80,6 +80,30 @@ class CogniMemoryBank(BaseModel, BaseCogniMemory):
          except Exception as e:
             print(f"Error reading file {file_path}: {e}") # Replace with logger
             return None
+
+    # --- NEW METHOD ---
+    def load_or_seed_file(self, file_name: str, fallback_path: Optional[Path] = None) -> Optional[str]:
+        """Attempt to read a file from memory bank. If missing, fallback to disk and seed."""
+        # 1. Attempt to read from the bank first
+        content = self._read_file(file_name)
+        if content is not None: # Explicit check for None, as empty string is valid content
+            return content
+        
+        # 2. If missing, try fallback path if provided and exists
+        if fallback_path and fallback_path.exists():
+            try:
+                print(f"Seeding {file_name} into {self._get_session_path()} from {fallback_path}") # Log seeding action
+                content = fallback_path.read_text()
+                # 3. Write the fallback content into the bank
+                self._write_file(file_name, content) 
+                return content
+            except Exception as e:
+                # Log error during fallback read/write but don't crash
+                print(f"Error reading from fallback {fallback_path} or writing to {self._get_file_path(file_name)}: {e}")
+        
+        # 4. Return None if read from bank failed and fallback failed or wasn't applicable
+        return None
+    # --- END NEW METHOD ---
 
     # --- History Management (Implements BaseCogniMemory methods) ---
 
