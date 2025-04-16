@@ -149,20 +149,6 @@ async def process_with_swarm(initial_thought_content: str, memory_adapter: Cogni
         # Process the thought
         prepared_input = swarm_cogni.prepare_input(thought=initial_thought_content)
         result_data = await swarm_cogni.a_act(prepared_input)
-        
-        # Save to memory
-        try:
-            memory_adapter.save_context(
-                inputs={"input": initial_thought_content}, 
-                outputs={"output": result_data["output"]}
-            )
-            logger.info("Saved swarm processing results to memory.")
-            
-            # Record detailed action
-            swarm_cogni.record_action(result_data, prefix="swarm_reflection_")
-            logger.info("Logged detailed swarm reflection action.")
-        except Exception as e:
-            logger.warning(f"Could not save context or record action: {e}")
             
         return result_data
         

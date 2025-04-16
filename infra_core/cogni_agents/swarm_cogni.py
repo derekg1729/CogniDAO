@@ -1,10 +1,12 @@
 import asyncio
 from typing import Dict, Any, Optional
+from pathlib import Path
 
 from autogen import AssistantAgent, UserProxyAgent, GroupChat, GroupChatManager
 from infra_core.tools.format_as_json_tool import format_as_json_tool, format_as_json
+from infra_core.cogni_agents.base import CogniAgent
 
-class CogniSwarmAgent:
+class CogniSwarmAgent(CogniAgent):
     def __init__(
         self,
         name: str = "SwarmCogni",
@@ -14,10 +16,14 @@ class CogniSwarmAgent:
         project_root_override = None,
         openai_api_key: Optional[str] = None
     ):
-        self.name = name
-        self.agent_root = agent_root
-        self.memory = memory
-        self.project_root_override = project_root_override
+        # Call parent constructor with the required parameters
+        super().__init__(
+            name=name, 
+            spirit_path=spirit_path or Path("infra_core/cogni_spirit/spirits/swarm-cogni.md"), 
+            agent_root=agent_root, 
+            memory=memory, 
+            project_root_override=project_root_override
+        )
         self.openai_api_key = openai_api_key
         self.swarm = self._build_swarm()
 
@@ -68,17 +74,17 @@ class CogniSwarmAgent:
             return {"thought": thought}
         return {"thought": "Reflect on a meaningful thought."}
 
-    def record_action(self, output: Dict[str, Any], prefix: str = "") -> None:
-        """Record action to memory if memory is available."""
-        if self.memory and hasattr(self.memory, 'log_decision'):
-            try:
-                self.memory.log_decision({
-                    "agent_name": self.name, 
-                    "action_type": prefix, 
-                    "output": output
-                })
-            except Exception as e:
-                print(f"Error logging decision: {e}")
+    # def record_action(self, output: Dict[str, Any], prefix: str = "") -> None:
+    #     """Record action to memory if memory is available."""
+    #     if self.memory and hasattr(self.memory, 'log_decision'):
+    #         try:
+    #             self.memory.log_decision({
+    #                 "agent_name": self.name, 
+    #                 "action_type": prefix, 
+    #                 "output": output
+    #             })
+    #         except Exception as e:
+    #             print(f"Error logging decision: {e}")
 
     async def a_act(self, prepared_input: Dict[str, Any]) -> Dict[str, Any]:
         """Process input and return results in the expected format."""
@@ -103,6 +109,9 @@ class CogniSwarmAgent:
             "raw_result": all_messages,
             "thought_content": thought
         }
+        
+        # Record the result to memory before returning
+        self.record_action(result, prefix="swarm_reflection")
         
         return result
 
