@@ -15,51 +15,96 @@ def add_to_broadcast_queue(
     scheduled_time: Annotated[Optional[str], "ISO format datetime for scheduled broadcast (leave empty for 'as soon as possible')"] = None
 ) -> str:
     """
-    Adds an item to the broadcast queue using the memory bank infrastructure.
-    
-    Items are stored in a dedicated project/session in the memory bank for later processing
-    by a broadcast flow (e.g., to Twitter).
+    Adds an item to the broadcast queue with structured state, markdown page, and audit log.
     """
     try:
-        # 1. Prepare queue item data
+        timestamp = datetime.utcnow().isoformat()
+        queue_id = f"bq-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+
+        # 1. Prepare core item data
         queue_item = {
+            "queue_id": queue_id,
             "content": content,
             "source": source,
             "priority": priority,
             "status": "pending",
-            "creation_time": datetime.utcnow().isoformat(),
-            "scheduled_time": scheduled_time if scheduled_time else "asap",
-            "queue_id": f"bq-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+            "creation_time": timestamp,
+            "scheduled_time": scheduled_time if scheduled_time else "asap"
         }
-        
-        # 2. Set up access to the broadcast queue memory bank
+
+        # 2. Set up memory bank
         memory_bank_root = Path(MEMORY_BANKS_ROOT)
         queue_bank = CogniMemoryBank(
             memory_bank_root=memory_bank_root,
-            project_name="broadcast",
-            session_id="queue"
+            project_name="broadcast_queue",  # Changed to match dir structure
+            session_id="main"
         )
-        
-        # 3. Save the queue item with a unique filename
-        item_filename = f"queue_item_{queue_item['queue_id']}.json"
-        queue_bank.write_context(item_filename, json.dumps(queue_item, indent=2), is_json=False)
-        
-        # 4. Log the queue addition to decisions.jsonl
-        queue_bank.log_decision({
+
+        # 3. Ensure directories exist
+        for subdir in ["state", "pages", "log"]:
+            queue_bank_dir = memory_bank_root / "broadcast_queue" / "main" / subdir
+            queue_bank_dir.mkdir(parents=True, exist_ok=True)
+
+        # 4. Save to state/ as .json
+        state_filename = f"state/{queue_id}.json"
+        queue_bank.write_context(state_filename, queue_item, is_json=True)
+
+        # 5. Save to pages/ as .md for Logseq approval
+        page_content = f"""title:: 📨 Pending Broadcast: {queue_id}
+tags:: #broadcast_queue #pending #review
+type:: {source}
+priority:: {priority}
+status:: pending
+created:: {timestamp}
+source:: {source}
+scheduled:: {scheduled_time or 'asap'}
+
+---
+
+## ✨ Content
+
+"{content}"
+
+---
+
+## ✅ Approval
+
+- [ ] Approved for broadcast
+- [ ] Needs revision
+- Notes::
+"""
+        page_filename = f"pages/{queue_id}.md"
+        queue_bank.write_context(page_filename, page_content, is_json=False)
+
+        # 6. Log to .jsonl audit file in log directory
+        log_entry = {
+            "timestamp": timestamp,
             "action_type": "queue_addition",
-            "queue_id": queue_item["queue_id"],
+            "queue_id": queue_id,
             "content_preview": content[:50] + "..." if len(content) > 50 else content,
             "status": "pending"
-        })
+        }
         
-        # 5. Return confirmation with queue_id
+        # Use log_decision which writes to decisions.jsonl
+        queue_bank.log_decision(log_entry)
+        
+        # Also write to broadcast_queue.jsonl in the log directory for specialized access
+        log_dir_path = memory_bank_root / "broadcast_queue" / "main" / "log"
+        log_file_path = log_dir_path / "broadcast_queue.jsonl"
+        
+        # Append to broadcast_queue.jsonl
+        with open(log_file_path, "a") as f:
+            f.write(json.dumps(log_entry) + "\n")
+
+        # 7. Return confirmation
         result = {
             "status": "success",
-            "queue_id": queue_item["queue_id"],
-            "message": f"Added to broadcast queue with ID: {queue_item['queue_id']}",
+            "queue_id": queue_id,
+            "message": f"Added to broadcast queue with ID: {queue_id}",
+            "page_path": str(memory_bank_root / "broadcast_queue" / "main" / page_filename)
         }
         return json.dumps(result, indent=2)
-        
+
     except Exception as e:
         error_result = {
             "status": "error",
@@ -69,7 +114,7 @@ def add_to_broadcast_queue(
 
 add_to_broadcast_queue_tool = FunctionTool(
     func=add_to_broadcast_queue,
-    description="Adds content to the broadcast queue for later distribution to social media or other channels."
+    description="Adds content to the broadcast queue for later distribution to social media or other channels. Creates a human-reviewable markdown file."
 )
 
 # Fix schema for OpenAI by adding type field

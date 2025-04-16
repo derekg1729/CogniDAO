@@ -69,14 +69,17 @@ class CogniSwarmAgent(CogniAgent):
                 "Your job is to review the given reflection and decide if it is suitable for broadcast.\n"
                 "\n"
                 "### RULES:\n"
-                "- If the reflection is **clear, empowering, and aligned with the mission**, you must:\n"
-                "    - Call the tool: `add_to_broadcast_queue(reflection=..., tags=[...])`\n"
-                "    - Then respond only with the word: `TERMINATE`\n"
+                "- If the reflection is **clear, empowering, and aligned with the mission**, you MUST call the add_to_broadcast_queue function with:\n"
+                "    * content - The reflection text to broadcast\n" 
+                "    * source - Set to 'reflection'\n"
+                "    * priority - A number from 1-5 (1 highest, 5 lowest) based on importance\n"
+                "    * Example function call format: add_to_broadcast_queue(content=\"The reflection text\", source=\"reflection\", priority=2)\n"
+                "    * After calling the function, say TERMINATE\n"
                 "- If the reflection is **not** suitable:\n"
                 "    - Suggest an improvement in natural language\n"
-                "    - Do NOT call any tools\n"
+                "    - Do NOT call any functions\n"
                 "\n"
-                "Make your decision clearly. Never call the tool if the reflection is not ready.\n"
+                "Important: You MUST use the exact function name and parameter names as shown in the example.\n"
             ),
             llm_config=tool_agent_llm_config
         )
@@ -92,7 +95,7 @@ class CogniSwarmAgent(CogniAgent):
             function_map=function_map  # Register the functions in the map
         )
 
-        groupchat = GroupChat(agents=[user_proxy, reflector, curator], messages=[], max_round=5)
+        groupchat = GroupChat(agents=[user_proxy, reflector, curator], messages=[], max_round=10)
         manager = GroupChatManager(groupchat=groupchat, llm_config=base_llm_config)
 
         return {"user_proxy": user_proxy, "manager": manager}
