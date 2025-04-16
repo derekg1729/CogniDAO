@@ -1,0 +1,13 @@
+{
+  "timestamp": "2025-04-16T06:06:56.803316",
+  "posts_processed": 1,
+  "successful_posts": 1,
+  "results": [
+    {
+      "success": true,
+      "queue_id": "bq-20250416042947",
+      "post_id": "mock-568507068",
+      "post_url": "https://x.com/cogni/status/mock-568507068"
+    }
+  ]
+}

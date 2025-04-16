@@ -7,33 +7,76 @@ import os
 import json
 import logging
 from typing import Dict, Any, Optional
+from datetime import datetime
 
-# Placeholder for actual X API library (tweepy or equivalent)
+# Import tweepy library for X API integration
+import tweepy
+from prefect.blocks.system import Secret
 
 class XChannel:
     """
     X channel implementation for the BroadcastCogni system
     """
     
-    def __init__(self, credentials_path: Optional[str] = None):
+    def __init__(self, credentials_path: Optional[str] = None, simulation_mode: bool = True):
         """
         Initialize the X channel with credentials
         
         Args:
             credentials_path: Path to credentials JSON file (optional)
+            simulation_mode: If True, simulates posting instead of actual API calls
         """
         self.logger = logging.getLogger("XChannel")
+        self.simulation_mode = simulation_mode
         
         # Set default credentials path if not provided
-        if not credentials_path:
-            credentials_path = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)),
-                "../../../../../.secrets/x_credentials.json"
-            )
+        if not simulation_mode and credentials_path:
+            self.logger.info(f"Using credentials from file: {credentials_path}")
+            self.credentials_path = credentials_path
+            self.credentials_source = "file"
+        else:
+            self.credentials_path = None
+            self.credentials_source = "prefect" if not simulation_mode else "simulation"
         
-        self.credentials_path = credentials_path
         self.credentials = None
         self.client = None
+        
+        self.logger.info(f"Initialized XChannel (simulation_mode={simulation_mode}, credentials_source={self.credentials_source})")
+        
+    async def _load_prefect_secrets(self) -> Dict[str, str]:
+        """
+        Load X API credentials from Prefect Secret
+        
+        Returns:
+            dict: Credentials dictionary
+        """
+        try:
+            self.logger.info("Loading X API credentials from Prefect Secret block")
+            
+            # Load single JSON secret containing all credentials
+            x_credentials_block = await Secret.load("x-credentials")
+            x_credentials_value = x_credentials_block.get()
+            
+            # Handle different types of secrets
+            if isinstance(x_credentials_value, dict):
+                # Already a dictionary
+                self.logger.info("Using credentials dict from Prefect Secret")
+                credentials = x_credentials_value
+            else:
+                # Try to parse as JSON
+                try:
+                    self.logger.info("Parsing JSON credentials from Prefect Secret")
+                    credentials = json.loads(x_credentials_value)
+                except (json.JSONDecodeError, TypeError):
+                    self.logger.error("Failed to parse X credentials from Secret value")
+                    raise ValueError("Invalid format in x-credentials secret, expected JSON or dict")
+            
+            self.logger.info("Successfully loaded X credentials from Prefect Secret")
+            return credentials
+            
+        except Exception as e:
+            self.logger.error(f"Error loading X API credentials from Prefect Secret: {str(e)}")
+            raise
         
     def authenticate(self) -> bool:
         """
@@ -42,13 +85,25 @@ class XChannel:
         Returns:
             bool: True if authentication successful, False otherwise
         """
+        if self.simulation_mode:
+            self.logger.info("X API client authenticated (simulation mode)")
+            return True
+            
         try:
-            if not os.path.exists(self.credentials_path):
-                self.logger.error(f"Credentials file not found: {self.credentials_path}")
-                return False
-                
-            with open(self.credentials_path, 'r') as f:
-                self.credentials = json.load(f)
+            # Determine which credentials source to use
+            if self.credentials_source == "file":
+                if not os.path.exists(self.credentials_path):
+                    self.logger.error(f"Credentials file not found: {self.credentials_path}")
+                    return False
+                    
+                with open(self.credentials_path, 'r') as f:
+                    self.credentials = json.load(f)
+            else:
+                # For Prefect, this will be handled in an async context
+                # For synchronous usage, fall back to simulation
+                self.logger.warning("Prefect Secret blocks require async context, falling back to simulation mode")
+                self.simulation_mode = True
+                return True
                 
             # Validate credentials
             required_keys = ['api_key', 'api_secret', 'access_token', 'access_token_secret']
@@ -57,10 +112,67 @@ class XChannel:
                     self.logger.error(f"Missing required credential: {key}")
                     return False
             
-            # This is a placeholder for actual API client initialization
-            # In the real implementation, replace with tweepy or other library init
+            # Initialize tweepy client
+            self.client = tweepy.Client(
+                consumer_key=self.credentials["api_key"],
+                consumer_secret=self.credentials["api_secret"],
+                access_token=self.credentials["access_token"],
+                access_token_secret=self.credentials["access_token_secret"]
+            )
+            
+            # Verify credentials
+            self.logger.info("Verifying X API credentials")
+            user = self.client.get_me()
+            if user.data:
+                self.logger.info(f"Authenticated as X user: {user.data.username}")
+                return True
+            else:
+                self.logger.error("Failed to verify X credentials")
+                return False
+            
+        except Exception as e:
+            self.logger.error(f"Error authenticating with X API: {str(e)}")
+            return False
+    
+    async def async_authenticate(self) -> bool:
+        """
+        Authenticate with X API using Prefect Secret blocks (async version)
+        
+        Returns:
+            bool: True if authentication successful, False otherwise
+        """
+        if self.simulation_mode:
             self.logger.info("X API client authenticated (simulation mode)")
             return True
+            
+        try:
+            # Load credentials from Prefect Secret block
+            self.credentials = await self._load_prefect_secrets()
+                
+            # Validate credentials
+            required_keys = ['api_key', 'api_secret', 'access_token', 'access_token_secret']
+            for key in required_keys:
+                if key not in self.credentials:
+                    self.logger.error(f"Missing required credential: {key}")
+                    return False
+            
+            # Initialize tweepy client
+            self.client = tweepy.Client(
+                consumer_key=self.credentials["api_key"],
+                consumer_secret=self.credentials["api_secret"],
+                access_token=self.credentials["access_token"],
+                access_token_secret=self.credentials["access_token_secret"]
+            )
+            
+            # Verify credentials
+            self.logger.info("Verifying X API credentials")
+            user = self.client.get_me()
+            if user.data:
+                self.logger.info(f"Authenticated as X user: {user.data.username}")
+                return True
+            else:
+                self.logger.error("Failed to verify X credentials")
+                return False
             
         except Exception as e:
             self.logger.error(f"Error authenticating with X API: {str(e)}")
@@ -104,20 +216,53 @@ class XChannel:
             }
             
         try:
-            # This is a placeholder for actual API call
-            # In the real implementation, replace with tweepy or other library call
-            self.logger.info(f"Would post to X: {content}")
+            # Simulation mode
+            if self.simulation_mode:
+                self.logger.info(f"[SIMULATION] Would post to X: {content}")
+                
+                # Simulate successful response
+                response = {
+                    'success': True,
+                    'id': f"mock-{hash(content) % 1000000000}",
+                    'text': content,
+                    'created_at': datetime.utcnow().isoformat(),
+                    'url': f"https://x.com/cogni/status/mock-{hash(content) % 1000000000}"
+                }
+                
+                return response
             
-            # Simulate successful response
-            response = {
-                'success': True,
-                'id': f"mock-{hash(content) % 1000000000}",
-                'text': content,
-                'created_at': '2025-04-12T14:30:00Z',
-                'url': f"https://x.com/cogni/status/mock-{hash(content) % 1000000000}"
-            }
+            # Real API call with tweepy
+            if not self.client:
+                return {
+                    'success': False,
+                    'error': "Not authenticated. Call authenticate() first."
+                }
+                
+            # Post tweet using tweepy
+            self.logger.info(f"Posting to X: {content}")
+            tweet = self.client.create_tweet(text=content)
             
-            return response
+            # Handle tweepy response
+            if tweet.data:
+                tweet_id = tweet.data['id']
+                self.logger.info(f"Successfully posted to X with ID: {tweet_id}")
+                
+                # Construct response
+                response = {
+                    'success': True,
+                    'id': str(tweet_id),
+                    'text': content,
+                    'created_at': datetime.utcnow().isoformat(),
+                    'url': f"https://x.com/status/{tweet_id}"
+                }
+                
+                return response
+            else:
+                self.logger.error("Failed to post to X: Empty response")
+                return {
+                    'success': False,
+                    'error': "Failed to post: Empty response from X API"
+                }
             
         except Exception as e:
             self.logger.error(f"Error posting to X: {str(e)}")
@@ -136,11 +281,47 @@ class XChannel:
         Returns:
             dict: Status information
         """
-        # Placeholder implementation
-        return {
-            'exists': True,
-            'status': 'active'
-        }
+        if self.simulation_mode or post_id.startswith("mock-"):
+            # Simulation mode response
+            self.logger.info(f"[SIMULATION] Getting status for post: {post_id}")
+            return {
+                'exists': True,
+                'status': 'active'
+            }
+            
+        try:
+            if not self.client:
+                return {
+                    'exists': False,
+                    'error': "Not authenticated. Call authenticate() first."
+                }
+                
+            # Get tweet info
+            tweet = self.client.get_tweet(id=post_id)
+            
+            if tweet.data:
+                return {
+                    'exists': True,
+                    'status': 'active',
+                    'data': tweet.data
+                }
+            else:
+                return {
+                    'exists': False,
+                    'status': 'not_found'
+                }
+                
+        except tweepy.errors.NotFound:
+            return {
+                'exists': False,
+                'status': 'not_found'
+            }
+        except Exception as e:
+            self.logger.error(f"Error getting status for post {post_id}: {str(e)}")
+            return {
+                'exists': False,
+                'error': str(e)
+            }
 
 # Example usage
 if __name__ == "__main__":
@@ -151,7 +332,7 @@ if __name__ == "__main__":
     )
     
     # Test the channel
-    channel = XChannel()
+    channel = XChannel(simulation_mode=True)
     if channel.authenticate():
         response = channel.publish("This is a test post from BroadcastCogni")
         print(json.dumps(response, indent=2)) 
