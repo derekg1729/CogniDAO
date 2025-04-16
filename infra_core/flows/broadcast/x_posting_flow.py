@@ -34,6 +34,8 @@ from infra_core.tools.broadcast_queue_fetch_tool import (
     fetch_from_broadcast_queue, 
     update_broadcast_queue_item
 )
+from infra_core.tools.broadcast_queue_update_tool import update_broadcast_queue_status
+from infra_core.constants import BROADCAST_QUEUE_PROJECT, BROADCAST_QUEUE_SESSION
 
 @flow
 def auth_test_flow(credentials_path: Optional[str] = None) -> Dict[str, Any]:
@@ -228,6 +230,121 @@ def post_to_x(post_item: Dict[str, Any], channel: BroadcastChannel) -> Dict[str,
         "post_url": result.get("url")
     }
 
+@task
+def update_queue_status() -> Dict[str, Any]:
+    """
+    Updates broadcast queue items based on approval status in markdown files
+    
+    Returns:
+        Dictionary with update results
+    """
+    logger = get_run_logger()
+    logger.info("Scanning broadcast queue files for approval status updates")
+    
+    # Run the update tool to scan all items
+    result_json = update_broadcast_queue_status(scan_all=True)
+    
+    # Parse the JSON result
+    result = json.loads(result_json)
+    
+    if result.get("status") != "success":
+        logger.error(f"Failed to update queue status: {result.get('message')}")
+    else:
+        logger.info(f"Updated {len(result.get('updates', []))} queue items")
+        
+        # Log the specific updates
+        for update in result.get("updates", []):
+            logger.info(f"Updated {update.get('queue_id')} to status: {update.get('new_status')}")
+    
+    return result
+
+@task
+def filter_already_posted(approved_posts: List[Dict[str, Any]], flow_memory_bank: CogniMemoryBank) -> List[Dict[str, Any]]:
+    """
+    Filters out posts that have already been successfully posted by checking flow history
+    
+    Args:
+        approved_posts: List of approved posts from the queue
+        flow_memory_bank: Memory bank to check for past posts
+        
+    Returns:
+        Filtered list of posts that haven't been posted yet
+    """
+    logger = get_run_logger()
+    
+    if not approved_posts:
+        return []
+    
+    # Get post IDs from the current batch
+    current_queue_ids = [post.get("queue_id") for post in approved_posts]
+    logger.info(f"Found {len(current_queue_ids)} approved posts: {', '.join(current_queue_ids)}")
+    
+    # Get project path and broadcast queue state path for checking posted items
+    broadcast_queue_state_path = Path(MEMORY_BANKS_ROOT) / BROADCAST_QUEUE_PROJECT / BROADCAST_QUEUE_SESSION / "state"
+    flow_progress_path = Path(flow_memory_bank._get_session_path()) / "progress.json"
+    already_posted_ids = set()
+    
+    # First method: Check items directly in the broadcast queue state files
+    try:
+        if broadcast_queue_state_path.exists():
+            # Find all state files
+            state_files = list(broadcast_queue_state_path.glob("*.json"))
+            for state_file in state_files:
+                try:
+                    with open(state_file, 'r') as f:
+                        state_data = json.load(f)
+                    
+                    # If this item has already been posted, add it to our filter set
+                    if state_data.get("status") == "posted":
+                        already_posted_ids.add(state_data.get("queue_id", state_file.stem))
+                except Exception as e:
+                    logger.warning(f"Could not read state file {state_file}: {e}")
+                    
+            logger.info(f"Found {len(already_posted_ids)} already posted items from state files")
+    except Exception as e:
+        logger.warning(f"Could not check broadcast queue state files: {e}")
+        
+    # Second method: Also check the flow's progress file for items that were successfully posted
+    try:
+        if flow_progress_path.exists():
+            with open(flow_progress_path, 'r') as f:
+                progress_data = json.load(f)
+                
+            # Handle both array format and single object format
+            if isinstance(progress_data, list):
+                # Array format
+                for entry in progress_data:
+                    if isinstance(entry, dict) and "results" in entry:
+                        for result in entry.get("results", []):
+                            if isinstance(result, dict) and result.get("success") and result.get("queue_id"):
+                                already_posted_ids.add(result.get("queue_id"))
+            elif isinstance(progress_data, dict) and "results" in progress_data:
+                # Single object format
+                for result in progress_data.get("results", []):
+                    if isinstance(result, dict) and result.get("success") and result.get("queue_id"):
+                        already_posted_ids.add(result.get("queue_id"))
+                            
+            logger.info(f"Found a total of {len(already_posted_ids)} previously posted items (including from progress history)")
+    except Exception as e:
+        logger.warning(f"Could not read flow progress file: {e}")
+    
+    # Filter out posts that have already been successfully processed
+    filtered_posts = [
+        post for post in approved_posts 
+        if post.get("queue_id") not in already_posted_ids
+    ]
+    
+    skipped_ids = set(current_queue_ids) - {post.get("queue_id") for post in filtered_posts}
+    if skipped_ids:
+        logger.info(f"Skipping {len(skipped_ids)} already posted items: {', '.join(skipped_ids)}")
+    
+    if filtered_posts:
+        logger.info(f"Processing {len(filtered_posts)} new approved posts")
+    else:
+        logger.info("No new approved posts to process")
+        
+    return filtered_posts
+
 @flow
 def x_posting_flow(
     post_limit: int = 5,
@@ -266,18 +383,20 @@ def x_posting_flow(
     
     # Initialize memory bank for flow state tracking
     flow_project_name = "broadcast_x_posting"
-    flow_session_id = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
     
     memory_root = Path(MEMORY_BANKS_ROOT)
     memory_root.mkdir(parents=True, exist_ok=True)
     
     flow_memory_bank = CogniMemoryBank(
         memory_bank_root=memory_root,
-        project_name=f"flows/{flow_project_name}",
-        session_id=flow_session_id
+        project_name=f"{BROADCAST_QUEUE_PROJECT}",
+        session_id=f"{BROADCAST_QUEUE_SESSION}"  # Use fixed session ID for unified memory
     )
     
-    # Get approved posts
+    # Step 1: Update queue status from markdown files
+    update_queue_status()
+    
+    # Step 2: Get approved posts
     approved_posts = get_approved_posts(limit=post_limit)
     
     if not approved_posts:
@@ -289,11 +408,14 @@ def x_posting_flow(
             "message": "No approved posts found"
         }
     
+    # Filter out already posted items
+    filtered_posts = filter_already_posted(approved_posts=approved_posts, flow_memory_bank=flow_memory_bank)
+    
     # Process each post
     results = []
     successful_posts = 0
     
-    for post_item in approved_posts:
+    for post_item in filtered_posts:
         result = post_to_x(post_item=post_item, channel=x_channel)
         results.append(result)
         
@@ -301,24 +423,26 @@ def x_posting_flow(
             successful_posts += 1
     
     # Log overall results
-    logger.info(f"Posted {successful_posts}/{len(approved_posts)} items to X")
+    logger.info(f"Posted {successful_posts}/{len(filtered_posts)} items to X")
     
     # Update flow progress
     flow_memory_bank.update_progress({
         "timestamp": datetime.utcnow().isoformat(),
-        "posts_processed": len(approved_posts),
+        "posts_processed": len(filtered_posts),
         "successful_posts": successful_posts,
         "results": results
     })
+    
+    logger.info(f"Progress updated in unified memory bank: flows/{flow_project_name}/main")
     
     # Return summary
     return {
         "status": "success",
         "simulation_mode": simulation_mode,
-        "posts_processed": len(approved_posts),
+        "posts_processed": len(filtered_posts),
         "successful_posts": successful_posts,
         "results": results,
-        "message": f"Posted {successful_posts}/{len(approved_posts)} items to X"
+        "message": f"Posted {successful_posts}/{len(filtered_posts)} items to X"
     }
 
 @flow
@@ -356,9 +480,8 @@ async def async_x_posting_flow(
     logger.info("X authentication successful")
     logger.info(f"Auth result details: {auth_result}")
     
-    # Initialize memory bank for flow state tracking
+    # Initialize memory bank for flow state tracking (for async flow)
     flow_project_name = "broadcast_x_posting"
-    flow_session_id = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
     
     memory_root = Path(MEMORY_BANKS_ROOT)
     memory_root.mkdir(parents=True, exist_ok=True)
@@ -366,10 +489,13 @@ async def async_x_posting_flow(
     flow_memory_bank = CogniMemoryBank(
         memory_bank_root=memory_root,
         project_name=f"flows/{flow_project_name}",
-        session_id=flow_session_id
+        session_id="main"  # Use fixed session ID for unified memory
     )
     
-    # Get approved posts (run synchronously within async flow)
+    # Step 1: Update queue status from markdown files
+    update_queue_status()
+    
+    # Step 2: Get approved posts
     approved_posts = get_approved_posts(limit=post_limit)
     
     if not approved_posts:
@@ -381,11 +507,14 @@ async def async_x_posting_flow(
             "message": "No approved posts found"
         }
     
+    # Filter out already posted items
+    filtered_posts = filter_already_posted(approved_posts=approved_posts, flow_memory_bank=flow_memory_bank)
+    
     # Process each post
     results = []
     successful_posts = 0
     
-    for post_item in approved_posts:
+    for post_item in filtered_posts:
         result = post_to_x(post_item=post_item, channel=x_channel)
         results.append(result)
         
@@ -393,24 +522,26 @@ async def async_x_posting_flow(
             successful_posts += 1
     
     # Log overall results
-    logger.info(f"Posted {successful_posts}/{len(approved_posts)} items to X")
+    logger.info(f"Posted {successful_posts}/{len(filtered_posts)} items to X")
     
     # Update flow progress
     flow_memory_bank.update_progress({
         "timestamp": datetime.utcnow().isoformat(),
-        "posts_processed": len(approved_posts),
+        "posts_processed": len(filtered_posts),
         "successful_posts": successful_posts,
         "results": results
     })
+    
+    logger.info(f"Progress updated in unified memory bank: flows/{flow_project_name}/main")
     
     # Return summary
     return {
         "status": "success",
         "simulation_mode": simulation_mode,
-        "posts_processed": len(approved_posts),
+        "posts_processed": len(filtered_posts),
         "successful_posts": successful_posts,
         "results": results,
-        "message": f"Posted {successful_posts}/{len(approved_posts)} items to X"
+        "message": f"Posted {successful_posts}/{len(filtered_posts)} items to X"
     }
 
 if __name__ == "__main__":

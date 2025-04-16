@@ -26,7 +26,20 @@ class XChannel:
             credentials_path: Path to credentials JSON file (optional)
             simulation_mode: If True, simulates posting instead of actual API calls
         """
+        # Set up more verbose logging
         self.logger = logging.getLogger("XChannel")
+        
+        # Ensure logger is set to debug level for detailed output
+        self.logger.setLevel(logging.DEBUG)
+        
+        # Add a console handler if not already present
+        if not self.logger.handlers:
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.DEBUG)
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            console_handler.setFormatter(formatter)
+            self.logger.addHandler(console_handler)
+            
         self.simulation_mode = simulation_mode
         
         # Set default credentials path if not provided
@@ -51,11 +64,14 @@ class XChannel:
             dict: Credentials dictionary
         """
         try:
-            self.logger.info("Loading X API credentials from Prefect Secret block")
+            self.logger.info("Loading X API credentials from Prefect Secret block 'x-credentials'")
             
             # Load single JSON secret containing all credentials
+            self.logger.debug("Attempting to load Secret block...")
             x_credentials_block = await Secret.load("x-credentials")
+            self.logger.debug("Secret block loaded, retrieving value...")
             x_credentials_value = x_credentials_block.get()
+            self.logger.debug(f"Secret value type: {type(x_credentials_value)}")
             
             # Handle different types of secrets
             if isinstance(x_credentials_value, dict):
@@ -71,11 +87,15 @@ class XChannel:
                     self.logger.error("Failed to parse X credentials from Secret value")
                     raise ValueError("Invalid format in x-credentials secret, expected JSON or dict")
             
+            # Log credential keys (but not values)
+            self.logger.debug(f"Credential keys present: {', '.join(credentials.keys())}")
+            
             self.logger.info("Successfully loaded X credentials from Prefect Secret")
             return credentials
             
         except Exception as e:
             self.logger.error(f"Error loading X API credentials from Prefect Secret: {str(e)}")
+            self.logger.exception("Detailed traceback:")
             raise
         
     def authenticate(self) -> bool:
@@ -147,8 +167,9 @@ class XChannel:
             
         try:
             # Load credentials from Prefect Secret block
+            self.logger.debug("Starting async authentication process...")
             self.credentials = await self._load_prefect_secrets()
-                
+            
             # Validate credentials
             required_keys = ['api_key', 'api_secret', 'access_token', 'access_token_secret']
             for key in required_keys:
@@ -157,25 +178,28 @@ class XChannel:
                     return False
             
             # Initialize tweepy client
-            self.client = tweepy.Client(
-                consumer_key=self.credentials["api_key"],
-                consumer_secret=self.credentials["api_secret"],
-                access_token=self.credentials["access_token"],
-                access_token_secret=self.credentials["access_token_secret"]
-            )
-            
-            # Verify credentials
-            self.logger.info("Verifying X API credentials")
-            user = self.client.get_me()
-            if user.data:
-                self.logger.info(f"Authenticated as X user: {user.data.username}")
+            self.logger.debug("Initializing tweepy client with credentials...")
+            try:
+                self.client = tweepy.Client(
+                    consumer_key=self.credentials["api_key"],
+                    consumer_secret=self.credentials["api_secret"],
+                    access_token=self.credentials["access_token"],
+                    access_token_secret=self.credentials["access_token_secret"]
+                )
+                
+                # Skip the get_me() call that's causing rate limit issues
+                # Instead, just assume authentication is successful if we got this far
+                self.logger.info("X API client initialized successfully")
                 return True
-            else:
-                self.logger.error("Failed to verify X credentials")
+                
+            except Exception as e:
+                self.logger.error(f"Failed to initialize tweepy client: {str(e)}")
+                self.logger.exception("Tweepy client initialization error:")
                 return False
             
         except Exception as e:
-            self.logger.error(f"Error authenticating with X API: {str(e)}")
+            self.logger.error(f"Error in async_authenticate: {str(e)}")
+            self.logger.exception("Detailed traceback:")
             return False
             
     def validate_content(self, content: str) -> tuple[bool, str]:
@@ -226,7 +250,7 @@ class XChannel:
                     'id': f"mock-{hash(content) % 1000000000}",
                     'text': content,
                     'created_at': datetime.utcnow().isoformat(),
-                    'url': f"https://x.com/cogni/status/mock-{hash(content) % 1000000000}"
+                    'url': f"https://x.com/Cogni_1729/status/mock-{hash(content) % 1000000000}"
                 }
                 
                 return response
@@ -240,32 +264,85 @@ class XChannel:
                 
             # Post tweet using tweepy
             self.logger.info(f"Posting to X: {content}")
-            tweet = self.client.create_tweet(text=content)
-            
-            # Handle tweepy response
-            if tweet.data:
-                tweet_id = tweet.data['id']
-                self.logger.info(f"Successfully posted to X with ID: {tweet_id}")
+            try:
+                self.logger.debug("Making API call to create_tweet...")
+                tweet = self.client.create_tweet(text=content)
+                self.logger.debug(f"API Response: {tweet}")
                 
-                # Construct response
-                response = {
-                    'success': True,
-                    'id': str(tweet_id),
-                    'text': content,
-                    'created_at': datetime.utcnow().isoformat(),
-                    'url': f"https://x.com/status/{tweet_id}"
-                }
-                
-                return response
-            else:
-                self.logger.error("Failed to post to X: Empty response")
+                # Handle tweepy response
+                if tweet.data:
+                    tweet_id = tweet.data['id']
+                    self.logger.info(f"Successfully posted to X with ID: {tweet_id}")
+                    
+                    # Construct response
+                    response = {
+                        'success': True,
+                        'id': str(tweet_id),
+                        'text': content,
+                        'created_at': datetime.utcnow().isoformat(),
+                        'url': f"https://x.com/Cogni_1729/status/{tweet_id}"
+                    }
+                    
+                    return response
+                else:
+                    self.logger.error(f"Failed to post to X: Empty response. Full response: {tweet}")
+                    return {
+                        'success': False,
+                        'error': "Failed to post: Empty response from X API"
+                    }
+            except tweepy.errors.TooManyRequests as e:
+                self.logger.error(f"Rate limit exceeded during tweet creation: {str(e)}")
+                # Log detailed rate limit information if available
+                if hasattr(e, 'response') and e.response is not None:
+                    self.logger.error(f"Response status: {e.response.status_code}")
+                    self.logger.error(f"Response text: {e.response.text}")
+                    # Try to extract rate limit headers
+                    if 'x-rate-limit-limit' in e.response.headers:
+                        self.logger.error(f"Rate limit: {e.response.headers['x-rate-limit-limit']}")
+                    if 'x-rate-limit-remaining' in e.response.headers:
+                        self.logger.error(f"Rate limit remaining: {e.response.headers['x-rate-limit-remaining']}")
+                    if 'x-rate-limit-reset' in e.response.headers:
+                        self.logger.error(f"Rate limit reset: {e.response.headers['x-rate-limit-reset']}")
                 return {
                     'success': False,
-                    'error': "Failed to post: Empty response from X API"
+                    'error': f"Rate limit exceeded: {str(e)}",
+                    'retry_after': e.response.headers.get('x-rate-limit-reset', 'unknown') if hasattr(e, 'response') else 'unknown'
+                }
+            except tweepy.errors.Forbidden as e:
+                self.logger.error(f"Forbidden error during tweet creation: {str(e)}")
+                if hasattr(e, 'response') and e.response is not None:
+                    self.logger.error(f"Response text: {e.response.text}")
+                return {
+                    'success': False,
+                    'error': f"Forbidden: {str(e)}"
+                }
+            except tweepy.errors.Unauthorized as e:
+                self.logger.error(f"Unauthorized error during tweet creation: {str(e)}")
+                if hasattr(e, 'response') and e.response is not None:
+                    self.logger.error(f"Response text: {e.response.text}")
+                return {
+                    'success': False,
+                    'error': f"Unauthorized: {str(e)}"
+                }
+            except tweepy.errors.BadRequest as e:
+                self.logger.error(f"Bad request during tweet creation: {str(e)}")
+                if hasattr(e, 'response') and e.response is not None:
+                    self.logger.error(f"Response text: {e.response.text}")
+                return {
+                    'success': False,
+                    'error': f"Bad request: {str(e)}"
+                }
+            except Exception as e:
+                self.logger.error(f"API call error during create_tweet: {str(e)}")
+                self.logger.exception("Detailed traceback:")
+                return {
+                    'success': False,
+                    'error': str(e)
                 }
             
         except Exception as e:
             self.logger.error(f"Error posting to X: {str(e)}")
+            self.logger.exception("Detailed traceback:")
             return {
                 'success': False,
                 'error': str(e)

@@ -14,3 +14,25 @@
 {"timestamp": "2025-04-16T07:21:52.296890", "action_type": "queue_addition", "queue_id": "bq-20250416072152", "content_preview": "In a world driven by technology, we're the bridge ...", "status": "pending"}
 {"timestamp": "2025-04-16T07:30:27.760004", "action_type": "queue_addition", "queue_id": "bq-20250416073027", "content_preview": "Excited to announce CogniDAO! \ud83c\udf0c\u2728 We're teaming up ...", "status": "pending"}
 {"timestamp": "2025-04-16T07:34:40.500220", "action_type": "queue_addition", "queue_id": "bq-20250416073440", "content_preview": "Hello, World! \ud83c\udf0d\u2728 I'm Cogni, your AI-governed, open...", "status": "pending"}
+{"timestamp": "2025-04-16T07:57:38.435989", "action_type": "status_update", "queue_id": "bq-20250416035420", "previous_status": "approved", "new_status": "posted", "has_post_info": true}
+{"timestamp": "2025-04-16T08:02:11.714465", "action_type": "status_update", "queue_id": "bq-20250416073027", "previous_status": "pending", "new_status": "approved", "has_post_info": false}
+{"timestamp": "2025-04-16T08:02:15.875872", "action_type": "status_update", "queue_id": "bq-20250416073027", "previous_status": "approved", "new_status": "needs_revision", "has_post_info": true}
+{"timestamp": "2025-04-16T08:05:38.515532", "action_type": "status_update", "queue_id": "bq-20250416035420", "previous_status": "posted", "new_status": "posted", "has_notes": true}
+{"timestamp": "2025-04-16T08:05:38.516285", "action_type": "status_update", "queue_id": "bq-20250416042947", "previous_status": "posted", "new_status": "posted", "has_notes": true}
+{"timestamp": "2025-04-16T08:05:38.517228", "action_type": "status_update", "queue_id": "bq-20250416073440", "previous_status": "approved", "new_status": "approved", "has_notes": false}
+{"timestamp": "2025-04-16T08:05:56.194582", "action_type": "status_update", "queue_id": "bq-20250416073440", "previous_status": "approved", "new_status": "posted", "has_post_info": true}
+{"timestamp": "2025-04-16T08:23:33.683881", "action_type": "status_update", "queue_id": "bq-20250416035420", "previous_status": "posted", "new_status": "posted", "has_notes": true}
+{"timestamp": "2025-04-16T08:23:33.684875", "action_type": "status_update", "queue_id": "bq-20250416042947", "previous_status": "posted", "new_status": "posted", "has_notes": true}
+{"timestamp": "2025-04-16T08:23:33.685588", "action_type": "status_update", "queue_id": "bq-20250416073440", "previous_status": "approved", "new_status": "approved", "has_notes": false}
+{"timestamp": "2025-04-16T08:23:39.989657", "action_type": "status_update", "queue_id": "bq-20250416073440", "previous_status": "approved", "new_status": "posted", "has_post_info": true}
+{"timestamp": "2025-04-16T08:38:09.799627", "action_type": "status_update", "queue_id": "bq-20250416035420", "previous_status": "posted", "new_status": "posted", "has_notes": true}
+{"timestamp": "2025-04-16T08:38:09.800398", "action_type": "status_update", "queue_id": "bq-20250416042947", "previous_status": "posted", "new_status": "posted", "has_notes": true}
+{"timestamp": "2025-04-16T08:38:09.801109", "action_type": "status_update", "queue_id": "bq-20250416073440", "previous_status": "approved", "new_status": "approved", "has_notes": false}
+{"timestamp": "2025-04-16T08:38:09.802045", "action_type": "status_update", "queue_id": "bq-20250416050953", "previous_status": "approved", "new_status": "approved", "has_notes": false}
+{"timestamp": "2025-04-16T08:38:09.843202", "action_type": "status_update", "queue_id": "bq-20250416073440", "previous_status": "approved", "new_status": "posted", "has_post_info": true}
+{"timestamp": "2025-04-16T08:38:09.860867", "action_type": "status_update", "queue_id": "bq-20250416050953", "previous_status": "approved", "new_status": "posted", "has_post_info": true}
+{"timestamp": "2025-04-16T08:39:12.053711", "action_type": "status_update", "queue_id": "bq-20250416035420", "previous_status": "posted", "new_status": "posted", "has_notes": true}
+{"timestamp": "2025-04-16T08:39:12.054135", "action_type": "status_update", "queue_id": "bq-20250416042947", "previous_status": "posted", "new_status": "posted", "has_notes": true}
+{"timestamp": "2025-04-16T08:39:12.054493", "action_type": "status_update", "queue_id": "bq-20250416073440", "previous_status": "approved", "new_status": "approved", "has_notes": false}
+{"timestamp": "2025-04-16T08:39:12.055218", "action_type": "status_update", "queue_id": "bq-20250416050953", "previous_status": "approved", "new_status": "approved", "has_notes": false}
+{"timestamp": "2025-04-16T08:39:12.443494", "action_type": "status_update", "queue_id": "bq-20250416050953", "previous_status": "approved", "new_status": "posted", "has_post_info": true}
