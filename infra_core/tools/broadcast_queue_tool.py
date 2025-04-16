@@ -6,7 +6,12 @@ from autogen_core.tools import FunctionTool
 from pathlib import Path
 
 from infra_core.memory.memory_bank import CogniMemoryBank
-from infra_core.constants import MEMORY_BANKS_ROOT
+from infra_core.constants import (
+    MEMORY_BANKS_ROOT, 
+    BROADCAST_QUEUE_PROJECT, 
+    BROADCAST_QUEUE_SESSION,
+    BROADCAST_QUEUE_ROOT
+)
 
 def add_to_broadcast_queue(
     content: Annotated[str, "Content to be queued for broadcasting"],
@@ -32,17 +37,17 @@ def add_to_broadcast_queue(
             "scheduled_time": scheduled_time if scheduled_time else "asap"
         }
 
-        # 2. Set up memory bank
+        # 2. Set up memory bank using constants
         memory_bank_root = Path(MEMORY_BANKS_ROOT)
         queue_bank = CogniMemoryBank(
             memory_bank_root=memory_bank_root,
-            project_name="broadcast_queue",  # Changed to match dir structure
-            session_id="main"
+            project_name=BROADCAST_QUEUE_PROJECT,
+            session_id=BROADCAST_QUEUE_SESSION
         )
 
         # 3. Ensure directories exist
         for subdir in ["state", "pages", "log"]:
-            queue_bank_dir = memory_bank_root / "broadcast_queue" / "main" / subdir
+            queue_bank_dir = BROADCAST_QUEUE_ROOT / subdir
             queue_bank_dir.mkdir(parents=True, exist_ok=True)
 
         # 4. Save to state/ as .json
@@ -89,8 +94,7 @@ scheduled:: {scheduled_time or 'asap'}
         queue_bank.log_decision(log_entry)
         
         # Also write to broadcast_queue.jsonl in the log directory for specialized access
-        log_dir_path = memory_bank_root / "broadcast_queue" / "main" / "log"
-        log_file_path = log_dir_path / "broadcast_queue.jsonl"
+        log_file_path = BROADCAST_QUEUE_ROOT / "log" / "broadcast_queue.jsonl"
         
         # Append to broadcast_queue.jsonl
         with open(log_file_path, "a") as f:
@@ -101,7 +105,7 @@ scheduled:: {scheduled_time or 'asap'}
             "status": "success",
             "queue_id": queue_id,
             "message": f"Added to broadcast queue with ID: {queue_id}",
-            "page_path": str(memory_bank_root / "broadcast_queue" / "main" / page_filename)
+            "page_path": str(BROADCAST_QUEUE_ROOT / page_filename)
         }
         return json.dumps(result, indent=2)
 

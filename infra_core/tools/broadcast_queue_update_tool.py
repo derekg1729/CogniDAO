@@ -6,7 +6,12 @@ from typing_extensions import Annotated
 from autogen_core.tools import FunctionTool
 
 from infra_core.memory.memory_bank import CogniMemoryBank
-from infra_core.constants import MEMORY_BANKS_ROOT
+from infra_core.constants import (
+    MEMORY_BANKS_ROOT, 
+    BROADCAST_QUEUE_PROJECT, 
+    BROADCAST_QUEUE_SESSION,
+    BROADCAST_QUEUE_ROOT
+)
 
 def update_broadcast_queue_status(
     scan_all: Annotated[bool, "Whether to scan all items or just pending ones"] = False
@@ -21,18 +26,17 @@ def update_broadcast_queue_status(
     4. Logs changes to the decisions.jsonl and broadcast_queue.jsonl files
     """
     try:
-        # Set up memory bank access
-        memory_bank_root = Path(MEMORY_BANKS_ROOT)
+        # Set up memory bank access using constants
         queue_bank = CogniMemoryBank(
-            memory_bank_root=memory_bank_root,
-            project_name="broadcast_queue",
-            session_id="main"
+            memory_bank_root=Path(MEMORY_BANKS_ROOT),
+            project_name=BROADCAST_QUEUE_PROJECT,
+            session_id=BROADCAST_QUEUE_SESSION
         )
         
-        # Get paths to directories
-        pages_dir = memory_bank_root / "broadcast_queue" / "main" / "pages"
-        state_dir = memory_bank_root / "broadcast_queue" / "main" / "state"
-        log_dir = memory_bank_root / "broadcast_queue" / "main" / "log"
+        # Get paths to directories using the BROADCAST_QUEUE_ROOT constant
+        pages_dir = BROADCAST_QUEUE_ROOT / "pages"
+        state_dir = BROADCAST_QUEUE_ROOT / "state"
+        log_dir = BROADCAST_QUEUE_ROOT / "log"
         
         # Ensure directories exist
         pages_dir.mkdir(parents=True, exist_ok=True)
