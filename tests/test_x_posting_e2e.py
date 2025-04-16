@@ -9,6 +9,7 @@ import json
 import pytest
 from datetime import datetime
 from unittest.mock import patch, MagicMock
+from pathlib import Path
 
 # Ensure parent directory is in path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -122,6 +123,10 @@ class MockMemoryBank:
         # Create session directory 
         self.session_dir = self.project_dir / session_id
         self.session_dir.mkdir(parents=True, exist_ok=True)
+    
+    def _get_session_path(self) -> Path:
+        """Get the base directory path for the current session."""
+        return self.session_dir
     
     def write_context(self, context_id, data, format='text'):
         self.context[context_id] = data

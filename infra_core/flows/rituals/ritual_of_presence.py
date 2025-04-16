@@ -8,7 +8,7 @@ from prefect import task, flow, get_run_logger
 from datetime import datetime
 import os
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import json
 import argparse
 from prefect.blocks.system import Secret
@@ -166,7 +166,7 @@ async def process_with_swarm(initial_thought_content: str, memory_adapter: Cogni
         return {"error": str(e), "output": "[Error during swarm processing]", "raw_result": []}
 
 @flow
-def ritual_of_presence_flow(custom_prompt: str = None):
+def ritual_of_presence_flow(custom_prompt: Optional[str] = None):
     """
     Flow generating an initial thought and using a swarm for reflection.
     
