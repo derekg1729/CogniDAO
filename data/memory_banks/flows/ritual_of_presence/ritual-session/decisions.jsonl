@@ -40,3 +40,5 @@
 {"timestamp": "2025-04-16T03:53:24.698396", "agent_name": "SwarmCogni", "agent_class": "CogniSwarmAgent", "action_type": "swarm_reflection", "markdown_filename": "CogniSwarmAgent_swarm_reflection20250416_035324_698105.md"}
 {"timestamp": "2025-04-16T03:54:19.095806", "agent_name": "core-cogni", "agent_class": "CoreCogniAgent", "action_type": "thought_", "markdown_filename": "CoreCogniAgent_thought_20250416_035419_095518.md"}
 {"timestamp": "2025-04-16T03:54:22.562269", "agent_name": "SwarmCogni", "agent_class": "CogniSwarmAgent", "action_type": "swarm_reflection", "markdown_filename": "CogniSwarmAgent_swarm_reflection20250416_035422_561879.md"}
+{"timestamp": "2025-04-16T04:29:40.139197", "agent_name": "core-cogni", "agent_class": "CoreCogniAgent", "action_type": "thought_", "markdown_filename": "CoreCogniAgent_thought_20250416_042940_138866.md"}
+{"timestamp": "2025-04-16T04:29:48.256123", "agent_name": "SwarmCogni", "agent_class": "CogniSwarmAgent", "action_type": "swarm_reflection", "markdown_filename": "CogniSwarmAgent_swarm_reflection20250416_042948_255924.md"}
