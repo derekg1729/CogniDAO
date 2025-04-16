@@ -59,18 +59,21 @@ def auth_test_flow(credentials_path: Optional[str] = None) -> Dict[str, Any]:
         
         if auth_result:
             logger.info("✓ Authentication successful!")
+            logger.info(f"Auth result details: {auth_result}")
             return {
                 "status": "success",
                 "message": "Authentication successful! Your X credentials are working."
             }
         else:
             logger.error("✗ Authentication failed")
+            logger.error(f"Auth result value: {auth_result}")
             return {
                 "status": "error",
                 "message": "Authentication failed. Check your X credentials."
             }
     except Exception as e:
         logger.error(f"✗ Authentication error: {str(e)}")
+        logger.error(f"Exception type: {type(e).__name__}")
         return {
             "status": "error",
             "message": f"Authentication error: {str(e)}",
@@ -98,18 +101,21 @@ async def async_auth_test_flow() -> Dict[str, Any]:
         
         if auth_result:
             logger.info("✓ Authentication successful!")
+            logger.info(f"Auth result details: {auth_result}")
             return {
                 "status": "success",
                 "message": "Authentication successful! Your X credentials in Prefect Secret are working."
             }
         else:
             logger.error("✗ Authentication failed")
+            logger.error(f"Auth result value: {auth_result}")
             return {
                 "status": "error",
                 "message": "Authentication failed. Check your X credentials in the Prefect 'x-credentials' Secret."
             }
     except Exception as e:
         logger.error(f"✗ Authentication error: {str(e)}")
+        logger.error(f"Exception type: {type(e).__name__}")
         return {
             "status": "error",
             "message": f"Authentication error: {str(e)}",
@@ -246,14 +252,17 @@ def x_posting_flow(
     x_channel = XChannelAdapter(credentials_path=credentials_path, simulation_mode=simulation_mode)
     
     # Authenticate with X
-    if not x_channel.authenticate():
+    auth_result = x_channel.authenticate()
+    if not auth_result:
         logger.error("X authentication failed")
+        logger.error(f"Auth result value: {auth_result}")
         return {
             "status": "error",
             "message": "X authentication failed"
         }
     
     logger.info("X authentication successful")
+    logger.info(f"Auth result details: {auth_result}")
     
     # Initialize memory bank for flow state tracking
     flow_project_name = "broadcast_x_posting"
@@ -335,14 +344,17 @@ async def async_x_posting_flow(
     x_channel = XChannelAdapter(simulation_mode=simulation_mode)
     
     # Authenticate with X using async method
-    if not await x_channel.async_authenticate():
+    auth_result = await x_channel.async_authenticate()
+    if not auth_result:
         logger.error("X authentication failed")
+        logger.error(f"Auth result value: {auth_result}")
         return {
             "status": "error",
             "message": "X authentication failed"
         }
     
     logger.info("X authentication successful")
+    logger.info(f"Auth result details: {auth_result}")
     
     # Initialize memory bank for flow state tracking
     flow_project_name = "broadcast_x_posting"
