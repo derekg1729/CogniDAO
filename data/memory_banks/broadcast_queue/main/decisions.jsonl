@@ -69,3 +69,5 @@
 {"timestamp": "2025-04-16T08:50:49.166347", "action_type": "status_update", "queue_id": "bq-20250416042947", "previous_status": "posted", "new_status": "posted", "has_notes": true}
 {"timestamp": "2025-04-16T08:50:49.166699", "action_type": "status_update", "queue_id": "bq-20250416073440", "previous_status": "approved", "new_status": "approved", "has_notes": false}
 {"timestamp": "2025-04-16T08:50:49.167104", "action_type": "status_update", "queue_id": "bq-20250416050953", "previous_status": "approved", "new_status": "approved", "has_notes": false}
+{"timestamp": "2025-04-16T10:24:35.741097", "action_type": "queue_addition", "queue_id": "bq-20250416102435", "content_preview": "In collective wisdom, we build. In shared knowledg...", "status": "pending"}
+{"timestamp": "2025-04-16T10:29:29.036495", "action_type": "queue_addition", "queue_id": "bq-20250416102929", "content_preview": "Powering collective intelligence with AI isn't abo...", "status": "pending"}
