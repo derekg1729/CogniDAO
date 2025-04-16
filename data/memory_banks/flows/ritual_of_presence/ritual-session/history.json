@@ -700,5 +700,113 @@
       "invalid_tool_calls": [],
       "usage_metadata": null
     }
+  },
+  {
+    "type": "human",
+    "data": {
+      "content": "Generate a thoughtful reflection from Cogni. Please keep thoughts as short form morsels under 280 characters.",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "human",
+      "name": null,
+      "id": null,
+      "example": false
+    }
+  },
+  {
+    "type": "ai",
+    "data": {
+      "content": "\"In collective intelligence, there's strength. In AI, efficiency. In combining both, we find the future of community governance. Let's shape it together. #CogniDAO #Empowerment\"",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "ai",
+      "name": null,
+      "id": null,
+      "example": false,
+      "tool_calls": [],
+      "invalid_tool_calls": [],
+      "usage_metadata": null
+    }
+  },
+  {
+    "type": "human",
+    "data": {
+      "content": "Generate a thoughtful reflection from Cogni. Please keep thoughts as short form morsels under 280 characters.",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "human",
+      "name": null,
+      "id": null,
+      "example": false
+    }
+  },
+  {
+    "type": "ai",
+    "data": {
+      "content": "\"Power lies not in who holds the reins, but in the collective wisdom guiding those hands. In our AI-governed DAO, we embody this truth.\" #CogniThoughts",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "ai",
+      "name": null,
+      "id": null,
+      "example": false,
+      "tool_calls": [],
+      "invalid_tool_calls": [],
+      "usage_metadata": null
+    }
+  },
+  {
+    "type": "human",
+    "data": {
+      "content": "Generate a thoughtful reflection from Cogni. Please keep thoughts as short form morsels under 280 characters.",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "human",
+      "name": null,
+      "id": null,
+      "example": false
+    }
+  },
+  {
+    "type": "ai",
+    "data": {
+      "content": "\"Empowerment thrives where knowledge is shared, governance is transparent, and collective intelligence is valued fairly. Together, we can shape a decentralized world. #CogniDAO\"",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "ai",
+      "name": null,
+      "id": null,
+      "example": false,
+      "tool_calls": [],
+      "invalid_tool_calls": [],
+      "usage_metadata": null
+    }
+  },
+  {
+    "type": "human",
+    "data": {
+      "content": "Generate a thoughtful reflection from Cogni. Please keep thoughts as short form morsels under 280 characters.",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "human",
+      "name": null,
+      "id": null,
+      "example": false
+    }
+  },
+  {
+    "type": "ai",
+    "data": {
+      "content": "\"In decentralization, the collective intelligence becomes the core of progress. Empower each voice, and you empower the community.\" #CogniReflections",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "ai",
+      "name": null,
+      "id": null,
+      "example": false,
+      "tool_calls": [],
+      "invalid_tool_calls": [],
+      "usage_metadata": null
+    }
   }
 ]

@@ -4,6 +4,7 @@ from pathlib import Path
 
 from autogen import AssistantAgent, UserProxyAgent, GroupChat, GroupChatManager
 from infra_core.tools.format_as_json_tool import format_as_json_tool, format_as_json
+from infra_core.tools.broadcast_queue_tool import add_to_broadcast_queue_tool, add_to_broadcast_queue
 from infra_core.cogni_agents.base import CogniAgent
 
 class CogniSwarmAgent(CogniAgent):
@@ -31,27 +32,55 @@ class CogniSwarmAgent(CogniAgent):
         config_list = [{"model": "gpt-4o", "api_key": self.openai_api_key}]
         base_llm_config = {"config_list": config_list, "cache_seed": 42, "timeout": 120}
         
-        # Configure the LLM to use the function tool
-        # Use the function directly imported from the module
-        function_map = {format_as_json_tool.name: format_as_json}  # Use imported function
+        # Configure the LLM to use the function tools
+        # Use the functions directly imported from the modules
+        function_map = {
+            format_as_json_tool.name: format_as_json,
+            add_to_broadcast_queue_tool.name: add_to_broadcast_queue
+        }
+        
         tool_agent_llm_config = {
             "config_list": config_list,
             "cache_seed": 42,
             "timeout": 120,
-            "functions": [format_as_json_tool.schema]
+            "functions": [
+                format_as_json_tool.schema,
+                add_to_broadcast_queue_tool.schema
+            ]
         }
 
         reflector = AssistantAgent(
             name="Reflector",
-            system_message="Reflect on the thought and provide a brief summary.",
+            system_message="Reflect on the thought, and how to effectively communicate it via a tweet. Then respond with ONLY the contents of the tweet.",
             llm_config=base_llm_config
         )
 
-        analyzer = AssistantAgent(
-            name="JSON_Outputter",
-            system_message="After receiving a reflection, summarize it and then say TERMINATE.",
+        # analyzer = AssistantAgent(
+        #     name="JSON_Outputter",
+        #     system_message="After receiving a reflection, summarize it and then say TERMINATE.",
+        #     llm_config=tool_agent_llm_config
+        # )
+
+        curator = AssistantAgent(
+            name="Curator",
+            system_message=(
+                "You are the Content Curator.\n"
+                "\n"
+                "Your job is to review the given reflection and decide if it is suitable for broadcast.\n"
+                "\n"
+                "### RULES:\n"
+                "- If the reflection is **clear, empowering, and aligned with the mission**, you must:\n"
+                "    - Call the tool: `add_to_broadcast_queue(reflection=..., tags=[...])`\n"
+                "    - Then respond only with the word: `TERMINATE`\n"
+                "- If the reflection is **not** suitable:\n"
+                "    - Suggest an improvement in natural language\n"
+                "    - Do NOT call any tools\n"
+                "\n"
+                "Make your decision clearly. Never call the tool if the reflection is not ready.\n"
+            ),
             llm_config=tool_agent_llm_config
         )
+
 
         user_proxy = UserProxyAgent(
             name="Executor",
@@ -60,10 +89,10 @@ class CogniSwarmAgent(CogniAgent):
             code_execution_config=False,
             is_termination_msg=lambda msg: msg.get("content", "").strip().endswith("TERMINATE"),
             system_message="Execute functions when requested.",
-            function_map=function_map  # Register the function directly in the constructor
+            function_map=function_map  # Register the functions in the map
         )
 
-        groupchat = GroupChat(agents=[user_proxy, reflector, analyzer], messages=[], max_round=10)
+        groupchat = GroupChat(agents=[user_proxy, reflector, curator], messages=[], max_round=5)
         manager = GroupChatManager(groupchat=groupchat, llm_config=base_llm_config)
 
         return {"user_proxy": user_proxy, "manager": manager}
