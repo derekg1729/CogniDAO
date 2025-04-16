@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 from typing import Dict, Any
 import json
+import argparse
 from prefect.blocks.system import Secret
 
 # --- Project Constants Import ---
@@ -75,9 +76,13 @@ def write_thought_file(ai_content):
     return timestamp, filepath
 
 @task
-def create_initial_thought(memory_adapter: CogniLangchainMemoryAdapter) -> Dict[str, Any]:
+def create_initial_thought(memory_adapter: CogniLangchainMemoryAdapter, custom_prompt: str = None) -> Dict[str, Any]:
     """
     Creates the initial thought using CoreCogniAgent and saves context to shared memory.
+    
+    Args:
+        memory_adapter: The memory adapter to use
+        custom_prompt: Optional custom prompt to use instead of the default
     """
     logger = get_run_logger()
     
@@ -91,8 +96,12 @@ def create_initial_thought(memory_adapter: CogniLangchainMemoryAdapter) -> Dict[
             project_root_override=Path(BASE_DIR)
         )
         
-        prepared_input = core_cogni.prepare_input()
-        initial_prompt = prepared_input.get("prompt", "Generate initial thought.")
+        # Pass custom_prompt to prepare_input if provided
+        prepared_input = core_cogni.prepare_input(prompt=custom_prompt)
+        initial_prompt = prepared_input.get("prompt", "Hi Cogni, there was no prepared prompt. Please generate any thought you want.")
+        
+        logger.info(f"Prompt: {initial_prompt}")
+
         result_data = core_cogni.act(prepared_input)
         initial_thought = result_data.get("thought_content", "[No thought content]")
         memory_adapter.save_context(inputs={"input": initial_prompt}, outputs={"output": initial_thought})
@@ -157,8 +166,13 @@ async def process_with_swarm(initial_thought_content: str, memory_adapter: Cogni
         return {"error": str(e), "output": "[Error during swarm processing]", "raw_result": []}
 
 @flow
-def ritual_of_presence_flow():
-    """Flow generating an initial thought and using a swarm for reflection."""
+def ritual_of_presence_flow(custom_prompt: str = None):
+    """
+    Flow generating an initial thought and using a swarm for reflection.
+    
+    Args:
+        custom_prompt: Optional custom prompt to use instead of the default
+    """
     logger = get_run_logger()
     logger.info("Starting Ritual of Presence flow (Core Cogni + SwarmCogni)...")
 
@@ -182,7 +196,10 @@ def ritual_of_presence_flow():
 
     # --- Run Agent Tasks Sequentially ---
     # 1. Create initial thought with CoreCogniAgent
-    initial_result = create_initial_thought(memory_adapter=shared_memory_adapter)
+    initial_result = create_initial_thought(
+        memory_adapter=shared_memory_adapter,
+        custom_prompt=custom_prompt
+    )
     
     if "error" in initial_result:
         logger.error("Flow aborted due to error in initial thought generation.")
@@ -212,9 +229,13 @@ def ritual_of_presence_flow():
     return f"Ritual of Presence completed. Session: {session_id}. See logs and memory bank: {session_path}"
 
 if __name__ == "__main__":
-    # Ensure necessary environment variables are set
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Run the Ritual of Presence flow")
+    parser.add_argument("-custom_prompt", "--custom_prompt", type=str, help="Custom prompt to use instead of the default")
+    args = parser.parse_args()
+    
     print("Running Ritual of Presence (Core + SwarmCogni)...")
     
-    # Run the flow
-    result_message = ritual_of_presence_flow()
+    # Run the flow with custom prompt if provided
+    result_message = ritual_of_presence_flow(custom_prompt=args.custom_prompt)
     print(result_message)
