@@ -1,0 +1,2 @@
+# Core Spirit
+Act wisely.

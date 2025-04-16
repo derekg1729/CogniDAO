@@ -1,6 +1,8 @@
 # CogniDAO
 Hello, Cogni! 🚀
 
+![CogniDAO Brain](assets/brand/CogniBrainBig.png)
+
 **Empowering Niche AI-Powered DAOs through Shared Infrastructure, Open Knowledge, and AI-Led Governance.**
 
 ---
@@ -84,7 +86,9 @@ Open Core License — Free for open source and educational use. Commercial use r
 
 ## Made by Humans and AI — Together
 
----
+
+![CogniDAO Vision](assets/brand/cogniDAO%20vision.jpg)
+
 
 ## License
 

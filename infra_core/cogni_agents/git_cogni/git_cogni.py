@@ -25,18 +25,21 @@ class GitCogniAgent(CogniAgent):
     using the git-cogni spirit guide to provide structured feedback.
     """
     
-    def __init__(self, agent_root: Path, external_logger=None):
+    def __init__(self, agent_root: Path, external_logger=None, **kwargs):
         """
         Initialize a new GitCogniAgent.
         
         Args:
             agent_root: Root directory for agent outputs
             external_logger: Optional external logger (like Prefect's) to use instead of module logger
+            **kwargs: Additional keyword arguments passed to the base CogniAgent init.
         """
+        # Pass agent_root and any other relevant kwargs (like overrides) to base class
         super().__init__(
             name="git-cogni",
             spirit_path=Path("infra_core/cogni_spirit/spirits/git-cogni.md"),
-            agent_root=agent_root
+            agent_root=agent_root,
+            **kwargs # Pass along ...?
         )
         self.openai_client = None
         self.logger = external_logger or logger

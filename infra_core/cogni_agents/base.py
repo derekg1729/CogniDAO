@@ -1,277 +1,263 @@
 """
-CogniAgent base module
-
-This module provides the abstract base class for all Cogni agents.
+Refactored CogniAgent base module
+Replaces memory_client with CogniMemoryBank
 """
 
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-import os
 from typing import Dict, Any, List, Optional
 
-from infra_core.memory.memory_client import CogniMemoryClient
+# Import the centralized constant
+from infra_core.constants import MEMORY_BANKS_ROOT
+
+# Import BaseCogniMemory for type hinting
+from infra_core.memory.memory_bank import CogniMemoryBank, BaseCogniMemory
 
 
 class CogniAgent(ABC):
     """
-    Abstract base class for all Cogni agents.
-    
-    Each agent represents an autonomous entity with a specific role and spirit guide.
-    Agents load their spirit guide, prepare inputs, act based on their guide,
-    and record their actions.
+    Base abstract class for Cogni Agents.
+    Provides core functionality like spirit/context loading and action recording.
+    Requires a memory bank instance to be passed during initialization.
     """
-    
-    def __init__(self, name: str, spirit_path: Path, agent_root: Path):
+
+    def __init__(self, name: str, spirit_path: Path, agent_root: Path, memory: BaseCogniMemory, project_root_override: Optional[Path] = None):
         """
-        Initialize a new CogniAgent.
-        
+        Initializes the CogniAgent.
+
         Args:
-            name: The name of the agent
-            spirit_path: Path to the spirit guide markdown file
-            agent_root: Root directory for agent outputs
+            name (str): The unique name of the agent instance.
+            spirit_path (Path): Path to the agent's specific spirit guide markdown file (relative to project root).
+            agent_root (Path): Root directory for agent-specific non-memory outputs (if any).
+            memory (BaseCogniMemory): The memory bank instance this agent should use for runtime operations.
+            project_root_override (Optional[Path]): Optional override for the project root path.
         """
         self.name = name
-        self.spirit_path = spirit_path
-        self.agent_root = agent_root
+        self.spirit_path = spirit_path # Path relative to project root, used by load_spirit
+        self.agent_root = agent_root # Path for potential external outputs, TBD if needed
+        self.memory = memory # Assign the provided memory bank instance
         self.spirit = None
         self.core_context = None
-        
-        # Get the project root directory (3 levels up from this file)
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-        
-        # Use absolute paths for memory locations
-        chroma_path = os.path.join(project_root, "infra_core/memory/chroma")
-        archive_path = os.path.join(project_root, "infra_core/memory/archive")
-        
-        # Initialize memory client with absolute paths
-        # Use collection_name 'infra_core-memory' to avoid creating a 'cogni-memory' directory
-        self.memory_client = CogniMemoryClient(
-            chroma_path=chroma_path,
-            archive_path=archive_path,
-            collection_name="cogni-memory"
-        )
 
-        # Load the spirit guide
+        # Determine project root for fallbacks when loading static context/guides
+        self.project_root = project_root_override or Path(__file__).resolve().parent.parent.parent
+
+        # REMOVED internal memory bank creation logic
+        # The agent now expects the memory bank for its operational context
+        # (e.g., flow session bank) to be provided externally.
+
+        # Load agent-specific data (uses methods that will be refactored next)
         self.load_spirit()
+        self.load_core_context()
 
     def load_spirit(self):
-        """Load the spirit guide contents from markdown using memory client."""
-        try:
-            spirit_path_str = str(self.spirit_path)
-            self.spirit = self.memory_client.get_page(spirit_path_str)
-            if not self.spirit:
-                # Fallback to direct file access if memory client doesn't find it
-                if self.spirit_path.exists():
-                    self.spirit = self.spirit_path.read_text()
-                else:
-                    self.spirit = "⚠️ Spirit guide not found."
-        except Exception:
-            # Fallback to direct file access on any error
-            if self.spirit_path.exists():
-                self.spirit = self.spirit_path.read_text()
-            else:
-                self.spirit = "⚠️ Spirit guide not found."
+        """Loads the agent's specific spirit guide, attempting to read from the agent's memory bank first, falling back to the canonical path and seeding the bank."""
+        # Determine the expected filename convention (e.g., guide_agent-name.md)
+        # Uses the filename part of the spirit_path (e.g., "git-cogni" from ".../git-cogni.md")
+        spirit_name = self.spirit_path.stem
+        bank_filename = f"guide_{spirit_name}.md"
+
+        # Determine the canonical fallback path
+        fallback_path = self.project_root / self.spirit_path
+
+        # Use the agent's own memory bank instance (self.memory)
+        spirit_text = self.memory.load_or_seed_file(
+            file_name=bank_filename,
+            fallback_path=fallback_path
+        )
+
+        if spirit_text is not None:
+            self.spirit = spirit_text
+        else:
+            # Raise an error if spirit couldn't be loaded/seeded
+            error_msg = (
+                f"Spirit guide '{bank_filename}' could not be loaded from bank "
+                f"or seeded from fallback path: {fallback_path}"
+            )
+            raise FileNotFoundError(error_msg)
+        
+        # OLD DIRECT READ LOGIC:
+        # # Construct the absolute path to the spirit file
+        # spirit_full_path = self.project_root / self.spirit_path
+        # try:
+        #     # Read directly from the canonical file path
+        #     self.spirit = spirit_full_path.read_text()
+        # except FileNotFoundError:
+        #     print(f"Warning: Spirit guide file not found at expected path: {spirit_full_path}")
+        #     self.spirit = "⚠️ Spirit guide not found."
+        # except Exception as e:
+        #     print(f"Error reading spirit guide file {spirit_full_path}: {e}")
+        #     self.spirit = "⚠️ Error loading spirit guide."
 
     def load_core_context(self):
-        """
-        Load core context documents using memory client.
+        """Loads core context documents (Charter, Manifesto, Core Spirit) from the central core memory bank."""
+        # Define the location of the central core memory bank.
+        # Use the absolute path defined in constants, do NOT prepend self.project_root
+        core_bank_root = Path(MEMORY_BANKS_ROOT)
+        core_bank = CogniMemoryBank(
+            memory_bank_root=core_bank_root,
+            project_name="core", 
+            session_id="main"
+        )
         
-        This loads the charter, manifesto, and other core documents
-        for use by agents when making decisions.
-        """
-        # Document paths
-        doc_paths = {
-            "CHARTER": "CHARTER.md",
-            "MANIFESTO": "MANIFESTO.md",
-            "LICENSE": "LICENSE.md",
-            "README": "README.md"
+        # Core documents expected in the central bank
+        # Mapping: filename in core bank -> key in context dict / section header
+        doc_files = {
+            "CHARTER.md": "CHARTER.md",
+            "MANIFESTO.md": "MANIFESTO.md",
+            "LICENSE.md": "LICENSE.md", 
+            "README.md": "README.md",
+            "guide_cogni-core-spirit.md": "cogni-core-spirit" # Changed filename to match guide convention
         }
         
-        # Dictionary to hold document metadata
-        metadata = {"core_docs": {}}
-        
-        # Build context with document content
-        document_count = 0
-        context_parts = ["# Cogni Core Documents\n"]
-        
-        # Load each core document
-        for doc_name, doc_path in doc_paths.items():
-            try:
-                content = self.memory_client.get_page(doc_path)
-                if content:
-                    context_parts.append(f"## {doc_name}\n\n{content}\n")
-                    metadata["core_docs"][doc_name] = {
-                        "length": len(content)
-                    }
-                    document_count += 1
+        # Define fallback paths for core documents relative to project root
+        # Define BEFORE the loop so it's accessible in the error message formatting
+        fallback_map = {
+            "CHARTER.md": self.project_root / "CHARTER.md",
+            "MANIFESTO.md": self.project_root / "MANIFESTO.md",
+            "LICENSE.md": self.project_root / "LICENSE.md",
+            "README.md": self.project_root / "README.md",
+            # Assuming the canonical source for the core spirit guide is here:
+            "guide_cogni-core-spirit.md": self.project_root / "infra_core/cogni_spirit/spirits/cogni-core-spirit.md"
+        }
+
+        context_parts = ["# Cogni Core Documents"]
+        metadata = {}
+
+        # Define critical core files that MUST exist
+        critical_files = ["CHARTER.md", "guide_cogni-core-spirit.md"]
+
+        for bank_filename, context_key in doc_files.items():
+            # Read directly from the core_bank instance, using fallback if needed
+            text = core_bank.load_or_seed_file(
+                file_name=bank_filename,
+                fallback_path=fallback_map.get(bank_filename) # Get path from map
+            )
+
+            if text:
+                context_parts.append(f"## {context_key}\n\n{text}")
+                metadata[context_key] = {"length": len(text)}
+            else:
+                # Handle missing core documents
+                # Construct the fallback path string safely, handling None
+                fallback_path_str = str(fallback_map.get(bank_filename)) if fallback_map.get(bank_filename) else "[No Fallback Defined]"
+                error_msg = (
+                    f"Core document '{bank_filename}' could not be loaded from core bank "
+                    f"or seeded from fallback path: {fallback_path_str}"
+                )
+                if bank_filename in critical_files:
+                    raise FileNotFoundError(error_msg)
                 else:
-                    metadata["core_docs"][doc_name] = {
-                        "length": 0,
-                        "error": "File not found or empty"
-                    }
-            except Exception as e:
-                context_parts.append(f"## {doc_name}\n\nError loading document: {str(e)}\n")
-                metadata["core_docs"][doc_name] = {
-                    "length": 0,
-                    "error": str(e)
-                }
-        
-        # Add cogni-core-spirit
-        try:
-            core_spirit = self.memory_client.get_page("infra_core/cogni_spirit/spirits/cogni-core-spirit.md")
-            if core_spirit:
-                context_parts.append(f"## cogni-core-spirit\n\n{core_spirit}\n")
-                metadata["core_spirit"] = {
-                    "length": len(core_spirit)
-                }
-                document_count += 1
-        except Exception:
-            # Silently skip if core spirit guide not found
-            pass
-        
-        # Combine all context parts
+                    # Print warning for non-critical missing files
+                    print(f"Warning: {error_msg}")
+
+        # File system fallback and writing to session memory are REMOVED.
+
         full_context = "\n".join(context_parts)
-        
-        # Calculate totals for backward compatibility
-        metadata["total_core_docs_length"] = sum(doc.get("length", 0) for doc in metadata["core_docs"].values())
-        metadata["total_context_length"] = len(full_context)
-        metadata["total_sections"] = document_count
-        
-        # Format for openai provider (for backward compatibility)
-        formatted_context = {
-            "role": "system",
-            "content": full_context
-        }
-        
-        # Store in the format expected by agents
+        # Store the loaded context and metadata on the agent instance
         self.core_context = {
-            "context": formatted_context,
+            "context": {"role": "system", "content": full_context},
             "metadata": metadata
         }
 
     def get_guide_for_task(self, task: str, guides: Optional[List[str]] = None) -> Dict[str, Any]:
-        """
-        Get a formatted guide context for a specific task.
-        
-        Args:
-            task: Description of the task
-            guides: List of guide names to include (without .md extension)
-                    Default is ["cogni-core-spirit"]
-                    
-        Returns:
-            Dictionary with formatted guide content for OpenAI
-        """
-        if guides is None:
-            guides = ["cogni-core-spirit"]
-        
-        # Build context parts
-        context_parts = [f"# Cogni Spirit Context for: {task}\n"]
-        
-        # Load each guide
+        """Gets context from specified spirit guides, reading them from the central core memory bank."""
+        guides = guides or ["cogni-core-spirit"] # Default guide
+        context_parts = [f"# Cogni Spirit Context for: {task}"]
+
+        # Define the location of the central core memory bank, respecting project_root_override
+        core_bank_root = self.project_root / "infra_core/memory/banks"
+        core_bank = CogniMemoryBank(
+            memory_bank_root=core_bank_root, # Use calculated path
+            project_name="core",
+            session_id="main"
+        )
+
         for guide in guides:
-            try:
-                guide_path = f"infra_core/cogni_spirit/spirits/{guide}.md"
-                guide_content = self.memory_client.get_page(guide_path)
-                if guide_content:
-                    context_parts.append(f"## {guide}\n\n{guide_content}\n")
-            except Exception:
-                # Skip if guide not found
-                pass
-        
-        # Combine context parts
-        full_context = "\n".join(context_parts)
-        
-        # Format for openai (for backward compatibility)
-        return {
-            "role": "system",
-            "content": full_context
-        }
+            # Convention: Filename in core bank is "guide_<guide_name>.md"
+            core_bank_filename = f"guide_{guide}.md"
+            
+            # Read directly from the core_bank instance
+            content = core_bank._read_file(core_bank_filename)
+
+            # Filesystem fallback and writing to session memory are REMOVED.
+
+            if content:
+                context_parts.append(f"## {guide}\n\n{content}")
+            else:
+                 # Log a warning if a specific guide is missing from the central bank
+                print(f"Warning: Guide '{core_bank_filename}' not found in core memory bank at {core_bank_root}.") # Updated log
+
+        # Return the combined context as a dictionary suitable for system messages
+        return {"role": "system", "content": "\n".join(context_parts)}
 
     def prepare_input(self, *args, **kwargs):
-        """Prepare inputs for the agent to act upon. Override per agent."""
         return {}
 
     @abstractmethod
     def act(self, prepared_input: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Perform the agent's primary behavior. Must be implemented.
-        
-        Args:
-            prepared_input: Dictionary of prepared inputs
-            
-        Returns:
-            Dictionary containing the action results
-        """
         pass
 
-    def record_action(self, output: Dict[str, Any], subdir: str = "sessions", prefix: str = ""):
+    def record_action(self, output: Dict[str, Any], subdir: str = "sessions", prefix: str = "") -> None:
         """
-        Record the agent's action output to a markdown file using memory client.
-        
+        Formats output as Markdown, saves it to a file within the **memory bank session**,
+        and logs a pointer to it in the session's decisions.jsonl.
+
         Args:
-            output: Dictionary of output data
-            subdir: Subdirectory to save the output in (e.g., 'sessions', 'reviews')
-            prefix: Optional prefix to add to the filename
-            
+            output (Dict[str, Any]): Data returned by the agent's act method.
+            subdir (str): **UNUSED** - Kept for signature compatibility if needed elsewhere, but ignored.
+            prefix (str): Prefix for the filename (e.g., 'thought_', 'reflection_').
+
         Returns:
-            Path to the saved file
+            None: This method now primarily performs logging within the memory bank.
         """
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        if prefix:
-            filename = f"{prefix}{timestamp}.md"
-        else:
-            filename = f"{self.name}_{timestamp}.md"
+        # 1. Format output data as Markdown
+        output_markdown = self.format_output_markdown(output)
         
-        # Determine output directory
-        if subdir:
-            output_dir = self.agent_root / subdir
-        else:
-            output_dir = self.agent_root
-        
-        # Create directory if it doesn't exist
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Format output as markdown
-        output_content = self.format_output_markdown(output)
-        
-        # Determine full output path
-        output_path = output_dir / filename
-        
-        # Write using memory client
-        self.memory_client.write_page(
-            filepath=str(output_path),
-            content=output_content,
-            append=False
-        )
-        
-        return output_path
+        # 2. Generate descriptive filename for the Markdown file
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S_%f")
+        agent_name_slug = self.__class__.__name__ # Get agent class name
+        markdown_filename = f"{agent_name_slug}_{prefix}{timestamp}.md" 
+
+        # 3. Save the Markdown file directly into the current memory bank session
+        try:
+            # Use write_context to save the non-JSON markdown content
+            self.memory.write_context(markdown_filename, output_markdown, is_json=False) 
+        except Exception as e:
+             # Log error specific to writing context file
+             print(f"Error writing memory context file {markdown_filename}: {e}") # Replace with logger
+             # Decide if we should still log the decision or return/raise
+             # For now, we'll proceed to log the decision attempt
+
+        # 4. Log metadata (including a pointer to the MD file) to decisions.jsonl
+        try:
+            self.memory.log_decision({
+                "agent_name": self.name, 
+                "agent_class": agent_name_slug, 
+                "action_type": prefix, # Log the type of action
+                "markdown_filename": markdown_filename, # Pointer to the saved MD file
+                # Timestamp added automatically by log_decision
+            })
+        except Exception as e:
+             # Log error specific to logging decision
+             print(f"Error logging decision for action {markdown_filename}: {e}") # Replace with logger
+
+        # 5. External file writing is REMOVED
+        # No longer returning the external path
+        return None
 
     def format_output_markdown(self, data: Dict[str, Any]) -> str:
-        """
-        Format the output data as markdown.
-        
-        Args:
-            data: Dictionary of output data
-            
-        Returns:
-            Formatted markdown string
-        """
-        lines = [f"# CogniAgent Output — {self.name}", ""]
-        lines.append(f"**Generated**: {datetime.utcnow().isoformat()}")
-        lines.append("")
-        
+        lines = [f"# CogniAgent Output — {self.name}\n", f"**Generated**: {datetime.utcnow().isoformat()}\n"]
         for k, v in data.items():
             if isinstance(v, dict):
                 lines.append(f"## {k}")
                 for sub_k, sub_v in v.items():
                     lines.append(f"**{sub_k}**:\n{sub_v}\n")
             else:
-                lines.append(f"## {k}")
-                lines.append(f"{v}\n")
+                lines.append(f"## {k}\n{v}\n")
         
         lines.append("---")
         lines.append(f"> Agent: {self.name}")
         lines.append(f"> Timestamp: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}")
-        
-        return "\n".join(lines) 
+        return "\n".join(lines)

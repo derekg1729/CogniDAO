@@ -17,7 +17,7 @@ class TestGitHubIntegration(unittest.TestCase):
         """Set up the agent for testing"""
         # Create a test agent with a mock agent_root
         self.agent_root = MagicMock(spec=Path)
-        self.agent = GitCogniAgent(agent_root=self.agent_root)
+        self.agent = GitCogniAgent(agent_root=self.agent_root, memory=MagicMock())
         self.agent.logger = MagicMock()  # Mock logger
     
     def test_parse_pr_url_valid(self):

@@ -17,7 +17,7 @@ class TestGitCogniOpenAIIntegration(unittest.TestCase):
         """Set up the agent for testing"""
         # Create a test agent with a mock agent_root
         self.agent_root = MagicMock(spec=Path)
-        self.agent = GitCogniAgent(agent_root=self.agent_root)
+        self.agent = GitCogniAgent(agent_root=self.agent_root, memory=MagicMock())
         
         # Add mock OpenAI client
         self.agent.openai_client = MagicMock()
