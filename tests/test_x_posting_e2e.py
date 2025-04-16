@@ -17,7 +17,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from infra_core.flows.broadcast.x_posting_flow import async_x_posting_flow
 from infra_core.constants import (
     BROADCAST_QUEUE_TEST_SESSION,
-    BROADCAST_QUEUE_TEST_ROOT
+    BROADCAST_QUEUE_TEST_ROOT,
+    TEST_MOCK_MEMORY_ROOT
 )
 
 # Test fixture to set up and tear down test data
@@ -89,6 +90,54 @@ scheduled:: {item['scheduled_time']}
     import shutil
     if BROADCAST_QUEUE_TEST_ROOT.exists():
         shutil.rmtree(BROADCAST_QUEUE_TEST_ROOT)
+    
+    # Also clean up test memory bank files
+    test_flow_dir = TEST_MOCK_MEMORY_ROOT / "flows" / "broadcast_x_posting_test"
+    if test_flow_dir.exists():
+        shutil.rmtree(test_flow_dir)
+
+# Mock memory bank initialization to use test paths
+class MockMemoryBank:
+    def __init__(self, **kwargs):
+        # Store original args
+        self.original_kwargs = kwargs
+        self.context = {}
+        self.decisions = []
+        self.progress = {}
+        
+        # Create test dir structure
+        memory_root = TEST_MOCK_MEMORY_ROOT
+        memory_root.mkdir(parents=True, exist_ok=True)
+        
+        # Always use test project regardless of what's passed in
+        project_name = "flows/broadcast_x_posting_test"
+        
+        # Use same session ID that was passed
+        session_id = kwargs.get('session_id', datetime.utcnow().strftime('%Y%m%d_%H%M%S'))
+        
+        # Create project directory
+        self.project_dir = memory_root / project_name
+        self.project_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create session directory 
+        self.session_dir = self.project_dir / session_id
+        self.session_dir.mkdir(parents=True, exist_ok=True)
+    
+    def write_context(self, context_id, data, format='text'):
+        self.context[context_id] = data
+    
+    def read_context(self, context_id, format='text'):
+        return self.context.get(context_id, "")
+    
+    def log_decision(self, data):
+        self.decisions.append(data)
+    
+    def update_progress(self, data):
+        self.progress = data
+        # Write progress to file to test
+        progress_file = self.session_dir / "progress.json"
+        with open(progress_file, "w") as f:
+            json.dump(data, f, indent=2)
 
 @pytest.mark.asyncio
 async def test_x_posting_flow_e2e(setup_test_queue):
@@ -101,12 +150,14 @@ async def test_x_posting_flow_e2e(setup_test_queue):
     3. Validates the complete flow with minimal mocking
     4. Uses the test broadcast queue
     """
-    # Set up environment patches to use test broadcast queue
+    # Set up environment patches to use test broadcast queue and test memory bank
     env_patches = [
         patch('infra_core.tools.broadcast_queue_fetch_tool.BROADCAST_QUEUE_ROOT', BROADCAST_QUEUE_TEST_ROOT),
         patch('infra_core.tools.broadcast_queue_fetch_tool.BROADCAST_QUEUE_SESSION', BROADCAST_QUEUE_TEST_SESSION),
         patch('infra_core.tools.broadcast_queue_update_tool.BROADCAST_QUEUE_ROOT', BROADCAST_QUEUE_TEST_ROOT),
-        patch('infra_core.tools.broadcast_queue_update_tool.BROADCAST_QUEUE_SESSION', BROADCAST_QUEUE_TEST_SESSION)
+        patch('infra_core.tools.broadcast_queue_update_tool.BROADCAST_QUEUE_SESSION', BROADCAST_QUEUE_TEST_SESSION),
+        # Patch the memory bank class to use our mock that forces test paths
+        patch('infra_core.flows.broadcast.x_posting_flow.CogniMemoryBank', MockMemoryBank)
     ]
     
     # Create a mock for the create_tweet method
@@ -173,6 +224,29 @@ async def test_x_posting_flow_e2e(setup_test_queue):
             assert latest_update["previous_status"] == "approved"
             assert latest_update["new_status"] == "posted"
             assert latest_update["has_post_info"] is True
+
+            # Verify memory bank files were created in test location
+            test_flow_dir = TEST_MOCK_MEMORY_ROOT / "flows" / "broadcast_x_posting_test"
+            assert test_flow_dir.exists()
+            
+            # At least one session directory should exist (with timestamp name)
+            session_dirs = list(test_flow_dir.glob("*"))
+            assert len(session_dirs) > 0
+            
+            # Filter out any non-directory items
+            session_dirs = [d for d in session_dirs if d.is_dir()]
+            assert len(session_dirs) > 0
+            
+            # Progress file should exist in the session directory
+            progress_file = session_dirs[0] / "progress.json"
+            assert progress_file.exists()
+            
+            # Verify progress content
+            with open(progress_file, 'r') as f:
+                progress_data = json.load(f)
+                
+            assert progress_data["posts_processed"] == 1
+            assert progress_data["successful_posts"] == 1
             
         finally:
             # Stop all patches

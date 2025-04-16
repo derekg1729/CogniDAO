@@ -26,6 +26,9 @@ TEST_SESSION = "test_session"
 BROADCAST_QUEUE_TEST_SESSION = TEST_SESSION  
 BROADCAST_QUEUE_TEST_ROOT = MEMORY_BANKS_ROOT / BROADCAST_QUEUE_PROJECT / BROADCAST_QUEUE_TEST_SESSION
 
+# Mock memory path for tests
+TEST_MOCK_MEMORY_ROOT = Path.home() / "test" / "mock" / "memory"
+
 # Ensure base data directories exist (optional, can be done on demand)
 # MEMORY_BANKS_ROOT.mkdir(parents=True, exist_ok=True)
 # AGENTS_DATA_ROOT.mkdir(parents=True, exist_ok=True)
