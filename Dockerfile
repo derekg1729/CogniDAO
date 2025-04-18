@@ -1,0 +1,23 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt ./
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy only the necessary files
+COPY infra_core/cogni_api.py infra_core/
+COPY infra_core/models.py infra_core/
+COPY infra_core/__init__.py infra_core/
+COPY run_cogni_api.py ./
+
+# Create an empty __init__.py if it doesn't exist
+RUN mkdir -p infra_core && touch infra_core/__init__.py
+
+# Install gunicorn for production serving
+RUN pip install gunicorn
+
+# Command to run the API with gunicorn for production
+CMD ["gunicorn", "infra_core.cogni_api:app", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000", "--workers", "2"] 

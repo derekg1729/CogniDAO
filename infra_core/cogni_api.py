@@ -62,6 +62,12 @@ def verify_auth(authorization: str = Header(...)):
     logger.info("Authentication successful")
     return True
 
+# Health check endpoint
+@app.get("/healthz")
+async def health_check():
+    """Health check endpoint for monitoring."""
+    return {"status": "healthy"}
+
 # Log middleware to capture request information
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
