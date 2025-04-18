@@ -1,0 +1,15 @@
+{
+  "description": "Schema for a chat message response.\nThis is returned as a stream for the /chat endpoint.",
+  "properties": {
+    "content": {
+      "description": "The AI-generated response content",
+      "title": "Content",
+      "type": "string"
+    }
+  },
+  "required": [
+    "content"
+  ],
+  "title": "ChatResponse",
+  "type": "object"
+}

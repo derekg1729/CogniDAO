@@ -1,0 +1,18 @@
+{
+  "description": "Schema for a chat message request.\nThis is the primary schema used for the /chat endpoint.",
+  "properties": {
+    "message": {
+      "description": "The message content to send to the AI",
+      "examples": [
+        "What is CogniDAO?"
+      ],
+      "title": "Message",
+      "type": "string"
+    }
+  },
+  "required": [
+    "message"
+  ],
+  "title": "ChatMessage",
+  "type": "object"
+}
