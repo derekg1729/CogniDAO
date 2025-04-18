@@ -10,10 +10,11 @@ import asyncio
 import logging
 from typing import AsyncIterable
 import json
+import os
 from typing import Any
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Header, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from langchain_community.chat_models import ChatOpenAI
@@ -45,6 +46,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Authentication validator
+def verify_auth(authorization: str = Header(...)):
+    """Verify the Authorization header contains a valid token."""
+    api_key = os.getenv('COGNI_API_KEY')
+    if not api_key:
+        logger.error("COGNI_API_KEY not set in environment variables!")
+        raise HTTPException(status_code=500, detail="API authentication not configured")
+        
+    if authorization != f"Bearer {api_key}":
+        logger.warning("Authentication failed - Invalid token")
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    logger.info("Authentication successful")
+    return True
 
 # Log middleware to capture request information
 @app.middleware("http")
@@ -97,7 +113,7 @@ async def send_message(message: str) -> AsyncIterable[str]:
 
 
 @app.post("/chat")
-async def stream_chat(message: ChatMessage):
+async def stream_chat(message: ChatMessage, auth=Depends(verify_auth)):
     logger.info(f"Received streaming chat request with message: {message.message}")
     
     generator = send_message(message.message)

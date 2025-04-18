@@ -11,6 +11,9 @@ __pycache__/
 dist/
 build/
 
+# Environment variables
+.env
+
 # Logseq files
 logseq/
 pages/
