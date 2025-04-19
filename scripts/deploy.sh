@@ -27,28 +27,35 @@ COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 cd "$SCRIPT_DIR/.."
 
+# Colors for terminal output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No color
+
 # Function to display help
 display_help() {
-  echo "Cogni API Deployment Script"
-  echo ""
-  echo "Usage:"
-  echo "  ./scripts/deploy.sh [FLAG]"
-  echo ""
-  echo "Flags:"
-  echo "  --local    Default: Run persistent local server in Docker"
-  echo "  --test     Run in test mode (build, test, cleanup)"
-  echo "  --clean    Stop and remove all containers and images"
-  echo "  --compose  Run full stack using docker-compose"
-  echo "  --prod     Deploy to production (not yet implemented)"
-  echo "  --preview  Deploy to staging/preview (not yet implemented)"
-  echo "  --help     Display this help message"
-  echo ""
+  echo "Cogni API Deployment Tool"
+  echo
+  echo "Usage: $0 [OPTIONS]"
+  echo
+  echo "Options:"
+  echo "  --help        Display this help message"
+  echo "  --local       Build and start the API containers locally for development"
+  echo "  --test        Run tests on the API container"
+  echo "  --clean       Remove all local containers and images"
+  echo "  --compose     Start the full stack using Docker Compose (with Caddy proxy)"
+  echo "  --preview     Trigger GitHub Actions to deploy to the preview environment"
+  echo "  --prod        Trigger GitHub Actions to deploy to the production environment"
+  echo
   echo "Examples:"
-  echo "  ./scripts/deploy.sh             # Run local server"
-  echo "  ./scripts/deploy.sh --test      # Run tests"
-  echo "  ./scripts/deploy.sh --clean     # Clean up resources"
-  echo ""
-  exit 0
+  echo "  $0 --local    # Start the API locally for development"
+  echo "  $0 --test     # Run tests on the API"
+  echo "  $0 --clean    # Clean up all containers and images"
+  echo "  $0 --compose  # Start the full stack with Caddy proxy"
+  echo "  $0 --preview  # Deploy to preview environment"
+  echo "  $0 --prod     # Deploy to production environment"
 }
 
 # Function for colorful status messages
@@ -335,53 +342,88 @@ deploy_compose() {
   fi
 }
 
-# Parse command line arguments
-MODE="local"  # Default mode
-
-if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
-  display_help
-elif [ "$1" == "--test" ]; then
-  MODE="test"
-  echo "🧪 Running in TEST mode - will cleanup automatically"
-elif [ "$1" == "--clean" ]; then
-  MODE="clean"
-  echo "🧹 Running in CLEAN mode - will only remove containers/images"
-elif [ "$1" == "--compose" ]; then
-  MODE="compose"
-  echo "🚢 Running in COMPOSE mode - full stack deployment"
-elif [ "$1" == "--prod" ]; then
-  MODE="prod"
-  echo "🌎 Running in PRODUCTION mode - deploying to production server"
-  warning "⚠️ Production deployment is not yet implemented"
-  exit 1
-elif [ "$1" == "--preview" ]; then
-  MODE="preview"
-  echo "🔍 Running in PREVIEW mode - deploying to staging environment"
-  warning "⚠️ Preview deployment is not yet implemented"
-  exit 1
-elif [ "$1" == "--local" ] || [ -z "$1" ]; then
-  MODE="local"
-  echo "🚀 Running in LOCAL mode - persistent server"
-else
-  warning "❌ Unknown mode: $1"
-  warning "Usage: ./scripts/deploy.sh [--local|--test|--clean|--compose|--prod|--preview|--help]"
-  warning "For more information, run: ./scripts/deploy.sh --help"
-  exit 1
-fi
-
-# Execute requested mode
-case "$MODE" in
-  "local" | "test")
-    deploy_local
-    ;;
-  "clean")
-    cleanup "full"
-    ;;
-  "compose")
-    deploy_compose
-    ;;
-  *)
-    warning "Mode $MODE is not yet implemented or invalid"
+# Function to run a github workflow
+function run_workflow {
+  local environment=$1
+  
+  # Check if gh CLI is installed
+  if ! command -v gh &> /dev/null; then
+    echo -e "${RED}GitHub CLI (gh) is not installed. Please install it to trigger workflows.${NC}"
+    echo "Installation instructions: https://github.com/cli/cli#installation"
     exit 1
-    ;;
-esac 
+  fi
+  
+  # Check if authenticated with GitHub
+  if ! gh auth status &> /dev/null; then
+    echo -e "${RED}You are not authenticated with GitHub. Please run 'gh auth login' first.${NC}"
+    exit 1
+  fi
+  
+  # Confirm before deploying to production
+  if [[ "$environment" == "prod" ]]; then
+    echo -e "${YELLOW}⚠️  WARNING: You are about to deploy to PRODUCTION!${NC}"
+    read -p "Are you sure you want to proceed? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      echo -e "${GREEN}Deployment cancelled.${NC}"
+      exit 0
+    fi
+  fi
+  
+  echo -e "${GREEN}Triggering deployment to $environment environment...${NC}"
+  
+  # Run the workflow
+  gh workflow run deploy.yml -F environment="$environment"
+
+  echo -e "${GREEN}Deployment workflow triggered for $environment environment.${NC}"
+  echo "You can monitor the deployment status in GitHub Actions:"
+  echo "https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)/actions"
+}
+
+# Deploy for testing (temporary instance)
+deploy_test() {
+  echo -e "${CYAN}🧪 Deploying test container...${NC}"
+  deploy_local
+  
+  # Wait for a moment to let the server start
+  echo -e "${YELLOW}Waiting for server to start...${NC}"
+  sleep 5
+  
+  # Run tests (placeholder - expand as needed)
+  echo -e "${GREEN}✅ Server ready for testing${NC}"
+  echo -e "${CYAN}When finished testing, run: ./scripts/deploy.sh --clean${NC}"
+}
+
+# Main script execution
+if [[ $# -eq 0 ]]; then
+  deploy_local
+else
+  case "$1" in
+    --help)
+      display_help
+      ;;
+    --local)
+      deploy_local
+      ;;
+    --test)
+      deploy_test
+      ;;
+    --clean)
+      cleanup
+      ;;
+    --compose)
+      deploy_compose
+      ;;
+    --preview)
+      run_workflow "preview"
+      ;;
+    --prod)
+      run_workflow "prod"
+      ;;
+    *)
+      echo -e "${RED}Unknown option: $1${NC}"
+      display_help
+      exit 1
+      ;;
+  esac
+fi 

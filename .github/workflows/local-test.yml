@@ -11,7 +11,7 @@ jobs:
 
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Create .env file
       run: |
@@ -42,13 +42,16 @@ jobs:
           -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
           cogni-test-api
         echo "Waiting for container to start..."
-        for i in {1..10}; do
+        count=1
+        max_attempts=10
+        while [ $count -le $max_attempts ]; do
           if curl -s http://localhost:8000/healthz | grep -q "ok"; then
-            echo "✅ API is up!"
+            echo "✅ API is up after $count attempts!"
             break
           fi
-          echo "⏳ Waiting..."
+          echo "⏳ Waiting... Attempt $count of $max_attempts"
           sleep 2
+          count=$((count + 1))
         done
 
     - name: Test API healthcheck
