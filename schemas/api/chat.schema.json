@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Chat API Endpoint",
+  "description": "Schema for the /chat streaming endpoint",
+  "route": "/chat",
+  "method": "POST",
+  "auth_required": true,
+  "auth_type": "Bearer Token",
+  "request": {
+    "content_type": "application/json",
+    "schema": {
+      "type": "object",
+      "required": ["message"],
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "The message content to send to the AI",
+          "examples": ["What is CogniDAO?"]
+        }
+      }
+    }
+  },
+  "response": {
+    "content_type": "text/event-stream",
+    "schema": {
+      "type": "string",
+      "description": "Streaming text response from the AI"
+    }
+  },
+  "errors": [
+    {
+      "status_code": 401,
+      "description": "Unauthorized - Invalid or missing Bearer token"
+    },
+    {
+      "status_code": 422,
+      "description": "Validation Error - Invalid request format"
+    },
+    {
+      "status_code": 500,
+      "description": "Server Error - Error in AI processing"
+    }
+  ],
+  "example_request": {
+    "curl": "curl -X POST \"https://api.cognidao.org/chat\" -H \"Content-Type: application/json\" -H \"Authorization: Bearer YOUR_API_KEY\" -d '{\"message\": \"What is CogniDAO?\"}'"
+  }
+} 

@@ -1,0 +1,28 @@
+{
+  "healthcheck": {
+    "test": ["CMD", "curl", "-f", "http://localhost:8000/healthz"],
+    "interval": "30s",
+    "timeout": "10s",
+    "retries": 3,
+    "start_period": "10s"
+  },
+  "container_monitors": [
+    {
+      "container_name": "api",
+      "check_command": "curl -s -f -o /dev/null -w '%{http_code}' http://localhost:8000/healthz",
+      "expected_status": 200,
+      "restart_on_failure": true
+    },
+    {
+      "container_name": "caddy",
+      "check_command": "curl -s -f -o /dev/null -w '%{http_code}' -k https://localhost/healthz",
+      "expected_status": 200,
+      "restart_on_failure": true
+    }
+  ],
+  "logging": {
+    "failed_checks_log": "/var/log/cogni-healthcheck.log",
+    "log_level": "INFO",
+    "notify_on_failure": false
+  }
+} 

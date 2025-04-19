@@ -1,0 +1,31 @@
+{
+  "api": {
+    "hostname": "api.cognidao.org",
+    "port": 443,
+    "protocol": "https",
+    "healthcheck_endpoint": "/healthz"
+  },
+  "docker": {
+    "compose_file": "deploy/docker-compose.yml",
+    "internal_port": 8000,
+    "image_name": "cogni-backend"
+  },
+  "server": {
+    "user": "ubuntu",
+    "app_directory": "~/cogni-backend",
+    "required_ports": [80, 443]
+  },
+  "deployment": {
+    "type": "github_actions",
+    "workflow_file": ".github/workflows/deploy.yml",
+    "branch": "main",
+    "commands": {
+      "prod": "gh workflow run deploy.yml",
+      "local": "act -j test -W .github/workflows/local-test.yml --secret-file .secrets -P ubuntu-latest=catthehacker/ubuntu:act-latest"
+    }
+  },
+  "environment_variables": [
+    "OPENAI_API_KEY",
+    "COGNI_API_KEY"
+  ]
+} 

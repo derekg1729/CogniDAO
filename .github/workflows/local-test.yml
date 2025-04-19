@@ -1,0 +1,93 @@
+name: Test Cogni Backend Locally
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Create .env file
+      run: |
+        cat > .env << EOF
+        OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+        COGNI_API_KEY=${{ secrets.COGNI_API_KEY }}
+        EOF
+
+    - name: Check configuration files
+      run: |
+        echo "Checking configuration files..."
+        test -f infra_config/deployment.json && echo "✅ deployment.json found"
+        test -f schemas/api/chat.schema.json && echo "✅ chat.schema.json found"
+        test -f schemas/api/healthz.schema.json && echo "✅ healthz.schema.json found"
+        test -f docker/healthcheck.json && echo "✅ healthcheck.json found"
+        test -f docker/healthcheck.sh && echo "✅ healthcheck.sh found"
+
+    - name: Build Docker image
+      run: |
+        echo "Building Docker image..."
+        docker build -t cogni-test-api .
+
+    - name: Run API in Docker container
+      run: |
+        echo "Starting API container..."
+        docker run -d --name cogni-test-api -p 8000:8000 \
+          -e COGNI_API_KEY="${{ secrets.COGNI_API_KEY }}" \
+          -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+          cogni-test-api
+        echo "Waiting for container to start..."
+        for i in {1..10}; do
+          if curl -s http://localhost:8000/healthz | grep -q "ok"; then
+            echo "✅ API is up!"
+            break
+          fi
+          echo "⏳ Waiting..."
+          sleep 2
+        done
+
+    - name: Test API healthcheck
+      run: |
+        echo "Testing /healthz..."
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/healthz)
+        if [ "$STATUS" == "200" ]; then
+          echo "✅ Health check passed!"
+        else
+          echo "❌ Health check failed! Status: $STATUS"
+          exit 1
+        fi
+
+    - name: Test chat endpoint
+      continue-on-error: true
+      run: |
+        echo "Testing /chat..."
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+          -X POST http://localhost:8000/chat \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer ${{ secrets.COGNI_API_KEY }}" \
+          -d '{"message": "Hello from GitHub Actions test!"}')
+        if [ "$STATUS" == "200" ]; then
+          echo "✅ Chat endpoint passed! Status: $STATUS"
+        else
+          echo "❌ Chat endpoint failed. Status: $STATUS"
+        fi
+
+    - name: Dump logs if chat test failed
+      if: failure()
+      run: |
+        echo "🔍 Dumping container logs..."
+        docker logs cogni-test-api
+
+    - name: Clean Up
+      if: always()
+      run: |
+        echo "Cleaning up..."
+        docker stop cogni-test-api || true
+        docker rm cogni-test-api || true
+        docker rmi cogni-test-api || true
+        rm -f .env 

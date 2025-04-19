@@ -1,0 +1,63 @@
+name: Deploy Cogni Backend
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Create .env file
+      run: |
+        cat > .env << EOF
+        OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+        COGNI_API_KEY=${{ secrets.COGNI_API_KEY }}
+        EOF
+
+    - name: Set up SSH
+      uses: webfactory/ssh-agent@v0.7.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+    - name: Add server to known hosts
+      run: |
+        mkdir -p ~/.ssh
+        ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+    - name: Prepare server directory
+      run: |
+        ssh ubuntu@${{ secrets.SERVER_IP }} 'mkdir -p ~/cogni-backend'
+
+    - name: Copy files to server
+      run: |
+        # Copy only the necessary files
+        scp -r Dockerfile .dockerignore .env requirements.txt run_cogni_api.py infra_core/ deploy/ ubuntu@${{ secrets.SERVER_IP }}:~/cogni-backend/
+
+    - name: Update Caddyfile for production
+      run: |
+        ssh ubuntu@${{ secrets.SERVER_IP }} 'cd ~/cogni-backend/deploy && sed -i "s/localhost/api.cognidao.org/g" Caddyfile'
+
+    - name: Deploy with Docker Compose
+      run: |
+        ssh ubuntu@${{ secrets.SERVER_IP }} 'cd ~/cogni-backend/deploy && chmod +x deploy.sh && ./deploy.sh'
+
+    - name: Verify Deployment
+      run: |
+        # Allow some time for the deployment to stabilize
+        sleep 10
+        
+        # Check if the service is responding
+        ssh ubuntu@${{ secrets.SERVER_IP }} 'curl -s -f -o /dev/null -w "%{http_code}" https://localhost/healthz || echo "Health check failed"'
+
+    - name: Clean Up
+      if: always()  # Run even if previous steps failed
+      run: |
+        # Remove the local .env file
+        rm -f .env
