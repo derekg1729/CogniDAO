@@ -11,8 +11,20 @@ request and response schemas for all API endpoints and are used for:
 All models must inherit from Pydantic's BaseModel.
 """
 
-from typing import Optional
+from typing import Optional, List, Literal
 from pydantic import BaseModel, Field
+
+
+class HistoryMessage(BaseModel):
+    """Schema for a single message in the chat history."""
+    role: Literal["user", "assistant", "system"] = Field(
+        ...,
+        description="The role of the message sender."
+    )
+    content: str = Field(
+        ...,
+        description="The content of the message."
+    )
 
 
 class ChatMessage(BaseModel):
@@ -61,6 +73,10 @@ class CompleteQueryRequest(BaseModel):
     system_message: Optional[str] = Field(
         default="You are a helpful AI assistant.",
         description="Instructions for the AI assistant's behavior"
+    )
+    message_history: Optional[List[HistoryMessage]] = Field(
+        default=None,
+        description="Optional list of previous messages in the conversation"
     )
 
 
