@@ -72,7 +72,8 @@ status() {
 warning() {
   COLOR='\033[0;31m'  # Red
   NC='\033[0m'        # No Color
-  echo -e "${COLOR}$1${NC}"
+  # Ensure warnings go to stderr
+  echo -e "${COLOR}$1${NC}" >&2
 }
 
 # Function to check if a file exists
@@ -491,7 +492,8 @@ services:
     expose: ["8000"]
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      # Use Python one-liner for healthcheck to avoid curl dependency in minimal images
+      test: ["CMD-SHELL", "python -c \\"import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').getcode() == 200 else 1)\\""]
       interval: 30s
       retries: 3
 
@@ -597,14 +599,28 @@ EOF_JSON
   status "Waiting for deployment to stabilize..." >&2
   sleep 10 # Give services a moment to start
 
-  status "Verifying deployment health (via SSH to remote host)..." >&2
-  if ssh $SSH_OPTS ubuntu@$PREVIEW_SERVER_IP "curl --retry 5 --retry-delay 3 --retry-connrefused -s http://localhost:8000/healthz" | grep -q "healthy"; then
-    status "✅ Simulated preview deployment successful! Health check passed via internal curl."
-  else
-    warning "❌ Internal health check failed after retries."
-    warning "   Check remote logs: ssh $SSH_OPTS ubuntu@$PREVIEW_SERVER_IP '\''cd ~/cogni-backend && docker compose logs api'\''" # Escaped quotes for inner command
-    exit 1 # Exit with error on health check failure
-  fi
+  status "Verifying deployment health (polling public endpoint)..." >&2
+  local attempt=0
+  while [ $attempt -lt $MAX_RETRIES ]; do
+    attempt=$((attempt + 1))
+    # Add timeouts (--connect-timeout 5, --max-time 10) to prevent hangs
+    # Poll the HTTPS endpoint using the domain name
+    if curl -s -L --fail --connect-timeout 5 --max-time 10 "https://api-preview.cognidao.org/healthz" | grep -q '{"status":"healthy"}'; then
+      status "✅ Simulated preview deployment successful! Public health check passed after $attempt attempts."
+      break
+    else
+      if [ $attempt -eq $MAX_RETRIES ]; then
+        warning "❌ Public health check failed after $MAX_RETRIES attempts."
+        # Use the domain name in the log check suggestion too
+        warning "   Check remote logs: ssh $SSH_OPTS ubuntu@$PREVIEW_SERVER_IP 'cd ~/cogni-backend && docker compose logs'"
+        warning "   Also try: curl -v https://api-preview.cognidao.org/healthz"
+        exit 1 # Exit with error on health check failure
+      else
+        warning "⏳ Public health check attempt $attempt/$MAX_RETRIES failed (using https://api-preview.cognidao.org/healthz). Retrying in $RETRY_INTERVAL seconds..."
+        sleep $RETRY_INTERVAL
+      fi
+    fi
+  done
 }
 
 
