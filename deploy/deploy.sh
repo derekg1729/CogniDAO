@@ -113,8 +113,8 @@ cleanup() {
 # Function to handle local deployment
 deploy_local() {
   # Check for required files
-  check_file "Dockerfile"
-  check_file "requirements.txt"
+  check_file "Dockerfile.api"
+  check_file "requirements.api.txt"
   check_file "infra_core/cogni_api.py"
 
   # Check for env file and create minimal one if needed
@@ -164,7 +164,7 @@ deploy_local() {
 
   # Build Docker image
   status "Building Docker image..."
-  docker build -t "$IMAGE_NAME" .
+  docker build -t "$IMAGE_NAME" -f Dockerfile.api .
 
   # Remove any existing containers
   docker stop "$CONTAINER_NAME" 2>/dev/null || true

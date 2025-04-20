@@ -3,9 +3,9 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Copy requirements first for better caching
-COPY requirements.txt ./
+COPY requirements.api.txt ./
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.api.txt
 
 # Copy only the necessary files
 COPY infra_core/cogni_api.py infra_core/
