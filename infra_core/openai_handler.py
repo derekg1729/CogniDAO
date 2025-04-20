@@ -4,7 +4,7 @@ OpenAI API Handler
 Handles communication with OpenAI API following their standards.
 """
 import os
-from typing import Dict, Optional, Union, Any, Tuple
+from typing import Dict, Optional, Union, Any, Tuple, List
 from prefect import task
 from prefect.blocks.system import Secret
 from prefect.tasks import NO_CACHE  # correct import path for Prefect 3.3.3
@@ -40,6 +40,7 @@ def create_completion(
     client: OpenAI,
     system_message: Union[str, Dict[str, str]],
     user_prompt: str,
+    message_history: Optional[List[Dict[str, str]]] = None,
     model: str = "gpt-4",
     temperature: float = 0.7,
     max_tokens: Optional[int] = None,
@@ -54,6 +55,7 @@ def create_completion(
         client: OpenAI client instance
         system_message: System message or context as string or dict
         user_prompt: User prompt/query
+        message_history: Optional list of previous messages
         model: OpenAI model to use
         temperature: Sampling temperature (0-1)
         max_tokens: Maximum tokens in response
@@ -64,15 +66,19 @@ def create_completion(
     Returns:
         Response from OpenAI API
     """
-    # Format system message if provided as string
-    if isinstance(system_message, str):
-        system_message = {"role": "system", "content": system_message}
-    
     # Create messages array
-    messages = [
-        system_message,
-        {"role": "user", "content": user_prompt}
-    ]
+    messages = []
+    if isinstance(system_message, str):
+        messages.append({"role": "system", "content": system_message})
+    elif system_message: # Assuming it's already a dict if not a string
+        messages.append(system_message)
+        
+    # Add history if provided
+    if message_history:
+        messages.extend(message_history)
+    
+    # Add the current user prompt
+    messages.append({"role": "user", "content": user_prompt})
     
     # Call the API
     response = client.chat.completions.create(

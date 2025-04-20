@@ -8,7 +8,7 @@ Thank you to Coding-Crashkurse for the clean foundation: https://github.com/Codi
 
 import asyncio
 import logging
-from typing import AsyncIterable
+from typing import AsyncIterable, List, Dict, Optional
 import json
 import os
 from typing import Any
@@ -19,15 +19,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from langchain_community.chat_models import ChatOpenAI
 from langchain.callbacks import AsyncIteratorCallbackHandler
-from langchain.schema import HumanMessage
+from langchain.schema import HumanMessage, AIMessage, SystemMessage
 
 # Import our schemas
-from infra_core.models import ChatMessage, ErrorResponse
+from infra_core.models import CompleteQueryRequest, ErrorResponse
 
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    # format='%(asctime)s - %(name)s - %(levelname)s - %(message)s' # Use default for now
 )
 logger = logging.getLogger(__name__)
 
@@ -84,8 +84,8 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-async def send_message(message: str) -> AsyncIterable[str]:
-    logger.info(f"Processing message: {message}")
+async def send_message(message: str, history: Optional[List[Dict[str, str]]] = None) -> AsyncIterable[str]:
+    logger.info(f"⚙️ Processing message: '{message}' with history: {history}")
     
     callback = AsyncIteratorCallbackHandler()
     model = ChatOpenAI(
@@ -94,35 +94,59 @@ async def send_message(message: str) -> AsyncIterable[str]:
         callbacks=[callback],
     )
 
-    logger.info("Creating task with LangChain model")
+    # Construct LangChain message list
+    lc_messages = []
+    # Convert history from List[Dict] to LangChain message objects.
+    # TODO: Optimize? Explore if LangChain can handle dicts directly or if models can be adjusted.
+    if history:
+        for msg in history:
+            role = msg.get("role")
+            content = msg.get("content")
+            if not role or not content:
+                logger.warning(f"Skipping history message due to missing role/content: {msg}")
+                continue
+            if role == "user":
+                lc_messages.append(HumanMessage(content=content))
+            elif role == "assistant":
+                lc_messages.append(AIMessage(content=content))
+            elif role == "system":
+                lc_messages.append(SystemMessage(content=content))
+            else:
+                logger.warning(f"Skipping history message due to unknown role: {role}")
+
+    # Add the current user message
+    lc_messages.append(HumanMessage(content=message))
+    
+    logger.info(f"📚 Sending messages to LangChain model: {lc_messages}")
+    logger.info("▶️ Creating task with LangChain model")
     task = asyncio.create_task(
-        model.agenerate(messages=[[HumanMessage(content=message)]])
+        model.agenerate(messages=[lc_messages])
     )
 
     token_count = 0
     try:
-        logger.info("Starting token streaming")
+        logger.info("✉️ Starting token streaming...")
         async for token in callback.aiter():
             token_count += 1
-            if token_count % 10 == 0:
-                logger.info(f"Streamed {token_count} tokens so far")
             yield token
     except Exception as e:
         logger.error(f"Error during streaming: {e}")
         print(f"Caught exception: {e}")
     finally:
         callback.done.set()
-        logger.info(f"Completed streaming {token_count} tokens")
+        logger.info(f"🏁 Completed streaming {token_count} tokens")
 
     await task
-    logger.info("Task completed")
+    logger.info("✅ Task completed")
 
 
 @app.post("/chat")
-async def stream_chat(message: ChatMessage, auth=Depends(verify_auth)):
-    logger.info(f"Received streaming chat request with message: {message.message}")
+async def stream_chat(request: CompleteQueryRequest, auth=Depends(verify_auth)):
+    logger.info("✅ Received streaming chat request.")
+    logger.info(f"✨ Message: {request.message}")
+    logger.info(f"✨ History: {request.message_history}")
     
-    generator = send_message(message.message)
+    generator = send_message(request.message, request.message_history)
     logger.info("Returning streaming response")
     return StreamingResponse(generator, media_type="text/event-stream")
 
