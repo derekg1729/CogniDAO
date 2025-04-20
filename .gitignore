@@ -15,7 +15,7 @@ build/
 .env
 
 # local deployment secrets
-.secrets
+.secrets.*
 
 
 # Logseq files
