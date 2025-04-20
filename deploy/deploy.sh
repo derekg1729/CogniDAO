@@ -8,6 +8,7 @@
 #   ./scripts/deploy.sh --compose # Run full stack using docker-compose
 #   ./scripts/deploy.sh --prod  # Future: Deploy to production
 #   ./scripts/deploy.sh --preview # Future: Deploy to staging/preview
+#   ./scripts/deploy.sh --simulate-preview Simulate the preview deployment locally using .secrets
 #   ./scripts/deploy.sh --help  # Display this help message
 
 set -e  # Exit on any error
@@ -48,6 +49,7 @@ display_help() {
   echo "  --compose     Start the full stack using Docker Compose (with Caddy proxy)"
   echo "  --preview     Trigger GitHub Actions to deploy to the preview environment"
   echo "  --prod        Trigger GitHub Actions to deploy to the production environment"
+  echo "  --simulate-preview Simulate the preview deployment locally using .secrets"
   echo
   echo "Examples:"
   echo "  $0 --local    # Start the API locally for development"
@@ -56,6 +58,7 @@ display_help() {
   echo "  $0 --compose  # Start the full stack with Caddy proxy"
   echo "  $0 --preview  # Deploy to preview environment"
   echo "  $0 --prod     # Deploy to production environment"
+  echo "  $0 --simulate-preview # Simulate preview deployment locally"
 }
 
 # Function for colorful status messages
@@ -380,6 +383,231 @@ function run_workflow {
   echo "https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)/actions"
 }
 
+# New Function: Build and Push image to GHCR
+build_and_push_ghcr() {
+  status "Building and pushing image to GHCR..." >&2
+
+  local secrets_file=".secrets"
+  local dockerfile="Dockerfile.api"
+  local gh_owner="cogni-1729" # IMPORTANT: Replace with your GH username/org
+  local repo_name="cogni-backend" # Or your desired repo name on GHCR
+
+  # Check for Docker
+  if ! command -v docker &> /dev/null; then
+      warning "❌ Error: 'docker' command is required."
+      exit 1
+  fi
+
+  # Check for required files
+  check_file "$secrets_file"
+  check_file "$dockerfile"
+
+  # Load GHCR credentials
+  status "Loading GHCR credentials from $secrets_file..." >&2
+  GHCR_USERNAME=$(grep "^GHCR_USERNAME=" "$secrets_file" | cut -d= -f2)
+  GHCR_TOKEN=$(grep "^GHCR_TOKEN=" "$secrets_file" | cut -d= -f2)
+
+  # Validate credentials
+  if [ -z "$GHCR_USERNAME" ] || [ -z "$GHCR_TOKEN" ]; then
+    warning "❌ Error: GHCR_USERNAME or GHCR_TOKEN missing from $secrets_file"
+    exit 1
+  fi
+
+  # Login to GHCR
+  status "Logging into GHCR (ghcr.io)..." >&2
+  echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin > /dev/null || { warning "❌ GHCR login failed"; exit 1; }
+  status "✅ GHCR login successful." >&2
+
+  # Generate tags
+  local unique_tag="local-$(date +%Y%m%d%H%M%S)"
+  local image_latest="ghcr.io/$gh_owner/$repo_name:latest"
+  local image_unique="ghcr.io/$gh_owner/$repo_name:$unique_tag"
+
+  status "Building image $image_unique (and tagging as latest) for linux/amd64..." >&2
+  docker build --platform linux/amd64 -t "$image_unique" -t "$image_latest" -f "$dockerfile" . || { warning "❌ Docker build failed"; exit 1; }
+
+  status "Pushing image $image_unique to GHCR..." >&2
+  docker push "$image_unique" > /dev/null || { warning "❌ Failed to push $image_unique"; exit 1; }
+
+  status "Pushing image $image_latest to GHCR..." >&2
+  docker push "$image_latest" > /dev/null || { warning "❌ Failed to push $image_latest"; exit 1; }
+
+  status "✅ Image pushed successfully: $image_unique" >&2
+
+  # Return the unique tag for the caller
+  echo "$unique_tag"
+}
+
+# New Function: Simulate Preview Deployment Locally
+simulate_preview_deployment() {
+  status "Simulating preview deployment locally..." >&2
+
+  local secrets_file=".secrets"
+  local ssh_key_file="$HOME/.ssh/cogni-backend-poc-preview.pem" # Using your specified key
+  local gh_owner="cogni-1729"
+  local repo_name="cogni-backend"
+  local remote_dir_literal="~/cogni-backend" # Use literal path for remote cd
+  local preview_caddyfile="deploy/Caddyfile.preview"
+  local compose_template_local="deploy/docker-compose.yml" # Local template path
+  local temp_compose_file="temp_compose_$$.yml" # Temporary local file for generated compose
+
+  # Check for required local files
+  check_file "$secrets_file"
+  check_file "$ssh_key_file"
+  check_file "$preview_caddyfile"
+  check_file "$compose_template_local" # Check base template locally
+
+  # Load secrets safely
+  status "Loading secrets from $secrets_file..." >&2
+  PREVIEW_SERVER_IP=$(grep "^PREVIEW_SERVER_IP=" "$secrets_file" | cut -d= -f2)
+  OPENAI_API_KEY=$(grep "^OPENAI_API_KEY=" "$secrets_file" | cut -d= -f2)
+  COGNI_API_KEY=$(grep "^COGNI_API_KEY=" "$secrets_file" | cut -d= -f2)
+  GHCR_USERNAME=$(grep "^GHCR_USERNAME=" "$secrets_file" | cut -d= -f2)
+  GHCR_TOKEN=$(grep "^GHCR_TOKEN=" "$secrets_file" | cut -d= -f2)
+
+  # Validate secrets
+  if [ -z "$PREVIEW_SERVER_IP" ] || [ -z "$OPENAI_API_KEY" ] || [ -z "$COGNI_API_KEY" ] || [ -z "$GHCR_USERNAME" ] || [ -z "$GHCR_TOKEN" ]; then
+    warning "❌ Error: One or more required variables missing from $secrets_file"
+    exit 1
+  fi
+  status "Secrets loaded successfully." >&2
+
+  # Build and Push Image First
+  local image_tag
+  image_tag=$(build_and_push_ghcr) || { warning "❌ Failed to build and push image."; exit 1; }
+  status "Using image tag for deployment: $image_tag" >&2
+
+  # --- Generate Compose file locally using Heredoc ---
+  status "Generating local temporary compose file: $temp_compose_file" >&2
+  cat << EOF > "$temp_compose_file"
+version: "3.9"
+services:
+  api:
+    image: ghcr.io/$gh_owner/$repo_name:$image_tag
+    container_name: cogni-api-preview
+    environment:
+      OPENAI_API_KEY: '$OPENAI_API_KEY'
+      COGNI_API_KEY: '$COGNI_API_KEY'
+    expose: ["8000"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      retries: 3
+
+  caddy:
+    image: caddy:2
+    container_name: cogni-caddy-preview
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [api]
+
+volumes:
+  caddy_data:
+  caddy_config:
+EOF
+  if [ $? -ne 0 ]; then
+      warning "❌ Failed to generate temporary compose file using heredoc"
+      exit 1
+  fi
+  trap "rm -f '$temp_compose_file'" EXIT SIGHUP SIGINT SIGTERM
+  # --- End Generate Compose file locally ---
+
+  # --- Prepare Base64 Auth String Locally ---
+  status "Preparing local base64 auth string..." >&2
+  if ! command -v base64 &> /dev/null; then
+      warning "❌ Error: 'base64' command not found locally."
+      exit 1
+  fi
+  # Pipe through tr -d '\n' to remove potential trailing newline from macOS base64
+  LOCAL_AUTH_B64=$(printf "%s:%s" "$GHCR_USERNAME" "$GHCR_TOKEN" | base64 | tr -d '\n')
+  if [ -z "$LOCAL_AUTH_B64" ]; then
+      warning "❌ Failed to generate local base64 auth string."
+      exit 1
+  fi
+  # --- End Prepare Base64 ---
+
+  # Check for required SSH/SCP commands
+  if ! command -v ssh &> /dev/null || ! command -v scp &> /dev/null; then
+      warning "❌ Error: 'ssh' and 'scp' commands are required."
+      exit 1
+  fi
+
+  # Define common SSH options
+  SSH_OPTS="-i $ssh_key_file -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
+  status "Preparing remote server directory..." >&2
+  ssh $SSH_OPTS ubuntu@$PREVIEW_SERVER_IP "mkdir -p $remote_dir_literal" || { warning "❌ Failed to create remote directory"; exit 1; }
+
+  status "Copying deployment files..." >&2
+  scp $SSH_OPTS "$preview_caddyfile" "$temp_compose_file" ubuntu@$PREVIEW_SERVER_IP:$remote_dir_literal/ || { warning "❌ Failed to copy deployment files"; exit 1; }
+  ssh $SSH_OPTS ubuntu@$PREVIEW_SERVER_IP "mv $remote_dir_literal/$(basename "$preview_caddyfile") $remote_dir_literal/Caddyfile && mv $remote_dir_literal/$(basename "$temp_compose_file") $remote_dir_literal/docker-compose.yml" || { warning "❌ Failed to rename files on remote"; exit 1; }
+
+  status "Deploying with Docker Compose on remote server using tag: $image_tag..." >&2
+  # Pass LOCAL_AUTH_B64 as env var AUTH_STR_B64 to the remote host
+  # Use single quotes around the entire remote command string
+  ssh $SSH_OPTS ubuntu@$PREVIEW_SERVER_IP AUTH_STR_B64="$LOCAL_AUTH_B64" '
+  set -e # Exit on error within the remote script
+
+  # Use literal path for cd, do not use variables inside single quotes
+  cd ~/cogni-backend
+
+  # --- Create ~/.docker/config.json on Remote Server using passed Env Var ---
+  echo "Configuring Docker credentials on remote server via config.json..."
+
+  mkdir -p ~/.docker
+  # Use single-quoted heredoc marker to prevent remote expansion inside
+  cat << EOF_JSON > ~/.docker/config.json
+{
+  "auths": {
+    "ghcr.io": {
+      "auth": "$AUTH_STR_B64"
+    }
+  }
+}
+EOF_JSON
+
+  if [ ! -s ~/.docker/config.json ]; then
+      echo "❌ Failed to create or write to Docker config.json"; exit 1;
+  fi
+
+  chmod 600 ~/.docker/config.json
+  echo "Remote Docker credentials configured via config.json."
+  # --- End Docker config.json ---
+
+  # --- Original Compose Commands ---
+  # Use double quotes inside the echo, variables will not expand here anyway due to outer single quotes
+  echo "Pulling image ghcr.io/cogni-1729/cogni-backend:'"$image_tag"' ..."
+  docker compose pull
+
+  echo "Starting services..."
+  docker compose up -d --remove-orphans
+
+  echo "Remote deployment steps completed."
+  # --- End Original Compose Commands ---
+  ' || { warning "❌ Remote deployment command failed"; exit 1; } # End of SSH command
+
+  # Clean up the temp file now that remote command succeeded
+  rm -f "$temp_compose_file"
+  trap - EXIT SIGHUP SIGINT SIGTERM # Clear the trap
+
+  status "Waiting for deployment to stabilize..." >&2
+  sleep 10 # Give services a moment to start
+
+  status "Verifying deployment health (via SSH to remote host)..." >&2
+  if ssh $SSH_OPTS ubuntu@$PREVIEW_SERVER_IP "curl --retry 5 --retry-delay 3 --retry-connrefused -s http://localhost:8000/healthz" | grep -q "healthy"; then
+    status "✅ Simulated preview deployment successful! Health check passed via internal curl."
+  else
+    warning "❌ Internal health check failed after retries."
+    warning "   Check remote logs: ssh $SSH_OPTS ubuntu@$PREVIEW_SERVER_IP '\''cd ~/cogni-backend && docker compose logs api'\''" # Escaped quotes for inner command
+    exit 1 # Exit with error on health check failure
+  fi
+}
+
+
 # Deploy for testing (temporary instance)
 deploy_test() {
   echo -e "${CYAN}🧪 Deploying test container...${NC}"
@@ -406,7 +634,8 @@ else
       deploy_local
       ;;
     --test)
-      deploy_test
+      MODE="test" # Set mode for deploy_local
+      deploy_local # Use deploy_local for testing now
       ;;
     --clean)
       cleanup
@@ -419,6 +648,9 @@ else
       ;;
     --prod)
       run_workflow "prod"
+      ;;
+    --simulate-preview) # New case
+      simulate_preview_deployment
       ;;
     *)
       echo -e "${RED}Unknown option: $1${NC}"
