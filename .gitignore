@@ -37,3 +37,10 @@ pages/
 # /data/
 # /memory_banks/ # Also ignore if created at top level directly
 
+# Secrets and environment variables
+.env
+.secrets.*
+
+# Agent data (if untracked)
+/data/agents/
+
