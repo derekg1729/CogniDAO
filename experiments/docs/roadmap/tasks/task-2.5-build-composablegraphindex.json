@@ -1,0 +1,22 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "2.5",
+  "title": "Build ComposableGraphIndex from MemoryBlocks",
+  "phase": "🧠 Indexing + Retrieval (LlamaIndex)",
+  "goal": "Allow graph traversal and type-aware query expansion based on block links.",
+  "action_items": [
+    "[ ] Ensure `memory_block_to_node` (Task 2.4) correctly populates Node `relationships` or metadata for links.",
+    "[ ] Create a list of `Node` objects representing sample linked blocks (e.g., a project node linked to task nodes).",
+    "[ ] Instantiate a LlamaIndex `ComposableGraph` or `KnowledgeGraphIndex`.",
+    "[ ] Add the Nodes (with their relationship info) to the graph index.",
+    "[ ] Write a sample query that utilizes graph traversal (e.g., 'Find all tasks related to project X').",
+    "[ ] Research LlamaIndex methods for graph traversal querying (`graph.query`, `graph.get_related_nodes`, etc.)."
+  ],
+  "test_criteria": [
+    "Execute a graph traversal query.",
+    "Verify that the query correctly returns nodes based on the defined relationships (e.g., traversing from a project node returns its linked task nodes)."
+  ],
+  "current_status": "Not started."
+} 

@@ -1,0 +1,26 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "6.4",
+  "title": "Create minimal graph viewer in frontend using Cytoscape.js",
+  "phase": "🧪 Optional Debugging + Inspection",
+  "goal": "Visualize the memory blocks and their connections as an interactive graph in the UI.",
+  "action_items": [
+    "[ ] Add `cytoscape.js` library to the frontend project.",
+    "[ ] Create a new page or component in the frontend for the graph view.",
+    "[ ] Fetch the graph data from the `/api/graph` endpoint (Task 6.3).",
+    "[ ] Initialize a Cytoscape instance with the fetched node and edge data.",
+    "[ ] Configure basic layout (e.g., `cose`, `breadthfirst`).",
+    "[ ] Apply basic styling (e.g., different colors/shapes for nodes based on `type`).",
+    "[ ] Add basic interactivity (e.g., panning, zooming)."
+  ],
+  "test_criteria": [
+    "Navigate to the graph viewer page in the frontend UI.",
+    "Verify that a graph is rendered.",
+    "Verify that nodes and edges correspond to the memory blocks and links in Dolt.",
+    "Verify basic interactivity (pan, zoom) works.",
+    "Verify nodes are styled differently based on their type."
+  ],
+  "current_status": "Not started."
+} 

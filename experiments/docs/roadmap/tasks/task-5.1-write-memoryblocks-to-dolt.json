@@ -1,0 +1,28 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "5.1",
+  "title": "Write updated/created MemoryBlocks to Dolt",
+  "phase": "🔁 Sync + Persistence",
+  "goal": "Ensure that memory created or modified by the agent is permanently stored in Dolt.",
+  "schema_references": [
+    "project.schemas.memory_block_pydantic",
+    "project.schemas.dolt_sql"
+  ],
+  "action_items": [
+    "[ ] Modify the `CreateMemoryBlock` tool (Task 3.3) to reliably insert the new block into the Dolt `memory_blocks` table (using Dolt schema).",
+    "[ ] Implement the `UpdateMemoryBlock` tool (similar to `CreateMemoryBlock` but performs an SQL UPDATE or INSERT/REPLACE on Dolt based on block ID, using Dolt schema).",
+    "[ ] Define the tool's description and input schema (id, optional fields to update, referencing Pydantic schema).",
+    "[ ] Register the `UpdateMemoryBlock` tool with the agent.",
+    "[ ] Ensure Dolt commits happen after successful writes/updates (e.g., `dolt commit -am 'Agent updated block X'`).",
+    "[ ] Consider using `doltpy` or an ORM-like layer to simplify Dolt interactions."
+  ],
+  "test_criteria": [
+    "Have the agent create a new memory block (using `CreateMemoryBlock` tool).",
+    "Verify the new block appears in `dolt log` and `dolt diff`.",
+    "Have the agent update an existing block (using `UpdateMemoryBlock` tool).",
+    "Verify the changes appear in `dolt log` and `dolt diff` for the correct block ID, matching the Dolt schema."
+  ],
+  "current_status": "Not started."
+} 

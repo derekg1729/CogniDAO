@@ -1,0 +1,24 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "1.4",
+  "title": "Create Dolt block_links table",
+  "phase": "🧱 Core Schema + Local Persistence",
+  "goal": "Enable storing directed edges (relationships) between memory blocks.",
+  "schema_references": [
+    "project.schemas.dolt_sql"
+  ],
+  "action_items": [
+    "[ ] Define the `block_links` table schema using Dolt SQL, based on the second part of `project.schemas.dolt_sql`.",
+    "[ ] Verify columns (`from_id`, `to_id`, `relation`), primary key, and foreign key constraints match the schema.",
+    "[ ] Commit the table schema to Dolt (`dolt add .`, `dolt commit -m 'Create block_links table'`)."
+  ],
+  "test_criteria": [
+    "Manually insert links between existing sample blocks via Dolt SQL (`dolt sql -q 'INSERT INTO block_links ...'`).",
+    "Verify the table structure (`dolt schema show block_links`).",
+    "Verify insertion using `dolt diff`.",
+    "Query links for a specific block (`dolt sql -q 'SELECT to_id FROM block_links WHERE from_id = ...'`)."
+  ],
+  "current_status": "Not started."
+}

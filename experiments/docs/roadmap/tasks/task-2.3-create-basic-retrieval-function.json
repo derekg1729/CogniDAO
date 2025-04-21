@@ -1,0 +1,27 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "2.3",
+  "title": "Create a basic retrieval function (query_memory_blocks)",
+  "phase": "🧠 Indexing + Retrieval (LlamaIndex)",
+  "goal": "Allow semantic lookup of MemoryBlocks based on a text query.",
+  "schema_references": [
+    "project.schemas.memory_block_pydantic"
+  ],
+  "action_items": [
+    "[ ] Define a Python function `query_memory_blocks(query_text: str, index: VectorStoreIndex, top_k: int = 3) -> List[MemoryBlock]` (returning Pydantic model).",
+    "[ ] Get a query engine from the `index` (`index.as_query_engine()`).",
+    "[ ] Execute the query using `query_engine.query(query_text)`.",
+    "[ ] Access the retrieved `Node` objects from the response (`response.source_nodes`).",
+    "[ ] Convert the relevant metadata from the retrieved `Node` objects back into `MemoryBlock` objects (potentially needing a `node_to_memory_block` helper function, the inverse of Task 2.2/2.4, using Pydantic model).",
+    "[ ] Return the top `k` `MemoryBlock` objects."
+  ],
+  "test_criteria": [
+    "Call `query_memory_blocks` with a sample query text and the index created in Task 2.1.",
+    "Verify that the function returns a list of `MemoryBlock` objects.",
+    "Check that the content and metadata of the returned blocks correspond to the expected relevant blocks from the indexed data.",
+    "Ensure the number of returned blocks matches `top_k` (or fewer if less results exist)."
+  ],
+  "current_status": "Not started."
+} 

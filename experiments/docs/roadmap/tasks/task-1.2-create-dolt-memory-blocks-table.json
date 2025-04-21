@@ -1,0 +1,24 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "1.2",
+  "title": "Create a local Dolt table for memory_blocks",
+  "phase": "🧱 Core Schema + Local Persistence",
+  "goal": "Enable git-style storage of memory data using Dolt.",
+  "schema_references": [
+    "project.schemas.dolt_sql"
+  ],
+  "action_items": [
+    "[ ] Initialize a new Dolt database in the experiment directory (e.g., `dolt init`).",
+    "[ ] Define the `memory_blocks` table schema using Dolt SQL, based on `project.schemas.dolt_sql`.",
+    "[ ] Verify the columns (id, type, text, tags_json, metadata_json, confidence_json, source_file, source_uri, created_by, created_at, updated_at) and types match the schema.",
+    "[ ] Commit the table schema to Dolt (`dolt add .`, `dolt commit -m 'Create memory_blocks table'`)."
+  ],
+  "test_criteria": [
+    "Manually insert a sample MemoryBlock (without links) via Dolt SQL (`dolt sql -q 'INSERT INTO ...'`).",
+    "Verify the table structure (`dolt schema show memory_blocks`).",
+    "Verify the insertion using `dolt diff` (should show the new row)."
+  ],
+  "current_status": "Not started."
+}

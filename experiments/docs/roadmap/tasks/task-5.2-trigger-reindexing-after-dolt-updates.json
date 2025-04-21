@@ -1,0 +1,25 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "5.2",
+  "title": "Trigger re-indexing after Dolt updates",
+  "phase": "🔁 Sync + Persistence",
+  "goal": "Keep the LlamaIndex search index consistent with the persistent Dolt storage.",
+  "action_items": [
+    "[ ] Decide on a re-indexing strategy:",
+    "[ ] Option A (Simple): After a successful Dolt write/update (Task 5.1), immediately fetch the updated block, convert it to a Node (Task 2.4), and update/insert it into the LlamaIndex index (`index.update_ref_doc` or `index.insert`).",
+    "[ ] Option B (Batched/Async): Implement a mechanism (e.g., a queue, a background task) to trigger re-indexing periodically or based on Dolt commit hooks (more complex).",
+    "[ ] Implement the chosen strategy within or called by the `CreateMemoryBlock` and `UpdateMemoryBlock` tool functions.",
+    "[ ] Handle potential failures during re-indexing gracefully (e.g., log errors but don't necessarily fail the Dolt write)."
+  ],
+  "test_criteria": [
+    "Create a new memory block using the agent/tool.",
+    "Immediately after, query the LlamaIndex using the retrieval function (Task 2.3).",
+    "Verify that the newly created block can be retrieved via semantic search.",
+    "Update an existing block using the agent/tool.",
+    "Query LlamaIndex again for the updated content.",
+    "Verify the retrieved block reflects the updated content."
+  ],
+  "current_status": "Not started."
+} 

@@ -1,0 +1,25 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "2.4",
+  "title": "Extend memory_block_to_node() to include type + links",
+  "phase": "🧠 Indexing + Retrieval (LlamaIndex)",
+  "goal": "Allow typed block structure and graph relations inside LlamaIndex nodes, preparing for Graph Indexing.",
+  "schema_references": [
+    "project.schemas.memory_block_pydantic"
+  ],
+  "action_items": [
+    "[ ] Modify the `memory_block_to_node` function from Task 2.2.",
+    "[ ] Ensure the `block.type` field (from Pydantic model) is added to the Node's `metadata`.",
+    "[ ] Determine how to represent `block.links` (from Pydantic model) for LlamaIndex:",
+    "[ ] Option A: Store links directly in Node `metadata` (e.g., `metadata['links'] = block.links`).",
+    "[ ] Option B: Define relationships using LlamaIndex's `NodeRelationship` objects and add them to the Node's `relationships` attribute (preferred for graph indices). Research `NodeRelationship.SOURCE`, `NodeRelationship.RELATED` etc.",
+    "[ ] Update tests from Task 2.2 to verify the presence and correctness of `type` and link information (either in `metadata` or `relationships`)."
+  ],
+  "test_criteria": [
+    "Verify created nodes have `type` in metadata.",
+    "Verify created nodes have relationship information usable by GraphIndex (either via metadata key or populated `relationships` attribute)."
+  ],
+  "current_status": "Not started."
+} 

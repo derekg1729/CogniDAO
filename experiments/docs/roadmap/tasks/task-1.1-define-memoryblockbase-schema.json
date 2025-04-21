@@ -1,0 +1,25 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "1.1",
+  "title": "Define MemoryBlockBase schema with `type` and `links`",
+  "phase": "🧱 Core Schema + Local Persistence",
+  "goal": "Establish the shared memory format for Dolt, LlamaIndex, and LangChain tools, supporting multiple block types and graph structure.",
+  "schema_references": [
+    "project.schemas.memory_block_pydantic",
+    "project.schemas.memory_block_json"
+  ],
+  "action_items": [
+    "[ ] Define a Pydantic BaseModel named `MemoryBlock` (or `MemoryBlockBase`) based on `project.schemas.memory_block_pydantic`.",
+    "[ ] Include base fields: id, text, tags, source_file, source_uri, metadata.",
+    "[ ] Add new fields based on updates: `type` (e.g., 'knowledge', 'task', 'project'), `links` (List[str] of related block IDs), `confidence` (Optional[float], maybe separate human/ai later).",
+    "[ ] Ensure appropriate types (e.g., List, Optional) are used.",
+    "[ ] Add basic validation if needed (e.g., `type` is within allowed values)."
+  ],
+  "test_criteria": [
+    "Create and validate an instance with dummy data.",
+    "Instantiate each block type (e.g., 'knowledge', 'task') with appropriate metadata and links."
+  ],
+  "current_status": "Not started."
+} 

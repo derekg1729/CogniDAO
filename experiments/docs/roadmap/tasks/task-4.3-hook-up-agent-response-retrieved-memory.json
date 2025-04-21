@@ -1,0 +1,23 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "4.3",
+  "title": "Hook up agent response to include retrieved memory blocks",
+  "phase": "🌐 Frontend + API Hookup",
+  "goal": "Allow users to see the source memory blocks used by the agent to generate its response.",
+  "action_items": [
+    "[ ] Modify the `/api/chat` endpoint (Task 4.1) or the agent logic (Phase 3) to capture the source nodes/blocks retrieved by the `QueryMemoryBlocks` tool.",
+    "[ ] Determine how to send this source information to the frontend:",
+    "[ ] Option A: Send as separate metadata alongside the streaming response (e.g., using Vercel AI SDK data messages or custom SSE events).",
+    "[ ] Option B: Include citations or summaries within the streamed response text itself.",
+    "[ ] Modify the frontend (Task 4.2) to receive and display this source information.",
+    "[ ] Add a UI element (e.g., a small citation link, an expandable section below the message) to show the retrieved block(s)."
+  ],
+  "test_criteria": [
+    "Send a query via the frontend UI that triggers memory retrieval (e.g., 'What is CogniDAO?').",
+    "Verify the agent's response appears.",
+    "Verify that information about the source MemoryBlock(s) used is displayed alongside or linked from the agent's response in the UI."
+  ],
+  "current_status": "Not started."
+} 

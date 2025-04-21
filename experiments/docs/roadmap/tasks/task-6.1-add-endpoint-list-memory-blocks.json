@@ -1,0 +1,25 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "6.1",
+  "title": "Add endpoint to list all memory blocks",
+  "phase": "🧪 Optional Debugging + Inspection",
+  "goal": "Provide a simple way to inspect the current state of memory directly from Dolt.",
+  "schema_references": [
+    "project.schemas.memory_block_pydantic",
+    "project.schemas.dolt_sql"
+  ],
+  "action_items": [
+    "[ ] Create a new GET endpoint in the FastAPI app (Task 4.1), e.g., `/api/memory`.",
+    "[ ] In the endpoint handler, query the Dolt `memory_blocks` table (using Dolt schema) to retrieve all rows (`SELECT * FROM memory_blocks`).",
+    "[ ] Convert the retrieved Dolt rows into `MemoryBlock` objects (using Pydantic schema) or simple dictionaries using the function from Task 1.3.",
+    "[ ] Return the list of blocks as a JSON response."
+  ],
+  "test_criteria": [
+    "Make a GET request to the `/api/memory` endpoint using `curl` or a browser.",
+    "Verify the endpoint returns a JSON array.",
+    "Verify the content of the array matches the current data stored in the Dolt `memory_blocks` table (according to Dolt schema) and is valid according to the Pydantic/JSON schema."
+  ],
+  "current_status": "Not started."
+} 
