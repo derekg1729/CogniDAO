@@ -29,8 +29,9 @@ jobs:
           tar -xzf actionlint_1.6.27_linux_amd64.tar.gz -C bin
           chmod +x bin/actionlint
           echo "Actionlint installed at $(pwd)/bin/actionlint"
-          ls -la $(pwd)/bin
+          ls -la "$(pwd)/bin"
         
       - name: Run actionlint
         run: |
-          $(pwd)/bin/actionlint -color 
+          # Run actionlint directly specifying files to check
+          ./bin/actionlint .github/workflows/*.yml 
