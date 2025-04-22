@@ -1,0 +1,41 @@
+{
+  "type": "Project",
+  "status": "planning",
+  "epic": "[[Epic_Project_Management]]",
+  "name": "ProjectManagementStructure",
+  "description": "Simple JSON-native project tracking with Mermaid diagrams for design representation and Dolt integration for the memory system. Projects are managed in the code repo but synced to Dolt for AI agent access.",
+  "design_path": "designs/ProjectManagementStructure.mmd",
+  "implementation_flow": [
+    {
+      "phase": "🧱 Project Structure",
+      "tasks": [
+        "Define JSON project structure",
+        "Create Mermaid design template"
+      ]
+    },
+    {
+      "phase": "🔄 Dolt Sync",
+      "tasks": [
+        "Build simple project-to-dolt sync script + Git pre-commit hook",
+        "Store projects and designs in Dolt"
+      ]
+    },
+    {
+      "phase": "🧠 Memory Integration",
+      "tasks": [
+        "Connect Dolt projects to LlamaIndex",
+        "Make projects queryable via memory system",
+        "Allow agents to retrieve project info"
+      ]
+    }
+  ],
+  "success_criteria": [
+    "Projects and designs defined in code repo as JSON + Mermaid",
+    "Projects synced to Dolt for versioning and access",
+    "AI agents can query project structure through memory system"
+  ],
+  "notes": {
+    "workflow": "Edit projects in VSCode → Sync to Dolt → Access via Memory System",
+    "implementation": "Keep it simple, focus on core file format and sync logic"
+  }
+} 

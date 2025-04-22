@@ -62,6 +62,7 @@
 {"timestamp": "2025-04-16T10:24:37.275274", "agent_name": "SwarmCogni", "agent_class": "CogniSwarmAgent", "action_type": "swarm_reflection", "markdown_filename": "CogniSwarmAgent_swarm_reflection20250416_102437_274428.md"}
 {"timestamp": "2025-04-16T10:29:24.164134", "agent_name": "core-cogni", "agent_class": "CoreCogniAgent", "action_type": "thought_", "markdown_filename": "CoreCogniAgent_thought_20250416_102924_163782.md"}
 {"timestamp": "2025-04-16T10:30:04.341141", "agent_name": "SwarmCogni", "agent_class": "CogniSwarmAgent", "action_type": "swarm_reflection", "markdown_filename": "CogniSwarmAgent_swarm_reflection20250416_103004_340701.md"}
+<<<<<<< HEAD
 {"timestamp": "2025-04-19T07:58:43.975155", "agent_name": "core-cogni", "agent_class": "CoreCogniAgent", "action_type": "thought_", "markdown_filename": "CoreCogniAgent_thought_20250419_075843_974814.md"}
 {"timestamp": "2025-04-19T07:58:44.118951", "agent_name": "core-cogni", "agent_class": "CoreCogniAgent", "action_type": "thought_", "markdown_filename": "CoreCogniAgent_thought_20250419_075844_118532.md"}
 {"timestamp": "2025-04-19T07:58:44.554977", "agent_name": "core-cogni", "agent_class": "CoreCogniAgent", "action_type": "thought_", "markdown_filename": "CoreCogniAgent_thought_20250419_075844_554112.md"}
@@ -136,3 +137,5 @@
 {"timestamp": "2025-04-22T07:46:48.004556", "agent_name": "SwarmCogni", "agent_class": "CogniSwarmAgent", "action_type": "swarm_reflection", "markdown_filename": "CogniSwarmAgent_swarm_reflection20250422_074648_003950.md"}
 {"timestamp": "2025-04-22T07:46:51.628458", "agent_name": "SwarmCogni", "agent_class": "CogniSwarmAgent", "action_type": "swarm_reflection", "markdown_filename": "CogniSwarmAgent_swarm_reflection20250422_074651_628182.md"}
 {"timestamp": "2025-04-22T07:46:54.609592", "agent_name": "SwarmCogni", "agent_class": "CogniSwarmAgent", "action_type": "swarm_reflection", "markdown_filename": "CogniSwarmAgent_swarm_reflection20250422_074654_609375.md"}
+{"timestamp": "2025-04-22T11:29:19.580945", "agent_name": "core-cogni", "agent_class": "CoreCogniAgent", "action_type": "thought_", "markdown_filename": "CoreCogniAgent_thought_20250422_112919_580544.md"}
+{"timestamp": "2025-04-22T11:29:23.823651", "agent_name": "SwarmCogni", "agent_class": "CogniSwarmAgent", "action_type": "swarm_reflection", "markdown_filename": "CogniSwarmAgent_swarm_reflection20250422_112923_822959.md"}
