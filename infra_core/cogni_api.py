@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Define paths for memory and source data
-CHARTER_SOURCE_DIR = "./charter_source"
+API_INDEXED_FILES_DIR = "./api_indexed_files"
 MEMORY_CHROMA_PATH = "infra_core/memory/chroma"
 MEMORY_ARCHIVE_PATH = "infra_core/memory/archive" # Needs to exist for client
 
@@ -54,8 +54,8 @@ async def lifespan(app: FastAPI):
     os.makedirs(MEMORY_CHROMA_PATH, exist_ok=True)
     logger.info(f"Ensuring directory exists: {MEMORY_ARCHIVE_PATH}")
     os.makedirs(MEMORY_ARCHIVE_PATH, exist_ok=True)
-    logger.info(f"Ensuring directory exists: {CHARTER_SOURCE_DIR}")
-    os.makedirs(CHARTER_SOURCE_DIR, exist_ok=True) # Ensure source dir exists too
+    logger.info(f"Ensuring directory exists: {API_INDEXED_FILES_DIR}")
+    os.makedirs(API_INDEXED_FILES_DIR, exist_ok=True) # Ensure source dir exists too
 
     # Initialize Memory Client
     logger.info("🧠 Initializing CogniMemoryClient...")
@@ -69,19 +69,19 @@ async def lifespan(app: FastAPI):
         logger.info("🧠 CogniMemoryClient initialized.")
 
         # Index Charter on startup
-        logger.info(f"📚 Indexing charter from: {CHARTER_SOURCE_DIR}")
+        logger.info(f"📚 Indexing files from: {API_INDEXED_FILES_DIR}")
         try:
             # Use tag_filter=set() to index all blocks regardless of tags
             indexed_count = memory_client_instance.index_from_logseq(
-                logseq_dir=CHARTER_SOURCE_DIR, 
+                logseq_dir=API_INDEXED_FILES_DIR,
                 tag_filter=set(),
                 verbose=True # Enable verbose logging for indexing
             )
-            logger.info(f"✅ Successfully indexed {indexed_count} blocks from charter.")
+            logger.info(f"✅ Successfully indexed {indexed_count} blocks from {API_INDEXED_FILES_DIR}.")
         except FileNotFoundError:
-             logger.error(f" Charter source directory not found: {CHARTER_SOURCE_DIR}. Skipping indexing.")
+             logger.error(f" Indexed files directory not found: {API_INDEXED_FILES_DIR}. Skipping indexing.")
         except Exception as index_e:
-            logger.exception(f"❌ Error during charter indexing: {index_e}")
+            logger.exception(f"❌ Error during indexing from {API_INDEXED_FILES_DIR}: {index_e}")
 
         # Store the client directly on app.state
         app.state.memory_client = memory_client_instance
