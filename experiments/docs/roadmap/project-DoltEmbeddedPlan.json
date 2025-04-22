@@ -1,0 +1,74 @@
+{
+  "type": "Project",
+  "status": "planning",
+  "epic": "[[Epic_Presence_and_Control_Loops]]", // Define or link the appropriate Epic
+  "name": "DoltEmbeddedPlan",
+  "description": "Design and decision plan for how CogniMemorySystem interacts with Dolt, including current CLI strategy and future Dolt Embedded via Golang embedding.",
+  "implementation_flow": [], // No specific tasks defined in the input yet
+  "planning_details": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DoltIntegrationPlanSourceDetails",
+    "id": "dolt_integration_design_001", // From input
+    "block_type_used": "project", // Adapted from input 'type'
+    "tags": [ // From input
+      "dolt",
+      "embedded",
+      "golang",
+      "memory_system",
+      "roadmap"
+    ],
+    "metadata": { // From input
+      "current_strategy": "Use Dolt CLI via subprocess from Python to manage versioned MemoryBlock storage and commits.",
+      "reasoning": "Provides immediate access to Dolt's SQL and versioning capabilities without requiring MySQL or Golang embedding.",
+      "short_term_goals": [
+        "Build a minimal Dolt wrapper using subprocess in Python.",
+        "Validate full MemoryBlock lifecycle: insert, query, commit."
+      ],
+      "long_term_considerations": [
+        {
+          "option": "Embed Dolt in Go and expose via a local gRPC or HTTP service.",
+          "benefits": ["Better performance", "Full versioning API access", "No subprocess overhead"],
+          "challenges": ["Requires maintaining a small Go service", "Python-to-Go communication layer"]
+        },
+        {
+          "option": "Wait for or help develop native Python bindings to Dolt engine (FFI/cgo).",
+          "status": "Experimental",
+          "note": "Requires deep Dolt internals knowledge or community effort."
+        }
+      ],
+      "design_decisions": {
+        "compatible_with_mvp": true,
+        "current_plan": "Dolt CLI via Python",
+        "next_steps_after_mvp": [
+          "Explore minimal Go wrapper with a JSON API.",
+          "Evaluate performance vs. CLI for batch inserts.",
+          "Consider pushing Dolt Graph metadata to shared memory index."
+        ]
+      }
+    },
+    "links": [ // From input
+      {
+        "to_id": "memory_client_mvp_design",
+        "relation": "depends_on"
+      },
+      {
+        "to_id": "dolt_sql_schema_definition",
+        "relation": "implements"
+      }
+    ],
+    "source_file": "docs/dolt-embedded-roadmap.md", // From input
+    "source_uri": "https://www.dolthub.com/blog/2022-07-25-embedded/", // From input
+    "confidence": { // From input
+      "human": 0.9,
+      "ai": 0.95
+    },
+    "created_by": "cogni", // From input
+    "created_at": "2025-04-21T00:00:00Z", // From input
+    "updated_at": null // From input
+  },
+  "success_criteria": [
+    "Document the chosen approach for Python-Dolt interaction in the MVP.",
+    "Outline the potential paths for future embedded Dolt integration.",
+    "Define clear criteria for evaluating the CLI approach vs. future embedded options."
+  ]
+} 
