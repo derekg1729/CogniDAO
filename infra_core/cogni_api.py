@@ -12,6 +12,7 @@ from typing import AsyncIterable, List, Dict, Optional
 import json
 import os
 from typing import Any
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Header, HTTPException, Depends
@@ -23,6 +24,8 @@ from langchain.schema import HumanMessage, AIMessage, SystemMessage
 
 # Import our schemas
 from infra_core.models import CompleteQueryRequest, ErrorResponse
+# Import memory components
+from infra_core.memory.memory_client import CogniMemoryClient
 
 # Set up logging
 logging.basicConfig(
@@ -33,10 +36,78 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
+# Define paths for memory and source data
+CHARTER_SOURCE_DIR = "./charter_source"
+MEMORY_CHROMA_PATH = "infra_core/memory/chroma"
+MEMORY_ARCHIVE_PATH = "infra_core/memory/archive" # Needs to exist for client
+
+# Lifespan context to hold shared resources like the memory client
+# lifespan_context = {} # No longer needed
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage the lifespan of the application, including memory client setup."""
+    logger.info("🚀 API starting up...")
+    
+    # Ensure necessary directories exist
+    logger.info(f"Ensuring directory exists: {MEMORY_CHROMA_PATH}")
+    os.makedirs(MEMORY_CHROMA_PATH, exist_ok=True)
+    logger.info(f"Ensuring directory exists: {MEMORY_ARCHIVE_PATH}")
+    os.makedirs(MEMORY_ARCHIVE_PATH, exist_ok=True)
+    logger.info(f"Ensuring directory exists: {CHARTER_SOURCE_DIR}")
+    os.makedirs(CHARTER_SOURCE_DIR, exist_ok=True) # Ensure source dir exists too
+
+    # Initialize Memory Client
+    logger.info("🧠 Initializing CogniMemoryClient...")
+    memory_client_instance = None # Define variable in outer scope
+    try:
+        memory_client_instance = CogniMemoryClient(
+            chroma_path=MEMORY_CHROMA_PATH,
+            archive_path=MEMORY_ARCHIVE_PATH,
+            collection_name="cogni-memory" # Default collection name
+        )
+        logger.info("🧠 CogniMemoryClient initialized.")
+
+        # Index Charter on startup
+        logger.info(f"📚 Indexing charter from: {CHARTER_SOURCE_DIR}")
+        try:
+            # Use tag_filter=set() to index all blocks regardless of tags
+            indexed_count = memory_client_instance.index_from_logseq(
+                logseq_dir=CHARTER_SOURCE_DIR, 
+                tag_filter=set(),
+                verbose=True # Enable verbose logging for indexing
+            )
+            logger.info(f"✅ Successfully indexed {indexed_count} blocks from charter.")
+        except FileNotFoundError:
+             logger.error(f" Charter source directory not found: {CHARTER_SOURCE_DIR}. Skipping indexing.")
+        except Exception as index_e:
+            logger.exception(f"❌ Error during charter indexing: {index_e}")
+
+        # Store the client directly on app.state
+        app.state.memory_client = memory_client_instance
+        logger.info("🧠 Memory client attached to app.state")
+        
+    except Exception as client_e:
+        logger.exception(f"❌ Failed to initialize CogniMemoryClient: {client_e}")
+        app.state.memory_client = None # Indicate failure on app.state
+        logger.warning("🧠 app.state.memory_client set to None due to initialization error.")
+
+    yield # Yield nothing, state is attached directly
+
+    # --- Shutdown ---
+    logger.info("🌙 API shutting down...")
+    # Clean up the state if needed
+    if hasattr(app.state, 'memory_client'):
+         del app.state.memory_client
+         logger.info("🧠 Memory client removed from app.state")
+    # lifespan_context.clear() # No longer needed
+
+
 app = FastAPI(
     title="Cogni API",
-    description="A minimal FastAPI that directly passes user queries to OpenAI.",
+    description="A minimal FastAPI that directly passes user queries to OpenAI, augmented with Cogni memory.",
     version="0.1.0",
+    lifespan=lifespan # Pass the lifespan manager
 )
 
 app.add_middleware(
@@ -141,13 +212,61 @@ async def send_message(message: str, history: Optional[List[Dict[str, str]]] = N
 
 
 @app.post("/chat")
-async def stream_chat(request: CompleteQueryRequest, auth=Depends(verify_auth)):
+async def stream_chat(body: CompleteQueryRequest, fastapi_request: Request, auth=Depends(verify_auth)):
     logger.info("✅ Received streaming chat request.")
-    logger.info(f"✨ Message: {request.message}")
-    logger.info(f"✨ History: {request.message_history}")
+    logger.info(f"✨ Message: {body.message}")
+    logger.info(f"✨ History: {body.message_history}")
+
+    # Access memory client from app state (set by lifespan manager)
+    memory_client: Optional[CogniMemoryClient] = None
+    try:
+        memory_client = fastapi_request.app.state.memory_client
+    except AttributeError:
+        logger.warning("🧠 Memory client not found in app state.")
     
-    generator = send_message(request.message, request.message_history)
-    logger.info("Returning streaming response")
+    augmented_message = body.message # Default to original message
+    context_str = "No context retrieved."
+
+    if memory_client:
+        try:
+            logger.info(f"🧠 Querying memory for: '{body.message}'")
+            # Query the memory index
+            query_results = memory_client.query(
+                query_text=body.message, 
+                n_results=3 # Adjust n_results as needed
+            )
+            
+            context_blocks = query_results.blocks
+            if context_blocks:
+                logger.info(f"🧠 Found {len(context_blocks)} relevant blocks.")
+                # Format context for the LLM
+                context_str = "\n---\n".join([block.text for block in context_blocks])
+                
+                # Prepare the augmented message for the LLM
+                augmented_message = (
+                    f"Based on the following context from the CogniDAO Charter:\n\n"
+                    f"---CONTEXT---\n{context_str}\n---END CONTEXT---\n"
+                    f"Answer the user's question: {body.message}"
+                )
+                logger.info("✨ Augmented message with context.")
+            else:
+                logger.info("🧠 No relevant blocks found in memory.")
+                
+        except Exception as e:
+            logger.error(f"🧠 Memory query failed: {e}")
+            # Proceed with the original message if query fails
+            context_str = f"Memory query failed: {e}" # Include error in context info if needed
+    else:
+        logger.warning("🧠 Memory client not available. Proceeding without context.")
+        context_str = "Memory client not available."
+
+    # Log the final message being sent (potentially augmented)
+    # Avoid logging full context string if it's very long in production
+    logger.info(f"💬 Sending to LLM (message possibly augmented):\nContext Retrieved: {context_str[:200]}...\nAugmented Prompt Start: {augmented_message[:200]}...") 
+
+    # Pass the (potentially augmented) message and history to the LLM stream generator
+    generator = send_message(augmented_message, body.message_history)
+    logger.info("▶️ Returning streaming response.")
     return StreamingResponse(generator, media_type="text/event-stream")
 
 
