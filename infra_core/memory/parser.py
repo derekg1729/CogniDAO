@@ -177,6 +177,10 @@ class LogseqParser:
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
                 
+            # Quick Fix: Preprocess content to merge paragraphs separated by double newlines
+            # This aims to keep headings attached to their subsequent content
+            content = re.sub(r'\\n\\s*\\n', '\\n', content)
+
             # Extract metadata from frontmatter if available
             frontmatter_metadata = self._extract_frontmatter(content)
             

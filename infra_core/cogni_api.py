@@ -83,6 +83,16 @@ async def lifespan(app: FastAPI):
         except Exception as index_e:
             logger.exception(f"❌ Error during indexing from {API_INDEXED_FILES_DIR}: {index_e}")
 
+        # Warm-up the embedding model AFTER client initialization attempt
+        if hasattr(memory_client_instance, 'embedding_function'):
+            try:
+                logger.info("🔥 Warming up embedding model...")
+                # Embed a dummy string to trigger model download/load
+                _ = memory_client_instance.embedding_function.embed_query("warmup")
+                logger.info("✅ Embedding model warmed up successfully.")
+            except Exception as warmup_e:
+                logger.error(f"⚠️ Failed to warm up embedding model: {warmup_e}")
+
         # Store the client directly on app.state
         app.state.memory_client = memory_client_instance
         logger.info("🧠 Memory client attached to app.state")
@@ -91,6 +101,18 @@ async def lifespan(app: FastAPI):
         logger.exception(f"❌ Failed to initialize CogniMemoryClient: {client_e}")
         app.state.memory_client = None # Indicate failure on app.state
         logger.warning("🧠 app.state.memory_client set to None due to initialization error.")
+
+    # Warm-up the embedding model AFTER client initialization attempt
+    if hasattr(app.state, 'memory_client') and app.state.memory_client:
+        try:
+            logger.info("🔥 Warming up embedding model...")
+            # Perform a dummy query to trigger embedding model download/load
+            _ = app.state.memory_client.query(query_text="warmup", n_results=1)
+            logger.info("✅ Embedding model warmed up successfully.")
+        except AttributeError:
+             logger.error("⚠️ Failed to warm up: memory_client has no attribute 'embedding_function'")
+        except Exception as warmup_e:
+            logger.error(f"⚠️ Failed to warm up embedding model: {warmup_e}")
 
     yield # Yield nothing, state is attached directly
 
