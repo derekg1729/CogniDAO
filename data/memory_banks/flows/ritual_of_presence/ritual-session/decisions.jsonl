@@ -130,3 +130,9 @@
 {"timestamp": "2025-04-21T01:31:27.656906", "agent_name": "SwarmCogni", "agent_class": "CogniSwarmAgent", "action_type": "swarm_reflection", "markdown_filename": "CogniSwarmAgent_swarm_reflection20250421_013127_656120.md"}
 {"timestamp": "2025-04-21T07:21:14.524157", "agent_name": "core-cogni", "agent_class": "CoreCogniAgent", "action_type": "thought_", "markdown_filename": "CoreCogniAgent_thought_20250421_072114_523690.md"}
 {"timestamp": "2025-04-21T07:21:22.376708", "agent_name": "SwarmCogni", "agent_class": "CogniSwarmAgent", "action_type": "swarm_reflection", "markdown_filename": "CogniSwarmAgent_swarm_reflection20250421_072122_376418.md"}
+{"timestamp": "2025-04-22T07:46:38.571168", "agent_name": "core-cogni", "agent_class": "CoreCogniAgent", "action_type": "thought_", "markdown_filename": "CoreCogniAgent_thought_20250422_074638_570648.md"}
+{"timestamp": "2025-04-22T07:46:38.668557", "agent_name": "core-cogni", "agent_class": "CoreCogniAgent", "action_type": "thought_", "markdown_filename": "CoreCogniAgent_thought_20250422_074638_668145.md"}
+{"timestamp": "2025-04-22T07:46:40.705025", "agent_name": "core-cogni", "agent_class": "CoreCogniAgent", "action_type": "thought_", "markdown_filename": "CoreCogniAgent_thought_20250422_074640_704711.md"}
+{"timestamp": "2025-04-22T07:46:48.004556", "agent_name": "SwarmCogni", "agent_class": "CogniSwarmAgent", "action_type": "swarm_reflection", "markdown_filename": "CogniSwarmAgent_swarm_reflection20250422_074648_003950.md"}
+{"timestamp": "2025-04-22T07:46:51.628458", "agent_name": "SwarmCogni", "agent_class": "CogniSwarmAgent", "action_type": "swarm_reflection", "markdown_filename": "CogniSwarmAgent_swarm_reflection20250422_074651_628182.md"}
+{"timestamp": "2025-04-22T07:46:54.609592", "agent_name": "SwarmCogni", "agent_class": "CogniSwarmAgent", "action_type": "swarm_reflection", "markdown_filename": "CogniSwarmAgent_swarm_reflection20250422_074654_609375.md"}
