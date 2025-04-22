@@ -4,6 +4,15 @@
   "epic": "[[Epic_Presence_and_Control_Loops]]",
   "name": "CogniMemorySystem-POC",
   "description": "Proof-of-concept for a composable memory and agent system integrating Dolt for versioned storage, LlamaIndex for semantic and graph indexing, LangChain for orchestration, and Pydantic for schema validation. This project will be developed in the /experiments folder.",
+  "design_decisions": {
+    "dolt_llamaindex_sync": "Writes to Dolt will trigger immediate, synchronous updates to the corresponding LlamaIndex Node(s) to maintain consistency.",
+    "graph_representation": "The MemoryBlock-to-Node converter will explicitly create edges in LlamaIndex based on the 'links' array, enabling graph traversal queries.",
+    "agent_vs_persistent_memory": "Agent conversational memory (LangChain default) is distinct from persistent MemoryBlocks. Persistence requires explicit use of the 'CreateMemoryBlock' tool.",
+    "create_memory_block_tool": "The tool requires core content fields (text, type) as input; it handles generating IDs, timestamps, and adding creator info.",
+    "querying_json_fields": "Rely on LlamaIndex metadata filtering. Key values from JSON fields (tags, specific metadata, confidence) will be extracted and added to Node metadata during indexing.",
+    "block_proofs_dao": "The Dolt commit hash serves as the proof of state. A 'block_proofs' table will map block updates to commit hashes for traceability and mock DAO submission.",
+    "llamaindex_backend": "LlamaIndex will use ChromaDB as its vector store backend for semantic indexing and retrieval of MemoryBlocks."
+  },
   "schemas": {
     "memory_block_json": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -46,11 +55,12 @@
               },
               "relation": {
                 "type": "string",
-                "description": "Type of relationship (e.g., 'subtask_of', 'depends_on', 'related_to')"
+                "enum": ["related_to", "subtask_of", "depends_on", "child_of", "mentions"],
+                "description": "Canonical type of relationship"
               }
             }
           },
-          "description": "Directed edges connecting this block to others"
+          "description": "Directed outgoing edges connecting this block to others"
         },
         "source_file": {
           "type": ["string", "null"],
@@ -94,31 +104,55 @@
         }
       }
     },
-    "memory_block_pydantic": "from typing import Optional, List, Literal, Dict, Any\nfrom datetime import datetime\nfrom pydantic import BaseModel, Field\n\n\nclass BlockLink(BaseModel):\n    to_id: str\n    relation: str\n\n\nclass ConfidenceScore(BaseModel):\n    human: Optional[float] = None\n    ai: Optional[float] = None\n\n\nclass MemoryBlock(BaseModel):\n    id: str\n    type: Literal[\"knowledge\", \"task\", \"project\", \"doc\"]\n    text: str\n    tags: List[str] = Field(default_factory=list)\n    metadata: Dict[str, Any] = Field(default_factory=dict)\n    links: List[BlockLink] = Field(default_factory=list)\n    source_file: Optional[str] = None\n    source_uri: Optional[str] = None\n    confidence: Optional[ConfidenceScore] = None\n    created_by: Optional[str] = None\n    created_at: Optional[datetime] = None\n    updated_at: Optional[datetime] = None\n",
-    "dolt_sql": "CREATE TABLE memory_blocks (\n  id TEXT PRIMARY KEY,\n  type TEXT NOT NULL CHECK (type IN ('knowledge', 'task', 'project', 'doc')),\n  text TEXT NOT NULL,\n  tags_json JSON,\n  metadata_json JSON,\n  confidence_json JSON,\n  source_file TEXT,\n  source_uri TEXT,\n  created_by TEXT,\n  created_at DATETIME,\n  updated_at DATETIME\n);\n\nCREATE TABLE block_links (\n  from_id TEXT NOT NULL,\n  to_id TEXT NOT NULL,\n  relation TEXT NOT NULL,\n  PRIMARY KEY (from_id, to_id, relation),\n  FOREIGN KEY (from_id) REFERENCES memory_blocks(id),\n  FOREIGN KEY (to_id) REFERENCES memory_blocks(id)\n);\n"
+    "block_link_json": {
+      "title": "BlockLink",
+      "type": "object",
+      "required": ["from_id", "to_id", "relation"],
+      "properties": {
+        "from_id": { "type": "string", "description": "ID of the source block" },
+        "to_id": { "type": "string", "description": "ID of the target block" },
+        "relation": {
+          "type": "string",
+          "enum": ["related_to", "subtask_of", "depends_on", "child_of", "mentions"],
+          "description": "Canonical type of relationship"
+         }
+      }
+    },
+    "memory_block_pydantic": "from typing import Optional, List, Literal, Dict, Any\nfrom datetime import datetime\nfrom pydantic import BaseModel, Field\n\n# Canonical relation types defined\nRelationType = Literal[\"related_to\", \"subtask_of\", \"depends_on\", \"child_of\", \"mentions\"]\n\nclass BlockLink(BaseModel):\n    to_id: str\n    relation: RelationType # Use canonical types\n\n\nclass ConfidenceScore(BaseModel):\n    human: Optional[float] = None\n    ai: Optional[float] = None\n\n\nclass MemoryBlock(BaseModel):\n    id: str\n    type: Literal[\"knowledge\", \"task\", \"project\", \"doc\"]\n    text: str\n    tags: List[str] = Field(default_factory=list)\n    metadata: Dict[str, Any] = Field(default_factory=dict)\n    links: List[BlockLink] = Field(default_factory=list)\n    source_file: Optional[str] = None\n    source_uri: Optional[str] = None\n    confidence: Optional[ConfidenceScore] = None\n    created_by: Optional[str] = None\n    created_at: Optional[datetime] = None\n    updated_at: Optional[datetime] = None\n",
+    "block_link_pydantic": "from pydantic import BaseModel\nfrom typing import Literal\n\n# Canonical relation types defined\nRelationType = Literal[\"related_to\", \"subtask_of\", \"depends_on\", \"child_of\", \"mentions\"]\n\nclass BlockLink(BaseModel):\n    from_id: str\n    to_id: str\n    relation: RelationType # Use canonical types",
+    "dolt_sql": "CREATE TABLE memory_blocks (\n  id TEXT PRIMARY KEY,\n  type TEXT NOT NULL CHECK (type IN ('knowledge', 'task', 'project', 'doc')),\n  text TEXT NOT NULL,\n  tags_json JSON,\n  metadata_json JSON,\n  confidence_json JSON,\n  source_file TEXT,\n  source_uri TEXT,\n  created_by TEXT,\n  created_at DATETIME,\n  updated_at DATETIME\n);\n\nCREATE TABLE block_links (\n  from_id TEXT NOT NULL,\n  to_id TEXT NOT NULL,\n  relation TEXT NOT NULL, -- Should use canonical types: related_to, subtask_of, depends_on, child_of, mentions\n  PRIMARY KEY (from_id, to_id, relation),\n  FOREIGN KEY (from_id) REFERENCES memory_blocks(id) ON DELETE CASCADE,\n  FOREIGN KEY (to_id) REFERENCES memory_blocks(id) ON DELETE CASCADE\n);\n",
+    "llamaindex_config": {
+      "embedding_backend": "ChromaDB",
+      "embedding_model": "OpenAIEmbedding('text-embedding-3-small')",
+      "storage_path": "./storage/chroma",
+      "llamaindex_node_class": "SimpleNode"
+    }
   },
   "implementation_flow": [
     {
-      "phase": "🧱 Core Schema + Local Persistence",
+      "phase": "🧱 Phase 1: Schema + Rapid Indexing Loop",
       "tasks": [
         "task-1.1-define-memoryblockbase-schema.json",
         "task-1.2-create-dolt-memory-blocks-table.json",
         "task-1.3-write-json-dolt-conversion.json",
-        "task-1.4-create-dolt-block-links-table.json"
+        "task-1.4-create-dolt-block-links-table.json",
+        "task-1.5-install-llamaindex.json",
+        "task-1.6-install-chromadb-and-init-store.json",
+        "task-1.7-basic-index-test-with-manual-block.json"
       ]
     },
     {
-      "phase": "🧠 Indexing + Retrieval (LlamaIndex)",
+      "phase": "🧠 Phase 2: Full Indexing System",
       "tasks": [
-        "task-2.1-install-llamaindex-create-vector-index.json",
-        "task-2.2-build-memory-block-to-node-function.json",
-        "task-2.3-create-basic-retrieval-function.json",
-        "task-2.4-extend-node-conversion-for-type-links.json",
-        "task-2.5-build-composablegraphindex.json"
+        "task-2.1-build-memory-block-to-node-function.json",
+        "task-2.2-create-basic-retrieval-function.json",
+        "task-2.3-extend-node-conversion-for-type-links.json",
+        "task-2.4-build-composablegraphindex.json",
+        "task-2.5-implement-reverse-link-query.json"
       ]
     },
     {
-      "phase": "⚙️ Agent + Tool Wiring",
+      "phase": "⚙️ Phase 3: Agent + Tool Wiring",
       "tasks": [
         "task-3.1-setup-basic-langchain-agent.json",
         "task-3.2-add-querymemoryblocks-tool.json",
@@ -126,7 +160,7 @@
       ]
     },
     {
-      "phase": "🌐 Frontend + API Hookup",
+      "phase": "🌐 Phase 4: Frontend + API Hookup",
       "tasks": [
         "task-4.1-create-api-chat-endpoint.json",
         "task-4.2-build-basic-frontend-chatbox.json",
@@ -134,23 +168,24 @@
       ]
     },
     {
-      "phase": "🔁 Sync + Persistence",
+      "phase": "🔁 Phase 5: Sync + Persistence",
       "tasks": [
         "task-5.1-write-memoryblocks-to-dolt.json",
         "task-5.2-trigger-reindexing-after-dolt-updates.json"
       ]
     },
     {
-      "phase": "🧪 Optional Debugging + Inspection",
+      "phase": "🧪 Phase 6: Optional Debugging + Inspection",
       "tasks": [
         "task-6.1-add-endpoint-list-memory-blocks.json",
         "task-6.2-add-ui-viewer-graph-memory-list.json",
         "task-6.3-build-api-graph-endpoint.json",
-        "task-6.4-create-minimal-graph-viewer-cytoscape.json"
+        "task-6.4-create-minimal-graph-viewer-cytoscape.json",
+        "task-6.5-build-memory-sync-validator.json"
       ]
     },
     {
-      "phase": "🛡️ Decentralized Hashing + DAO Integration (Early POC)",
+      "phase": "🛡️ Phase 7: Decentralized Hashing + DAO Integration (Early POC)",
       "tasks": [
         "task-7.1-fetch-dolt-hash-on-write.json",
         "task-7.2-store-block-proofs.json",
@@ -160,13 +195,16 @@
     }
   ],
   "success_criteria": {
-    "phase_1_core_persistence": [
-      "Demonstrate storing MemoryBlocks in a local Dolt database with versioning.",
-      "Demonstrate inserting and retrieving links between MemoryBlocks via Dolt edge table."
+    "phase_1_schema_and_rapid_indexing_loop": [
+      "Demonstrate storing a MemoryBlock in Dolt.",
+      "Demonstrate storing a basic link in the Dolt block_links table.",
+      "Verify MemoryBlock JSON schema validation works.",
+      "Successfully initialize ChromaDB as the vector store backend and confirm storage + retrieval of basic test embeddings via LlamaIndex."
     ],
-    "phase_2_semantic_and_graph_indexing": [
-      "Demonstrate indexing MemoryBlocks (including types and links) into LlamaIndex using both VectorStore and ComposableGraphIndex.",
-      "Verify accurate retrieval of linked nodes (e.g., subtasks of a project) using LlamaIndex traversal."
+    "phase_2_full_indexing_system": [
+      "Demonstrate automated indexing of MemoryBlocks (including types and canonical links) from Dolt into LlamaIndex using both VectorStore and ComposableGraphIndex.",
+      "Verify accurate retrieval of linked nodes (e.g., subtasks of a project) using LlamaIndex graph traversal.",
+      "Demonstrate retrieving blocks linking *to* a specific block ID (reverse link/backlink query)."
     ],
     "phase_3_agent_tools": [
       "Demonstrate LangChain agent querying memory semantically and returning MemoryBlocks via tools.",
@@ -181,6 +219,11 @@
       "Store commit hashes associated with MemoryBlock updates in a new `block_proofs` table.",
       "Trace each memory update to a unique commit hash via logs or API.",
       "Simulate DAO-style memory proposal submission with commit hash and MemoryBlock metadata."
+    ],
+    "phase_6_optional_debugging_and_inspection": [
+        "Demonstrate listing memory blocks via API endpoint.",
+        "Demonstrate basic graph visualization of blocks and links.",
+        "Verify the memory sync validator tool can detect inconsistencies between Dolt and LlamaIndex state (e.g., missing index updates, schema mismatches)."
     ]
   },
   "references": {
@@ -188,5 +231,9 @@
     "interaction_flow": "Provided JSON detailing the MVP user interaction sequence",
     "mvp_roadmap": "Provided JSON outlining the initial task breakdown",
     "mvp_roadmap_updates": "Provided JSON with adjustments and additions to the roadmap"
+  },
+  "future_considerations": {
+      "structured_content_blocks": "Future versions may migrate the 'text' field to a structured 'content_blocks' array to better represent headings, lists, code blocks, and nested content, improving semantic understanding and rendering.",
+      "advanced_graph_analytics": "Explore deeper graph analytics capabilities beyond simple traversal, potentially integrating graph algorithms for community detection, centrality analysis, etc."
   }
 } 
