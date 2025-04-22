@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+.git
+.env
+tests/
+.pytest_cache/
+.ruff_cache/
+.cursor/
+.vscode/
+.DS_Store 

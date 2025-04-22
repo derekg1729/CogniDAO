@@ -1,0 +1,36 @@
+# Caddyfile for Preview Environment - Manages HTTPS for the domain
+
+api-preview.cognidao.org {
+    # Enable logging
+    log {
+        output stdout
+        format console
+    }
+
+    # Enable gzip compression
+    encode gzip
+
+    # Proxy ALL requests to the backend
+    reverse_proxy cogni-api-preview:8000
+
+    # Handle health check endpoint
+    handle /healthz* {
+        reverse_proxy cogni-api-preview:8000
+    }
+
+    # Optional: Basic security headers
+    header {
+        # Enable HTTP Strict Transport Security (HSTS) - uncomment if desired
+        # Strict-Transport-Security "max-age=31536000;"
+
+        # Enable cross-site scripting (XSS) protection
+        X-XSS-Protection "1; mode=block"
+
+        # Prevent search engines from indexing
+        X-Robots-Tag "noindex, nofollow"
+
+        # Remove Caddy signature
+        -Server
+    }
+}
+

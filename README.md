@@ -44,6 +44,31 @@ Run the setup script to install dependencies and configure pre-commit hooks:
 ./scripts/setup_dev_environment.sh
 ```
 
+### Schema Infrastructure
+
+This project uses a schema-first approach for API development:
+
+1. Pydantic models define the API contract
+2. JSON Schemas are generated from these models
+3. TypeScript and Python code is generated from the JSON Schemas
+
+**Requirements:**
+- Python dependencies (in requirements.txt)
+- Node.js with npm (for TypeScript code generation)
+
+To install the TypeScript code generator:
+```bash
+npm install -g json-schema-to-typescript
+```
+
+To generate schemas and code:
+```bash
+python scripts/generate_schemas.py
+./scripts/generate-schemas.sh
+```
+
+See `SCHEMA_INFRASTRUCTURE.md` for more details.
+
 ### Code Quality
 
 This project uses Ruff for linting. Pre-commit hooks are automatically installed during setup to ensure code quality.

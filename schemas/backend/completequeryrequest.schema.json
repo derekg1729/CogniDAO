@@ -1,0 +1,89 @@
+{
+  "$defs": {
+    "HistoryMessage": {
+      "description": "Schema for a single message in the chat history.",
+      "properties": {
+        "role": {
+          "description": "The role of the message sender.",
+          "enum": [
+            "user",
+            "assistant",
+            "system"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "content": {
+          "description": "The content of the message.",
+          "title": "Content",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "content"
+      ],
+      "title": "HistoryMessage",
+      "type": "object"
+    }
+  },
+  "description": "Extended schema for a chat request with additional parameters.\nThis can be used for more advanced chat endpoints.",
+  "properties": {
+    "message": {
+      "description": "The message content to send to the AI",
+      "examples": [
+        "What is CogniDAO?"
+      ],
+      "title": "Message",
+      "type": "string"
+    },
+    "model": {
+      "default": "gpt-3.5-turbo",
+      "description": "The AI model to use for generation",
+      "title": "Model",
+      "type": "string"
+    },
+    "temperature": {
+      "default": 0.7,
+      "description": "Controls randomness in the response. Lower is more deterministic.",
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Temperature",
+      "type": "number"
+    },
+    "system_message": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": "You are a helpful AI assistant.",
+      "description": "Instructions for the AI assistant's behavior",
+      "title": "System Message"
+    },
+    "message_history": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/HistoryMessage"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional list of previous messages in the conversation",
+      "title": "Message History"
+    }
+  },
+  "required": [
+    "message"
+  ],
+  "title": "CompleteQueryRequest",
+  "type": "object"
+}

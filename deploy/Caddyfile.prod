@@ -1,0 +1,31 @@
+# Caddyfile for Production Environment - Manages HTTPS for the domain
+
+api.cognidao.org {
+    # Enable logging
+    log {
+        output stdout
+        format console
+    }
+
+    # Enable gzip compression (removed zstd for consistency with preview)
+    encode gzip
+
+    # Proxy ALL requests to the backend
+    # Use the container name defined in the simulate_deployment script
+    reverse_proxy cogni-api-prod:8000
+
+    # Optional: Basic security headers (copied from preview)
+    header {
+        # Enable HTTP Strict Transport Security (HSTS) - uncomment if desired
+        # Strict-Transport-Security "max-age=31536000;"
+
+        # Enable cross-site scripting (XSS) protection
+        X-XSS-Protection "1; mode=block"
+
+        # Prevent search engines from indexing
+        X-Robots-Tag "noindex, nofollow"
+
+        # Remove Caddy signature
+        -Server
+    }
+} 

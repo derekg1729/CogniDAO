@@ -1,0 +1,286 @@
+name: Deploy Cogni Backend
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - preview
+          - prod
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Generate Image Tag
+        id: tag
+        run: |
+          # Generate a tag using commit SHA and timestamp
+          TAG_NAME="cogni-$(echo "${{ github.sha }}" | cut -c1-7)-$(date +%Y%m%d%H%M%S)"
+          echo "tag=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "Image tag: ${TAG_NAME}"
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/cogni-backend:${{ steps.tag.outputs.tag }}
+            ghcr.io/${{ github.repository_owner }}/cogni-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Output the image tag for use in later jobs
+      - name: Set Image Tag Output
+        id: image_output
+        run: echo "image_tag=${{ steps.tag.outputs.tag }}" >> "$GITHUB_OUTPUT"
+
+    outputs:
+      image_tag: ${{ steps.image_output.outputs.image_tag }}
+
+  deploy-preview:
+    if: ${{ inputs.environment == 'preview' || github.event_name == 'push' }}
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: preview
+      url: https://preview.cognidao.org
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.PREVIEW_SSH_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.PREVIEW_SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Prepare server directory
+        run: |
+          ssh ubuntu@${{ secrets.PREVIEW_SERVER_IP }} 'mkdir -p ~/cogni-backend'
+
+      - name: Copy Deployment Files
+        run: |
+          # Copy only the necessary deployment files
+          scp -r deploy/Caddyfile.preview deploy/docker-compose.yml ubuntu@${{ secrets.PREVIEW_SERVER_IP }}:~/cogni-backend/
+          ssh ubuntu@${{ secrets.PREVIEW_SERVER_IP }} 'mv ~/cogni-backend/Caddyfile.preview ~/cogni-backend/Caddyfile'
+
+      - name: Deploy with Docker Compose
+        run: |
+          ssh ubuntu@${{ secrets.PREVIEW_SERVER_IP }} << 'EOF'
+          cd ~/cogni-backend
+          
+          # Create or update docker-compose.yml with proper image
+          cat > docker-compose.yml << 'COMPOSE'
+          version: "3.9"
+          services:
+            api:
+              image: ghcr.io/${{ github.repository_owner }}/cogni-backend:${{ needs.build.outputs.image_tag }}
+              environment:
+                - OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+                - COGNI_API_KEY=${{ secrets.COGNI_API_KEY }}
+              expose: ["8000"]
+              restart: unless-stopped
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+                interval: 30s
+                retries: 3
+
+            caddy:
+              image: caddy:2-alpine
+              ports: ["80:80", "443:443"]
+              volumes:
+                - ./Caddyfile:/etc/caddy/Caddyfile
+                - caddy_data:/data
+                - caddy_config:/config
+              depends_on: [api]
+
+          volumes:
+            caddy_data:
+            caddy_config:
+          COMPOSE
+          
+          # Store current and new image tag for rollback
+          if [ -f .current_tag ]; then
+            mv .current_tag .previous_tag
+          fi
+          echo "${{ needs.build.outputs.image_tag }}" > .current_tag
+          
+          # Deploy
+          docker compose pull
+          docker compose up -d
+          EOF
+
+      - name: Verify Deployment
+        id: healthcheck
+        run: |
+          # Use curl with retry logic instead of sleep+check
+          if curl --retry 10 --retry-delay 3 --retry-connrefused -s https://preview.cognidao.org/healthz | grep -q "healthy"; then
+            echo "✅ Preview deployment successful!"
+            echo "health_status=200" >> "$GITHUB_OUTPUT"
+          else
+            echo "❌ Health check failed after retries"
+            echo "health_status=failed" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Rollback on Failure
+        if: failure() && steps.healthcheck.outputs.health_status == 'failed'
+        run: |
+          echo "🔄 Health check failed. Rolling back to previous version..."
+          ssh ubuntu@${{ secrets.PREVIEW_SERVER_IP }} << 'EOF'
+          cd ~/cogni-backend
+          if [ -f .previous_tag ]; then
+            PREV_TAG=$(cat .previous_tag)
+            echo "Rolling back to $PREV_TAG"
+            # Update docker-compose.yml with previous image - use perl for safer replacement
+            perl -i -pe "s|(image: ghcr.io/${{ github.repository_owner }}/cogni-backend:)[^\s]+|\${1}$PREV_TAG|" docker-compose.yml
+            # Redeploy
+            docker compose pull
+            docker compose up -d
+            echo "Rollback complete."
+          else
+            echo "No previous tag found. Cannot rollback."
+          fi
+          EOF
+
+  deploy-prod:
+    if: ${{ inputs.environment == 'prod' }}
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: prod
+      url: https://api.cognidao.org
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.PROD_SSH_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.PROD_SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Prepare server directory
+        run: |
+          ssh ubuntu@${{ secrets.PROD_SERVER_IP }} 'mkdir -p ~/cogni-backend'
+
+      - name: Copy Deployment Files
+        run: |
+          # Copy only the necessary deployment files
+          scp -r deploy/Caddyfile.prod deploy/docker-compose.yml ubuntu@${{ secrets.PROD_SERVER_IP }}:~/cogni-backend/
+          ssh ubuntu@${{ secrets.PROD_SERVER_IP }} 'mv ~/cogni-backend/Caddyfile.prod ~/cogni-backend/Caddyfile'
+
+      - name: Deploy with Docker Compose
+        run: |
+          ssh ubuntu@${{ secrets.PROD_SERVER_IP }} << 'EOF'
+          cd ~/cogni-backend
+          
+          # Create or update docker-compose.yml with proper image
+          cat > docker-compose.yml << 'COMPOSE'
+          version: "3.9"
+          services:
+            api:
+              image: ghcr.io/${{ github.repository_owner }}/cogni-backend:${{ needs.build.outputs.image_tag }}
+              environment:
+                - OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+                - COGNI_API_KEY=${{ secrets.COGNI_API_KEY }}
+              expose: ["8000"]
+              restart: unless-stopped
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+                interval: 30s
+                retries: 3
+
+            caddy:
+              image: caddy:2-alpine
+              ports: ["80:80", "443:443"]
+              volumes:
+                - ./Caddyfile:/etc/caddy/Caddyfile
+                - caddy_data:/data
+                - caddy_config:/config
+              depends_on: [api]
+
+          volumes:
+            caddy_data:
+            caddy_config:
+          COMPOSE
+          
+          # Store current and new image tag for rollback
+          if [ -f .current_tag ]; then
+            mv .current_tag .previous_tag
+          fi
+          echo "${{ needs.build.outputs.image_tag }}" > .current_tag
+          
+          # Deploy
+          docker compose pull
+          docker compose up -d
+          EOF
+
+      - name: Verify Deployment
+        id: healthcheck
+        run: |
+          # Use curl with retry logic instead of sleep+check
+          if curl --retry 10 --retry-delay 3 --retry-connrefused -s https://api.cognidao.org/healthz | grep -q "healthy"; then
+            echo "✅ Production deployment successful!"
+            echo "health_status=200" >> "$GITHUB_OUTPUT"
+          else
+            echo "❌ Health check failed after retries"
+            echo "health_status=failed" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Rollback on Failure
+        if: failure() && steps.healthcheck.outputs.health_status == 'failed'
+        run: |
+          echo "🔄 Health check failed. Rolling back to previous version..."
+          ssh ubuntu@${{ secrets.PROD_SERVER_IP }} << 'EOF'
+          cd ~/cogni-backend
+          if [ -f .previous_tag ]; then
+            PREV_TAG=$(cat .previous_tag)
+            echo "Rolling back to $PREV_TAG"
+            # Update docker-compose.yml with previous image - use perl for safer replacement
+            perl -i -pe "s|(image: ghcr.io/${{ github.repository_owner }}/cogni-backend:)[^\s]+|\${1}$PREV_TAG|" docker-compose.yml
+            # Redeploy
+            docker compose pull
+            docker compose up -d
+            echo "Rollback complete."
+          else
+            echo "No previous tag found. Cannot rollback."
+          fi
+          EOF

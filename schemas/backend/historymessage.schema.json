@@ -1,0 +1,26 @@
+{
+  "description": "Schema for a single message in the chat history.",
+  "properties": {
+    "role": {
+      "description": "The role of the message sender.",
+      "enum": [
+        "user",
+        "assistant",
+        "system"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "content": {
+      "description": "The content of the message.",
+      "title": "Content",
+      "type": "string"
+    }
+  },
+  "required": [
+    "role",
+    "content"
+  ],
+  "title": "HistoryMessage",
+  "type": "object"
+}

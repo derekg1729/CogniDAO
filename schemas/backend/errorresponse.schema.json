@@ -1,0 +1,28 @@
+{
+  "description": "Schema for error responses.",
+  "properties": {
+    "detail": {
+      "description": "A human-readable error message",
+      "title": "Detail",
+      "type": "string"
+    },
+    "code": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "An optional error code for programmatic handling",
+      "title": "Code"
+    }
+  },
+  "required": [
+    "detail"
+  ],
+  "title": "ErrorResponse",
+  "type": "object"
+}

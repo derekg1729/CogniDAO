@@ -11,6 +11,13 @@ __pycache__/
 dist/
 build/
 
+# Environment variables
+.env
+
+# local deployment secrets
+.secrets.*
+
+
 # Logseq files
 logseq/
 pages/
@@ -20,6 +27,12 @@ pages/
 
 # macOS system files
 .DS_Store
+
+# Log files and process IDs
+*.log
+api.log
+api.pid
+*.pid
 
 # Memory and vector database files
 /infra_core/memory/chroma/*

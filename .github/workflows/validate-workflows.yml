@@ -1,0 +1,37 @@
+name: Validate Workflows
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y curl wget unzip git
+          echo "Dependencies installed"
+        
+      - name: Install actionlint
+        run: |
+          # Download actionlint directly
+          mkdir -p bin
+          wget -q https://github.com/rhysd/actionlint/releases/download/v1.6.27/actionlint_1.6.27_linux_amd64.tar.gz
+          tar -xzf actionlint_1.6.27_linux_amd64.tar.gz -C bin
+          chmod +x bin/actionlint
+          echo "Actionlint installed at $(pwd)/bin/actionlint"
+          ls -la "$(pwd)/bin"
+        
+      - name: Run actionlint
+        run: |
+          # Run actionlint directly specifying files to check
+          ./bin/actionlint .github/workflows/*.yml 
