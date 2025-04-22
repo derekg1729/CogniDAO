@@ -1,0 +1,22 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "7.4",
+  "title": "Optional: Submit zkVM-verifiable update hash",
+  "phase": "🛡️ Decentralized Hashing + DAO Integration (Early POC)",
+  "goal": "Lay groundwork for future zero-knowledge proofs of memory updates by hashing relevant data.",
+  "action_items": [
+    "[ ] Research basic hashing suitable for zkVMs (e.g., SHA-256, Poseidon if using specific zkVM stacks).",
+    "[ ] Define what data constitutes a 'memory update' to be hashed (e.g., the content of the updated MemoryBlock, the diff from the previous commit, combination of block_id + commit_hash).",
+    "[ ] Modify the Dolt writing function (Task 5.1) or the DAO submission logic (Task 7.3) to calculate this hash.",
+    "[ ] Store or log this 'verifiable update hash' alongside the `commit_hash` (e.g., add a column to `block_proofs` or include in the mock DAO submission log).",
+    "[ ] Note: This task does *not* require implementing the zkVM proof itself, only calculating and storing a hash that *could* be used in one later."
+  ],
+  "test_criteria": [
+    "Trigger a MemoryBlock save/update.",
+    "Verify that a hash representing the update is calculated.",
+    "Verify this hash is stored or logged correctly, associated with the relevant `block_id` and `commit_hash`."
+  ],
+  "current_status": "Not started."
+} 

@@ -1,0 +1,23 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "7.3",
+  "title": "Mock DAO submitMemoryUpdate() as CLI or mock contract",
+  "phase": "🛡️ Decentralized Hashing + DAO Integration (Early POC)",
+  "goal": "Simulate the agent proposing a memory update to an external system (like a DAO) using the commit hash as a reference.",
+  "action_items": [
+    "[ ] Define the *interface* for the simulated DAO submission (e.g., function signature `submit_memory_update(commit_hash: str, block_id: str, metadata: Dict)`).",
+    "[ ] Create a simple implementation:",
+    "[ ] Option A (CLI): A Python script that takes arguments (commit hash, block id) and prints a log message like \"DAO Proposal Submitted: commit_hash={commit_hash}, block_id={block_id}\".",
+    "[ ] Option B (Mock Function): A Python function that simply logs the received arguments.",
+    "[ ] Modify the agent's memory writing logic (or create a new agent tool) to call this mock submission function after a successful Dolt commit and `block_proofs` entry.",
+    "[ ] Pass the relevant `commit_hash` and `block_id`."
+  ],
+  "test_criteria": [
+    "Trigger a MemoryBlock save/update via the agent.",
+    "Verify that the mock DAO submission function/script is called.",
+    "Verify the log output shows the correct `commit_hash` and `block_id` associated with the update."
+  ],
+  "current_status": "Not started."
+} 

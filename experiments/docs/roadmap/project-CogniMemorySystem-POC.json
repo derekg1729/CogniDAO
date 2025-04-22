@@ -94,58 +94,8 @@
         }
       }
     },
-    "memory_block_pydantic": """from typing import Optional, List, Literal, Dict, Any
-from datetime import datetime
-from pydantic import BaseModel, Field
-
-
-class BlockLink(BaseModel):
-    to_id: str
-    relation: str
-
-
-class ConfidenceScore(BaseModel):
-    human: Optional[float] = None
-    ai: Optional[float] = None
-
-
-class MemoryBlock(BaseModel):
-    id: str
-    type: Literal["knowledge", "task", "project", "doc"]
-    text: str
-    tags: List[str] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    links: List[BlockLink] = Field(default_factory=list)
-    source_file: Optional[str] = None
-    source_uri: Optional[str] = None
-    confidence: Optional[ConfidenceScore] = None
-    created_by: Optional[str] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-""",
-    "dolt_sql": """CREATE TABLE memory_blocks (
-  id TEXT PRIMARY KEY,
-  type TEXT NOT NULL CHECK (type IN ('knowledge', 'task', 'project', 'doc')),
-  text TEXT NOT NULL,
-  tags_json JSON,
-  metadata_json JSON,
-  confidence_json JSON,
-  source_file TEXT,
-  source_uri TEXT,
-  created_by TEXT,
-  created_at DATETIME,
-  updated_at DATETIME
-);
-
-CREATE TABLE block_links (
-  from_id TEXT NOT NULL,
-  to_id TEXT NOT NULL,
-  relation TEXT NOT NULL,
-  PRIMARY KEY (from_id, to_id, relation),
-  FOREIGN KEY (from_id) REFERENCES memory_blocks(id),
-  FOREIGN KEY (to_id) REFERENCES memory_blocks(id)
-);
-"""
+    "memory_block_pydantic": "from typing import Optional, List, Literal, Dict, Any\nfrom datetime import datetime\nfrom pydantic import BaseModel, Field\n\n\nclass BlockLink(BaseModel):\n    to_id: str\n    relation: str\n\n\nclass ConfidenceScore(BaseModel):\n    human: Optional[float] = None\n    ai: Optional[float] = None\n\n\nclass MemoryBlock(BaseModel):\n    id: str\n    type: Literal[\"knowledge\", \"task\", \"project\", \"doc\"]\n    text: str\n    tags: List[str] = Field(default_factory=list)\n    metadata: Dict[str, Any] = Field(default_factory=dict)\n    links: List[BlockLink] = Field(default_factory=list)\n    source_file: Optional[str] = None\n    source_uri: Optional[str] = None\n    confidence: Optional[ConfidenceScore] = None\n    created_by: Optional[str] = None\n    created_at: Optional[datetime] = None\n    updated_at: Optional[datetime] = None\n",
+    "dolt_sql": "CREATE TABLE memory_blocks (\n  id TEXT PRIMARY KEY,\n  type TEXT NOT NULL CHECK (type IN ('knowledge', 'task', 'project', 'doc')),\n  text TEXT NOT NULL,\n  tags_json JSON,\n  metadata_json JSON,\n  confidence_json JSON,\n  source_file TEXT,\n  source_uri TEXT,\n  created_by TEXT,\n  created_at DATETIME,\n  updated_at DATETIME\n);\n\nCREATE TABLE block_links (\n  from_id TEXT NOT NULL,\n  to_id TEXT NOT NULL,\n  relation TEXT NOT NULL,\n  PRIMARY KEY (from_id, to_id, relation),\n  FOREIGN KEY (from_id) REFERENCES memory_blocks(id),\n  FOREIGN KEY (to_id) REFERENCES memory_blocks(id)\n);\n"
   },
   "implementation_flow": [
     {
@@ -198,15 +148,41 @@ CREATE TABLE block_links (
         "task-6.3-build-api-graph-endpoint.json",
         "task-6.4-create-minimal-graph-viewer-cytoscape.json"
       ]
+    },
+    {
+      "phase": "🛡️ Decentralized Hashing + DAO Integration (Early POC)",
+      "tasks": [
+        "task-7.1-fetch-dolt-hash-on-write.json",
+        "task-7.2-store-block-proofs.json",
+        "task-7.3-mock-dao-submitmemoryupdate.json",
+        "task-7.4-optional-submit-zkvm-hash.json"
+      ]
     }
   ],
-  "success_criteria": [
-    "Demonstrate storing MemoryBlocks in a local Dolt database with versioning.",
-    "Demonstrate indexing MemoryBlocks (including types and links) into LlamaIndex (Vector + Graph).",
-    "Demonstrate querying memory semantically and via graph traversal using a LangChain agent.",
-    "Demonstrate basic agent ability to create/update memory blocks, reflected in Dolt and LlamaIndex.",
-    "Show interaction via a minimal frontend chat interface connected to a FastAPI endpoint."
-  ],
+  "success_criteria": {
+    "phase_1_core_persistence": [
+      "Demonstrate storing MemoryBlocks in a local Dolt database with versioning.",
+      "Demonstrate inserting and retrieving links between MemoryBlocks via Dolt edge table."
+    ],
+    "phase_2_semantic_and_graph_indexing": [
+      "Demonstrate indexing MemoryBlocks (including types and links) into LlamaIndex using both VectorStore and ComposableGraphIndex.",
+      "Verify accurate retrieval of linked nodes (e.g., subtasks of a project) using LlamaIndex traversal."
+    ],
+    "phase_3_agent_tools": [
+      "Demonstrate LangChain agent querying memory semantically and returning MemoryBlocks via tools.",
+      "Demonstrate LangChain agent creating or updating a MemoryBlock via tools, reflected in Dolt and reindexed in LlamaIndex."
+    ],
+    "phase_4_frontend_and_api": [
+      "Show interaction via a minimal frontend chat interface connected to a FastAPI endpoint.",
+      "Display agent-generated messages and optionally retrieved memory in the frontend UI."
+    ],
+    "phase_5_commit_tracking_and_dao_ready": [
+      "Demonstrate fetching `DOLT_HASHOF('main')` after every memory update.",
+      "Store commit hashes associated with MemoryBlock updates in a new `block_proofs` table.",
+      "Trace each memory update to a unique commit hash via logs or API.",
+      "Simulate DAO-style memory proposal submission with commit hash and MemoryBlock metadata."
+    ]
+  },
   "references": {
     "architecture_overview": "Provided JSON describing the full CogniMemorySystem",
     "interaction_flow": "Provided JSON detailing the MVP user interaction sequence",

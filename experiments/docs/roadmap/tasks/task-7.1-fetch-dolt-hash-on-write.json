@@ -1,0 +1,21 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "7.1",
+  "title": "Fetch DOLT_HASHOF('main') on every write",
+  "phase": "🛡️ Decentralized Hashing + DAO Integration (Early POC)",
+  "goal": "Capture the Dolt commit hash representing the memory state after each write operation.",
+  "action_items": [
+    "[ ] Identify the function(s) where MemoryBlocks are written/updated in Dolt (likely within `CreateMemoryBlock` and `UpdateMemoryBlock` tools from Task 5.1).",
+    "[ ] After a successful `dolt commit` within these functions, execute a command or query to get the latest hash of the 'main' branch.",
+    "[ ] Method 1: Use Dolt CLI `dolt log -n 1 --pretty=format:%H` or similar.",
+    "[ ] Method 2: Use Dolt SQL `SELECT DOLT_HASHOF('main')` (requires Dolt version supporting this function).",
+    "[ ] Store or log the retrieved commit hash."
+  ],
+  "test_criteria": [
+    "Trigger a MemoryBlock save/update via the agent.",
+    "Verify that the correct Dolt commit hash for the 'main' branch is logged or captured immediately following the update."
+  ],
+  "current_status": "Not started."
+} 
