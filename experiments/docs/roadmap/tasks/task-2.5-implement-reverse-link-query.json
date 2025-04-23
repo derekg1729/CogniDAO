@@ -1,0 +1,35 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "CogniMemorySystem-POC",
+  "name": "Implement Reverse Link Query",
+  "description": "Create a function/method to find all MemoryBlocks that link *to* a given block ID (i.e., find backlinks) using the graph index.",
+  "implementation_details": {
+    "target_file": "experiments/src/memory_system/llama_memory.py",
+    "test_file": "experiments/src/memory_system/test_llama_memory.py"
+  },
+  "action_items": [
+    "[ ] Define method signature in `LlamaMemory` class: `def get_backlinks(self, target_block_id: str) -> List[str]:` (returning list of source block IDs, adjust if returning full nodes is better).",
+    "[ ] Access the graph store/index instance initialized in Task 2.4.",
+    "[ ] Query the graph store/index to find relationships (triplets) where the target/object is `target_block_id`.",
+    "[ ] Research the specific API call for the chosen graph store (e.g., `graph_store.get_relations(obj=target_block_id)` or similar).",
+    "[ ] Extract the source node IDs (subjects) from the query results.",
+    "[ ] Return the list of unique source node IDs.",
+    "[ ] (TDD) Add tests to `test_llama_memory.py`.",
+    "[ ] (TDD) Test Case 1: Index Block A linking to Block B. Call `get_backlinks(B.id)`. Assert result contains `A.id`.",
+    "[ ] (TDD) Test Case 2: Index Block C linking to nothing. Call `get_backlinks(C.id)`. Assert result is empty list.",
+    "[ ] (TDD) Test Case 3: Index D->E and F->E. Call `get_backlinks(E.id)`. Assert result contains both `D.id` and `F.id`."
+
+  ],
+  "test_criteria": [
+    "[ ] Unit/Integration tests pass for `LlamaMemory.get_backlinks`.",
+    "[ ] Test with A->B linkage: `get_backlinks(B.id)` correctly returns `[A.id]`.",
+    "[ ] Test with isolated node C: `get_backlinks(C.id)` correctly returns `[]`.",
+    "[ ] Test with multiple incoming links (D->E, F->E): `get_backlinks(E.id)` correctly returns a list containing both `D.id` and `F.id`."
+  ],
+  "success_criteria": [
+    "[ ] The `LlamaMemory` class has a method to query the graph store and retrieve the IDs of all blocks linking *to* a specified block ID.",
+    "[ ] Tests confirm the correct backlinks are returned in various scenarios (single link, no links, multiple links)."
+  ],
+  "current_status": "Task definition created."
+} 

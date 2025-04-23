@@ -1,25 +1,34 @@
 {
   "type": "Task",
   "status": "todo",
-  "project": "../project-CogniMemorySystem-POC.json",
-  "id": "2.4",
-  "title": "Extend memory_block_to_node() to include type + links",
-  "phase": "🧠 Indexing + Retrieval (LlamaIndex)",
-  "goal": "Allow typed block structure and graph relations inside LlamaIndex nodes, preparing for Graph Indexing.",
-  "schema_references": [
-    "project.schemas.memory_block_pydantic"
-  ],
+  "project": "CogniMemorySystem-POC",
+  "name": "Extend Node Conversion for Type Links",
+  "description": "Enhance the memory_block_to_node function to translate MemoryBlock.links into LlamaIndex NodeRelationship information attached to the TextNode, enabling graph structures.",
+  "implementation_details": {
+    "target_file": "experiments/src/memory_system/conversion.py (or llama_memory.py)",
+    "test_file": "experiments/src/memory_system/tests/test_conversion.py (or test_llama_memory.py)"
+  },
   "action_items": [
-    "[ ] Modify the `memory_block_to_node` function from Task 2.2.",
-    "[ ] Ensure the `block.type` field (from Pydantic model) is added to the Node's `metadata`.",
-    "[ ] Determine how to represent `block.links` (from Pydantic model) for LlamaIndex:",
-    "[ ] Option A: Store links directly in Node `metadata` (e.g., `metadata['links'] = block.links`).",
-    "[ ] Option B: Define relationships using LlamaIndex's `NodeRelationship` objects and add them to the Node's `relationships` attribute (preferred for graph indices). Research `NodeRelationship.SOURCE`, `NodeRelationship.RELATED` etc.",
-    "[ ] Update tests from Task 2.2 to verify the presence and correctness of `type` and link information (either in `metadata` or `relationships`)."
+    "[ ] Import `NodeRelationship` and `RelatedNodeInfo` from `llama_index.schema`.",
+    "[ ] Modify the `memory_block_to_node` function (from Task 2.1).",
+    "[ ] Inside the function, after creating the basic `TextNode`, iterate through the input `block.links`.",
+    "[ ] For each `link` in `block.links`:",
+    "[ ]   Create a `RelatedNodeInfo` object, setting its `node_id` to `link.to_id`.",
+    "[ ]   Define a mapping from `MemoryBlock` `link.relation` strings (e.g., 'subtask_of', 'related_to', 'child_of') to LlamaIndex `NodeRelationship` enums (e.g., `NodeRelationship.CHILD`, `NodeRelationship.RELATED`, `NodeRelationship.PARENT`). Choose appropriate mappings based on the semantics.",
+    "[ ]   Add the original `link.relation` string to the `RelatedNodeInfo.metadata` if needed for later retrieval.",
+    "[ ]   Add the `RelatedNodeInfo` object to the `TextNode.relationships` dictionary using the mapped `NodeRelationship` enum as the key.",
+    "[ ] (TDD) Update unit tests for `memory_block_to_node` in the test file.",
+    "[ ] (TDD) Write tests that provide `MemoryBlock` inputs with various `links` and assert that the output `TextNode.relationships` dictionary is populated correctly with the expected keys (enums) and `RelatedNodeInfo` values (target IDs and potentially metadata)."
   ],
   "test_criteria": [
-    "Verify created nodes have `type` in metadata.",
-    "Verify created nodes have relationship information usable by GraphIndex (either via metadata key or populated `relationships` attribute)."
+    "[ ] Unit tests pass for the updated `memory_block_to_node` function.",
+    "[ ] Test verifies that providing a `MemoryBlock` with `links` results in a `TextNode` with a non-empty `relationships` dictionary.",
+    "[ ] Test verifies the correct `NodeRelationship` enum (e.g., `CHILD`) is used as the key in `relationships` based on the input link's `relation` string.",
+    "[ ] Test verifies the `RelatedNodeInfo` object within the `relationships` dictionary contains the correct target `node_id` (matching `link.to_id`)."
   ],
-  "current_status": "Not started."
+  "success_criteria": [
+    "[ ] The `memory_block_to_node` function correctly translates `MemoryBlock.links` into LlamaIndex `NodeRelationship` data attached to the `TextNode`.",
+    "[ ] Unit tests confirm the relationship mapping logic works for different relation types."
+  ],
+  "current_status": "Task definition created."
 } 

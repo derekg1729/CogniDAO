@@ -1,22 +1,36 @@
 {
   "type": "Task",
   "status": "todo",
-  "project": "../project-CogniMemorySystem-POC.json",
-  "id": "2.5",
-  "title": "Build ComposableGraphIndex from MemoryBlocks",
-  "phase": "🧠 Indexing + Retrieval (LlamaIndex)",
-  "goal": "Allow graph traversal and type-aware query expansion based on block links.",
+  "project": "CogniMemorySystem-POC",
+  "name": "Build Composable Graph Index",
+  "description": "Set up and integrate a LlamaIndex graph store (e.g., KnowledgeGraphIndex, SimpleGraphStore) alongside the vector store within the LlamaMemory class to store and manage block relationships.",
+  "implementation_details": {
+    "target_file": "experiments/src/memory_system/llama_memory.py",
+    "test_file": "experiments/src/memory_system/test_llama_memory.py"
+  },
   "action_items": [
-    "[ ] Ensure `memory_block_to_node` (Task 2.4) correctly populates Node `relationships` or metadata for links.",
-    "[ ] Create a list of `Node` objects representing sample linked blocks (e.g., a project node linked to task nodes).",
-    "[ ] Instantiate a LlamaIndex `ComposableGraph` or `KnowledgeGraphIndex`.",
-    "[ ] Add the Nodes (with their relationship info) to the graph index.",
-    "[ ] Write a sample query that utilizes graph traversal (e.g., 'Find all tasks related to project X').",
-    "[ ] Research LlamaIndex methods for graph traversal querying (`graph.query`, `graph.get_related_nodes`, etc.)."
+    "[ ] Research & Decide: Choose the most suitable LlamaIndex graph mechanism (e.g., `KnowledgeGraphIndex`, `SimpleGraphStore`, composition with existing stores). Consider persistence and query capabilities.",
+    "[ ] Modify `LlamaMemory.__init__`: Initialize the chosen graph index/store. Ensure it shares the same `StorageContext` or underlying stores (like ChromaDB) if appropriate, or configure its persistence.",
+    "[ ] Modify Indexing Method(s) (e.g., `add_nodes` or `_index_nodes`):",
+    "[ ]   Ensure that nodes created by `memory_block_to_node` (now including relationships from Task 2.3) are explicitly added to *both* the vector index and the graph index/store.",
+    "[ ]   Verify if the chosen graph store automatically infers relationships from `TextNode.relationships` or if explicit relationship insertion APIs need to be called (e.g., `graph_store.add_triplets`).",
+    "[ ] (TDD) Add integration tests to `test_llama_memory.py`.",
+    "[ ] (TDD) Write test: Create multiple `MemoryBlock` objects with links between them (e.g., A->B, A->C).",
+    "[ ] (TDD) Convert them to nodes using the updated converter.",
+    "[ ] (TDD) Index these nodes using the `LlamaMemory` indexing method.",
+    "[ ] (TDD) Assert that querying the vector store still works for these nodes.",
+    "[ ] (TDD) Query the graph store/index directly (if API allows) or retrieve nodes via vector search and inspect their `relationships` attribute to confirm the A->B and A->C links were persisted in the graph structure."
   ],
   "test_criteria": [
-    "Execute a graph traversal query.",
-    "Verify that the query correctly returns nodes based on the defined relationships (e.g., traversing from a project node returns its linked task nodes)."
+    "[ ] Integration tests pass in `test_llama_memory.py`.",
+    "[ ] Test confirms that indexing multiple linked `MemoryBlock` objects results in updates to *both* the vector index and the graph store/index within `LlamaMemory`.",
+    "[ ] Test successfully retrieves a node and inspects its `relationships` (or queries the graph store directly) to confirm the expected graph structure reflects the indexed links.",
+    "[ ] Test verifies indexing a block that links to a non-existent ID handles the situation gracefully (e.g., doesn't crash, potentially logs a warning)."
   ],
-  "current_status": "Not started."
+  "success_criteria": [
+    "[ ] The `LlamaMemory` system initializes and manages both a vector store and a graph store/index.",
+    "[ ] The indexing process correctly populates both stores with node data and relationship information derived from `MemoryBlocks`.",
+    "[ ] Integration tests demonstrate that linked blocks are structurally represented within the graph component."
+  ],
+  "current_status": "Task definition created."
 } 

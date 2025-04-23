@@ -1,29 +1,32 @@
 {
   "type": "Task",
   "status": "todo",
-  "project": "../project-CogniMemorySystem-POC.json",
-  "id": "2.2",
-  "title": "Build memory_block_to_node() function",
-  "phase": "🧠 Indexing + Retrieval (LlamaIndex)",
-  "goal": "Convert your Pydantic MemoryBlock object to a LlamaIndex `Node` object, including metadata.",
-  "schema_references": [
-    "project.schemas.memory_block_pydantic"
-  ],
+  "project": "CogniMemorySystem-POC",
+  "name": "Build MemoryBlock to Node Function",
+  "description": "Create a function to convert a MemoryBlock Pydantic object into a LlamaIndex TextNode, including essential metadata.",
+  "implementation_details": {
+    "target_file": "experiments/src/memory_system/conversion.py (or llama_memory.py)",
+    "test_file": "experiments/src/memory_system/tests/test_conversion.py (or test_llama_memory.py)"
+  },
   "action_items": [
-    "[ ] Define a Python function `memory_block_to_node(block: MemoryBlock) -> Node` (using Pydantic model from `project.schemas.memory_block_pydantic`).",
-    "[ ] Import necessary LlamaIndex classes (e.g., `TextNode`).",
-    "[ ] Create a `TextNode` instance.",
-    "[ ] Set the `text` attribute of the Node to `block.text`.",
-    "[ ] Set the `id_` attribute of the Node to `block.id`.",
-    "[ ] Populate the `metadata` attribute of the Node with relevant fields from the `MemoryBlock` (e.g., `tags`, `source_file`, `source_uri`, `type`, `confidence`, potentially `links` structure as defined in Pydantic model).",
-    "[ ] Ensure metadata values are suitable types for LlamaIndex filtering (e.g., lists of strings, numbers)."
+    "[ ] Define function signature: `def memory_block_to_node(block: MemoryBlock) -> TextNode:`",
+    "[ ] Import `MemoryBlock` from `experiments.src.memory_system.schemas.memory_block` and `TextNode` from `llama_index.schema`.",
+    "[ ] Instantiate `TextNode` within the function.",
+    "[ ] Map `block.text` to `TextNode.text`.",
+    "[ ] Map `block.id` to `TextNode.id_` (note the underscore).",
+    "[ ] Map relevant `MemoryBlock` fields (e.g., `type`, `tags`, `source_file`, `source_uri`, `created_at`, `updated_at`, `created_by`) to the `TextNode.metadata` dictionary.",
+    "[ ] (TDD) Create the test file if it doesn't exist.",
+    "[ ] (TDD) Write basic unit tests for `memory_block_to_node` validating text and metadata mapping."
   ],
   "test_criteria": [
-    "Create a sample `MemoryBlock` instance.",
-    "Call `memory_block_to_node()` with the sample block.",
-    "Verify the returned object is a LlamaIndex `Node` (or subclass like `TextNode`).",
-    "Verify the Node's `text`, `id_`, and `metadata` attributes match the input `MemoryBlock` data.",
-    "Ensure the Node includes necessary information for embedding and indexing (text is present)."
+    "[ ] Unit tests pass for `memory_block_to_node`.",
+    "[ ] Test verifies `TextNode.text` matches input `MemoryBlock.text`.",
+    "[ ] Test verifies `TextNode.id_` matches input `MemoryBlock.id`.",
+    "[ ] Test verifies key fields like `type` and `tags` are present and correctly mapped in `TextNode.metadata`."
   ],
-  "current_status": "Not started."
+  "success_criteria": [
+    "[ ] A function `memory_block_to_node` exists and correctly converts a `MemoryBlock` object into a basic LlamaIndex `TextNode` with essential metadata.",
+    "[ ] Unit tests confirm the mapping logic."
+  ],
+  "current_status": "Task definition created."
 } 
