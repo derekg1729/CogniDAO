@@ -1,8 +1,31 @@
 from experiments.src.memory_system.schemas.memory_block import MemoryBlock
-from llama_index.core.schema import TextNode
+from llama_index.core.schema import TextNode, NodeRelationship, RelatedNodeInfo
 from typing import Dict, Any
 import json # For serializing complex metadata
+import logging
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Define mapping from MemoryBlock relation types to LlamaIndex NodeRelationship enums
+# This mapping determines how MemoryBlock.links are translated to LlamaIndex relationships
+RELATION_TO_NODE_RELATIONSHIP = {
+    # When a block has "subtask_of" links, it means it has children (subtasks)
+    "subtask_of": NodeRelationship.CHILD,
+    
+    # When a block has "child_of" links, it means it has parents
+    "child_of": NodeRelationship.PARENT,
+    
+    # When a block "depends_on" another, it's a source relationship
+    "depends_on": NodeRelationship.SOURCE,
+    
+    # For "related_to" and generic relationships, use NEXT as a general connection
+    "related_to": NodeRelationship.NEXT,
+    
+    # For "mentions" links, use NEXT relationship (closest match)
+    "mentions": NodeRelationship.NEXT
+}
 
 def memory_block_to_node(block: MemoryBlock) -> TextNode:
     """Converts a MemoryBlock Pydantic object into a LlamaIndex TextNode.
@@ -34,7 +57,7 @@ def memory_block_to_node(block: MemoryBlock) -> TextNode:
         try:
             metadata["metadata_json"] = json.dumps(block.metadata)
         except TypeError as e:
-            print(f"Warning: Could not serialize metadata for block {block.id}: {e}")
+            logger.warning(f"Could not serialize metadata for block {block.id}: {e}")
             # Decide on fallback: store partial, store as string repr, or omit
             metadata["metadata_json"] = repr(block.metadata) 
 
@@ -54,9 +77,6 @@ def memory_block_to_node(block: MemoryBlock) -> TextNode:
     # Add schema version if available (from Task 2.0 changes)
     if block.schema_version is not None:
         metadata["schema_version"] = block.schema_version
-
-    # Note: block.links are intentionally *not* added to metadata here.
-    # They will be converted to NodeRelationship objects in Task 2.3.
 
     # --- Construct enriched text for semantic search --- 
     title = block.metadata.get('title', 'Untitled') # Get title from metadata or default
@@ -81,7 +101,44 @@ def memory_block_to_node(block: MemoryBlock) -> TextNode:
         metadata=metadata # Assign the populated metadata
     )
 
-    # TODO: Add relationship mapping (Task 2.3)
+    # --- Handle relationships (Task 2.3) ---
+    if block.links:
+        # Initialize relationships dictionary if needed
+        if not hasattr(node, "relationships") or node.relationships is None:
+            node.relationships = {}
+            
+        # Process each link and convert to appropriate NodeRelationship
+        for link in block.links:
+            # Map the relation string to NodeRelationship enum
+            if link.relation in RELATION_TO_NODE_RELATIONSHIP:
+                node_relationship = RELATION_TO_NODE_RELATIONSHIP[link.relation]
+                
+                # Create RelatedNodeInfo with original relation in metadata
+                related_node_info = RelatedNodeInfo(
+                    node_id=link.to_id,
+                    metadata={"original_relation": link.relation}
+                )
+                
+                # Add to the appropriate list in relationships dictionary
+                if node_relationship not in node.relationships:
+                    node.relationships[node_relationship] = []
+                
+                node.relationships[node_relationship].append(related_node_info)
+                logger.debug(f"Added relationship: {link.relation} -> {node_relationship} for target {link.to_id}")
+            else:
+                # Handle unknown relation type - could default to NEXT or log a warning
+                logger.warning(f"Unknown relation type '{link.relation}' for link from {block.id} to {link.to_id}")
+                
+                # Default to NEXT for unknown types
+                if NodeRelationship.NEXT not in node.relationships:
+                    node.relationships[NodeRelationship.NEXT] = []
+                
+                node.relationships[NodeRelationship.NEXT].append(
+                    RelatedNodeInfo(
+                        node_id=link.to_id, 
+                        metadata={"original_relation": link.relation, "unknown_type": True}
+                    )
+                )
 
     return node
 

@@ -40,7 +40,9 @@ The project is under active development. See the project roadmap in `docs/roadma
 Completed tasks:
 - Task 2.0: Established Schema Registry & Versioning
 - Task 2.2: Created Basic Retrieval Function
+- Task 2.3: Extended Node Conversion for Type Links
 - Task 2.7: Generate Basic Schema SQL
 
 Next tasks:
-- Task 2.3: Extend node conversion for type links 
+- Task 2.4: Build ComposableGraphIndex
+- Task 2.5: Implement Reverse Link Query 

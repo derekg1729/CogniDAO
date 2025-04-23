@@ -1,34 +1,34 @@
 {
   "type": "Task",
-  "status": "todo",
+  "status": "completed",
   "project": "CogniMemorySystem-POC",
   "name": "Extend Node Conversion for Type Links",
   "description": "Enhance the memory_block_to_node function to translate MemoryBlock.links into LlamaIndex NodeRelationship information attached to the TextNode, enabling graph structures.",
   "implementation_details": {
-    "target_file": "experiments/src/memory_system/conversion.py (or llama_memory.py)",
-    "test_file": "experiments/src/memory_system/tests/test_conversion.py (or test_llama_memory.py)"
+    "target_file": "experiments/src/memory_system/llamaindex_adapters.py",
+    "test_file": "experiments/src/memory_system/tests/test_llamaindex_adapters.py"
   },
   "action_items": [
-    "[ ] Import `NodeRelationship` and `RelatedNodeInfo` from `llama_index.schema`.",
-    "[ ] Modify the `memory_block_to_node` function (from Task 2.1).",
-    "[ ] Inside the function, after creating the basic `TextNode`, iterate through the input `block.links`.",
-    "[ ] For each `link` in `block.links`:",
-    "[ ]   Create a `RelatedNodeInfo` object, setting its `node_id` to `link.to_id`.",
-    "[ ]   Define a mapping from `MemoryBlock` `link.relation` strings (e.g., 'subtask_of', 'related_to', 'child_of') to LlamaIndex `NodeRelationship` enums (e.g., `NodeRelationship.CHILD`, `NodeRelationship.RELATED`, `NodeRelationship.PARENT`). Choose appropriate mappings based on the semantics.",
-    "[ ]   Add the original `link.relation` string to the `RelatedNodeInfo.metadata` if needed for later retrieval.",
-    "[ ]   Add the `RelatedNodeInfo` object to the `TextNode.relationships` dictionary using the mapped `NodeRelationship` enum as the key.",
-    "[ ] (TDD) Update unit tests for `memory_block_to_node` in the test file.",
-    "[ ] (TDD) Write tests that provide `MemoryBlock` inputs with various `links` and assert that the output `TextNode.relationships` dictionary is populated correctly with the expected keys (enums) and `RelatedNodeInfo` values (target IDs and potentially metadata)."
+    "[x] Import `NodeRelationship` and `RelatedNodeInfo` from `llama_index.schema`.",
+    "[x] Modify the `memory_block_to_node` function (from Task 2.1).",
+    "[x] Inside the function, after creating the basic `TextNode`, iterate through the input `block.links`.",
+    "[x] For each `link` in `block.links`:",
+    "[x]   Create a `RelatedNodeInfo` object, setting its `node_id` to `link.to_id`.",
+    "[x]   Define a mapping from `MemoryBlock` `link.relation` strings (e.g., 'subtask_of', 'related_to', 'child_of') to LlamaIndex `NodeRelationship` enums (e.g., `NodeRelationship.CHILD`, `NodeRelationship.NEXT`, `NodeRelationship.PARENT`). Choose appropriate mappings based on the semantics.",
+    "[x]   Add the original `link.relation` string to the `RelatedNodeInfo.metadata` if needed for later retrieval.",
+    "[x]   Add the `RelatedNodeInfo` object to the `TextNode.relationships` dictionary using the mapped `NodeRelationship` enum as the key.",
+    "[x] (TDD) Update unit tests for `memory_block_to_node` in the test file.",
+    "[x] (TDD) Write tests that provide `MemoryBlock` inputs with various `links` and assert that the output `TextNode.relationships` dictionary is populated correctly with the expected keys (enums) and `RelatedNodeInfo` values (target IDs and potentially metadata)."
   ],
   "test_criteria": [
-    "[ ] Unit tests pass for the updated `memory_block_to_node` function.",
-    "[ ] Test verifies that providing a `MemoryBlock` with `links` results in a `TextNode` with a non-empty `relationships` dictionary.",
-    "[ ] Test verifies the correct `NodeRelationship` enum (e.g., `CHILD`) is used as the key in `relationships` based on the input link's `relation` string.",
-    "[ ] Test verifies the `RelatedNodeInfo` object within the `relationships` dictionary contains the correct target `node_id` (matching `link.to_id`)."
+    "[x] Unit tests pass for the updated `memory_block_to_node` function.",
+    "[x] Test verifies that providing a `MemoryBlock` with `links` results in a `TextNode` with a non-empty `relationships` dictionary.",
+    "[x] Test verifies the correct `NodeRelationship` enum (e.g., `CHILD`) is used as the key in `relationships` based on the input link's `relation` string.",
+    "[x] Test verifies the `RelatedNodeInfo` object within the `relationships` dictionary contains the correct target `node_id` (matching `link.to_id`)."
   ],
   "success_criteria": [
-    "[ ] The `memory_block_to_node` function correctly translates `MemoryBlock.links` into LlamaIndex `NodeRelationship` data attached to the `TextNode`.",
-    "[ ] Unit tests confirm the relationship mapping logic works for different relation types."
+    "[x] The `memory_block_to_node` function correctly translates `MemoryBlock.links` into LlamaIndex `NodeRelationship` data attached to the `TextNode`.",
+    "[x] Unit tests confirm the relationship mapping logic works for different relation types."
   ],
-  "current_status": "Task definition created."
+  "current_status": "Task completed. The memory_block_to_node function now properly converts MemoryBlock.links to LlamaIndex NodeRelationship objects, correctly mapping relation types, storing original relation metadata, and handling multiple links of the same type. All tests pass, including verification of relationship mapping and node ID preservation."
 } 
