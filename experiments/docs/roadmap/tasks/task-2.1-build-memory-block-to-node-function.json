@@ -16,16 +16,19 @@
     "[ ] Map `block.id` to `TextNode.id_` (note the underscore).",
     "[ ] Map relevant `MemoryBlock` fields (e.g., `type`, `tags`, `source_file`, `source_uri`, `created_at`, `updated_at`, `created_by`) to the `TextNode.metadata` dictionary.",
     "[ ] (TDD) Create the test file if it doesn't exist.",
-    "[ ] (TDD) Write basic unit tests for `memory_block_to_node` validating text and metadata mapping."
+    "[ ] (TDD) Write basic unit tests for `memory_block_to_node` validating text and metadata mapping.",
+    "[ ] (Add) Ensure `memory_block_to_node` maps `block.schema_version` to `TextNode.metadata` if present.",
+    "[ ] (Consider) Add logic to handle type-specific `metadata_json` if needed for node structure (or defer this complexity)."
   ],
   "test_criteria": [
     "[ ] Unit tests pass for `memory_block_to_node`.",
     "[ ] Test verifies `TextNode.text` matches input `MemoryBlock.text`.",
     "[ ] Test verifies `TextNode.id_` matches input `MemoryBlock.id`.",
-    "[ ] Test verifies key fields like `type` and `tags` are present and correctly mapped in `TextNode.metadata`."
+    "[ ] Test verifies key fields like `type` and `tags` are present and correctly mapped in `TextNode.metadata`.",
+    "[ ] (Add) Test verifies `schema_version` is correctly included in `TextNode.metadata` when provided in the input `MemoryBlock`."
   ],
   "success_criteria": [
-    "[ ] A function `memory_block_to_node` exists and correctly converts a `MemoryBlock` object into a basic LlamaIndex `TextNode` with essential metadata.",
+    "[ ] A function `memory_block_to_node` exists and correctly converts a `MemoryBlock` object into a basic LlamaIndex `TextNode` with essential metadata, including schema version.",
     "[ ] Unit tests confirm the mapping logic."
   ],
   "current_status": "Task definition created."

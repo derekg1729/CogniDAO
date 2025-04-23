@@ -24,10 +24,11 @@ class MemoryBlock(BaseModel):
     """
     The primary data structure for representing a unit of memory in the Cogni system experiment.
     Aligns with the design specified in project-CogniMemorySystem-POC.json.
+    Includes schema versioning support (Task 2.0).
     """
-    # No schema_version needed for this experimental version
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Globally unique ID for this memory block")
     type: Literal["knowledge", "task", "project", "doc"] = Field(..., description="Block type used to determine structure and relationships")
+    schema_version: Optional[int] = Field(None, description="Version of the schema this block adheres to (links to node_schemas table)")
     text: str = Field(..., description="Primary content or description of the block")
     tags: List[str] = Field(default_factory=list, description="Optional tags for filtering, theming, or metadata")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Custom metadata based on block type")
@@ -53,4 +54,40 @@ class MemoryBlock(BaseModel):
 
     # Ensure updated_at is set on modification/instantiation
     def model_post_init(self, __context: Any) -> None:
-        self.updated_at = datetime.now() 
+        self.updated_at = datetime.now()
+
+# --- Type-Specific Metadata Sub-models (Placeholders - Task 3.3) ---
+# These can be defined to enforce structure on the 'metadata' field for specific block types.
+
+class ProjectMetadata(BaseModel):
+    status: Optional[Literal["planning", "in-progress", "completed", "archived"]] = None
+    deadline: Optional[datetime] = None
+    # Add other project-specific fields
+
+class TaskMetadata(BaseModel):
+    status: Optional[Literal["todo", "in-progress", "completed", "blocked"]] = None
+    priority: Optional[int] = None
+    assignee: Optional[str] = None
+    # Add other task-specific fields
+
+class DocMetadata(BaseModel):
+    audience: Optional[str] = None
+    # Add other doc-specific fields
+
+# Mapping from type to specific metadata model (used in validation Task 3.3)
+TYPE_METADATA_MAP = {
+    "project": ProjectMetadata,
+    "task": TaskMetadata,
+    "doc": DocMetadata,
+    "knowledge": None, # No specific metadata structure for knowledge type yet
+}
+
+
+# --- Schema Registry Model (Task 2.0) ---
+
+class NodeSchemaRecord(BaseModel):
+    """Pydantic model for records in the `node_schemas` Dolt table."""
+    node_type: str = Field(..., description="Corresponds to MemoryBlock.type (e.g., 'task', 'project')")
+    schema_version: int = Field(..., description="Version number for this schema")
+    json_schema: Dict[str, Any] = Field(..., description="JSON schema output from Pydantic model.model_json_schema()")
+    created_at: datetime = Field(default_factory=datetime.now, description="When this schema version was registered") 

@@ -57,3 +57,6 @@ api.pid
 # Agent data (if untracked)
 /data/agents/
 
+# Local data storage
+storage/
+
