@@ -1,0 +1,22 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "CogniMemorySystem-POC",
+  "name": "Basic Index Test (Manual Block -> Index -> Query)",
+  "description": "Perform a basic end-to-end test of the LlamaIndex vector store: manually create a MemoryBlock, convert it to a LlamaIndex Node, index it in ChromaDB, and perform a simple semantic query.",
+  "action_items": [
+    "[ ] Define a sample `MemoryBlock` instance (in code, not from Dolt yet).",
+    "[ ] Implement a basic function to convert a `MemoryBlock` to a LlamaIndex `Node` (initially just text and basic metadata).",
+    "[ ] Write script to:",
+    "  [ ] Connect to the initialized ChromaDB store.",
+    "  [ ] Create a LlamaIndex `VectorStoreIndex` from the ChromaDB store.",
+    "  [ ] Convert the sample `MemoryBlock` to a `Node`.",
+    "  [ ] Insert the `Node` into the index.",
+    "  [ ] Create a query engine from the index.",
+    "  [ ] Perform a semantic query related to the sample block's content."
+  ],
+  "test_criteria": [
+    "Script executes without errors.",
+    "The semantic query successfully retrieves the manually created and indexed Node."
+  ]
+} 

@@ -1,0 +1,18 @@
+{
+  "type": "Task",
+  "status": "in-progress",
+  "project": "CogniMemorySystem-POC",
+  "name": "Install ChromaDB & Init Store",
+  "description": "Install ChromaDB client and initialize a persistent vector store for LlamaIndex.",
+  "action_items": [
+    "[x] Add `chromadb` package to dependencies. - Verified via import test",
+    "[x] Write a script/function to initialize a persistent ChromaDB client at the designated path (e.g., `./storage/chroma`). - Implemented within LlamaMemory class",
+    "[x] Confirm the storage directory is created and ChromaDB can connect. - Verified by running LlamaMemory initialization"
+  ],
+  "test_criteria": [
+    "Successful import of `chromadb`. - Verified",
+    "Persistent ChromaDB store initialized without errors. - Verified via LlamaMemory init",
+    "Ability to connect to the initialized store. - Verified via LlamaMemory init"
+  ],
+  "current_status": "ChromaDB installation verified. Initialization logic integrated into LlamaMemory class (__init__) which successfully connects to persistent storage at ./storage/chroma and sets up LlamaIndex ChromaVectorStore."
+} 
