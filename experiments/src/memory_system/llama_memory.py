@@ -3,10 +3,11 @@ import logging
 import chromadb
 from llama_index.core import StorageContext, VectorStoreIndex, load_index_from_storage
 from llama_index.vector_stores.chroma import ChromaVectorStore
+from llama_index.core.schema import TextNode # Added import
 from typing import List, Optional
 
 # Local schema import (assuming it will exist)
-# from .schemas.memory_block import MemoryBlock
+from .schemas.memory_block import MemoryBlock
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -115,32 +116,51 @@ class LlamaMemory:
         """Check if the memory system is fully initialized and ready."""
         return bool(self.index and self.query_engine and self.vector_store and self.client)
 
-    def add_block(self, block): # block should be MemoryBlock type hint later
+    def add_block(self, block: MemoryBlock):
         """
-        Converts a MemoryBlock to a LlamaIndex Node and adds it to the index.
-        (Placeholder - requires MemoryBlock schema and Node conversion logic)
+        Converts a MemoryBlock to a LlamaIndex TextNode and adds it to the index.
         """
         if not self.is_ready():
             logging.error("LlamaMemory is not ready. Cannot add block.")
             return
 
-        logging.info(f"Received block to add (ID: {getattr(block, 'id', 'N/A')}).")
-        # 1. Convert MemoryBlock to LlamaIndex Node(s)
-        #    - This will involve mapping fields (text, metadata, etc.)
-        #    - Need the MemoryBlock schema definition first.
-        # node = self._convert_block_to_node(block)
-        nodes = [] # Placeholder
-        if not nodes:
-             logging.warning("Node conversion not implemented yet.")
-             return
+        logging.info(f"Processing block to add (ID: {block.id}).")
 
-        # 2. Insert Node(s) into the index
+        # 1. Prepare metadata for the Node
+        # Ensure all metadata values are basic types (str, int, float) supported by ChromaDB/LlamaIndex
+        metadata = {
+            "block_id": block.id,
+            "block_type": block.type,
+            "tags": ",".join(block.tags) if block.tags else "", # Join tags into a comma-separated string
+            "source_file": block.source_file or "",
+            "source_uri": block.source_uri or "",
+            "created_by": block.created_by or "",
+            "created_at": block.created_at.isoformat() if block.created_at else "",
+            "updated_at": block.updated_at.isoformat() if block.updated_at else "",
+            # Add confidence scores if they exist
+            "confidence_human": block.confidence.human if block.confidence and block.confidence.human is not None else None,
+            "confidence_ai": block.confidence.ai if block.confidence and block.confidence.ai is not None else None,
+            # We might need to flatten block.metadata later if specific fields need filtering
+        }
+        # Filter out None values from metadata, as some stores might not handle them
+        metadata = {k: v for k, v in metadata.items() if v is not None}
+
+        # 2. Create the LlamaIndex TextNode
+        # Use MemoryBlock.id as the node_id for easier tracking and potential updates/deletes
+        node = TextNode(
+            text=block.text,
+            id_=block.id, # Use the MemoryBlock's ID as the Node's ID
+            metadata=metadata,
+            # Add relationships later if needed
+        )
+
+        # 3. Insert Node into the index
         try:
-            self.index.insert_nodes(nodes)
-            logging.info(f"Successfully inserted nodes for block ID: {getattr(block, 'id', 'N/A')}")
-            # Optionally, trigger index refresh or check persistence
+            # Use insert_nodes as it typically handles batching and potential optimizations
+            self.index.insert_nodes([node])
+            logging.info(f"Successfully inserted node for block ID: {block.id}")
         except Exception as e:
-            logging.error(f"Failed to insert nodes for block ID {getattr(block, 'id', 'N/A')}: {e}", exc_info=True)
+            logging.error(f"Failed to insert node for block ID {block.id}: {e}", exc_info=True)
 
 
     def query(self, query_text: str) -> Optional[List]: # Return type TBD (LlamaIndex Response or List[MemoryBlock])
