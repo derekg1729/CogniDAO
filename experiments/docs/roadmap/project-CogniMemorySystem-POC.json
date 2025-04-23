@@ -120,7 +120,7 @@
     },
     "memory_block_pydantic": "from typing import Optional, List, Literal, Dict, Any\nfrom datetime import datetime\nfrom pydantic import BaseModel, Field\n\n# Canonical relation types defined\nRelationType = Literal[\"related_to\", \"subtask_of\", \"depends_on\", \"child_of\", \"mentions\"]\n\nclass BlockLink(BaseModel):\n    to_id: str\n    relation: RelationType # Use canonical types\n\n\nclass ConfidenceScore(BaseModel):\n    human: Optional[float] = None\n    ai: Optional[float] = None\n\n\nclass MemoryBlock(BaseModel):\n    id: str\n    type: Literal[\"knowledge\", \"task\", \"project\", \"doc\"]\n    text: str\n    tags: List[str] = Field(default_factory=list)\n    metadata: Dict[str, Any] = Field(default_factory=dict)\n    links: List[BlockLink] = Field(default_factory=list)\n    source_file: Optional[str] = None\n    source_uri: Optional[str] = None\n    confidence: Optional[ConfidenceScore] = None\n    created_by: Optional[str] = None\n    created_at: Optional[datetime] = None\n    updated_at: Optional[datetime] = None\n",
     "block_link_pydantic": "from pydantic import BaseModel\nfrom typing import Literal\n\n# Canonical relation types defined\nRelationType = Literal[\"related_to\", \"subtask_of\", \"depends_on\", \"child_of\", \"mentions\"]\n\nclass BlockLink(BaseModel):\n    from_id: str\n    to_id: str\n    relation: RelationType # Use canonical types",
-    "dolt_sql": "CREATE TABLE memory_blocks (\n  id TEXT PRIMARY KEY,\n  type TEXT NOT NULL CHECK (type IN ('knowledge', 'task', 'project', 'doc')),\n  text TEXT NOT NULL,\n  tags_json JSON,\n  metadata_json JSON,\n  confidence_json JSON,\n  source_file TEXT,\n  source_uri TEXT,\n  created_by TEXT,\n  created_at DATETIME,\n  updated_at DATETIME\n);\n\nCREATE TABLE block_links (\n  from_id TEXT NOT NULL,\n  to_id TEXT NOT NULL,\n  relation TEXT NOT NULL, -- Should use canonical types: related_to, subtask_of, depends_on, child_of, mentions\n  PRIMARY KEY (from_id, to_id, relation),\n  FOREIGN KEY (from_id) REFERENCES memory_blocks(id) ON DELETE CASCADE,\n  FOREIGN KEY (to_id) REFERENCES memory_blocks(id) ON DELETE CASCADE\n);\n",
+    "dolt_sql": "CREATE TABLE memory_blocks (\n  id TEXT PRIMARY KEY,\n  type TEXT NOT NULL CHECK (type IN ('knowledge', 'task', 'project', 'doc')),\n  text TEXT NOT NULL,\n  tags_json JSON,\n  metadata_json JSON,\n  confidence_json JSON,\n  source_file TEXT,\n  source_uri TEXT,\n  created_by TEXT,\n  created_at DATETIME,\n  updated_at DATETIME,\n  schema_version INT NULL  -- Added in Task 2.0, links to node_schemas.schema_version\n);\n\nCREATE TABLE block_links (\n  from_id TEXT NOT NULL,\n  to_id TEXT NOT NULL,\n  relation TEXT NOT NULL, -- Should use canonical types: related_to, subtask_of, depends_on, child_of, mentions\n  PRIMARY KEY (from_id, to_id, relation),\n  FOREIGN KEY (from_id) REFERENCES memory_blocks(id) ON DELETE CASCADE,\n  FOREIGN KEY (to_id) REFERENCES memory_blocks(id) ON DELETE CASCADE\n);\n\nCREATE TABLE node_schemas (\n  node_type VARCHAR(255) NOT NULL, -- Corresponds to MemoryBlock.type (e.g., 'task', 'project')\n  schema_version INT NOT NULL,     -- Version number for this schema\n  json_schema JSON NOT NULL,       -- The actual JSON schema output from Pydantic model.model_json_schema()\n  created_at DATETIME NOT NULL,    -- When this schema version was registered\n  PRIMARY KEY (node_type, schema_version)\n);\n",
     "llamaindex_config": {
       "embedding_backend": "ChromaDB",
       "embedding_model": "OpenAIEmbedding('text-embedding-3-small')",
@@ -144,11 +144,13 @@
     {
       "phase": "🧠 Phase 2: Full Indexing System",
       "tasks": [
+        "task-2.0-establish-schema-registry-versioning.json",
         "task-2.1-build-memory-block-to-node-function.json",
         "task-2.2-create-basic-retrieval-function.json",
         "task-2.3-extend-node-conversion-for-type-links.json",
         "task-2.4-build-composablegraphindex.json",
-        "task-2.5-implement-reverse-link-query.json"
+        "task-2.5-implement-reverse-link-query.json",
+        "task-2.7-generate-basic-schema-sql.json"
       ]
     },
     {
@@ -214,7 +216,8 @@
     "phase_2_full_indexing_system": [
       "Demonstrate automated indexing of MemoryBlocks (including types and canonical links) from Dolt into LlamaIndex using both VectorStore and ComposableGraphIndex.",
       "Verify accurate retrieval of linked nodes (e.g., subtasks of a project) using LlamaIndex graph traversal.",
-      "Demonstrate retrieving blocks linking *to* a specific block ID (reverse link/backlink query)."
+      "Demonstrate retrieving blocks linking *to* a specific block ID (reverse link/backlink query).",
+      "Generate schema.sql automatically from MemoryBlock definition to ensure DB-schema consistency."
     ],
     "phase_3_agent_tools": [
       "Demonstrate LangChain agent querying memory semantically and returning MemoryBlocks via tools.",

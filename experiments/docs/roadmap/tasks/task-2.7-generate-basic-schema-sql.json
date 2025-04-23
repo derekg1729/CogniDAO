@@ -1,0 +1,34 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "CogniMemorySystem-POC",
+  "name": "Generate Basic Dolt SQL Schema from MemoryBlock Definition",
+  "phase": "🧠 Indexing + Retrieval (LlamaIndex)",
+  "description": "Turn the `generate_dolt_schema.py` placeholder into a minimally useful script that outputs a hardcoded (or partially mapped) `schema.sql` file using known MemoryBlock structure. This serves as a stand-in until full dynamic Pydantic-to-SQL generation is implemented.",
+  "goal": "Ensure schema.sql is always generated from a single source of truth and not manually edited.",
+  "implementation_details": {
+    "target_script": "experiments/scripts/generate_dolt_schema.py",
+    "output_file": "experiments/dolt_data/schema.sql",
+    "models_used": ["MemoryBlock (from memory_block.py)"],
+    "field_mappings": "Use hardcoded or lightly templated mapping for MVP (e.g., `str -> TEXT`, `datetime -> DATETIME`, `List[str] -> JSON`)"
+  },
+  "action_items": [
+    "[ ] Import the `MemoryBlock` Pydantic model from `schemas.memory_block`.",
+    "[ ] Define a manual SQL template based on current MemoryBlock fields.",
+    "[ ] Write this template to `schema.sql` when script is run.",
+    "[ ] (Optional) Add a comment at the top of the generated file: `-- Auto-generated from MemoryBlock schema. Do not edit manually.`",
+    "[ ] Confirm the script succeeds when run with no arguments.",
+    "[ ] Document in README or dev docs that schema.sql is generated, not hand-written."
+  ],
+  "test_criteria": [
+    "[ ] Running `python generate_dolt_schema.py` creates a valid `schema.sql` file in the dolt_data folder.",
+    "[ ] `schema.sql` contains a `CREATE TABLE memory_blocks (...)` with all known MVP fields from `MemoryBlock`.",
+    "[ ] File includes a comment noting it is auto-generated."
+  ],
+  "success_criteria": [
+    "[ ] The `schema.sql` used in the Dolt repo is fully generated from this script.",
+    "[ ] Developers and agents do not manually modify schema.sql.",
+    "[ ] The MemoryBlock structure and Dolt table definition stay in sync."
+  ],
+  "current_status": "Task definition created to enhance generate_dolt_schema.py and ensure schema.sql is auto-generated from the MemoryBlock definition."
+} 

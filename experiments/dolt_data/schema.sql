@@ -15,6 +15,7 @@ CREATE TABLE memory_blocks (
   created_by TEXT,
   created_at DATETIME,
   updated_at DATETIME,
+  embedding TEXT,          -- Added to store vector embeddings (if needed)
   schema_version INT NULL  -- Added in Task 2.0, links to node_schemas.schema_version
 );
 
@@ -31,7 +32,7 @@ CREATE TABLE block_links (
 CREATE TABLE node_schemas (
   node_type VARCHAR(255) NOT NULL, -- Corresponds to MemoryBlock.type (e.g., 'task', 'project')
   schema_version INT NOT NULL,     -- Version number for this schema
-  json_schema JSON NOT NULL,         -- The actual JSON schema output from Pydantic model.model_json_schema()
+  json_schema JSON NOT NULL,       -- The actual JSON schema output from Pydantic model.model_json_schema()
   created_at DATETIME NOT NULL,    -- When this schema version was registered
   PRIMARY KEY (node_type, schema_version)
 );
