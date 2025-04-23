@@ -20,7 +20,7 @@ def memory_block_to_node(block: MemoryBlock) -> TextNode:
     # Simple fields
     metadata["type"] = block.type
     if block.tags:
-        metadata["tags"] = block.tags # List[str] is usually filterable
+        metadata["tags"] = ",".join(block.tags)  # Join tags into a comma-separated string
     if block.source_file:
         metadata["source_file"] = block.source_file
     if block.source_uri:

@@ -2,12 +2,14 @@ import os
 import logging
 import chromadb
 from llama_index.core import StorageContext, VectorStoreIndex, load_index_from_storage
+from llama_index.core.schema import NodeWithScore  # Added import for return type
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core.schema import TextNode # Added import
 from typing import List, Optional
 
 # Local schema import (assuming it will exist)
 from .schemas.memory_block import MemoryBlock
+from .llamaindex_adapters import memory_block_to_node  # Added import for node conversion
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -158,10 +160,79 @@ class LlamaMemory:
         try:
             # Use insert_nodes as it typically handles batching and potential optimizations
             self.index.insert_nodes([node])
+            # Ensure changes are persisted to disk
+            self.index.storage_context.persist()
             logging.info(f"Successfully inserted node for block ID: {block.id}")
         except Exception as e:
             logging.error(f"Failed to insert node for block ID {block.id}: {e}", exc_info=True)
 
+    def update_block(self, block: MemoryBlock):
+        """
+        Updates an existing memory block in the index.
+        This is implemented as a delete + insert operation.
+        
+        Args:
+            block: The updated MemoryBlock to store in the index.
+        """
+        if not self.is_ready():
+            logging.error("LlamaMemory is not ready. Cannot update block.")
+            return
+            
+        logging.info(f"Updating block (ID: {block.id}).")
+        
+        try:
+            # 1. Delete the existing node with the same ID
+            self.index.delete_nodes([block.id])
+            
+            # 2. Create a new node from the updated block
+            node = memory_block_to_node(block)
+            
+            # 3. Insert the new node
+            self.index.insert_nodes([node])
+            # Ensure changes are persisted to disk
+            self.index.storage_context.persist()
+            logging.info(f"Successfully updated node for block ID: {block.id}")
+        except Exception as e:
+            logging.error(f"Failed to update node for block ID {block.id}: {e}", exc_info=True)
+
+    def query_vector_store(self, query_text: str, top_k: int = 5) -> List[NodeWithScore]:
+        """
+        Performs semantic search against the indexed MemoryBlocks.
+        
+        Args:
+            query_text: The text query to search for similar content.
+            top_k: Maximum number of results to return.
+            
+        Returns:
+            List of NodeWithScore objects containing the retrieved nodes and their similarity scores.
+        """
+        if not self.is_ready():
+            logging.error("LlamaMemory is not ready. Cannot query vector store.")
+            return []
+            
+        logging.info(f'Performing vector store query: "{query_text}" (top_k={top_k})')
+        
+        try:
+            # Create retriever from the index
+            retriever = self.index.as_retriever(similarity_top_k=top_k)
+            
+            # Retrieve nodes based on query
+            nodes_with_scores = retriever.retrieve(query_text)
+            
+            num_results = len(nodes_with_scores)
+            logging.info(f"Query successful. Retrieved {num_results} nodes.")
+            
+            # Log some basic info about results
+            for i, node_with_score in enumerate(nodes_with_scores):
+                node_id = node_with_score.node.id_
+                score = node_with_score.score
+                logging.info(f"  Result {i+1}: Node ID {node_id}, Score: {score}")
+                
+            return nodes_with_scores
+            
+        except Exception as e:
+            logging.error(f"Vector store query failed: {e}", exc_info=True)
+            return []
 
     def query(self, query_text: str) -> Optional[List]: # Return type TBD (LlamaIndex Response or List[MemoryBlock])
         """
