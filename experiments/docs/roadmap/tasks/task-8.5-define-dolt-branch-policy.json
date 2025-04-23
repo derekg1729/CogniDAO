@@ -1,0 +1,39 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "CogniMemorySystem-POC",
+  "name": "Define Dolt Branching Philosophy: Code-First, Data-Regrows",
+  "description": "Establish a branching policy where the main Dolt branch does not accept data merges from development branches. Instead, each new deploy to main produces new data blocks based on current schemas and logic. Experimental Dolt branches remain isolated unless data is manually extracted.",
+  "epic": "🚀 Phase 8: Workflow & Repository Setup",
+  "implementation_details": {
+    "target_files": [
+      "(Project README or Branch Strategy Document)",
+      "CI/CD scripts",
+      "Agent logic (potentially)"
+    ]
+  },
+  "philosophy_summary": {
+    "core_rule": "Code is the source of truth. Data branches do not merge upward into main.",
+    "dolt_main_branch": "Only populated by agents/workflows after stable code reaches main. Clean, schema-aligned, intentionally generated data.",
+    "dolt_dev_branches": "Used for development, prototyping, testing. May contain outdated or partially validated blocks. Considered ephemeral unless flagged.",
+    "merge_policy": "No auto-merges or upward syncs from dev branches to main. Manual extraction only."
+  },
+  "action_items": [
+    "[ ] Document this policy clearly in the project's architecture README or a dedicated branch strategy document.",
+    "[ ] Implement safeguards (e.g., in CI/CD scripts or branch protection rules if possible) to prevent direct Dolt merges from non-main branches into the `main` Dolt branch.",
+    "[ ] Design and implement CI/CD automation (post-deploy step) to handle Dolt branch creation/reset for environments based on code branches (e.g., `dolt checkout main && dolt branch -f preview/<branch>`).",
+    "[ ] (Future) Define the specification for the `important_experiment_collector` tool described in the feedback, which would scan experimental branches for high-value blocks for manual/agent-driven promotion to `main`."
+  ],
+  "test_criteria": [
+    "[ ] Branching policy is clearly documented and accessible.",
+    "[ ] CI/CD pipeline prevents or warns against merging Dolt dev branches into `main`.",
+    "[ ] Post-deployment steps correctly manage environment-specific Dolt branches (e.g., preview branches)."
+  ],
+  "success_criteria": [
+    "[ ] A clear, documented 'Code-First, Data-Regrows' branching policy is established and understood.",
+    "[ ] Technical safeguards prevent accidental merging of experimental Dolt data into `main`.",
+    "[ ] Data in the `main` Dolt branch accurately reflects generation from the `main` codebase.",
+    "[ ] Experimental data remains isolated but a path for selective promotion (via future tools) is conceptualized."
+  ],
+  "current_status": "Task definition created based on workflow feedback."
+} 

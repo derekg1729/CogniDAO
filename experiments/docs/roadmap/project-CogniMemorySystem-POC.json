@@ -156,7 +156,8 @@
       "tasks": [
         "task-3.1-setup-basic-langchain-agent.json",
         "task-3.2-add-querymemoryblocks-tool.json",
-        "task-3.3-add-creatememoryblock-tool.json"
+        "task-3.3-add-creatememoryblock-tool.json",
+        "task-3.4-implement-project-task-metadata-validation.json"
       ]
     },
     {
@@ -198,7 +199,8 @@
       "tasks": [
         "task-8.1-decide-dolt-repo-structure.json",
         "task-8.2-implement-dev-branch-sync.json",
-        "task-8.3-plan-ci-cd-branch-sync.json"
+        "task-8.3-plan-ci-cd-branch-sync.json",
+        "task-8.5-define-dolt-branch-policy.json"
       ]
     }
   ],
