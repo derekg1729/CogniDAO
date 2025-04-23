@@ -38,7 +38,6 @@ llama-index-embeddings-openai
 llama-index-readers-file
 
 # Utility & Dev
-actionlint # for CI workflow validation
 aiofiles # for async file operations in FastAPI
 python-multipart # for FastAPI file uploads
 
