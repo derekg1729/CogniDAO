@@ -1,0 +1,30 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "CogniMemorySystem-POC",
+  "name": "Decide on Dolt Repository Structure & Separation",
+  "description": "Evaluate whether to move the Dolt database (experiments/dolt_data/memory_db) to a separate Git repository for this project, based on workflow feedback. Implement the move if decided.",
+  "implementation_details": {
+    "target_files": [
+      "(Decision Document/Discussion)",
+      "(Git operations if separated)"
+    ]
+  },
+  "action_items": [
+    "[ ] Analyze pros/cons of separate Dolt repo vs. current monorepo structure (e.g., isolation, setup complexity, path handling in code).",
+    "[ ] Make a decision on the repository structure for the remainder of the POC.",
+    "[ ] Document the decision and reasoning.",
+    "[ ] (If Separating) Plan and execute the steps to move `experiments/dolt_data/memory_db` to a new Git repository (consider history preservation options).",
+    "[ ] (If Separating) Update relevant paths or configuration in the codebase if necessary."
+  ],
+  "test_criteria": [
+    "[ ] A clear decision on repository structure is documented.",
+    "[ ] If separated, the new Dolt repository exists and the old path is removed/ignored.",
+    "[ ] If separated, code referencing Dolt data paths is updated or confirmed correct."
+  ],
+  "success_criteria": [
+    "[ ] A final decision on the Dolt repository structure for the POC is made and documented.",
+    "[ ] If separation is chosen, the Dolt database is successfully moved to its new repository."
+  ],
+  "current_status": "Task definition created based on workflow feedback."
+} 

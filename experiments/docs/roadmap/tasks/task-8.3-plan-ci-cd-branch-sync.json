@@ -1,0 +1,48 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "CogniMemorySystem-POC",
+  "name": "Plan CI/CD Branch Synchronization",
+  "description": "Design how deployment pipelines (CI/CD) will clone, checkout, and sync the appropriate Dolt branch alongside the codebase. This ensures that each deployment environment (preview, staging, prod) runs against the correct Dolt data version.",
+  "epic": "🚀 Phase 8: Workflow & Repository Setup",
+  "implementation_details": {
+    "target_files": [
+      "CI/CD configuration files (e.g., .github/workflows/deploy.yml)",
+      "Deployment scripts (e.g., deploy.sh)",
+      "Documentation (e.g., README update)"
+    ],
+    "repo_paths_example": {
+      "code_repo": "e.g. github.com/cognidao/cogni-app",
+      "dolt_repo": "e.g. github.com/cognidao/cogni-data"
+    },
+    "ci_cd_target_example": "GitHub Actions + deploy.sh + Vercel preview (or equivalent)",
+    "tooling_examples": [
+      "bash scripts in CI pipeline",
+      "prefect tasks for local development",
+      "docker-compose support if needed for local Dolt SQL server"
+    ]
+  },
+  "action_items": [
+    "[ ] Define strategy for cloning/accessing the Dolt repo within CI/CD runners.",
+    "[ ] Implement script logic (e.g., in bash within GitHub Actions step or deploy.sh) that:",
+    "[ ]   Identifies the current code branch being deployed.",
+    "[ ]   Determines the target Dolt branch name using the agreed convention (from Task 8.2).",
+    "[ ]   Checks out the target Dolt branch. Handle cases where the branch doesn't exist (fallback to main with warning, as per notes).",
+    "[ ] Determine how the application will access Dolt data in CI/CD (mount volume, run `dolt sql-server`?).",
+    "[ ] Define specific Dolt branch strategy for different environments (e.g., previews use feature branches, staging uses `main`, prod uses `main` or `release/*`).",
+    "[ ] (Optional) Implement logging of the checked-out Dolt repo commit hash during deployment.",
+    "[ ] Document the chosen CI/CD synchronization strategy."
+  ],
+  "test_criteria": [
+    "[ ] CI/CD pipeline configuration includes steps to clone/access the Dolt repo.",
+    "[ ] Pipeline scripts correctly identify the code branch and determine the target Dolt branch.",
+    "[ ] Pipeline successfully checks out the corresponding Dolt branch (or falls back to main with warning if missing).",
+    "[ ] Application in deployed environment (preview/staging) successfully connects to and reads data from the correctly checked-out Dolt branch/server.",
+    "[ ] Strategy for different environments (preview, staging, prod) is documented."
+  ],
+  "success_criteria": [
+    "[ ] A documented plan and implementation strategy exists for synchronizing Dolt branches within the CI/CD pipeline.",
+    "[ ] Automated deployments correctly align the code branch with its corresponding Dolt branch (or defined fallback)."
+  ],
+  "current_status": "Task definition created based on workflow feedback."
+} 

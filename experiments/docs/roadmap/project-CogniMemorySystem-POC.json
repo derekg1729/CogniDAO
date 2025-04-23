@@ -192,6 +192,14 @@
         "task-7.3-mock-dao-submitmemoryupdate.json",
         "task-7.4-optional-submit-zkvm-hash.json"
       ]
+    },
+    {
+      "phase": "🚀 Phase 8: Workflow & Repository Setup",
+      "tasks": [
+        "task-8.1-decide-dolt-repo-structure.json",
+        "task-8.2-implement-dev-branch-sync.json",
+        "task-8.3-plan-ci-cd-branch-sync.json"
+      ]
     }
   ],
   "success_criteria": {

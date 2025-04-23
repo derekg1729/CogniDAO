@@ -1,0 +1,52 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "CogniMemorySystem-POC",
+  "name": "Implement Dev Branch Synchronization",
+  "description": "Define code-to-Dolt branch naming convention and implement local Git hook for automatic branch switching.",
+  "implementation_details": {
+    "target_files": [
+      "(Project README or Design Doc for convention)",
+      ".git/hooks/post-checkout (in code repo)",
+      ".env (for config, optional)"
+    ],
+    "requires_dolt_repo_path": "Path to local Dolt repository (needed for hook script)",
+    "notes": [
+      "Hook script will be Bash-only initially.",
+      "Consider abstracting logic to CLI/MCP tool later for CI/CD reuse."
+    ]
+  },
+  "action_items": [
+    "[ ] Define and document the branch naming convention (e.g., `feature/my-feature` -> `my-feature`, `main` -> `main`).",
+    "[ ] Create or adapt the bash script provided in feedback for `.git/hooks/post-checkout`.",
+    "[ ] Ensure the script correctly identifies the current code branch.",
+    "[ ] Ensure the script correctly calculates the target Dolt branch name based on the convention.",
+    "[ ] (Add) Support reading Dolt repo path from `.env` (e.g. `DOLT_REPO_PATH=../cogni-dolt`) or fallback to relative path.",
+    "[ ] (Add) Ensure the script checks that the determined Dolt repo path exists and warns/fails gracefully if not.",
+    "[ ] Ensure the script correctly uses `cd` to navigate to the Dolt repository path.",
+    "[ ] (Add) Add optional debug output to the script (e.g. `echo '[post-checkout] switching dolt to: $DOLT_BRANCH'`) controllable via environment variable or argument.",
+    "[ ] Test the script:",
+    "[ ]   Test checking out a code branch where the Dolt branch exists.",
+    "[ ]   Test checking out a code branch where the Dolt branch does *not* exist (should create and checkout).",
+    "[ ]   Test checking out `main`/`master` branch.",
+    "[ ]   (Add) Test with invalid/missing Dolt repo path.",
+    "[ ]   (Add) Test with debug output enabled/disabled.",
+    "[ ] Document how developers should install/enable the hook (e.g., copy script, make executable, set .env variable).",
+    "[ ] (Add) Note in documentation that this is a Bash-only hook script. Add cross-platform plan if needed.",
+    "[ ] (Future) Consider packaging the sync logic into a CLI or MCP tool for reuse in CI/CD, replacing ad hoc git hooks."
+  ],
+  "test_criteria": [
+    "[ ] Branch naming convention is clearly documented.",
+    "[ ] `post-checkout` hook script exists and is executable.",
+    "[ ] Checking out different code branches successfully triggers the hook and checks out/creates the corresponding Dolt branch.",
+    "[ ] Hook handles configuration of Dolt repo path (e.g., via .env).",
+    "[ ] Hook handles missing/invalid Dolt repo path gracefully.",
+    "[ ] Debug output functions as expected."
+  ],
+  "success_criteria": [
+    "[ ] A clear branch naming convention is defined and documented.",
+    "[ ] The local `post-checkout` hook correctly and robustly synchronizes the Dolt branch with the current code branch automatically.",
+    "[ ] Developer setup for the hook (including configuration) is documented."
+  ],
+  "current_status": "Task definition updated based on feedback for robustness and flexibility."
+} 
