@@ -1,0 +1,23 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "CogniMemorySystem-POC",
+  "name": "Define and Register Block Type Schemas",
+  "description": "Create structured Pydantic sub-schemas for each `MemoryBlock.type` (e.g., task, project, doc, thought) and register their JSON Schema output into the `node_schemas` Dolt table.",
+  "implementation_details": {
+    "target_file": "experiments/src/memory_system/schemas/memory_block.py",
+    "dolt_table": "node_schemas"
+  },
+  "action_items": [
+    "[ ] Define Pydantic models for `TaskMetadata`, `ProjectMetadata`, `DocMetadata`, and `ThoughtMetadata`.",
+    "[ ] Validate and export each model's JSON Schema using `model_json_schema()`.",
+    "[ ] Implement a utility function to insert or update each schema definition into the Dolt `node_schemas` table.",
+    "[ ] Ensure each schema has a `schema_version` and is registered under the appropriate `node_type`.",
+    "[ ] Create a test or script to verify schema registration works and persists correctly in Dolt."
+  ],
+  "success_criteria": [
+    "[ ] All current `MemoryBlock.type` variants have a registered schema in Dolt.",
+    "[ ] The `node_schemas` table reflects a valid JSON Schema for each type.",
+    "[ ] Schema registration can be triggered automatically or manually in future tooling pipelines."
+  ]
+} 
