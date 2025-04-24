@@ -1,0 +1,34 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "CogniMemorySystem-POC",
+  "name": "Redesign BaseCogniMemory into a unified Block-aware MemoryBank",
+  "description": "Refactor the existing BaseCogniMemory class into a unified MemoryBank abstraction capable of reading, writing, and querying both transient (message history) and persistent (MemoryBlock) memory using LlamaIndex, while supporting agent-scoped memory views.",
+  "implementation_details": {
+    "target_file": "experiments/src/memory_system/memory_bank.py",
+    "test_file": "experiments/src/memory_system/tests/test_memory_bank.py"
+  },
+  "action_items": [
+    "[ ] Rename or subclass `BaseCogniMemory` into `MemoryBank`.",
+    "[ ] Add support for embedding and querying `MemoryBlock` objects through LlamaMemory.",
+    "[ ] Implement `get_blocks_by_tags`, `get_backlinks`, `get_forward_links`, and `search_blocks_by_text` methods.",
+    "[ ] Introduce `session_scope` or `agent_scope` to restrict query context (e.g., return only blocks tagged with `agent:core` or `session:abc123`).",
+    "[ ] Replace `write_context` with `write_memory_block`, validating it against a registered schema before writing.",
+    "[ ] Implement fallback methods for compatibility with chat-based history: `read_history_dicts`, `write_history_dicts`.",
+    "[ ] Create a configurable flag to disable persistent memory or use an in-memory LlamaIndex instance (for lightweight agents).",
+    "[ ] Update or deprecate `clear_session` in favor of scoped clearing based on tags or block groups."
+  ],
+  "test_criteria": [
+    "[ ] A LangChain-compatible agent can instantiate `MemoryBank`, write a `MemoryBlock`, and query it via text.",
+    "[ ] Tests confirm forward/backward link navigation via methods like `get_backlinks`.",
+    "[ ] Agents using chat memory still function via the fallback `read_history_dicts` and `write_history_dicts`.",
+    "[ ] Unit tests validate agent-specific scoped queries (e.g., only return blocks tagged with agent ID)."
+  ],
+  "success_criteria": [
+    "[ ] Cogni agents can query structured blocks and history through a single, pluggable `MemoryBank`.",
+    "[ ] Structured blocks are properly indexed in LlamaIndex and link-aware via SimpleGraphStore.",
+    "[ ] Legacy agents with chat memory implementations can migrate cleanly or continue using the interface.",
+    "[ ] Agent memory scope is enforced through tags or metadata filtering, enabling distributed and local context control."
+  ],
+  "current_status": "Task definition created."
+}
