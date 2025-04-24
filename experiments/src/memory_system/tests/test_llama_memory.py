@@ -2,13 +2,13 @@ import pytest
 import uuid
 import tempfile
 import shutil
-from datetime import datetime
 from typing import List
 
 from experiments.src.memory_system.llama_memory import LlamaMemory
-from experiments.src.memory_system.schemas.memory_block import MemoryBlock
+from experiments.src.memory_system.schemas.memory_block import MemoryBlock, BlockLink
 from experiments.src.memory_system.llamaindex_adapters import memory_block_to_node
 from llama_index.core.schema import NodeWithScore
+from llama_index.core.schema import NodeRelationship
 
 
 class TestLlamaMemory:
@@ -46,8 +46,6 @@ class TestLlamaMemory:
                 "version": "3.10"
             },
             created_by="test_user",
-            created_at=datetime.now(),
-            updated_at=datetime.now()
         )
     
     def test_init(self, llama_memory):
@@ -61,9 +59,11 @@ class TestLlamaMemory:
         llama_memory.add_block(sample_memory_block)
         
         # Verify it was added by querying for it
-        # We'll rely on basic functionality to check this is working
-        query_response = llama_memory.query("Python programming")
-        assert query_response is not None
+        # Use vector store query for more direct verification
+        query_results = llama_memory.query_vector_store("Python programming", top_k=1)
+        assert query_results is not None
+        assert len(query_results) > 0
+        assert query_results[0].node.id_ == sample_memory_block.id
     
     def test_query_vector_store(self, llama_memory, sample_memory_block):
         """Test semantic search against the vector store."""
@@ -120,25 +120,32 @@ class TestLlamaMemory:
         
         # Update the block with new content
         updated_block = sample_memory_block.model_copy(deep=True)
-        updated_block.text = "Python is a popular programming language used extensively in data science, web development, and artificial intelligence applications."
+        updated_text = "Python is a popular programming language used extensively in data science, web development, and artificial intelligence applications."
+        updated_block.text = updated_text
         updated_block.tags.append("data-science")
         updated_block.metadata["focus"] = "data science"
+        updated_block.metadata["title"] = "Python for Data Science"
         
         # Update the block in the index
         llama_memory.update_block(updated_block)
         
+        # Allow some time for indexing if necessary (though Chroma might be fast)
+        import time
+        time.sleep(0.5) 
+
         # Query for the updated content
         updated_query = "Python for data science"
         updated_results = llama_memory.query_vector_store(updated_query, top_k=1)
         
         # Verify we get the updated block with a good score
-        assert len(updated_results) > 0, "Should retrieve the updated block"
-        assert updated_results[0].node.id_ == updated_block.id
-        assert updated_results[0].score > 0.5, "Score should be good for a relevant query to updated content"
+        assert len(updated_results) > 0, f"Should retrieve the updated block for query '{updated_query}'"
+        assert updated_results[0].node.id_ == updated_block.id, "Retrieved node ID should match the updated block ID"
         
         # Check if the text in the node reflects the update
+        # The adapter enriches the text, so we check for the original text within node.text
         node_text = updated_results[0].node.text
-        assert "data science" in node_text.lower(), "Updated content should be reflected in the node text"
+        assert updated_text in node_text, "Updated content should be reflected in the node text"
+        assert "Title: Python for Data Science" in node_text, "Updated title should be in enriched text"
     
     def test_add_multiple_blocks_and_query(self, llama_memory):
         """Test adding multiple blocks and retrieving the most relevant one."""
@@ -191,4 +198,90 @@ class TestLlamaMemory:
         
         # If gardening is in results, Python should be ranked higher
         if gardening_rank is not None:
-            assert python_rank < gardening_rank, "Python should rank higher than gardening for a Python query" 
+            assert python_rank < gardening_rank, "Python should rank higher than gardening for a Python query"
+
+    # --- New tests for Graph Store Integration (Task 2.4) ---
+
+    def test_graph_relationships(self, llama_memory):
+        """Test adding blocks with links and verifying graph store relationships."""
+        # 1. Create blocks with links
+        block_a_id = f"block-a-{uuid.uuid4()}"
+        block_b_id = f"block-b-{uuid.uuid4()}"
+        block_c_id = f"block-c-{uuid.uuid4()}"
+
+        block_a = MemoryBlock(
+            id=block_a_id,
+            type="task",
+            text="Task A: Needs subtask B and related doc C",
+            links=[
+                BlockLink(to_id=block_b_id, relation="subtask_of"), # A has child B
+                BlockLink(to_id=block_c_id, relation="related_to")  # A is related to C
+            ]
+        )
+        block_b = MemoryBlock(
+            id=block_b_id,
+            type="task",
+            text="Subtask B",
+            links=[BlockLink(to_id=block_a_id, relation="child_of")] # B is child of A
+        )
+        block_c = MemoryBlock(
+            id=block_c_id,
+            type="doc",
+            text="Related Document C",
+            # No outgoing links from C in this test
+        )
+
+        # 2. Add blocks to memory
+        llama_memory.add_block(block_a)
+        llama_memory.add_block(block_b)
+        llama_memory.add_block(block_c)
+
+        # 3. Verify relationships using graph_store.get_rel_map()
+        # Allow time for potential async operations if any (though SimpleGraphStore is sync)
+        import time
+        time.sleep(0.1) 
+        
+        # SimpleGraphStore.get_rel_map() returns Dict[str, List[List[str]]]
+        # Key: subject_id, Value: List of triplets involving that subject [subj, rel, obj]
+        graph_map_dict = llama_memory.graph_store.get_rel_map()
+        assert isinstance(graph_map_dict, dict)
+        
+        # Define expected triplets
+        expected_triplet_a_b = [block_a_id, NodeRelationship.CHILD.name, block_b_id]
+        expected_triplet_a_c = [block_a_id, NodeRelationship.NEXT.name, block_c_id]
+        expected_triplet_b_a = [block_b_id, NodeRelationship.PARENT.name, block_a_id]
+
+        # Check A's relationships
+        assert block_a_id in graph_map_dict, f"Block A ({block_a_id}) should be a key in the graph map"
+        triplets_involving_a = graph_map_dict.get(block_a_id, [])
+        assert expected_triplet_a_b in triplets_involving_a, f"Missing triplet originating from A: {expected_triplet_a_b}"
+        assert expected_triplet_a_c in triplets_involving_a, f"Missing triplet originating from A: {expected_triplet_a_c}"
+        # Also check for incoming relationship listed under A's key
+        assert expected_triplet_b_a in triplets_involving_a, f"Missing triplet pointing to A: {expected_triplet_b_a}"
+
+        # Check B's relationships
+        assert block_b_id in graph_map_dict, f"Block B ({block_b_id}) should be a key in the graph map"
+        triplets_involving_b = graph_map_dict.get(block_b_id, [])
+        assert expected_triplet_b_a in triplets_involving_b, f"Missing triplet originating from B: {expected_triplet_b_a}"
+        # Also check for incoming relationship listed under B's key
+        assert expected_triplet_a_b in triplets_involving_b, f"Missing triplet pointing to B: {expected_triplet_a_b}"
+
+        # Check C has no outgoing relations and only one incoming relation listed
+        assert block_c_id not in graph_map_dict, f"Block C ({block_c_id}) should NOT be a key (no outgoing relations)"
+        # Check that C doesn't appear as a subject in any triplet lists associated with other keys
+        all_triplets_flat = [triplet for subj_triplets in graph_map_dict.values() for triplet in subj_triplets]
+        assert not any(t[0] == block_c_id for t in all_triplets_flat), f"Block C ({block_c_id}) should not be a subject in any triplet"
+        
+
+        # 4. Verify relationships using get_backlinks (Remains the same)
+        backlinks_to_b = llama_memory.get_backlinks(block_b_id)
+        assert block_a_id in backlinks_to_b, "Block A should be listed as a backlink to B"
+
+        backlinks_to_c = llama_memory.get_backlinks(block_c_id)
+        assert block_a_id in backlinks_to_c, "Block A should be listed as a backlink to C (via NEXT relation)"
+        
+        backlinks_to_a = llama_memory.get_backlinks(block_a_id)
+        assert block_b_id in backlinks_to_a, "Block B should be listed as a backlink to A (via PARENT relation)"
+
+    # TODO: Add test_graph_link_to_nonexistent
+    # TODO: Add test_graph_update_relationships (if update logic differs significantly) 

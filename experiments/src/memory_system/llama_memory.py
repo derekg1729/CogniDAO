@@ -276,21 +276,26 @@ class LlamaMemory:
         
         try:
             # Get the relationship map from the graph store
-            # Note: Implementation depends on the exact SimpleGraphStore API
-            # Here we use get_rel_map which returns relationships in the graph
+            # SimpleGraphStore.get_rel_map() returns Dict[str, List[List[str]]]
+            # Key: subject_id, Value: List of triplets involving that subject [subj, rel, obj]
+            rel_map_dict = self.graph_store.get_rel_map()
+            
             backlinks = []
-            
-            # The SimpleGraphStore doesn't directly support querying by object,
-            # so we need to extract this information from the full relationship map
-            rel_map = self.graph_store.get_rel_map()
-            
-            # Iterate through all subjects and their relationships
-            for subject_id, relations in rel_map.items():
-                for rel_type, objects in relations.items():
-                    # Check if any of the objects match the target block ID
-                    if target_block_id in objects:
-                        backlinks.append(subject_id)
-                        logging.info(f"Found backlink: {subject_id} -[{rel_type}]-> {target_block_id}")
+
+            # Iterate through all triplets stored in the map
+            for subject_id, triplets_list in rel_map_dict.items():
+                for triplet in triplets_list:
+                    # triplet is [subj, rel, obj]
+                    if len(triplet) == 3:
+                        subj, rel, obj = triplet
+                        # Check if the object of the triplet matches the target block ID
+                        if obj == target_block_id:
+                            # Ensure we don't add duplicates if structure is redundant
+                            if subj not in backlinks:
+                                backlinks.append(subj)
+                                logging.info(f"Found backlink: {subj} -[{rel}]-> {target_block_id}")
+                    else:
+                         logging.warning(f"Skipping malformed triplet in graph map: {triplet}")
             
             logging.info(f"Found {len(backlinks)} backlinks to block {target_block_id}")
             return backlinks
