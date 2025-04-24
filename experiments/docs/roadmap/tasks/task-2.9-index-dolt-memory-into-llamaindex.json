@@ -1,0 +1,40 @@
+{
+  "type": "task",
+  "status": "todo",
+  "project": "CogniMemorySystem-POC",
+  "name": "Index Dolt MemoryBlocks into LlamaIndex",
+  "description": "Using the memory_block_to_node function and LlamaMemory, add a sync loop that indexes MemoryBlocks retrieved from Dolt into the vector and graph stores. Validate that relationships and metadata are preserved.",
+  "id": "task-2.9-index-dolt-memory-into-llamaindex.json",
+  "implementation_details": {
+    "target_file": "experiments/scripts/sync_dolt_to_llamaindex.py",
+    "input_function": "dolt_reader.read_memory_blocks",
+    "output_target": "LlamaIndex vector and graph stores via LlamaMemory"
+  },
+  "action_items": [
+    "[ ] Create `sync_dolt_to_llamaindex.py` script.",
+    "[ ] Import necessary modules: `dolt_reader`, `LlamaMemory`, `argparse` (for DB path).",
+    "[ ] Implement main execution block (`if __name__ == '__main__':`).",
+    "[ ] Add argument parsing for Dolt DB path and LlamaIndex storage path.",
+    "[ ] Initialize `LlamaMemory` instance with the specified path.",
+    "[ ] Call `dolt_reader.read_memory_blocks` to retrieve blocks from Dolt.",
+    "[ ] Loop through the retrieved `MemoryBlock` objects.",
+    "[ ] For each block, call `llama_memory.add_block(block)` to index it.",
+    "[ ] Add logging to indicate progress and completion.",
+    "[ ] Consider adding logic to handle potential errors during indexing of individual blocks.",
+    "[ ] Write integration tests:",
+    "[ ]   Setup: Create test Dolt DB, add sample blocks (including one with links).",
+    "[ ]   Execute: Run the `sync_dolt_to_llamaindex.py` script against the test DB and a temporary LlamaIndex path.",
+    "[ ]   Verify: Query the resulting LlamaIndex stores (vector and graph) to confirm blocks and relationships were indexed correctly."
+  ],
+  "test_criteria": [
+    "[ ] Integration test successfully indexes blocks from a test Dolt DB into LlamaIndex.",
+    "[ ] Test verifies that vector queries return the indexed blocks.",
+    "[ ] Test verifies that graph relationships (using `get_rel_map` or `get_backlinks`) match the links defined in the Dolt data.",
+    "[ ] Script runs without errors on valid input."
+  ],
+  "success_criteria": [
+    "[ ] A script exists that can synchronize `MemoryBlock` data from Dolt into the LlamaIndex system.",
+    "[ ] Both vector embeddings and graph relationships are correctly indexed in LlamaIndex based on the Dolt source data."
+  ],
+  "current_status": "Task definition created."
+} 

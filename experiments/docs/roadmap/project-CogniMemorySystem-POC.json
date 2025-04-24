@@ -150,7 +150,10 @@
         "task-2.3-extend-node-conversion-for-type-links.json",
         "task-2.4-build-composablegraphindex.json",
         "task-2.5-implement-reverse-link-query.json",
-        "task-2.7-generate-basic-schema-sql.json"
+        "task-2.6-read-memoryblocks-from-dolt.json",
+        "task-2.7-generate-basic-schema-sql.json",
+        "task-2.8-define-schemas.json",
+        "task-2.9-index-dolt-memory-into-llamaindex.json"
       ]
     },
     {
