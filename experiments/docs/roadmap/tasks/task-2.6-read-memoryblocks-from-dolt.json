@@ -1,39 +1,40 @@
 {
   "type": "task",
-  "status": "todo",
+  "status": "completed",
   "project": "CogniMemorySystem-POC",
   "name": "Read MemoryBlocks from Dolt",
   "description": "Implement a Dolt client function that queries the memory_blocks table, parses the rows into MemoryBlock objects, and returns them for downstream indexing. This lays the groundwork for treating Dolt as the persistent source of truth.",
   "id": "task-2.6-read-memoryblocks-from-dolt.json",
   "implementation_details": {
     "target_file": "experiments/src/memory_system/dolt_reader.py",
+    "test_file": "experiments/src/memory_system/tests/test_dolt_reader.py",
     "dolt_table": "memory_blocks",
     "output_type": "List[MemoryBlock]"
   },
   "action_items": [
-    "[ ] Create `dolt_reader.py`.",
-    "[ ] Implement `read_memory_blocks(db_path: str, branch: str = 'main') -> List[MemoryBlock]` function.",
-    "[ ] Use `doltpy.cli.Dolt` to connect to the database at `db_path` on the specified `branch`.",
-    "[ ] Execute `SELECT * FROM memory_blocks` query.",
-    "[ ] For each row returned:",
-    "[ ]   Parse JSON columns (`tags_json`, `metadata_json`, `confidence_json`, `links`) back into Python objects.",
-    "[ ]   Handle potential `NULL` values for optional fields.",
-    "[ ]   Construct a dictionary matching the `MemoryBlock` Pydantic model fields.",
-    "[ ]   Instantiate `MemoryBlock` using `MemoryBlock.model_validate(row_dict)`.",
-    "[ ]   Append the validated `MemoryBlock` to a list.",
-    "[ ] Return the list of `MemoryBlock` objects.",
-    "[ ] Add basic error handling (e.g., for DB connection, SQL query, parsing failures).",
-    "[ ] Write unit tests for `read_memory_blocks` (potentially mocking `doltpy` or using a test Dolt DB)."
+    "[x] Create `dolt_reader.py`.",
+    "[x] Implement `read_memory_blocks(db_path: str, branch: str = 'main') -> List[MemoryBlock]` function.",
+    "[x] Use `doltpy.cli.Dolt` to connect to the database at `db_path` on the specified `branch`.",
+    "[x] Execute `SELECT * FROM memory_blocks` query.",
+    "[x] For each row returned:",
+    "[x]   Parse JSON columns (`tags_json`, `metadata_json`, `confidence_json`, `links`) back into Python objects.",
+    "[x]   Handle potential `NULL` values for optional fields.",
+    "[x]   Construct a dictionary matching the `MemoryBlock` Pydantic model fields.",
+    "[x]   Instantiate `MemoryBlock` using `MemoryBlock.model_validate(row_dict)`.",
+    "[x]   Append the validated `MemoryBlock` to a list.",
+    "[x] Return the list of `MemoryBlock` objects.",
+    "[x] Add basic error handling (e.g., for DB connection, SQL query, parsing failures).",
+    "[x] Write unit tests for `read_memory_blocks` (Done in `test_dolt_reader.py`)."
   ],
   "test_criteria": [
-    "[ ] Unit tests for `read_memory_blocks` pass.",
-    "[ ] Test confirms function correctly parses various fields, including JSON columns and optional fields.",
-    "[ ] Test confirms function returns a list of valid `MemoryBlock` Pydantic objects.",
-    "[ ] Test handles cases with empty tables or query errors gracefully."
+    "[x] Unit tests for `read_memory_blocks` pass.",
+    "[x] Test confirms function correctly parses various fields, including JSON columns and optional fields.",
+    "[x] Test confirms function returns a list of valid `MemoryBlock` Pydantic objects.",
+    "[x] Test handles cases with empty tables or query errors gracefully."
   ],
   "success_criteria": [
-    "[ ] The `read_memory_blocks` function can successfully query a Dolt DB and return `MemoryBlock` objects.",
-    "[ ] Data types (including nested JSON) are correctly parsed and validated against the Pydantic schema."
+    "[x] The `read_memory_blocks` function can successfully query a Dolt DB and return `MemoryBlock` objects.",
+    "[x] Data types (including nested JSON) are correctly parsed and validated against the Pydantic schema."
   ],
-  "current_status": "Task definition created."
+  "current_status": "Implementation complete and unit tests pass. The `read_memory_blocks` function in `dolt_reader.py` successfully reads and parses data from the Dolt `memory_blocks` table."
 } 
