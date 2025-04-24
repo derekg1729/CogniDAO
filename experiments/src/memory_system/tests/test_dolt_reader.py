@@ -1,7 +1,6 @@
 # Tests for Dolt Reader
 
 import pytest
-import json
 from unittest.mock import patch, MagicMock
 from datetime import datetime
 import logging # Import logging for caplog tests
@@ -19,12 +18,12 @@ SAMPLE_ROW_BASIC = {
     'type': 'knowledge',
     'schema_version': 1,
     'text': 'Basic block content.',
-    'tags_json': None,
-    'metadata_json': None,
-    'links_json': None,
+    'tags': None,          # Renamed from tags_json
+    'metadata': None,      # Renamed from metadata_json
+    'links': None,         # Renamed from links_json
     'source_file': None,
     'source_uri': None,
-    'confidence_json': None,
+    'confidence': None,    # Renamed from confidence_json
     'created_by': 'test_runner',
     'created_at': '2023-10-27T10:00:00',
     'updated_at': '2023-10-27T11:00:00'
@@ -36,46 +35,50 @@ SAMPLE_ROW_FULL = {
     'type': 'task',
     'schema_version': 2,
     'text': 'Full block with all fields populated.',
-    'tags_json': json.dumps(['dolt', 'test', 'full']),
-    'metadata_json': json.dumps({'status': 'pending', 'priority': 3, 'assignee': 'agent_x'}),
-    'links_json': json.dumps([{'to_id': 'basic-001', 'relation': 'related_to'}]),
+    'tags': ['dolt', 'test', 'full'], # Renamed and converted from JSON string
+    'metadata': {'status': 'pending', 'priority': 3, 'assignee': 'agent_x'}, # Renamed and converted
+    'links': [{'to_id': 'basic-001', 'relation': 'related_to'}], # Renamed and converted
     'source_file': 'tests/test_data.txt',
     'source_uri': 'file://tests/test_data.txt',
-    'confidence_json': json.dumps({'ai': 0.95, 'human': 0.7}),
+    'confidence': {'ai': 0.95, 'human': 0.7}, # Renamed and converted
     'created_by': 'test_runner_full',
     'created_at': '2023-10-27T12:00:00',
     'updated_at': '2023-10-27T13:00:00'
 }
 
-# --- Block with Invalid JSON --- 
-SAMPLE_ROW_BAD_JSON = {
+# --- Block with Invalid Data Structure (if JSON parsing was expected) --- 
+# Note: If the actual DB column 'metadata' contains non-JSON text, 
+# the updated reader should handle this gracefully. This mock simulates that.
+SAMPLE_ROW_BAD_JSON_STRUCTURE = {
     'id': 'bad-json-003',
     'type': 'doc',
     'schema_version': 1,
-    'text': 'Block with bad JSON in metadata.',
-    'tags_json': '["valid"]' , # Valid JSON string
-    'metadata_json': '{"key": "value", invalid}', # Invalid JSON string
-    'links_json': None,
+    'text': 'Block with bad data structure in metadata.',
+    'tags': ["valid"],       # Renamed, was valid JSON string
+    'metadata': '{"key": "value", invalid}', # Renamed, kept invalid string structure to test handling
+    'links': None,          # Renamed
     'source_file': None,
     'source_uri': None,
-    'confidence_json': None,
+    'confidence': None,     # Renamed
     'created_by': 'test_runner_bad',
     'created_at': '2023-10-27T14:00:00',
     'updated_at': '2023-10-27T15:00:00'
 }
 
 # --- Block Violating Pydantic Schema --- 
+# No JSON fields were used here, so only key renames needed if they were present.
+# Assuming keys like 'tags', 'metadata' etc. might be present but None.
 SAMPLE_ROW_BAD_SCHEMA = {
     'id': 'bad-schema-004',
     'type': 'invalid_type', # Violates Literal constraint
     'schema_version': 1,
     'text': 'Block violating schema.',
-    'tags_json': None,
-    'metadata_json': None,
-    'links_json': None,
+    'tags': None,          # Renamed (assuming it might exist)
+    'metadata': None,      # Renamed (assuming it might exist)
+    'links': None,         # Renamed (assuming it might exist)
     'source_file': None,
     'source_uri': None,
-    'confidence_json': None,
+    'confidence': None,    # Renamed (assuming it might exist)
     'created_by': 'test_runner_schema',
     'created_at': '2023-10-27T16:00:00',
     'updated_at': '2023-10-27T17:00:00'
@@ -174,31 +177,36 @@ class TestDoltReader:
 
     @patch(DOLT_PATCH_TARGET)
     def test_read_with_json_decode_error(self, MockDolt, caplog):
-        """Test handling of JSON decode errors during parsing."""
+        """Test that Pydantic validation errors are logged and skip the invalid row."""
         mock_repo = MagicMock()
-        # Return one good row and one with bad metadata JSON
-        mock_repo.sql.return_value = {'rows': [SAMPLE_ROW_BASIC, SAMPLE_ROW_BAD_JSON]}
+        # Return one good row and one with bad metadata (string instead of dict)
+        mock_repo.sql.return_value = {'rows': [SAMPLE_ROW_BASIC, SAMPLE_ROW_BAD_JSON_STRUCTURE]}
         MockDolt.return_value = mock_repo
         
         db_path = "/fake/path"
-        with caplog.at_level(logging.WARNING):
+        # Change log level to ERROR since Pydantic errors are logged as ERROR
+        with caplog.at_level(logging.ERROR):
             blocks = read_memory_blocks(db_path)
             
-        assert len(blocks) == 2 # Should still parse both blocks
+        # Assert only the valid block was returned
+        assert len(blocks) == 1 
         assert blocks[0].id == 'basic-001' # First block should be fine
-        assert blocks[1].id == 'bad-json-003' # Second block ID
         
-        # Check that the metadata for the second block defaulted to empty dict
-        assert blocks[1].metadata == {}
-        assert blocks[1].tags == ["valid"] # Tags were valid JSON
+        # Assertions for the second block are removed as it's not loaded.
+        # assert blocks[1].id == 'bad-json-003' 
+        # assert blocks[1].metadata == {} 
+        # assert blocks[1].tags == ["valid"] 
         
-        # Check for warning log message
-        assert 'Failed to parse JSON for field \'metadata_json\'' in caplog.text
-        assert "Expecting property name" in caplog.text # Check for part of the actual JSON error
+        # Check that the Pydantic validation error was logged
+        assert "Pydantic validation failed" in caplog.text
+        assert "Block ID: bad-json-003" in caplog.text
+        assert "metadata" in caplog.text # Check that the field name is mentioned
+        assert "Input should be a valid dictionary" in caplog.text # Check for Pydantic error message
+        assert "input_type=str" in caplog.text # Confirm it identified the input type as string
 
     @patch(DOLT_PATCH_TARGET)
     def test_read_with_pydantic_validation_error(self, MockDolt, caplog):
-        """Test handling of Pydantic validation errors."""
+        """Test handling of Pydantic validation errors for other fields (e.g., type)."""
         mock_repo = MagicMock()
         # Return one good row and one that violates schema (invalid type)
         mock_repo.sql.return_value = {'rows': [SAMPLE_ROW_BASIC, SAMPLE_ROW_BAD_SCHEMA]}

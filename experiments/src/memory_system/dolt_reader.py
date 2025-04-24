@@ -2,7 +2,6 @@
 Contains functions for reading MemoryBlock objects from a Dolt database.
 """
 
-import json
 import logging
 import sys
 from pathlib import Path
@@ -42,7 +41,9 @@ def read_memory_blocks(db_path: str, branch: str = 'main') -> List[MemoryBlock]:
     Reads MemoryBlocks from the specified Dolt database and branch.
 
     Queries the 'memory_blocks' table, parses rows, and validates them into
-    MemoryBlock Pydantic objects.
+    MemoryBlock Pydantic objects. Assumes columns like 'tags', 'metadata', 'links',
+    'confidence' are returned as appropriate Python types (list, dict) by doltpy
+    when using result_format='json'.
 
     Args:
         db_path: Path to the Dolt database directory.
@@ -61,15 +62,15 @@ def read_memory_blocks(db_path: str, branch: str = 'main') -> List[MemoryBlock]:
 
         # 2. Define the SQL Query (excluding embedding)
         # Use AS OF syntax to query a specific branch/commit
-        # Note: Ensure column names here match the Dolt table schema exactly
+        # Select columns without the '_json' suffix
         query = f"""
         SELECT 
-            id, type, schema_version, text, tags_json, metadata_json, links_json, 
-            source_file, source_uri, confidence_json, created_by, created_at, updated_at
+            id, type, schema_version, text, tags, metadata, links, 
+            source_file, source_uri, confidence, created_by, created_at, updated_at
         FROM memory_blocks 
         AS OF '{branch}'
         """
-        logger.debug(f"Executing SQL query on branch '{branch}':\n{query}")
+        logger.debug(f"Executing SQL query on branch '{branch}':\\n{query}")
 
         # 3. Execute the query
         result = repo.sql(query=query, result_format='json')
@@ -79,53 +80,31 @@ def read_memory_blocks(db_path: str, branch: str = 'main') -> List[MemoryBlock]:
             logger.info(f"Retrieved {len(result['rows'])} rows from Dolt.")
             for row in result['rows']:
                 try:
-                    # 5. Parse row data into a dictionary for Pydantic model
-                    parsed_row: Dict[str, Any] = {}
-
-                    # Direct mapping for simple fields
-                    for field in ['id', 'type', 'schema_version', 'text', 'source_file', 'source_uri', 'created_by', 'created_at', 'updated_at']:
-                        if field in row and row[field] is not None:
-                            # Assume Pydantic handles datetime string parsing
-                            parsed_row[field] = row[field]
+                    # 5. Prepare row data for Pydantic model validation
+                    # Directly use the dictionary returned by doltpy.
+                    # Pydantic's model_validate should handle type checking,
+                    # conversion (e.g., dict to ConfidenceScore/BlockLink models),
+                    # and validation.
                     
-                    # Parse JSON fields
-                    json_fields_map = {
-                        'tags_json': 'tags',
-                        'metadata_json': 'metadata',
-                        'links_json': 'links', 
-                        'confidence_json': 'confidence'
-                    }
-                    
-                    for json_col, model_field in json_fields_map.items():
-                        if json_col in row and row[json_col] is not None:
-                            try:
-                                parsed_row[model_field] = json.loads(row[json_col])
-                            except json.JSONDecodeError as json_e:
-                                logger.warning(f"Failed to parse JSON for field '{json_col}' in row for block ID {row.get('id', 'UNKNOWN')}: {json_e}")
-                                # Decide how to handle: skip field, set default, raise error?
-                                # Setting to default empty value for now
-                                if model_field == 'tags' or model_field == 'links':
-                                    parsed_row[model_field] = []
-                                elif model_field == 'metadata':
-                                     parsed_row[model_field] = {}
-                                else: # confidence
-                                    parsed_row[model_field] = None 
+                    # Filter out None values explicitly if needed, though Pydantic usually handles optional fields.
+                    # Create a copy to avoid modifying the original result row if necessary.
+                    parsed_row: Dict[str, Any] = {k: v for k, v in row.items() if v is not None}
 
-                    # Handle potential sub-model parsing within Pydantic (needed for links, confidence)
-                    # Pydantic v2's model_validate should handle dict -> model conversion
-                    # if 'links' in parsed_row:
-                    #     parsed_row['links'] = [BlockLink(**link_dict) for link_dict in parsed_row['links']]
-                    # if 'confidence' in parsed_row:
-                    #     parsed_row['confidence'] = ConfidenceScore(**parsed_row['confidence'])
-                        
+                    # Pydantic v2's model_validate handles the dict -> model conversion,
+                    # including nested models like BlockLink and ConfidenceScore.
+                    # No manual parsing or json.loads needed here if doltpy + result_format='json'
+                    # returns Python objects for JSON columns.
+
                     # 6. Validate using Pydantic
                     memory_block = MemoryBlock.model_validate(parsed_row)
                     memory_blocks_list.append(memory_block)
 
                 except ValidationError as e:
+                    # Log Pydantic validation errors specifically
                     logger.error(f"Pydantic validation failed for row (Block ID: {row.get('id', 'UNKNOWN')}): {e}")
                 except Exception as parse_e:
-                    logger.error(f"Unexpected error parsing row (Block ID: {row.get('id', 'UNKNOWN')}): {parse_e}", exc_info=True)
+                    # Log any other unexpected errors during processing of a row
+                    logger.error(f"Unexpected error processing row (Block ID: {row.get('id', 'UNKNOWN')}): {parse_e}", exc_info=True)
         else:
             logger.info("No rows returned from the Dolt query.")
 
@@ -134,6 +113,7 @@ def read_memory_blocks(db_path: str, branch: str = 'main') -> List[MemoryBlock]:
         # Re-raise or handle as appropriate for the application
         raise
     except Exception as e:
+        # Log errors related to DB connection or SQL execution
         logger.error(f"Failed to read from Dolt DB at {db_path} on branch '{branch}': {e}", exc_info=True)
         # Depending on use case, might want to return partial list or empty list
         # Returning empty list on major error for now.
