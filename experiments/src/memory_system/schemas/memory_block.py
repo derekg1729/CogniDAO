@@ -1,5 +1,5 @@
 """
-Pydantic schemas for the Memory Block system within the /experiments POC.
+MemoryBlock: Core data structure for the Memory System.
 """
 
 from typing import List, Optional, Dict, Any, Literal
@@ -7,18 +7,7 @@ from datetime import datetime
 import uuid
 from pydantic import BaseModel, Field
 
-# Canonical relation types defined for links between MemoryBlocks
-RelationType = Literal["related_to", "subtask_of", "depends_on", "child_of", "mentions"]
-
-class BlockLink(BaseModel):
-    """Defines a directed link between two MemoryBlocks."""
-    to_id: str = Field(..., description="ID of the target block in the link")
-    relation: RelationType = Field(..., description="The type of relationship between the blocks")
-
-class ConfidenceScore(BaseModel):
-    """Represents confidence scores, potentially from human or AI sources."""
-    human: Optional[float] = Field(None, ge=0, le=1, description="Optional human confidence score (0.0 to 1.0)")
-    ai: Optional[float] = Field(None, ge=0, le=1, description="Optional AI-generated confidence score (0.0 to 1.0)")
+from .common import BlockLink, ConfidenceScore
 
 class MemoryBlock(BaseModel):
     """
@@ -56,38 +45,8 @@ class MemoryBlock(BaseModel):
     def model_post_init(self, __context: Any) -> None:
         self.updated_at = datetime.now()
 
-# --- Type-Specific Metadata Sub-models (Placeholders - Task 3.3) ---
-# These can be defined to enforce structure on the 'metadata' field for specific block types.
-
-class ProjectMetadata(BaseModel):
-    status: Optional[Literal["planning", "in-progress", "completed", "archived"]] = None
-    deadline: Optional[datetime] = None
-    # Add other project-specific fields
-
-class TaskMetadata(BaseModel):
-    status: Optional[Literal["todo", "in-progress", "completed", "blocked"]] = None
-    priority: Optional[int] = None
-    assignee: Optional[str] = None
-    # Add other task-specific fields
-
-class DocMetadata(BaseModel):
-    audience: Optional[str] = None
-    # Add other doc-specific fields
-
-# Mapping from type to specific metadata model (used in validation Task 3.3)
-TYPE_METADATA_MAP = {
-    "project": ProjectMetadata,
-    "task": TaskMetadata,
-    "doc": DocMetadata,
-    "knowledge": None, # No specific metadata structure for knowledge type yet
-}
-
-
-# --- Schema Registry Model (Task 2.0) ---
-
-class NodeSchemaRecord(BaseModel):
-    """Pydantic model for records in the `node_schemas` Dolt table."""
-    node_type: str = Field(..., description="Corresponds to MemoryBlock.type (e.g., 'task', 'project')")
-    schema_version: int = Field(..., description="Version number for this schema")
-    json_schema: Dict[str, Any] = Field(..., description="JSON schema output from Pydantic model.model_json_schema()")
-    created_at: datetime = Field(default_factory=datetime.now, description="When this schema version was registered") 
+    @property
+    def is_valid_metadata(self) -> bool:
+        """Check if the metadata conforms to the schema for this block type."""
+        from .registry import validate_metadata 
+        return validate_metadata(self.type, self.metadata) 
