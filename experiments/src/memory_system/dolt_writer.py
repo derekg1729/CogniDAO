@@ -137,29 +137,19 @@ def write_memory_block_to_dolt(block: MemoryBlock, db_path: str, auto_commit: bo
             "created_at": _format_sql_value(block.created_at),
             "updated_at": _format_sql_value(block.updated_at),
             "embedding": _format_sql_value(block.embedding) if block.embedding is not None else "NULL",
-            # Add schema_version if needed and present in the table/block object
-            # "schema_version": _format_sql_value(block.schema_version) if hasattr(block, 'schema_version') else "NULL"
+            "schema_version": _format_sql_value(block.schema_version) if hasattr(block, 'schema_version') else "NULL"
         }
 
         # Construct the raw SQL query string
-        # Adjust columns based on the actual table schema
+        # Include schema_version in the column list and values
         query = f"""
         REPLACE INTO memory_blocks (id, type, text, tags, metadata, links, source_file,
                                    source_uri, confidence, created_by, created_at,
-                                   updated_at, embedding)
+                                   updated_at, embedding, schema_version)
         VALUES ({sql_values['id']}, {sql_values['type']}, {sql_values['text']}, {sql_values['tags']}, {sql_values['metadata']}, {sql_values['links']}, {sql_values['source_file']},
                 {sql_values['source_uri']}, {sql_values['confidence']}, {sql_values['created_by']}, {sql_values['created_at']},
-                {sql_values['updated_at']}, {sql_values['embedding']});
+                {sql_values['updated_at']}, {sql_values['embedding']}, {sql_values['schema_version']});
         """
-        # Example if schema_version is included:
-        # query = f"""
-        # REPLACE INTO memory_blocks (id, type, text, tags, metadata, links, source_file,
-        #                            source_uri, confidence, created_by, created_at,
-        #                            updated_at, embedding, schema_version)
-        # VALUES ({sql_values['id']}, {sql_values['type']}, {sql_values['text']}, {sql_values['tags']}, {sql_values['metadata']}, {sql_values['links']}, {sql_values['source_file']},
-        #         {sql_values['source_uri']}, {sql_values['confidence']}, {sql_values['created_by']}, {sql_values['created_at']},
-        #         {sql_values['updated_at']}, {sql_values['embedding']}, {sql_values['schema_version']});
-        # """
 
         logger.debug(f"Executing manually formatted SQL (WARNING: Risk of SQLi):\n{query}")
 

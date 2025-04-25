@@ -10,16 +10,14 @@ from typing import List, Dict, Any, Optional
 import datetime
 
 # Dolt Interactions
-from doltpy.cli import Dolt
 from experiments.src.memory_system.dolt_reader import read_memory_block, read_memory_blocks_by_tags # Assuming read_memory_blocks will be needed
-from experiments.src.memory_system.dolt_writer import write_memory_block_to_dolt, delete_memory_block_from_dolt, _escape_sql_string # Assuming write_memory_block_to_dolt and delete_memory_block_from_dolt will be needed
+from experiments.src.memory_system.dolt_writer import write_memory_block_to_dolt, delete_memory_block_from_dolt # Assuming write_memory_block_to_dolt and delete_memory_block_from_dolt will be needed
 
 # LlamaIndex Interactions
 from experiments.src.memory_system.llama_memory import LlamaMemory
 
 # Schemas
-from experiments.src.memory_system.schemas.memory_block import MemoryBlock
-from experiments.src.memory_system.schemas.common import BlockLink
+from experiments.src.memory_system.schemas.memory_block import MemoryBlock, BlockLink
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -346,52 +344,10 @@ class StructuredMemoryBank:
             A list of BlockLink objects representing the forward links.
         """
         logger.info(f"Getting forward links for block: {block_id} (relation={relation})")
-        repo = None
-        forward_links: List[BlockLink] = []
-        
-        try:
-            # Connect to Dolt repository
-            repo = Dolt(self.dolt_db_path)
-            
-            # Escape input values for SQL query
-            escaped_block_id = _escape_sql_string(block_id)
-            
-            # Build the query based on whether relation is specified
-            if relation:
-                escaped_relation = _escape_sql_string(relation)
-                query = f"""
-                SELECT from_id, to_id, relation 
-                FROM block_links 
-                WHERE from_id = {escaped_block_id} AND relation = {escaped_relation}
-                """
-            else:
-                query = f"""
-                SELECT from_id, to_id, relation 
-                FROM block_links 
-                WHERE from_id = {escaped_block_id}
-                """
-            
-            logger.debug(f"Executing forward links query: {query}")
-            result = repo.sql(query=query, result_format='json')
-            
-            # Process results
-            if result and 'rows' in result and result['rows']:
-                logger.info(f"Found {len(result['rows'])} forward links for block {block_id}")
-                for row in result['rows']:
-                    # Convert SQL results to BlockLink objects
-                    link = BlockLink(
-                        to_id=row['to_id'],
-                        relation=row['relation']
-                    )
-                    forward_links.append(link)
-            else:
-                logger.info(f"No forward links found for block {block_id}")
-                
-            return forward_links
-            
-        except Exception as e:
-            logger.error(f"Error retrieving forward links for block {block_id}: {e}", exc_info=True)
-            return []
+        # TODO: Query Dolt block_links table for matching from_id
+        # OR
+        # TODO: Query LlamaIndex graph store (using self.llama_memory.graph_store)
+        pass # Placeholder
 
     def get_backlinks(self, block_id: str, relation: Optional[str] = None) -> List[BlockLink]:
         """
@@ -405,53 +361,10 @@ class StructuredMemoryBank:
             A list of BlockLink objects representing the backlinks.
         """
         logger.info(f"Getting backlinks for block: {block_id} (relation={relation})")
-        repo = None
-        backlinks: List[BlockLink] = []
-        
-        try:
-            # Connect to Dolt repository
-            repo = Dolt(self.dolt_db_path)
-            
-            # Escape input values for SQL query
-            escaped_block_id = _escape_sql_string(block_id)
-            
-            # Build the query based on whether relation is specified
-            if relation:
-                escaped_relation = _escape_sql_string(relation)
-                query = f"""
-                SELECT from_id, to_id, relation 
-                FROM block_links 
-                WHERE to_id = {escaped_block_id} AND relation = {escaped_relation}
-                """
-            else:
-                query = f"""
-                SELECT from_id, to_id, relation 
-                FROM block_links 
-                WHERE to_id = {escaped_block_id}
-                """
-            
-            logger.debug(f"Executing backlinks query: {query}")
-            result = repo.sql(query=query, result_format='json')
-            
-            # Process results
-            if result and 'rows' in result and result['rows']:
-                logger.info(f"Found {len(result['rows'])} backlinks for block {block_id}")
-                for row in result['rows']:
-                    # BlockLink constructor expects to_id, so we need to adjust 
-                    # when creating from backlinks table data
-                    link = BlockLink(
-                        to_id=row['from_id'],  # The "from" block is our target for backlinks
-                        relation=row['relation']
-                    )
-                    backlinks.append(link)
-            else:
-                logger.info(f"No backlinks found for block {block_id}")
-                
-            return backlinks
-            
-        except Exception as e:
-            logger.error(f"Error retrieving backlinks for block {block_id}: {e}", exc_info=True)
-            return []
+        # TODO: Query Dolt block_links table for matching to_id
+        # OR
+        # TODO: Query LlamaIndex graph store (using self.llama_memory.get_backlinks and potentially filtering)
+        pass # Placeholder
 
     # Optional: Add chat history methods if needed
     # def read_history_dicts(self, ...) -> List[Dict[str, Any]]: ...

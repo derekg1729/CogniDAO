@@ -22,8 +22,8 @@
     "[x] Implement `__init__` to establish connections to Dolt and LlamaIndex (vector store + graph store).",
     "[ ] Implement `create_memory_block(block: MemoryBlock)`:",
     "[ ]   Validate input `block` using Pydantic model.",
-    "[ ]   Query `node_schemas` table for latest version (Task 2.0).",
-    "[ ]   Set `schema_version` on the block object.",
+    "[x]   Query `node_schemas` table for latest version (Task 2.0).",
+    "[x]   Set `schema_version` on the block object.",
     "[/]   Write block data to Dolt `memory_blocks` table. (Using `dolt_writer`, needs secure migration - see project-SecureDoltWriteMigration.json)",
     "[x]   Write links to Dolt `block_links` table.",
     "[/]   Convert block to LlamaIndex Node(s) (Task 2.1).",
@@ -49,5 +49,5 @@
     "[ ] Semantic, tag-based, and link-based querying methods are available.",
     "[ ] Writes are atomic (Dolt commit) and trigger indexing."
   ],
-  "current_status": "CRUD + query_semantic implemented and tested (with known atomicity/security issues). get_blocks_by_tags implemented (querying Dolt JSON) and tested. get_forward_links and get_backlinks implemented and tested using the block_links table. Dolt interactions use manual escaping due to doltpy.cli limits; secure migration planned."
+  "current_status": "CRUD + query_semantic implemented and tested (with known atomicity/security issues). get_blocks_by_tags implemented (querying Dolt JSON) and tested. get_forward_links and get_backlinks implemented and tested using the block_links table. Schema version lookup and assignment implemented with tests. Dolt interactions use manual escaping due to doltpy.cli limits; secure migration planned."
 } 
