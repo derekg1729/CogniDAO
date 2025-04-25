@@ -17,6 +17,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Constants
 DEFAULT_CHROMA_PATH = "./storage/chroma"
 DEFAULT_COLLECTION_NAME = "cogni_memory_poc"
+DEFAULT_GRAPH_STORE_FILENAME = "graph_store.json"
 
 
 class LlamaMemory:
@@ -46,6 +47,7 @@ class LlamaMemory:
         self.client = None
         self.vector_store = None
         self.graph_store = None
+        self.graph_store_path = os.path.join(self.chroma_path, DEFAULT_GRAPH_STORE_FILENAME)
 
         logging.info(f"Initializing LlamaMemory with ChromaDB path: {self.chroma_path} and collection: {self.collection_name}")
 
@@ -69,9 +71,17 @@ class LlamaMemory:
             self.vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
             logging.info(f"Initialized ChromaVectorStore with collection: {self.collection_name}")
 
-            # 5. Initialize SimpleGraphStore for graph relationships
-            self.graph_store = SimpleGraphStore()
-            logging.info("Initialized SimpleGraphStore for graph relationships.")
+            # 5. Initialize or Load SimpleGraphStore
+            if os.path.exists(self.graph_store_path):
+                try:
+                    self.graph_store = SimpleGraphStore.from_persist_path(self.graph_store_path)
+                    logging.info(f"Loaded SimpleGraphStore from {self.graph_store_path}")
+                except Exception as e:
+                    logging.warning(f"Failed to load graph store from {self.graph_store_path}, creating new: {e}")
+                    self.graph_store = SimpleGraphStore()
+            else:
+                self.graph_store = SimpleGraphStore()
+                logging.info("Initialized new SimpleGraphStore.")
 
             # 6. Create StorageContext with both stores
             self.storage_context = StorageContext.from_defaults(
@@ -120,6 +130,15 @@ class LlamaMemory:
         """Check if the memory system is fully initialized and ready."""
         return bool(self.index and self.query_engine and self.vector_store and self.client)
 
+    def _persist_graph_store(self):
+        """Persists the graph store to disk."""
+        if self.graph_store:
+            try:
+                self.graph_store.persist(persist_path=self.graph_store_path)
+                logging.debug(f"Persisted graph store to {self.graph_store_path}")
+            except Exception as e:
+                logging.error(f"Failed to persist graph store: {e}", exc_info=True)
+
     def add_block(self, block: MemoryBlock):
         """
         Converts a MemoryBlock to a LlamaIndex TextNode and adds it to the index.
@@ -136,13 +155,15 @@ class LlamaMemory:
         # Insert Node into the index
         try:
             self.index.insert_nodes([node])
-            # Ensure changes are persisted to disk
-            self.index.storage_context.persist()
+            # Ensure changes are persisted to disk (vector store)
+            self.index.storage_context.persist(persist_dir=self.chroma_path) # Explicitly specify dir
             logging.info(f"Successfully inserted node for block ID: {block.id}")
         except Exception as e:
             logging.error(f"Failed to insert node for block ID {block.id}: {e}", exc_info=True)
+            return # Stop if vector insert fails
 
         # Add graph relationships to graph store
+        graph_changed = False
         if hasattr(node, 'relationships') and node.relationships:
             for relationship_type, related_nodes in node.relationships.items():
                 for related_node in related_nodes:
@@ -152,9 +173,14 @@ class LlamaMemory:
                             rel=relationship_type.name,
                             obj=related_node.node_id
                         )
+                        graph_changed = True # Mark graph as changed
                         logging.info(f"Added graph triplet: {node.id_} -[{relationship_type.name}]-> {related_node.node_id}")
                     except Exception as e:
                         logging.warning(f"Failed to add graph triplet for block {block.id}: {e}")
+        
+        # Persist graph store if it changed
+        if graph_changed:
+            self._persist_graph_store()
 
     def update_block(self, block: MemoryBlock):
         """
@@ -180,11 +206,15 @@ class LlamaMemory:
             # 3. Insert the new node
             self.index.insert_nodes([node])
             # Ensure changes are persisted to disk
-            self.index.storage_context.persist()
+            self.index.storage_context.persist(persist_dir=self.chroma_path) # Explicitly specify dir
             logging.info(f"Successfully updated node for block ID: {block.id}")
             
             # 4. Update relationships in graph store
+            graph_changed = False
             if hasattr(node, 'relationships') and node.relationships:
+                # Note: SimpleGraphStore's upsert handles updates implicitly.
+                # We might need more complex logic here if we need to REMOVE old relationships
+                # before adding new ones for a true update.
                 for relationship_type, related_nodes in node.relationships.items():
                     for related_node in related_nodes:
                         try:
@@ -193,10 +223,15 @@ class LlamaMemory:
                                 rel=relationship_type.name,
                                 obj=related_node.node_id
                             )
+                            graph_changed = True
                             logging.info(f"Updated graph triplet: {node.id_} -[{relationship_type.name}]-> {related_node.node_id}")
                         except Exception as e:
                             logging.warning(f"Failed to update graph triplet for block {block.id}: {e}")
-                            
+        
+            # Persist graph store if it changed
+            if graph_changed:
+                self._persist_graph_store()
+            
         except Exception as e:
             logging.error(f"Failed to update node for block ID {block.id}: {e}", exc_info=True)
 

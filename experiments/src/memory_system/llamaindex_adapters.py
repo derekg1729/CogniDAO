@@ -17,8 +17,8 @@ RELATION_TO_NODE_RELATIONSHIP = {
     # When a block has "child_of" links, it means it has parents
     "child_of": NodeRelationship.PARENT,
     
-    # When a block "depends_on" another, it's a source relationship
-    "depends_on": NodeRelationship.SOURCE,
+    # When a block "depends_on" another, use PREVIOUS to avoid conflict with SOURCE
+    "depends_on": NodeRelationship.PREVIOUS, 
     
     # For "related_to" and generic relationships, use NEXT as a general connection
     "related_to": NodeRelationship.NEXT,
@@ -124,10 +124,10 @@ def memory_block_to_node(block: MemoryBlock) -> TextNode:
                     node.relationships[node_relationship] = []
                 
                 node.relationships[node_relationship].append(related_node_info)
-                logger.debug(f"Added relationship: {link.relation} -> {node_relationship} for target {link.to_id}")
+                logger.debug(f"Added relationship from {block.id} to {link.to_id}: '{link.relation}' → {node_relationship}")
             else:
                 # Handle unknown relation type - could default to NEXT or log a warning
-                logger.warning(f"Unknown relation type '{link.relation}' for link from {block.id} to {link.to_id}")
+                logger.warning(f"Unknown relation type '{link.relation}' from {block.id} to {link.to_id}. Defaulting to NEXT.")
                 
                 # Default to NEXT for unknown types
                 if NodeRelationship.NEXT not in node.relationships:

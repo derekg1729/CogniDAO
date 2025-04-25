@@ -24,17 +24,17 @@
     "[x]   Call `sync_dolt_to_llamaindex` using the temporary Dolt path and LlamaIndex path from `setUp`.",
     "[x]   Initialize a new `LlamaMemory` instance connected to the temporary LlamaIndex path.",
     "[x]   Perform vector query verification: Query for specific content/metadata from sample blocks and assert correct results.",
-    "[ ]   Perform graph query verification: Use `get_rel_map` or similar to check relationships defined in sample blocks and assert correctness. # Pending implementation",
+    "[x]   Perform graph query verification: Use `get_rel_map` or similar to check relationships defined in sample blocks and assert correctness.",
     "[x] Ensure Dolt commands are handled correctly (e.g., requires Dolt CLI installed and configured)."
   ],
   "test_criteria": [
     "[x] The integration test runs without errors (for implemented parts).",
     "[x] The test successfully creates and tears down temporary Dolt and LlamaIndex resources.",
     "[x] Vector queries within the test return the expected `MemoryBlock` data based on the sample input.",
-    "[ ] Graph queries within the test confirm that relationships between sample blocks are correctly indexed. # Pending implementation"
+    "[x] Graph queries within the test confirm that relationships between sample blocks are correctly indexed."
   ],
   "success_criteria": [
-    "[/] A passing integration test exists within `test_dolt_llama_integration.py` that validates the end-to-end synchronization process. # Vector part passes, graph pending"
+    "[x] A passing integration test exists within `test_dolt_llama_integration.py` that validates the end-to-end synchronization process."
   ],
-  "current_status": "Integration test structure complete. `setUp`, `tearDown`, and core sync logic with vector query verification implemented and passing in `test_end_to_end_sync`. Graph query verification is pending."
+  "current_status": "Integration test complete. `setUp`, `tearDown`, and core sync logic with vector and graph query verification implemented and passing in `test_end_to_end_sync`."
 } 

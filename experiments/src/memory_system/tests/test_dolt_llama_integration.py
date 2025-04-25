@@ -200,10 +200,28 @@ class TestSyncDoltToLlamaIndexIntegration(unittest.TestCase):
             # Ensure the index is loaded - might require specific method call if lazy loading
             if not llama_memory.vector_store or not llama_memory.graph_store:
                  # Attempt to load if needed (adjust based on LlamaMemory implementation)
-                 llama_memory._load_index()
+                 # llama_memory._load_index() # Assuming LlamaMemory loads eagerly now
                  # Check again
                  self.assertIsNotNone(llama_memory.vector_store, "Vector store not loaded after sync.")
                  self.assertIsNotNone(llama_memory.graph_store, "Graph store not loaded after sync.")
+
+            # --- BEGIN Index Verification (Feedback) ---
+            self.assertIsNotNone(llama_memory.vector_store, "Vector store should be initialized.")
+            self.assertIsNotNone(llama_memory.graph_store, "Graph store should be initialized.")
+
+            # Check node count in ChromaDB collection
+            try:
+                # Access the ChromaDB client and collection name from LlamaMemory
+                chroma_client = llama_memory.client
+                self.assertIsNotNone(chroma_client, "ChromaDB client should be initialized in LlamaMemory")
+                chroma_collection = chroma_client.get_collection(llama_memory.collection_name)
+                node_count = chroma_collection.count()
+                expected_blocks = 3 # Based on create_test_blocks()
+                self.assertEqual(node_count, expected_blocks, f"Expected {expected_blocks} nodes in ChromaDB, found {node_count}")
+                logger.info(f"ChromaDB node count verified: {node_count}")
+            except Exception as e:
+                self.fail(f"Failed to verify node count in ChromaDB: {e}")
+            # --- END Index Verification ---
 
             logger.info("LlamaMemory initialized successfully.")
         except Exception as e:
@@ -212,7 +230,7 @@ class TestSyncDoltToLlamaIndexIntegration(unittest.TestCase):
         # 3. Perform verification queries
         logger.info("Performing verification queries...")
 
-        # Vector Search Test
+        # Vector Search Test (Existing)
         search_query = "integration test document system setup"
         logger.info(f"Performing vector search for: '{search_query}'")
         try:
@@ -232,15 +250,47 @@ class TestSyncDoltToLlamaIndexIntegration(unittest.TestCase):
         except Exception as e:
             self.fail(f"Vector search failed: {e}")
 
-        # Optional: Add graph store query tests here if LlamaMemory supports them and they are relevant
-        # logger.info("Performing graph query tests...")
-        # Example (needs actual LlamaMemory graph query methods):
-        # try:
-        #    graph_results = llama_memory.search_graph(subject="int-test-block-2", relation="explains")
-        #    self.assertIn("int-test-block-1", [node.id for node in graph_results.objects])
-        #    logger.info("Graph query test passed.")
-        # except Exception as e:
-        #    self.fail(f"Graph query failed: {e}")
+        # --- BEGIN Graph Verification (Feedback) ---
+        logger.info("Performing graph verification tests...")
+
+        # Test Backlinks
+        try:
+            backlinks_to_1 = llama_memory.get_backlinks("int-test-block-1")
+            logger.info(f"Backlinks found for int-test-block-1: {backlinks_to_1}")
+            # Both block 2 and block 3 link to block 1 with 'related_to'
+            self.assertIn("int-test-block-2", backlinks_to_1, "Block 2 should link to Block 1")
+            self.assertIn("int-test-block-3", backlinks_to_1, "Block 3 should link to Block 1")
+            logger.info("Backlink test passed.")
+        except Exception as e:
+            self.fail(f"Backlink test failed: {e}")
+
+        # Test Forward Links / Graph Consistency
+        try:
+            # Get the full relationship map from the graph store
+            # Expected structure based on SimpleGraphStore: Dict[str, List[List[str]]]
+            # { subj_id: [ [subj_id, relation_name, obj_id], ... ], ... }
+            rel_map = llama_memory.graph_store.get_rel_map()
+            logger.info(f"Graph store rel_map: {rel_map}")
+
+            # Check outgoing link from block 2
+            block_2_triplets = rel_map.get("int-test-block-2", [])
+            expected_b2_triplet = ["int-test-block-2", "NEXT", "int-test-block-1"] # 'related_to' maps to 'NEXT'
+            self.assertIn(expected_b2_triplet, block_2_triplets, f"Expected forward link {expected_b2_triplet} not found for block 2")
+
+            # Check outgoing link from block 3
+            block_3_triplets = rel_map.get("int-test-block-3", [])
+            expected_b3_triplet = ["int-test-block-3", "NEXT", "int-test-block-1"] # 'related_to' maps to 'NEXT'
+            self.assertIn(expected_b3_triplet, block_3_triplets, f"Expected forward link {expected_b3_triplet} not found for block 3")
+
+            # Optional: More rigorous check - ensure no unexpected links exist for these blocks
+            self.assertEqual(len(block_2_triplets), 1, "Block 2 should only have one outgoing link defined in this test")
+            self.assertEqual(len(block_3_triplets), 1, "Block 3 should only have one outgoing link defined in this test")
+
+            logger.info("Forward link / graph consistency test passed.")
+
+        except Exception as e:
+             self.fail(f"Graph consistency test failed: {e}")
+        # --- END Graph Verification ---
 
         logger.info("End-to-end sync test completed successfully.")
 
