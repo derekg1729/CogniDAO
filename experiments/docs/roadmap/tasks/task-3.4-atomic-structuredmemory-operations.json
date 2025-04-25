@@ -1,0 +1,42 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "name": "Ensure Atomic Operations in StructuredMemoryBank",
+  "description": "Redesign StructuredMemoryBank create/update/delete flows to coordinate Dolt persistence and LlamaIndex indexing into a single atomic operation. No data committed unless both persistence and indexing succeed.",
+  "phase": "⚙️ Phase 3: Agent + Tool Wiring (Structured Memory)",
+  "implementation_details": {
+    "target_files": [
+        "experiments/src/memory_system/structured_memory_bank.py",
+        "experiments/src/memory_system/dolt_writer.py" 
+    ],
+    "test_file": "experiments/src/memory_system/tests/test_structured_memory_bank.py",
+    "notes": "Handles atomicity between Dolt persistence and LlamaIndex indexing.",
+    "dependencies": [
+      "Completion of core CRUD methods in task-3.1-implement-structuredmemorybank.json",
+      "Completion of project-SecureDoltWriteMigration.json (necessary for proper transaction control in Dolt)"
+    ]
+  },
+  "action_items": [
+    "[ ] Modify Dolt write functions (potentially in the new `sql_client` from the migration project, or temporarily in `dolt_writer.py`) to optionally delay commits (e.g., `commit=False` parameter).",
+    "[ ] Refactor `StructuredMemoryBank.create_memory_block`:",
+    "[ ]   Perform Dolt write (with `commit=False`).",
+    "[ ]   Perform LlamaIndex indexing.",
+    "[ ]   If both succeed, explicitly commit Dolt changes.",
+    "[ ]   If LlamaIndex indexing fails, discard Dolt working changes (e.g., `dolt checkout .` or similar rollback if using `sql_client`).",
+    "[ ] Refactor `StructuredMemoryBank.update_memory_block` with similar atomic logic.",
+    "[ ] Refactor `StructuredMemoryBank.delete_memory_block` with similar atomic logic.",
+    "[ ] Update relevant tests in `test_structured_memory_bank.py` to simulate partial failures (e.g., mock LlamaIndex add/update/delete to raise errors) and confirm atomicity/rollback."
+  ],
+  "test_criteria": [
+    "[ ] Tests verify that if LlamaIndex operations fail during create/update/delete, the corresponding changes in Dolt are not committed or are rolled back.",
+    "[ ] Tests verify that if Dolt operations succeed and LlamaIndex operations succeed, Dolt changes are committed.",
+    "[ ] See relevant tests within `test_structured_memory_bank.py` (add new tests as needed)."
+  ],
+  "success_criteria": [
+    "[ ] MemoryBlock creation, update, and delete operations in StructuredMemoryBank are fully atomic between Dolt persistence and LlamaIndex indexing.",
+    "[ ] No partial persistence occurs in Dolt if the corresponding LlamaIndex operation fails.",
+    "[ ] Tests demonstrate correct commit/rollback behavior under success and failure conditions."
+  ],
+  "current_status": "Task defined."
+} 

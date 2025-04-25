@@ -5,6 +5,7 @@ Unit and integration tests for the StructuredMemoryBank class.
 import pytest
 import os
 from pathlib import Path
+import time
 
 # Target class
 from experiments.src.memory_system.structured_memory_bank import StructuredMemoryBank
@@ -17,6 +18,9 @@ from experiments.src.memory_system.initialize_dolt import initialize_dolt_db
 
 # Helper for writing directly to Dolt for test setup
 from experiments.src.memory_system.dolt_writer import write_memory_block_to_dolt
+
+# Helper for reading directly from Dolt for verification
+from experiments.src.memory_system.dolt_reader import read_memory_block
 
 # --- Fixtures ---
 
@@ -77,11 +81,30 @@ class TestStructuredMemoryBank:
 
     def test_create_memory_block(self, memory_bank_instance: StructuredMemoryBank, sample_memory_block: MemoryBlock):
         """Tests the create_memory_block method."""
-        pytest.skip("create_memory_block not yet fully implemented")
-        # success = memory_bank_instance.create_memory_block(sample_memory_block)
-        # assert success
-        # # TODO: Verify block exists in Dolt (read back)
-        # # TODO: Verify block exists in LlamaIndex (query)
+        # pytest.skip("create_memory_block not yet fully implemented")
+        success = memory_bank_instance.create_memory_block(sample_memory_block)
+        assert success, "create_memory_block returned False"
+        
+        # Verify block exists in Dolt
+        read_back_block = read_memory_block(memory_bank_instance.dolt_db_path, sample_memory_block.id)
+        assert read_back_block is not None, "Block not found in Dolt after creation"
+        assert read_back_block.id == sample_memory_block.id
+        assert read_back_block.text == sample_memory_block.text
+
+        # Verify block exists in LlamaIndex (basic check: query for it)
+        # Allow some time for indexing to potentially complete if it were async (though it seems sync now)
+        time.sleep(0.5) 
+        try:
+            query_results = memory_bank_instance.llama_memory.query_vector_store(sample_memory_block.text, top_k=1)
+            assert len(query_results) > 0, "Block not found in LlamaIndex vector store after creation"
+            # Note: LlamaIndex might modify the ID slightly or store it differently.
+            # A more robust check might involve searching metadata if the ID isn't directly queryable.
+            assert query_results[0].node.id_ == sample_memory_block.id, "Found node ID does not match created block ID"
+        except Exception as e:
+            pytest.fail(f"Querying LlamaIndex after create failed: {e}")
+
+        # TODO: Verify links are handled correctly in Dolt block_links table (once implemented)
+        # TODO: Verify graph relationships exist in LlamaIndex graph store
 
     def test_get_memory_block(self, memory_bank_instance: StructuredMemoryBank, sample_memory_block: MemoryBlock):
         """Tests retrieving a memory block after writing it directly."""

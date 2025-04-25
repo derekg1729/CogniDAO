@@ -18,19 +18,19 @@
     ]
   },
   "action_items": [
-    "[ ] Define the `StructuredMemoryBank` class structure.",
-    "[ ] Implement `__init__` to establish connections to Dolt and LlamaIndex (vector store + graph store).",
+    "[x] Define the `StructuredMemoryBank` class structure.",
+    "[x] Implement `__init__` to establish connections to Dolt and LlamaIndex (vector store + graph store).",
     "[ ] Implement `create_memory_block(block: MemoryBlock)`:",
     "[ ]   Validate input `block` using Pydantic model.",
     "[ ]   Query `node_schemas` table for latest version (Task 2.0).",
     "[ ]   Set `schema_version` on the block object.",
-    "[ ]   Write block data to Dolt `memory_blocks` table.",
+    "[/]   Write block data to Dolt `memory_blocks` table. (Using `dolt_writer`, needs secure migration - see project-SecureDoltWriteMigration.json)",
     "[ ]   Write links to Dolt `block_links` table.",
-    "[ ]   Convert block to LlamaIndex Node(s) (Task 2.1).",
-    "[ ]   Add/update node(s) in LlamaIndex VectorStore and GraphStore.",
-    "[ ]   Commit changes in Dolt.",
+    "[/]   Convert block to LlamaIndex Node(s) (Task 2.1).",
+    "[/]   Add/update node(s) in LlamaIndex VectorStore and GraphStore.",
+    "[/]   Commit changes in Dolt. (Using `dolt_writer`, needs secure migration - see project-SecureDoltWriteMigration.json)",
     "[ ]   (Optional) Store commit hash in `block_proofs` (Phase 7).",
-    "[ ] Implement `get_memory_block(block_id: str) -> MemoryBlock | None` (Read from Dolt).",
+    "[x] Implement `get_memory_block(block_id: str) -> MemoryBlock | None` (Read from Dolt).",
     "[ ] Implement `update_memory_block(block_id: str, update_data: dict) -> bool` (Fetch, update, validate, write to Dolt, re-index, commit).",
     "[ ] Implement `delete_memory_block(block_id: str) -> bool` (Delete from Dolt, delete from LlamaIndex, commit).",
     "[ ] Implement `query_semantic(query_text: str, top_k: int = 5) -> List[MemoryBlock]` (Query LlamaIndex vector store, retrieve full blocks from Dolt).",
@@ -48,5 +48,5 @@
     "[ ] Semantic, tag-based, and link-based querying methods are available.",
     "[ ] Writes are atomic (Dolt commit) and trigger indexing."
   ],
-  "current_status": "Task definition created."
+  "current_status": "Class structure defined, __init__ implemented. get_memory_block implemented and tested. Dolt write operations refactored to handle doltpy.cli limitations (manual escaping necessary), with secure migration planned in project-SecureDoltWriteMigration.json. create_memory_block basic implementation added (writes to Dolt via insecure writer, adds to LlamaIndex) and tested."
 } 

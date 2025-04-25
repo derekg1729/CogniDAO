@@ -10,6 +10,7 @@ from typing import List, Dict, Any, Optional
 
 # Dolt Interactions
 from experiments.src.memory_system.dolt_reader import read_memory_block # Assuming read_memory_blocks will be needed
+from experiments.src.memory_system.dolt_writer import write_memory_block_to_dolt # Assuming write_memory_block_to_dolt will be needed
 
 # LlamaIndex Interactions
 from experiments.src.memory_system.llama_memory import LlamaMemory
@@ -46,24 +47,66 @@ class StructuredMemoryBank:
     def create_memory_block(self, block: MemoryBlock) -> bool:
         """
         Creates a new MemoryBlock, persisting to Dolt and indexing in LlamaIndex.
+        WARNING: Current implementation relies on auto-commit within dolt_writer,
+                 making the Dolt write + LlamaIndex add operation NOT fully atomic.
+                 Also depends on insecure manual SQL escaping in dolt_writer.
 
         Args:
             block: The MemoryBlock object to create.
 
         Returns:
-            True if creation was successful, False otherwise.
+            True if creation was successful (both Dolt write and LlamaIndex add), False otherwise.
         """
         logger.info(f"Attempting to create memory block: {block.id}")
-        # TODO: Validate input block (Pydantic does this on init, maybe add checks?)
-        # TODO: Query node_schemas for latest version
-        # TODO: Set schema_version on the block object
-        # TODO: Write block data to Dolt memory_blocks table (using dolt_writer)
-        # TODO: Write links to Dolt block_links table (Needs separate function/logic)
-        # TODO: Convert block to LlamaIndex Node(s) (using llamaindex_adapters)
-        # TODO: Add/update node(s) in LlamaIndex VectorStore and GraphStore (using self.llama_memory)
-        # TODO: Commit changes in Dolt (using dolt_writer or separate Dolt interaction)
+        if not self.llama_memory.is_ready(): # Basic readiness check
+             logger.error("LlamaMemory backend is not ready. Cannot create block.")
+             return False
+
+        # TODO: Query node_schemas for latest version and set block.schema_version
+
+        # 1. Write block data to Dolt memory_blocks table
+        # Using auto_commit=True for now, which isn't ideal for atomicity with indexing.
+        # The secure migration project should address transactional writes.
+        # This also relies on the insecure manual escaping in dolt_writer.
+        dolt_write_success, _ = write_memory_block_to_dolt(
+            block=block,
+            db_path=self.dolt_db_path,
+            auto_commit=True
+        )
+
+        if not dolt_write_success:
+            logger.error(f"Failed to write block {block.id} data to Dolt.")
+            return False
+
+        # TODO: Implement writing links to the separate block_links table.
+        # The current write_memory_block_to_dolt writes links to a JSON column in memory_blocks,
+        # which might be redundant or incorrect depending on the final design.
+
+        # 2. Convert block to LlamaIndex Node(s) <- This step is redundant
+        # try:
+        #     node = memory_block_to_node(block)
+        # except Exception as e:
+        #     logger.error(f"Failed to convert block {block.id} to LlamaIndex node: {e}", exc_info=True)
+        #     # Consider cleanup: Should we try to delete the Dolt record if indexing fails?
+        #     # For now, we report failure but leave the Dolt record.
+        #     return False
+
+        # 3. Add block to LlamaIndex (add_block handles conversion internally)
+        try:
+            self.llama_memory.add_block(block) # add_block handles the node conversion internally now
+            logger.info(f"Successfully indexed block {block.id} in LlamaIndex.")
+        except Exception as e:
+            logger.error(f"Failed to index block {block.id} in LlamaIndex: {e}", exc_info=True)
+            # Consider cleanup: Delete Dolt record?
+            return False
+
+        # TODO: Implement transactional commit (Phase 2/3 of Secure Dolt Write Migration)
+        # Currently relies on auto_commit=True in write_memory_block_to_dolt
+
         # TODO: (Optional) Store commit hash in block_proofs (Phase 7)
-        pass # Placeholder
+
+        logger.info(f"Successfully created and indexed memory block: {block.id}")
+        return True
 
     def get_memory_block(self, block_id: str) -> Optional[MemoryBlock]:
         """
