@@ -36,6 +36,15 @@ except ImportError as e:
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+# Helper function from dolt_writer for safe SQL formatting
+def _escape_sql_string(value: Optional[str]) -> str:
+    """Basic escaping for SQL strings to prevent simple injection issues."""
+    if value is None:
+        return "NULL"
+    # Replace single quotes with two single quotes
+    escaped_value = value.replace("'", "''")
+    return f"'{escaped_value}'"
+
 def read_memory_blocks(db_path: str, branch: str = 'main') -> List[MemoryBlock]:
     """
     Reads MemoryBlocks from the specified Dolt database and branch.
@@ -121,6 +130,73 @@ def read_memory_blocks(db_path: str, branch: str = 'main') -> List[MemoryBlock]:
 
     logger.info(f"Finished reading. Successfully parsed {len(memory_blocks_list)} MemoryBlocks.")
     return memory_blocks_list
+
+
+def read_memory_block(db_path: str, block_id: str, branch: str = 'main') -> Optional[MemoryBlock]:
+    """
+    Reads a single MemoryBlock from the specified Dolt database and branch by its ID.
+
+    Queries the 'memory_blocks' table for a specific ID, parses the row, and
+    validates it into a MemoryBlock Pydantic object.
+
+    Args:
+        db_path: Path to the Dolt database directory.
+        block_id: The ID of the MemoryBlock to retrieve.
+        branch: The Dolt branch to read from (defaults to 'main').
+
+    Returns:
+        A validated MemoryBlock object if found, otherwise None.
+    """
+    logger.info(f"Attempting to read MemoryBlock {block_id} from Dolt DB at {db_path} on branch '{branch}'")
+    repo: Optional[Dolt] = None
+
+    try:
+        repo = Dolt(db_path)
+
+        # Escape block_id for safe insertion into the query string
+        escaped_block_id = _escape_sql_string(block_id)
+
+        # Query for a specific block ID (using formatted string)
+        query = f"""
+        SELECT
+            id, type, schema_version, text, tags, metadata, links,
+            source_file, source_uri, confidence, created_by, created_at, updated_at
+        FROM memory_blocks
+        AS OF '{branch}'
+        WHERE id = {escaped_block_id}
+        LIMIT 1
+        """
+        logger.debug(f"Executing SQL query for block {escaped_block_id} on branch '{branch}':\n{query}")
+
+        # Execute query without the 'args' parameter
+        result = repo.sql(query=query, result_format='json')
+
+        if result and 'rows' in result and result['rows']:
+            row = result['rows'][0]
+            logger.info(f"Retrieved row for block ID: {block_id}")
+            try:
+                # Prepare row data for Pydantic model validation
+                parsed_row: Dict[str, Any] = {k: v for k, v in row.items() if v is not None}
+                memory_block = MemoryBlock.model_validate(parsed_row)
+                logger.info(f"Successfully parsed MemoryBlock {block_id}.")
+                return memory_block
+
+            except ValidationError as e:
+                logger.error(f"Pydantic validation failed for row (Block ID: {block_id}): {e}")
+                return None
+            except Exception as parse_e:
+                logger.error(f"Unexpected error processing row (Block ID: {block_id}): {parse_e}", exc_info=True)
+                return None
+        else:
+            logger.info(f"No row found for MemoryBlock ID: {block_id}")
+            return None
+
+    except FileNotFoundError:
+        logger.error(f"Dolt database path not found: {db_path}")
+        raise # Re-raise critical error
+    except Exception as e:
+        logger.error(f"Failed to read block {block_id} from Dolt DB at {db_path} on branch '{branch}': {e}", exc_info=True)
+        return None
 
 
 # Example Usage (can be run as a script for testing)
