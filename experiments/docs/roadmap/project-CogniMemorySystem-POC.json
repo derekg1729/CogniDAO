@@ -157,13 +157,16 @@
       ]
     },
     {
-      "phase": "⚙️ Phase 3: Agent + Tool Wiring",
+      "phase": "⚙️ Phase 3: Agent + Tool Wiring (Structured Memory)",
       "tasks": [
-        "task-3.0-redesign-memorybank-class.json",
-        "task-3.1-setup-basic-langchain-agent.json",
-        "task-3.2-add-querymemoryblocks-tool.json",
-        "task-3.3-add-creatememoryblock-tool.json",
-        "task-3.4-implement-project-task-metadata-validation.json"
+        "task-3.0-rename-filememorybank.json",
+        "task-3.1-implement-structuredmemorybank.json",
+        "task-3.2-implement-cogni-structured-memory-adapter.json",
+        "task-3.3-integrate-adapter-into-agent.json",
+        "task-3.4-implement-querymemoryblocks-tool.json",
+        "task-3.5-implement-creatememoryblock-tool.json",
+        "task-3.6-test-structuredmemorybank.json",
+        "task-3.7-test-cogni-structured-memory-adapter.json"
       ]
     },
     {
@@ -224,8 +227,14 @@
       "Generate schema.sql automatically from MemoryBlock definition to ensure DB-schema consistency."
     ],
     "phase_3_agent_tools": [
-      "Demonstrate LangChain agent querying memory semantically and returning MemoryBlocks via tools.",
-      "Demonstrate LangChain agent creating or updating a MemoryBlock via tools, reflected in Dolt and reindexed in LlamaIndex."
+      "Successfully rename the old CogniMemoryBank to FileMemoryBank.",
+      "Demonstrate StructuredMemoryBank performing CRUD operations on MemoryBlocks in Dolt and LlamaIndex.",
+      "Verify StructuredMemoryBank can retrieve blocks by tags, semantic query, and graph links (forward/backward).",
+      "Verify CogniStructuredMemoryAdapter successfully wraps StructuredMemoryBank and conforms to LangChain's BaseMemory interface.",
+      "Demonstrate a LangChain agent using CogniStructuredMemoryAdapter to load relevant MemoryBlocks based on input.",
+      "Demonstrate a LangChain agent using the CreateMemoryBlock tool to save context as a new, validated, and indexed MemoryBlock.",
+      "Demonstrate a LangChain agent using the QueryMemoryBlocks tool to retrieve information from StructuredMemoryBank.",
+      "Pass test suites for both StructuredMemoryBank and CogniStructuredMemoryAdapter."
     ],
     "phase_4_frontend_and_api": [
       "Show interaction via a minimal frontend chat interface connected to a FastAPI endpoint.",

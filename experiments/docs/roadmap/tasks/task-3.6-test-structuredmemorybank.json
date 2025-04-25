@@ -1,0 +1,57 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "name": "Test StructuredMemoryBank",
+  "description": "Implement unit and integration tests for the StructuredMemoryBank class, covering CRUD operations, querying, indexing, and Dolt interactions.",
+  "phase": "⚙️ Phase 3: Agent + Tool Wiring (Structured Memory)",
+  "implementation_details": {
+    "target_file": "experiments/src/memory_system/tests/test_structured_memory_bank.py",
+    "class_under_test": "StructuredMemoryBank",
+    "dependencies": [
+      "pytest",
+      "Dolt test setup (e.g., temporary repo, fixture)",
+      "LlamaIndex test setup (e.g., in-memory vector/graph store or temporary ChromaDB)",
+      "MemoryBlock schema"
+    ]
+  },
+  "action_items": [
+    "[ ] Set up pytest fixtures for initializing a temporary Dolt repository.",
+    "[ ] Set up pytest fixtures for initializing a test LlamaIndex instance (vector + graph store).",
+    "[ ] Set up pytest fixture to instantiate `StructuredMemoryBank` with test Dolt/LlamaIndex.",
+    "[ ] Test `create_memory_block`:",
+    "[ ]   Verify block exists in Dolt `memory_blocks` table after creation.",
+    "[ ]   Verify links exist in Dolt `block_links` table.",
+    "[ ]   Verify block is indexed in LlamaIndex vector store.",
+    "[ ]   Verify block and links are represented in LlamaIndex graph store.",
+    "[ ]   Verify Dolt commit occurred.",
+    "[ ]   Verify schema version is correctly fetched and set.",
+    "[ ] Test `get_memory_block`:",
+    "[ ]   Verify correct block is retrieved from Dolt.",
+    "[ ]   Verify `None` is returned for non-existent ID.",
+    "[ ] Test `update_memory_block`:",
+    "[ ]   Verify changes are reflected in Dolt.",
+    "[ ]   Verify block is re-indexed correctly in LlamaIndex.",
+    "[ ]   Verify new Dolt commit occurred.",
+    "[ ] Test `delete_memory_block`:",
+    "[ ]   Verify block is removed from Dolt.",
+    "[ ]   Verify block is removed from LlamaIndex vector/graph stores.",
+    "[ ]   Verify new Dolt commit occurred.",
+    "[ ] Test `query_semantic`:",
+    "[ ]   Seed blocks, query, verify relevant blocks are returned.",
+    "[ ] Test `get_blocks_by_tags`:",
+    "[ ]   Seed blocks with tags, query, verify correct filtering.",
+    "[ ] Test `get_forward_links` and `get_backlinks`:",
+    "[ ]   Seed linked blocks, query, verify correct links are returned."
+  ],
+  "test_criteria": [
+    "[ ] All defined tests pass.",
+    "[ ] Tests cover core functionality: CRUD, semantic query, tag query, link query.",
+    "[ ] Tests properly mock or isolate Dolt and LlamaIndex interactions."
+  ],
+  "success_criteria": [
+    "[ ] High test coverage for `StructuredMemoryBank`.",
+    "[ ] Confidence in the reliability of the core memory backend operations."
+  ],
+  "current_status": "Task definition created."
+} 

@@ -1,0 +1,32 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "name": "Rename CogniMemoryBank to FileMemoryBank",
+  "description": "Rename the existing file-based CogniMemoryBank implementation to FileMemoryBank to clearly distinguish it from the new StructuredMemoryBank. Update relevant imports.",
+  "phase": "⚙️ Phase 3: Agent + Tool Wiring (Structured Memory)",
+  "implementation_details": {
+    "target_files": [
+      "infra_core/memory/memory_bank.py"
+    ],
+    "dependent_files_to_update": [
+      "infra_core/cogni_agents/base.py",
+      "other potential agent implementations importing CogniMemoryBank"
+    ]
+  },
+  "action_items": [
+    "[ ] Rename the `CogniMemoryBank` class to `FileMemoryBank` in `infra_core/memory/memory_bank.py`.",
+    "[ ] Update all import statements referencing `CogniMemoryBank` to use `FileMemoryBank` (e.g., in `infra_core/cogni_agents/base.py`).",
+    "[ ] Perform a codebase search for any other usages of `CogniMemoryBank` and update them."
+  ],
+  "test_criteria": [
+    "[ ] Codebase search confirms no remaining instances of `CogniMemoryBank` class name.",
+    "[ ] Agents previously using `CogniMemoryBank` now correctly import and instantiate `FileMemoryBank`.",
+    "[ ] Existing tests that relied on the old class name pass after updating imports."
+  ],
+  "success_criteria": [
+    "[ ] The file-based memory implementation is consistently named `FileMemoryBank` throughout the codebase.",
+    "[ ] No broken imports related to the rename exist."
+  ],
+  "current_status": "Task definition created."
+} 
