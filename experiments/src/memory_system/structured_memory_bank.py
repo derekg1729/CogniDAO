@@ -264,13 +264,47 @@ class StructuredMemoryBank:
             top_k: The maximum number of results to return.
 
         Returns:
-            A list of relevant MemoryBlock objects.
+            A list of relevant MemoryBlock objects, potentially fewer than top_k if retrieval fails for some IDs.
         """
         logger.info(f"Performing semantic query: '{query_text}' (top_k={top_k})")
-        # TODO: Query LlamaIndex vector store (using self.llama_memory.query_vector_store)
-        # TODO: Extract block IDs from the results
-        # TODO: Retrieve full blocks from Dolt using the extracted IDs (batch read?)
-        pass # Placeholder
+        if not self.llama_memory.is_ready():
+            logger.error("LlamaMemory backend is not ready. Cannot perform semantic query.")
+            return []
+
+        retrieved_blocks: List[MemoryBlock] = []
+        try:
+            # 1. Query LlamaIndex vector store
+            nodes_with_scores = self.llama_memory.query_vector_store(query_text, top_k=top_k)
+
+            if not nodes_with_scores:
+                logger.info("Semantic query returned no results from LlamaIndex.")
+                return []
+
+            # 2. Extract block IDs and retrieve full blocks from Dolt
+            block_ids = [node.node.id_ for node in nodes_with_scores if node.node and node.node.id_]
+            logger.info(f"LlamaIndex query returned {len(block_ids)} potential block IDs: {block_ids}")
+
+            # Consider adding a cache here later if performance becomes an issue
+            for block_id in block_ids:
+                try:
+                    # 3. Retrieve full block from Dolt using existing method
+                    block = self.get_memory_block(block_id)
+                    if block:
+                        # TODO: Consider adding relevance score from LlamaIndex to the returned block
+                        # (Requires modifying MemoryBlock schema or returning a different structure)
+                        retrieved_blocks.append(block)
+                    else:
+                        logger.warning(f"Could not retrieve block with ID {block_id} from Dolt, though it was found in LlamaIndex.")
+                except Exception as e_get:
+                     logger.error(f"Error retrieving block {block_id} from Dolt during semantic query: {e_get}", exc_info=True)
+                     # Continue to try retrieving other blocks
+
+            logger.info(f"Semantic query processing complete. Retrieved {len(retrieved_blocks)} full blocks from Dolt.")
+            return retrieved_blocks
+
+        except Exception as e:
+            logger.error(f"Error during semantic query execution: {e}", exc_info=True)
+            return [] # Return empty list on major query error
 
     def get_blocks_by_tags(self, tags: List[str], match_all: bool = True) -> List[MemoryBlock]:
         """

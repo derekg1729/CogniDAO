@@ -6,6 +6,7 @@ import pytest
 import os
 from pathlib import Path
 import time
+import datetime
 
 # Target class
 from experiments.src.memory_system.structured_memory_bank import StructuredMemoryBank
@@ -235,11 +236,50 @@ class TestStructuredMemoryBank:
 
     def test_query_semantic(self, memory_bank_instance: StructuredMemoryBank):
         """Tests semantic querying."""
-        pytest.skip("query_semantic depends on create or direct DB/index setup")
-        # # Pre-requisite: Create several blocks with distinct text
-        # results = memory_bank_instance.query_semantic("query related to test block text", top_k=1)
-        # assert len(results) >= 1
-        # assert results[0].id == "test-block-001" # Assuming test-block-001 is most relevant
+        # pytest.skip("query_semantic depends on create or direct DB/index setup")
+        
+        # --- Setup: Create several distinct blocks ---
+        block1_data = MemoryBlock(
+            id="query-block-1", type="knowledge", text="The quick brown fox jumps over the lazy dog.", 
+            tags=["animal", "quick"], created_at=datetime.datetime.now(), updated_at=datetime.datetime.now()
+        )
+        block2_data = MemoryBlock(
+            id="query-block-2", type="knowledge", text="Semantic search finds related concepts.", 
+            tags=["search", "concepts"], created_at=datetime.datetime.now(), updated_at=datetime.datetime.now()
+        )
+        block3_data = MemoryBlock(
+            id="query-block-3", type="task", text="Implement the semantic query functionality.", 
+            tags=["task", "query"], created_at=datetime.datetime.now(), updated_at=datetime.datetime.now()
+        )
+        
+        create_success1 = memory_bank_instance.create_memory_block(block1_data)
+        create_success2 = memory_bank_instance.create_memory_block(block2_data)
+        create_success3 = memory_bank_instance.create_memory_block(block3_data)
+        assert create_success1 and create_success2 and create_success3, "Failed to create blocks for semantic query test"
+        time.sleep(1) # Give indexing a bit more time after creates
+        
+        # --- Perform Query --- 
+        query_text = "finding information using meaning"
+        results = memory_bank_instance.query_semantic(query_text, top_k=2)
+        
+        # --- Verify Results --- 
+        assert results is not None, "query_semantic returned None"
+        assert len(results) > 0, "Semantic query did not return any results"
+        
+        # Check if the most relevant block (likely block2) is returned
+        # Note: Exact relevance/order depends heavily on the embedding model used by LlamaIndex
+        assert any(block.id == "query-block-2" for block in results), "Expected block 2 (related concepts) not found in results"
+        
+        # Check if the first result is likely block 2 (stronger assertion)
+        if results:
+             assert results[0].id == "query-block-2", f"Expected block 2 to be the most relevant result, but got {results[0].id}"
+        
+        # Query for something completely different
+        unrelated_results = memory_bank_instance.query_semantic("unrelated pizza topic", top_k=1)
+        assert unrelated_results is not None
+        # Check that the specific relevant block (block 2) was NOT returned for the unrelated query
+        assert not any(block.id == "query-block-2" for block in unrelated_results), \
+            "Unrelated query unexpectedly returned the block related to semantic search"
 
     def test_get_blocks_by_tags(self, memory_bank_instance: StructuredMemoryBank):
         """Tests retrieving blocks by tags."""
