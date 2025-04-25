@@ -154,6 +154,10 @@ def read_memory_block(db_path: str, block_id: str, branch: str = 'main') -> Opti
         repo = Dolt(db_path)
 
         # Escape block_id for safe insertion into the query string
+        # NOTE: Using manual escaping because doltpy.cli.Dolt.sql() does not
+        # appear to support the 'args' parameter for parameterized SELECT queries,
+        # based on previous TypeErrors. This is less ideal than parameterized queries
+        # but necessary with the current library constraints for reads.
         escaped_block_id = _escape_sql_string(block_id)
 
         # Query for a specific block ID (using formatted string)

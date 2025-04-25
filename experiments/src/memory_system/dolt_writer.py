@@ -1,5 +1,20 @@
 """
 Contains functions for writing MemoryBlock objects to a Dolt database.
+
+!!! IMPORTANT SECURITY WARNING !!!
+The current Dolt interaction relies on `doltpy.cli.Dolt.sql()`, which
+DOES NOT SUPPORT parameterized queries (the `args` parameter).
+Therefore, this module MUST manually format SQL strings using the
+_escape_sql_string and _format_sql_value helper functions.
+
+This approach carries an INHERENT RISK OF SQL INJECTION if the escaping
+functions are flawed or if data contains unexpected characters not handled
+by the basic escaping.
+
+This is a necessary workaround due to library limitations. Prioritize migrating
+to a safer database interaction method (e.g., using `doltpy.core` with a
+standard DB-API connector like `mysql-connector-python` or `psycopg2` if Dolt
+supports those interfaces, or a dedicated ORM) as soon as possible.
 """
 
 import json
@@ -36,37 +51,58 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
+# --- Manual Escaping (Reinstated due to doltpy.cli limitation) ---
+# WARNING: These functions are a workaround for the lack of parameterized query support
+# in doltpy.cli.Dolt.sql() and carry SQL injection risks.
+
 def _escape_sql_string(value: Optional[str]) -> str:
-    """Basic escaping for SQL strings to prevent simple injection issues."""
+    """Basic escaping for SQL strings. WARNING: Incomplete security measure."""
     if value is None:
         return "NULL"
     # Replace single quotes with two single quotes
     escaped_value = value.replace("'", "''")
+    # Basic attempt to escape backslashes as well
+    escaped_value = escaped_value.replace("\\", "\\\\")
     return f"'{escaped_value}'"
 
 def _format_sql_value(value: Optional[Any]) -> str:
-    """Formats different Python types into SQL-compatible strings."""
+    """Formats different Python types into SQL-compatible strings using manual escaping.
+       WARNING: Insecure due to reliance on manual escaping.
+    """
     if value is None:
         return "NULL"
     elif isinstance(value, (int, float)):
         return str(value)
     elif isinstance(value, datetime.datetime):
-        return f"'{value.isoformat()}'"
+        # Ensure datetime is formatted correctly for SQL (YYYY-MM-DD HH:MM:SS.ffffff)
+        # Remove timezone info if present, as Dolt DATETIME might not handle it directly
+        value_naive = value.replace(tzinfo=None)
+        return f"'{value_naive.isoformat(sep=' ', timespec='microseconds')}'"
     elif isinstance(value, str):
         return _escape_sql_string(value)
     elif isinstance(value, (list, dict)):
         # Assume lists/dicts are intended for JSON columns
-        return _escape_sql_string(json.dumps(value))
+        try:
+            json_str = json.dumps(value)
+            return _escape_sql_string(json_str)
+        except TypeError as e:
+            logger.warning(f"Could not serialize value to JSON, attempting string conversion: {e}")
+            # Fallback to string conversion with escaping if JSON fails
+            return _escape_sql_string(str(value))
     else:
         # Fallback for other types, treat as string with escaping
         return _escape_sql_string(str(value))
+# --- End Manual Escaping ---
 
 
 def write_memory_block_to_dolt(block: MemoryBlock, db_path: str, auto_commit: bool = False) -> Tuple[bool, Optional[str]]:
     """
     Writes a single MemoryBlock object to the specified Dolt database.
     Uses REPLACE INTO for idempotency.
-    NOTE: Constructs raw SQL due to doltpy.cli limitations.
+
+    WARNING: This function uses manual SQL string formatting due to limitations
+    in doltpy.cli.Dolt.sql() (lack of parameterized query support).
+    This carries an inherent SQL injection risk.
 
     Args:
         block: The MemoryBlock object to write.
@@ -79,12 +115,15 @@ def write_memory_block_to_dolt(block: MemoryBlock, db_path: str, auto_commit: bo
             - Optional[str]: The Dolt commit hash if auto_commit was True and successful, else None.
     """
     commit_hash: Optional[str] = None
-    query = ""
+    repo: Optional[Dolt] = None
+    query = "" # Initialize query string
+
     try:
         repo = Dolt(db_path)
-        logger.info(f"Attempting to write block {block.id} to Dolt DB at {db_path}")
+        logger.info(f"Attempting to write block {block.id} to Dolt DB at {db_path} using manual SQL formatting.")
 
-        # Manually format values for SQL insertion
+        # Manually format values for SQL insertion using the helper function
+        # Ensure all relevant columns are included and match the table schema
         sql_values = {
             "id": _format_sql_value(block.id),
             "type": _format_sql_value(block.type),
@@ -98,10 +137,13 @@ def write_memory_block_to_dolt(block: MemoryBlock, db_path: str, auto_commit: bo
             "created_by": _format_sql_value(block.created_by),
             "created_at": _format_sql_value(block.created_at),
             "updated_at": _format_sql_value(block.updated_at),
-            "embedding": _format_sql_value(block.embedding) if block.embedding else "NULL"
+            "embedding": _format_sql_value(block.embedding) if block.embedding is not None else "NULL",
+            # Add schema_version if needed and present in the table/block object
+            # "schema_version": _format_sql_value(block.schema_version) if hasattr(block, 'schema_version') else "NULL"
         }
 
         # Construct the raw SQL query string
+        # Adjust columns based on the actual table schema
         query = f"""
         REPLACE INTO memory_blocks (id, type, text, tags, metadata, links, source_file,
                                    source_uri, confidence, created_by, created_at,
@@ -110,67 +152,78 @@ def write_memory_block_to_dolt(block: MemoryBlock, db_path: str, auto_commit: bo
                 {sql_values['source_uri']}, {sql_values['confidence']}, {sql_values['created_by']}, {sql_values['created_at']},
                 {sql_values['updated_at']}, {sql_values['embedding']});
         """
-        # logger.debug(f"Executing SQL: {query}") # Uncomment for debugging SQL
+        # Example if schema_version is included:
+        # query = f"""
+        # REPLACE INTO memory_blocks (id, type, text, tags, metadata, links, source_file,
+        #                            source_uri, confidence, created_by, created_at,
+        #                            updated_at, embedding, schema_version)
+        # VALUES ({sql_values['id']}, {sql_values['type']}, {sql_values['text']}, {sql_values['tags']}, {sql_values['metadata']}, {sql_values['links']}, {sql_values['source_file']},
+        #         {sql_values['source_uri']}, {sql_values['confidence']}, {sql_values['created_by']}, {sql_values['created_at']},
+        #         {sql_values['updated_at']}, {sql_values['embedding']}, {sql_values['schema_version']});
+        # """
 
-        # Execute the raw SQL query
+        logger.debug(f"Executing manually formatted SQL (WARNING: Risk of SQLi):\n{query}")
+
+        # Execute the raw SQL query (no args parameter)
         repo.sql(query=query)
-        write_msg = f"Successfully wrote/updated block {block.id} in Dolt working set."
+        write_msg = f"Successfully wrote/updated block {block.id} in Dolt working set (using manual formatting)."
         logger.info(write_msg)
 
         if auto_commit:
+            # Commit logic remains the same as before
             try:
                 logger.info(f"Auto-committing changes for block {block.id}...")
                 repo.add(['memory_blocks']) # Be specific about the table
-                # Check if there are staged changes before committing
                 status = repo.status()
+                # Correct check for clean status based on original working code
                 if status.is_clean and not status.staged_tables:
                     logger.info("No changes staged for commit.")
-                    # If nothing committed, try to get the current head hash
                     try:
+                        # Use correct function DOLT_HASHOF_DB('HEAD') to get current commit hash
                         result = repo.sql(query="SELECT DOLT_HASHOF_DB('HEAD') AS commit_hash", result_format='json')
                         if result and 'rows' in result and len(result['rows']) > 0 and 'commit_hash' in result['rows'][0]:
                             commit_hash = result['rows'][0]['commit_hash']
-                            logger.info(f"Committed changes. Hash: {commit_hash}")
+                            logger.info(f"Working set clean. Current HEAD hash: {commit_hash}")
                         else:
                             logger.warning("Could not parse commit hash from DOLT_HASHOF_DB('HEAD') query result.")
-                            commit_hash = None # Set hash to None if parsing fails
+                            commit_hash = None
                     except Exception as hash_e:
                         logger.error(f"Error retrieving commit hash using DOLT_HASHOF_DB('HEAD'): {hash_e}")
-                        commit_hash = None # Set hash to None on exception
+                        commit_hash = None
                 else:
                     commit_msg = f'Write memory block {block.id}'
                     repo.commit(commit_msg) # Use commit method directly
-                    # Get the hash of the commit we just made using the DOLT_HASHOF_DB() SQL function
+                    # Get the hash of the commit we just made using DOLT_HASHOF_DB('HEAD')
                     try:
                         result = repo.sql(query="SELECT DOLT_HASHOF_DB('HEAD') AS commit_hash", result_format='json')
                         if result and 'rows' in result and len(result['rows']) > 0 and 'commit_hash' in result['rows'][0]:
                             commit_hash = result['rows'][0]['commit_hash']
                             logger.info(f"Committed changes. Hash: {commit_hash}")
                         else:
-                            logger.warning("Could not parse commit hash from DOLT_HASHOF_DB('HEAD') query result.")
-                            commit_hash = None # Set hash to None if parsing fails
+                            logger.warning("Could not parse commit hash from DOLT_HASHOF_DB('HEAD') query result after commit.")
+                            commit_hash = None
                     except Exception as hash_e:
-                        logger.error(f"Error retrieving commit hash using DOLT_HASHOF_DB('HEAD'): {hash_e}")
-                        commit_hash = None # Set hash to None on exception
+                        logger.error(f"Error retrieving commit hash using DOLT_HASHOF_DB('HEAD') after commit: {hash_e}")
+                        commit_hash = None
             except Exception as commit_e:
-                logger.error(f"Failed to auto-commit changes for block {block.id}: {commit_e}")
+                logger.error(f"Failed to auto-commit changes for block {block.id}: {commit_e}", exc_info=True)
                 # Return True for write success, but None for commit hash
                 return True, None
 
         return True, commit_hash
 
     except Exception as e:
-        logger.error(f"Failed to write block {block.id} to Dolt: {e}")
+        logger.error(f"Failed to write block {block.id} to Dolt: {e}", exc_info=True)
         # Log query only if needed for debugging sensitive info
         # logger.error(f"Failed SQL Query: {query}")
         return False, None # Return False for success, None for hash on error
 
 # Example Usage (can be run as a script for testing)
 if __name__ == '__main__':
-    logger.info("Running Dolt writer example...")
+    # Example usage remains the same, but now uses the reverted (less secure) writer
+    logger.info("Running Dolt writer example (using manual SQL formatting)...")
 
     # Define the path to your experimental Dolt database
-    # Assumes script is run from project root or PYTHONPATH is set
     dolt_db_dir = project_root_dir / "experiments" / "dolt_data" / "memory_db"
 
     if not dolt_db_dir.exists() or not (dolt_db_dir / '.dolt').exists():
@@ -180,13 +233,13 @@ if __name__ == '__main__':
 
         # Create a fun sample MemoryBlock
         test_block = MemoryBlock(
-            id="hello-dolt-001",  # A more thematic ID
-            type="knowledge",     # Seems appropriate for a greeting
-            text="Hello, Dolt! This is our first entry in the versioned memory experiment.",
-            tags=["hello-world", "dolt", "experiment", "first-entry"],
-            metadata={"greeting": True, "script_runner": "dolt_writer.py"},
-            links=[],  # No links for the first entry
-            confidence=ConfidenceScore(human=1.0) # We are very confident about this!
+            id="hello-dolt-003",  # Yet another ID
+            type="knowledge",
+            text="Writing with manual escaping (necessary evil?). Watch out for quotes: ' and double quotes: \"",
+            tags=["dolt", "manual-escape", "warning"],
+            metadata={"test_run": datetime.datetime.now().isoformat(), "escaped": True},
+            links=[],
+            confidence=ConfidenceScore(ai=0.5)
         )
 
         # Write the block with auto-commit enabled
@@ -197,11 +250,11 @@ if __name__ == '__main__':
         )
 
         if success:
-            logger.info("MemoryBlock write successful (auto-commit attempted).")
+            logger.info("MemoryBlock write successful (auto-commit attempted). Check data carefully.")
             if final_hash:
                  logger.info(f"Dolt Commit Hash: {final_hash}")
             else:
-                 logger.warning("Commit hash not retrieved (commit might have failed or no changes were staged).")
+                 logger.warning("Commit hash not retrieved.")
 
             logger.info("Verify using:")
             logger.info(f"  cd {dolt_db_dir}")
