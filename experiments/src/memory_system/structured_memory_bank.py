@@ -7,6 +7,7 @@ and the LlamaIndex (ChromaDB) indexing/retrieval system.
 
 import logging
 from typing import List, Dict, Any, Optional
+import datetime
 
 # Dolt Interactions
 from experiments.src.memory_system.dolt_reader import read_memory_block # Assuming read_memory_blocks will be needed
@@ -139,24 +140,66 @@ class StructuredMemoryBank:
         Updates an existing MemoryBlock.
 
         Fetches the block, applies updates, validates, writes to Dolt,
-        re-indexes in LlamaIndex, and commits changes.
+        re-indexes in LlamaIndex. 
+        WARNING: Currently relies on auto_commit in dolt_writer and separate LlamaIndex update,
+                 making the operation NOT fully atomic. Depends on insecure dolt_writer.
 
         Args:
             block_id: The ID of the block to update.
             update_data: A dictionary containing the fields to update.
 
         Returns:
-            True if the update was successful, False otherwise.
+            True if the update was successful (both Dolt write and LlamaIndex update), False otherwise.
         """
         logger.info(f"Attempting to update memory block: {block_id}")
-        # TODO: Fetch existing block using self.get_memory_block
-        # TODO: Apply update_data to the fetched block
-        # TODO: Validate the updated block (Pydantic model update/validation)
-        # TODO: Write updated block to Dolt (using dolt_writer)
-        # TODO: Update links in Dolt block_links table (if links changed)
-        # TODO: Re-index in LlamaIndex (using self.llama_memory.update_block)
-        # TODO: Commit changes in Dolt
-        pass # Placeholder
+        if not self.llama_memory.is_ready():
+            logger.error("LlamaMemory backend is not ready. Cannot update block.")
+            return False
+
+        # 1. Fetch existing block
+        existing_block = self.get_memory_block(block_id)
+        if not existing_block:
+            logger.error(f"Cannot update block {block_id}: block not found.")
+            return False
+
+        # 2. Apply updates and validate
+        try:
+            # Create updated block data, ensuring updated_at is set
+            update_payload = update_data.copy()
+            update_payload['updated_at'] = datetime.datetime.now() # Use current time for update
+            
+            updated_block = existing_block.model_copy(update=update_payload)
+            logger.debug(f"Block {block_id} updated in memory. New text: '{updated_block.text[:50]}...'")
+        except Exception as e: # Catch potential Pydantic validation errors or others
+            logger.error(f"Failed to apply updates or validate block {block_id}: {e}", exc_info=True)
+            return False
+
+        # 3. Write updated block to Dolt
+        # Relies on insecure writer and auto_commit=True (not atomic)
+        dolt_write_success, _ = write_memory_block_to_dolt(
+            block=updated_block,
+            db_path=self.dolt_db_path,
+            auto_commit=True
+        )
+        if not dolt_write_success:
+            logger.error(f"Failed to write updated block {block_id} data to Dolt.")
+            # State is now inconsistent: update attempted but not saved in Dolt.
+            return False
+
+        # TODO: Update links in Dolt block_links table if links changed.
+
+        # 4. Re-index in LlamaIndex
+        try:
+            self.llama_memory.update_block(updated_block)
+            logger.info(f"Successfully re-indexed updated block {block_id} in LlamaIndex.")
+        except Exception as e:
+            logger.error(f"Failed to re-index updated block {block_id} in LlamaIndex: {e}", exc_info=True)
+            # State is now inconsistent: Dolt updated, but LlamaIndex update failed.
+            # Proper atomicity (Task 3.4) would require rollback here.
+            return False
+
+        logger.info(f"Successfully updated and re-indexed memory block: {block_id}")
+        return True
 
     def delete_memory_block(self, block_id: str) -> bool:
         """

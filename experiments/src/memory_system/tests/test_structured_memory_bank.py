@@ -142,12 +142,54 @@ class TestStructuredMemoryBank:
 
     def test_update_memory_block(self, memory_bank_instance: StructuredMemoryBank, sample_memory_block: MemoryBlock):
         """Tests updating a memory block."""
-        pytest.skip("update_memory_block not yet implemented")
-        # # Pre-requisite: Create the block
-        # update_data = {"text": "Updated text", "tags": ["updated"]}
-        # success = memory_bank_instance.update_memory_block(sample_memory_block.id, update_data)
-        # assert success
-        # # TODO: Verify updated block in Dolt and LlamaIndex
+        # pytest.skip("update_memory_block not yet implemented")
+        
+        # --- Setup: Create the initial block --- 
+        write_success, initial_commit = write_memory_block_to_dolt(
+            block=sample_memory_block,
+            db_path=memory_bank_instance.dolt_db_path,
+            auto_commit=True
+        )
+        assert write_success and initial_commit, "Setup failed: Could not write initial block"
+        # Also index it initially to simulate real state
+        memory_bank_instance.llama_memory.add_block(sample_memory_block)
+        time.sleep(0.5) # Give indexing a moment
+        
+        # --- Perform Update --- 
+        update_data = {
+            "text": "This is the updated text.", 
+            "tags": ["updated", "test"],
+            "metadata": {"source": "pytest", "update_run": True}
+        }
+        update_success = memory_bank_instance.update_memory_block(sample_memory_block.id, update_data)
+        assert update_success, "update_memory_block returned False"
+
+        # --- Verify Dolt Update --- 
+        read_back_block = read_memory_block(memory_bank_instance.dolt_db_path, sample_memory_block.id)
+        assert read_back_block is not None, "Block not found in Dolt after update"
+        assert read_back_block.text == update_data["text"]
+        assert read_back_block.tags == update_data["tags"]
+        assert read_back_block.metadata == update_data["metadata"]
+        # Check that updated_at timestamp has changed (is later than original)
+        assert read_back_block.updated_at > sample_memory_block.updated_at, "updated_at timestamp was not updated"
+
+        # --- Verify LlamaIndex Update --- 
+        time.sleep(0.5) # Give indexing update a moment
+        try:
+            # Query for the *updated* text
+            query_results = memory_bank_instance.llama_memory.query_vector_store(update_data["text"], top_k=1)
+            assert len(query_results) > 0, "Updated block not found in LlamaIndex vector store"
+            assert query_results[0].node.id_ == sample_memory_block.id, "Found node ID does not match updated block ID"
+            
+            # Query for the *old* text - should ideally not return the same block with high confidence
+            old_query_results = memory_bank_instance.llama_memory.query_vector_store(sample_memory_block.text, top_k=1)
+            if len(old_query_results) > 0:
+                 assert old_query_results[0].node.id_ != sample_memory_block.id or old_query_results[0].score < 0.8, \
+                     "Old text still strongly matches the updated block in LlamaIndex"
+        except Exception as e:
+            pytest.fail(f"Querying LlamaIndex after update failed: {e}")
+        
+        # TODO: Verify link updates in Dolt/LlamaIndex if links were part of update_data
 
     def test_delete_memory_block(self, memory_bank_instance: StructuredMemoryBank, sample_memory_block: MemoryBlock):
         """Tests deleting a memory block."""
