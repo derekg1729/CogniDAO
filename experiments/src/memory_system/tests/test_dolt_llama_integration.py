@@ -11,6 +11,8 @@ import logging
 from pathlib import Path
 from datetime import datetime, timezone
 import importlib
+import tempfile
+import subprocess
 
 # Configure logging for tests
 logging.basicConfig(level=logging.INFO, format='%(name)s - %(levelname)s - %(message)s')
@@ -36,6 +38,10 @@ elif not DOLT_CLI_AVAILABLE:
 IMPORTS_AVAILABLE = False # Default to False
 try:
     from experiments.src.memory_system.schemas.memory_block import MemoryBlock, BlockLink, ConfidenceScore  # noqa: E402
+    from experiments.src.memory_system.dolt_writer import write_memory_block_to_dolt  # noqa: E402
+    from experiments.scripts.sync_dolt_to_llamaindex import sync_dolt_to_llamaindex  # noqa: E402
+    from experiments.src.memory_system.llama_memory import LlamaMemory  # noqa: E402
+    from experiments.src.memory_system.initialize_dolt import initialize_dolt_db # noqa: E402
     IMPORTS_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"Could not import necessary modules, skipping integration tests: {e}")
@@ -66,7 +72,7 @@ def create_test_blocks():
         text="This knowledge block depends on the setup document.",
         tags=["knowledge", "dependency"],
         metadata={"title": "Knowledge Block 2", "source": "derived"},
-        links=[BlockLink(to_id="int-test-block-1", relation="explains")],
+        links=[BlockLink(to_id="int-test-block-1", relation="related_to")],
         confidence=ConfidenceScore(ai=0.75, human=0.9),
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
@@ -97,14 +103,74 @@ class TestSyncDoltToLlamaIndexIntegration(unittest.TestCase):
     def setUp(self):
         """Set up test environment with temporary Dolt DB and LlamaIndex storage."""
         logger.info("Setting up integration test...")
-        self.dolt_temp_dir = None # Will be created
-        self.llama_temp_dir = None # Will be created
-        # Placeholder - implementation to follow
-        pass
+        self.dolt_temp_dir = None # Initialize to None
+        self.llama_temp_dir = None # Initialize to None
+        try:
+            # Create temporary directories
+            dolt_dir = tempfile.mkdtemp(prefix="test_dolt_sync_")
+            self.dolt_temp_dir = dolt_dir
+            logger.info(f"Created temporary Dolt directory: {self.dolt_temp_dir}")
+
+            llama_dir = tempfile.mkdtemp(prefix="test_llama_sync_")
+            self.llama_temp_dir = llama_dir
+            logger.info(f"Created temporary LlamaIndex directory: {self.llama_temp_dir}")
+
+            # Use initialize_dolt_db script
+            logger.info(f"Initializing Dolt DB using script for path: {self.dolt_temp_dir}")
+            init_success = initialize_dolt_db(self.dolt_temp_dir)
+            if not init_success:
+                self.fail("Failed to initialize Dolt database using initialize_dolt_db script.")
+
+            # Populate data using dolt_writer
+            logger.info("Populating memory_blocks table with test data using dolt_writer...")
+            test_blocks = create_test_blocks()
+            for block in test_blocks:
+                logger.debug(f"Writing block {block.id} to Dolt working set...")
+                success, _ = write_memory_block_to_dolt(
+                    block=block,
+                    db_path=self.dolt_temp_dir,
+                    auto_commit=False # Commit manually after all writes
+                )
+                if not success:
+                    self.fail(f"Failed to write block {block.id} using write_memory_block_to_dolt.")
+            logger.info(f"Successfully wrote {len(test_blocks)} blocks to Dolt working set.")
+
+            # Commit the test data
+            logger.info("Adding and committing test data to Dolt...")
+            try:
+                # Dolt Add
+                add_result = subprocess.run(
+                    ['dolt', 'add', 'memory_blocks'], # Add the specific table
+                    cwd=self.dolt_temp_dir,
+                    check=True, capture_output=True, text=True
+                )
+                logger.debug(f"Dolt add output:\n{add_result.stdout}")
+
+                # Dolt Commit
+                commit_result = subprocess.run(
+                    ['dolt', 'commit', '-m', 'Add integration test data'],
+                    cwd=self.dolt_temp_dir,
+                    check=True, capture_output=True, text=True
+                )
+                logger.debug(f"Dolt commit output:\n{commit_result.stdout}")
+                logger.info("Test data committed successfully.")
+
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Dolt add/commit failed with exit code {e.returncode}")
+                logger.error(f"Command: {' '.join(e.cmd)}")
+                logger.error(f"Stderr:\n{e.stderr}")
+                raise # Re-raise to fail test
+
+        except Exception as e:
+            logger.error(f"Error during setUp: {e}")
+            # Ensure cleanup happens even if setup fails partially
+            self.tearDown()
+            raise # Re-raise exception to fail the test
 
     def tearDown(self):
         """Clean up temporary directories."""
         logger.info("Tearing down integration test...")
+        # Use self attributes which are None if setup failed before assignment
         if self.dolt_temp_dir and os.path.exists(self.dolt_temp_dir):
             logger.debug(f"Removing temporary Dolt directory: {self.dolt_temp_dir}")
             shutil.rmtree(self.dolt_temp_dir)
@@ -117,8 +183,66 @@ class TestSyncDoltToLlamaIndexIntegration(unittest.TestCase):
         Test the full sync process from a temporary Dolt DB to LlamaIndex.
         """
         logger.info("Running end-to-end sync test...")
-        # Placeholder - implementation to follow
-        self.assertTrue(True) # Replace with actual test logic
+
+        # 1. Run the sync script
+        logger.info(f"Running sync_dolt_to_llamaindex: Dolt={self.dolt_temp_dir}, Llama={self.llama_temp_dir}")
+        sync_successful = sync_dolt_to_llamaindex(
+            dolt_db_path=self.dolt_temp_dir,
+            llama_storage_path=self.llama_temp_dir
+        )
+        self.assertTrue(sync_successful, "sync_dolt_to_llamaindex script failed to run.")
+        logger.info("sync_dolt_to_llamaindex completed.")
+
+        # 2. Initialize LlamaMemory with the synced data
+        logger.info(f"Initializing LlamaMemory from: {self.llama_temp_dir}")
+        try:
+            llama_memory = LlamaMemory(chroma_path=self.llama_temp_dir)
+            # Ensure the index is loaded - might require specific method call if lazy loading
+            if not llama_memory.vector_store or not llama_memory.graph_store:
+                 # Attempt to load if needed (adjust based on LlamaMemory implementation)
+                 llama_memory._load_index()
+                 # Check again
+                 self.assertIsNotNone(llama_memory.vector_store, "Vector store not loaded after sync.")
+                 self.assertIsNotNone(llama_memory.graph_store, "Graph store not loaded after sync.")
+
+            logger.info("LlamaMemory initialized successfully.")
+        except Exception as e:
+            self.fail(f"Failed to initialize LlamaMemory from synced directory: {e}")
+
+        # 3. Perform verification queries
+        logger.info("Performing verification queries...")
+
+        # Vector Search Test
+        search_query = "integration test document system setup"
+        logger.info(f"Performing vector search for: '{search_query}'")
+        try:
+            search_results = llama_memory.query_vector_store(search_query, top_k=3)
+            # Log the actual node IDs retrieved
+            retrieved_ids = [r.node.id_ for r in search_results]
+            logger.info(f"Vector search retrieved node IDs: {retrieved_ids}")
+
+            # Assert that the relevant block ID is found among the node IDs
+            found_block_1 = any(
+                result.node.id_ == "int-test-block-1"
+                for result in search_results
+            )
+            self.assertTrue(found_block_1, f"Expected 'int-test-block-1' not found in retrieved node IDs: {retrieved_ids} for query '{search_query}'")
+            logger.info("Vector search test passed.")
+
+        except Exception as e:
+            self.fail(f"Vector search failed: {e}")
+
+        # Optional: Add graph store query tests here if LlamaMemory supports them and they are relevant
+        # logger.info("Performing graph query tests...")
+        # Example (needs actual LlamaMemory graph query methods):
+        # try:
+        #    graph_results = llama_memory.search_graph(subject="int-test-block-2", relation="explains")
+        #    self.assertIn("int-test-block-1", [node.id for node in graph_results.objects])
+        #    logger.info("Graph query test passed.")
+        # except Exception as e:
+        #    self.fail(f"Graph query failed: {e}")
+
+        logger.info("End-to-end sync test completed successfully.")
 
 if __name__ == '__main__':
     unittest.main() 

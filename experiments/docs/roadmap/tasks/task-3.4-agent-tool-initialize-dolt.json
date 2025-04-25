@@ -1,0 +1,42 @@
+{
+    "type": "task",
+    "status": "todo",
+    "project": "CogniMemorySystem-POC",
+    "id": "task-2.11-make-initialize-dolt-version-aware.json",
+    "name": "Make initialize_dolt.py version-control aware and agent-friendly",
+    "description": "Note: rarely used, but important for DAO spawning: Upgrade the `initialize_dolt.py` script to fully utilize Dolt’s version control features (add, commit, branching). Ensure the script is usable by both human developers and agents. This task builds foundational infrastructure for versioned memory operations and schema evolution.",
+    "implementation_details": {
+      "target_file": "experiments/scripts/initialize_dolt.py",
+      "related_modules": [
+        "experiments/src/memory_system/dolt_writer.py",
+        "experiments/src/memory_system/dolt_reader.py",
+        "experiments/src/memory_system/agents/dolt_agent.py (future)"
+      ]
+    },
+    "action_items": [
+      "[ ] After table creation, add `dolt add memory_blocks` to stage the new schema/table.",
+      "[ ] Commit the initial schema with `dolt commit -m 'Initialize memory_blocks table'`.",
+      "[ ] Add optional support for creating and switching to a named branch (e.g., `--branch dev`).",
+      "[ ] Add argument parsing for `--skip-commit` and `--force-reinit` (for CI/test replays).",
+      "[ ] If Dolt CLI is not available (e.g., on agent containers), raise an informative error.",
+      "[ ] Add helper function `dolt_command(command_list, db_path)` to DRY up subprocess calls.",
+      "[ ] Log each action clearly so downstream tools (agents, humans) can trace state changes.",
+      "[ ] Ensure the script is idempotent and does not reinitialize or duplicate commits."
+    ],
+    "test_criteria": [
+      "[ ] Script initializes `.dolt/` repo if missing.",
+      "[ ] Script creates the `memory_blocks` table if missing.",
+      "[ ] Script commits the schema to Dolt and verifies via `dolt log` or exit status.",
+      "[ ] Script can switch to a new branch and commit there.",
+      "[ ] A dev agent can run this script and know the schema was properly versioned.",
+      "[ ] Unit or integration test exists to verify this (even basic CLI smoke test is acceptable)."
+    ],
+    "success_criteria": [
+      "[ ] `initialize_dolt.py` works as a general-purpose script for humans or agent setup.",
+      "[ ] Any future script relying on memory_blocks table can assume it is Dolt-tracked.",
+      "[ ] Cogni agents can begin using this script to prep memory environments with VCS guarantees."
+    ],
+    "current_status": "Task defined, ready for implementation.",
+    "rationale": "Current version of `initialize_dolt.py` sets up a table but does not commit schema or data to Dolt’s version control system. For Cogni's long-term agent workflows and memory versioning goals, this foundational script must be version-aware and stable. It will be used in CI, agent container spins, and reproducible memory state setups."
+  }
+  
