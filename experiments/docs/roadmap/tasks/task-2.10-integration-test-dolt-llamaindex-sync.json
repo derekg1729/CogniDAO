@@ -1,0 +1,40 @@
+{
+  "type": "task",
+  "status": "todo",
+  "project": "CogniMemorySystem-POC",
+  "name": "Integration Test for Dolt-to-LlamaIndex Sync",
+  "description": "Implement an integration test for the `sync_dolt_to_llamaindex.py` script (Task 2.9) to verify end-to-end functionality using a real Dolt database and LlamaIndex storage.",
+  "id": "task-2.10-integration-test-dolt-llamaindex-sync.json",
+  "implementation_details": {
+    "target_file": "experiments/src/memory_system/tests/test_sync_dolt_to_llamaindex.py",
+    "target_class": "TestSyncDoltToLlamaIndexIntegration"
+  },
+  "action_items": [
+    "[x] Unskip the `TestSyncDoltToLlamaIndexIntegration` class in the target test file.",
+    "[ ] Implement `setUp` method:",
+    "[ ]   Create a temporary directory for Dolt database.",
+    "[ ]   Initialize a Dolt repository in the temp directory (`dolt init`).",
+    "[ ]   Create the `memory_blocks` table using `dolt sql -q \\\"CREATE TABLE...\\\"` (ensure schema matches `MemoryBlock` Pydantic model).",
+    "[x]   Define helper function or use existing `create_test_blocks()` to generate sample `MemoryBlock` data.",
+    "[ ]   Implement logic to insert sample data into the temporary Dolt table (e.g., using `dolt sql -q \\\"INSERT INTO...\\\"` or `doltpy` methods).",
+    "[ ]   Create a separate temporary directory for LlamaIndex/ChromaDB storage.",
+    "[ ] Implement `tearDown` method:",
+    "[x]   Ensure reliable removal of both the temporary Dolt directory and the temporary LlamaIndex directory.",
+    "[ ] Implement test method `test_end_to_end_sync`:",
+    "[ ]   Call `sync_dolt_to_llamaindex` using the temporary Dolt path and LlamaIndex path from `setUp`.",
+    "[ ]   Initialize a new `LlamaMemory` instance connected to the temporary LlamaIndex path.",
+    "[ ]   Perform vector query verification: Query for specific content/metadata from sample blocks and assert correct results.",
+    "[ ]   Perform graph query verification: Use `get_rel_map` or similar to check relationships defined in sample blocks and assert correctness.",
+    "[ ] Ensure Dolt commands are handled correctly (e.g., requires Dolt CLI installed and configured)."
+  ],
+  "test_criteria": [
+    "[ ] The integration test runs without errors.",
+    "[ ] The test successfully creates and tears down temporary Dolt and LlamaIndex resources.",
+    "[ ] Vector queries within the test return the expected `MemoryBlock` data based on the sample input.",
+    "[ ] Graph queries within the test confirm that relationships between sample blocks are correctly indexed."
+  ],
+  "success_criteria": [
+    "[ ] A passing integration test exists within `test_sync_dolt_to_llamaindex.py` that validates the end-to-end synchronization process."
+  ],
+  "current_status": "Task defined, ready for implementation."
+} 
