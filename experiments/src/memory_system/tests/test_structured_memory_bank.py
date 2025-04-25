@@ -193,11 +193,45 @@ class TestStructuredMemoryBank:
 
     def test_delete_memory_block(self, memory_bank_instance: StructuredMemoryBank, sample_memory_block: MemoryBlock):
         """Tests deleting a memory block."""
-        pytest.skip("delete_memory_block not yet implemented")
-        # # Pre-requisite: Create the block
-        # success = memory_bank_instance.delete_memory_block(sample_memory_block.id)
-        # assert success
-        # # TODO: Verify block is gone from Dolt and LlamaIndex
+        # pytest.skip("delete_memory_block not yet implemented")
+        
+        # --- Setup: Create the initial block --- 
+        write_success, initial_commit = write_memory_block_to_dolt(
+            block=sample_memory_block,
+            db_path=memory_bank_instance.dolt_db_path,
+            auto_commit=True
+        )
+        assert write_success and initial_commit, "Setup failed: Could not write initial block for delete test"
+        # Also index it initially
+        memory_bank_instance.llama_memory.add_block(sample_memory_block)
+        time.sleep(0.5) # Give indexing a moment
+        
+        # --- Perform Delete --- 
+        delete_success = memory_bank_instance.delete_memory_block(sample_memory_block.id)
+        assert delete_success, "delete_memory_block returned False"
+
+        # --- Verify Dolt Deletion --- 
+        read_back_block = read_memory_block(memory_bank_instance.dolt_db_path, sample_memory_block.id)
+        assert read_back_block is None, "Block still found in Dolt after deletion"
+
+        # --- Verify LlamaIndex Deletion --- 
+        time.sleep(0.5) # Give index update a moment
+        try:
+            # Query for the deleted text - should not be found
+            query_results = memory_bank_instance.llama_memory.query_vector_store(sample_memory_block.text, top_k=1)
+            found_deleted = False
+            if len(query_results) > 0:
+                # Check if the result found is actually the deleted block
+                if query_results[0].node.id_ == sample_memory_block.id:
+                    found_deleted = True
+            assert not found_deleted, "Deleted block still found in LlamaIndex vector store"
+            
+            # Optional: Verify graph store removal if applicable/testable
+            # backlinks = memory_bank_instance.llama_memory.get_backlinks(sample_memory_block.links[0].to_id)
+            # assert sample_memory_block.id not in backlinks
+            
+        except Exception as e:
+            pytest.fail(f"Querying LlamaIndex after delete failed: {e}")
 
     def test_query_semantic(self, memory_bank_instance: StructuredMemoryBank):
         """Tests semantic querying."""

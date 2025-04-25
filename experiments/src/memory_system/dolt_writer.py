@@ -218,6 +218,92 @@ def write_memory_block_to_dolt(block: MemoryBlock, db_path: str, auto_commit: bo
         # logger.error(f"Failed SQL Query: {query}")
         return False, None # Return False for success, None for hash on error
 
+
+def delete_memory_block_from_dolt(block_id: str, db_path: str, auto_commit: bool = False) -> Tuple[bool, Optional[str]]:
+    """
+    Deletes a single MemoryBlock object from the specified Dolt database by ID.
+
+    WARNING: This function uses manual SQL string formatting for the WHERE clause
+    due to limitations in doltpy.cli.Dolt.sql() (lack of parameterized query support).
+    This carries an inherent SQL injection risk if block_id is ever sourced
+    from untrusted input without separate, robust validation.
+
+    Args:
+        block_id: The ID of the MemoryBlock to delete.
+        db_path: Path to the Dolt database directory.
+        auto_commit: If True, automatically runs `dolt add` and `dolt commit` after deleting.
+
+    Returns:
+        Tuple[bool, Optional[str]]: A tuple containing:
+            - bool: True if the delete was successful, False otherwise.
+            - Optional[str]: The Dolt commit hash if auto_commit was True and successful, else None.
+    """
+    commit_hash: Optional[str] = None
+    repo: Optional[Dolt] = None
+    query = "" # Initialize query string
+
+    try:
+        repo = Dolt(db_path)
+        logger.info(f"Attempting to delete block {block_id} from Dolt DB at {db_path} using manual SQL formatting.")
+
+        # Escape the block_id for safe inclusion in the SQL string
+        escaped_block_id = _escape_sql_string(block_id)
+
+        # Construct the raw SQL query string
+        query = f"DELETE FROM memory_blocks WHERE id = {escaped_block_id};"
+
+        logger.debug(f"Executing manually formatted DELETE SQL (WARNING: Risk of SQLi):\n{query}")
+
+        # Execute the raw SQL query
+        repo.sql(query=query)
+        # NOTE: repo.sql doesn't typically return affected rows count via CLI wrapper.
+        # We assume success if no exception is raised.
+        # A more robust check might involve trying to read the block afterwards.
+        write_msg = f"Successfully executed DELETE statement for block {block_id} in Dolt working set."
+        logger.info(write_msg)
+
+        if auto_commit:
+            try:
+                logger.info(f"Auto-committing deletion for block {block_id}...")
+                repo.add(['memory_blocks']) # Be specific about the table
+                status = repo.status()
+
+                # Check if there are staged changes. If not, maybe the block didn't exist?
+                if status.is_clean and not status.staged_tables:
+                    logger.warning(f"No changes staged for commit after deleting block {block_id}. Block might not have existed.")
+                    # Get current head hash if no new commit needed
+                    try:
+                        result = repo.sql(query="SELECT DOLT_HASHOF_DB('HEAD') AS commit_hash", result_format='json')
+                        commit_hash = result['rows'][0]['commit_hash'] if result and 'rows' in result and result['rows'] else None
+                        logger.info(f"Working set clean. Current HEAD hash: {commit_hash}")
+                    except Exception as hash_e:
+                        logger.error(f"Error retrieving commit hash using DOLT_HASHOF_DB('HEAD'): {hash_e}")
+                        commit_hash = None
+                else:
+                    # Changes are staged, proceed with commit
+                    commit_msg = f'Delete memory block {block_id}'
+                    repo.commit(commit_msg)
+                    # Get the hash of the commit we just made
+                    try:
+                        result = repo.sql(query="SELECT DOLT_HASHOF_DB('HEAD') AS commit_hash", result_format='json')
+                        commit_hash = result['rows'][0]['commit_hash'] if result and 'rows' in result and result['rows'] else None
+                        logger.info(f"Committed deletion. Hash: {commit_hash}")
+                    except Exception as hash_e:
+                        logger.error(f"Error retrieving commit hash using DOLT_HASHOF_DB('HEAD') after commit: {hash_e}")
+                        commit_hash = None
+            except Exception as commit_e:
+                logger.error(f"Failed to auto-commit deletion for block {block_id}: {commit_e}", exc_info=True)
+                # Return True for delete success, but None for commit hash
+                return True, None
+
+        return True, commit_hash # Return True if DELETE executed without error
+
+    except Exception as e:
+        logger.error(f"Failed to delete block {block_id} from Dolt: {e}", exc_info=True)
+        # logger.error(f"Failed SQL Query: {query}")
+        return False, None
+
+
 # Example Usage (can be run as a script for testing)
 if __name__ == '__main__':
     # Example usage remains the same, but now uses the reverted (less secure) writer

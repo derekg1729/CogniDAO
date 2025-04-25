@@ -32,7 +32,7 @@
     "[ ]   (Optional) Store commit hash in `block_proofs` (Phase 7).",
     "[x] Implement `get_memory_block(block_id: str) -> MemoryBlock | None` (Read from Dolt).",
     "[/] Implement `update_memory_block(block_id: str, update_data: dict) -> bool` (Fetch, update, validate, write to Dolt, re-index, commit).",
-    "[ ] Implement `delete_memory_block(block_id: str) -> bool` (Delete from Dolt, delete from LlamaIndex, commit).",
+    "[/] Implement `delete_memory_block(block_id: str) -> bool` (Delete from Dolt, delete from LlamaIndex, commit).",
     "[ ] Implement `query_semantic(query_text: str, top_k: int = 5) -> List[MemoryBlock]` (Query LlamaIndex vector store, retrieve full blocks from Dolt).",
     "[ ] Implement `get_blocks_by_tags(tags: List[str], match_all: bool = True) -> List[MemoryBlock]` (Query Dolt `tags_json` or LlamaIndex metadata).",
     "[ ] Implement `get_forward_links(block_id: str, relation: str | None = None) -> List[BlockLink]` (Query Dolt `block_links` or LlamaIndex graph).",
@@ -49,5 +49,5 @@
     "[ ] Semantic, tag-based, and link-based querying methods are available.",
     "[ ] Writes are atomic (Dolt commit) and trigger indexing."
   ],
-  "current_status": "Class structure defined, __init__ implemented. get_memory_block implemented and tested. Dolt write operations refactored to handle doltpy.cli limitations (manual escaping necessary), with secure migration planned in project-SecureDoltWriteMigration.json. create_memory_block basic implementation added (writes to Dolt via insecure writer, adds to LlamaIndex) and tested. update_memory_block implemented and tested (with known atomicity/security issues)."
+  "current_status": "Class structure defined, __init__ implemented. get_memory_block, create_memory_block, update_memory_block implemented and tested (with known atomicity/security issues). delete_memory_block implemented (using new dolt_writer function) and tested (with known atomicity/security issues). Dolt interactions use manual escaping due to doltpy.cli limits; secure migration planned."
 } 

@@ -11,7 +11,7 @@ import datetime
 
 # Dolt Interactions
 from experiments.src.memory_system.dolt_reader import read_memory_block # Assuming read_memory_blocks will be needed
-from experiments.src.memory_system.dolt_writer import write_memory_block_to_dolt # Assuming write_memory_block_to_dolt will be needed
+from experiments.src.memory_system.dolt_writer import write_memory_block_to_dolt, delete_memory_block_from_dolt # Assuming write_memory_block_to_dolt and delete_memory_block_from_dolt will be needed
 
 # LlamaIndex Interactions
 from experiments.src.memory_system.llama_memory import LlamaMemory
@@ -204,19 +204,56 @@ class StructuredMemoryBank:
     def delete_memory_block(self, block_id: str) -> bool:
         """
         Deletes a MemoryBlock from Dolt and LlamaIndex.
+        WARNING: Relies on auto_commit in dolt_writer and separate LlamaIndex delete,
+                 making the operation NOT fully atomic. Depends on insecure dolt_writer.
 
         Args:
             block_id: The ID of the block to delete.
 
         Returns:
-            True if deletion was successful, False otherwise.
+            True if deletion was successful (both Dolt delete and LlamaIndex delete), False otherwise.
         """
         logger.info(f"Attempting to delete memory block: {block_id}")
-        # TODO: Delete block from Dolt memory_blocks (Needs SQL DELETE)
-        # TODO: Delete links from Dolt block_links (Handled by CASCADE or needs explicit delete)
-        # TODO: Delete node from LlamaIndex (using self.llama_memory.index.delete_nodes)
-        # TODO: Commit changes in Dolt
-        pass # Placeholder
+        if not self.llama_memory.is_ready():
+            logger.error("LlamaMemory backend is not ready. Cannot delete block.")
+            return False
+
+        # 1. Delete block from Dolt memory_blocks
+        # Relies on insecure writer and auto_commit=True (not atomic)
+        # Assumes block_links table uses ON DELETE CASCADE or links are irrelevant/handled elsewhere.
+        # TODO: Explicitly delete from block_links if CASCADE is not set up.
+        dolt_delete_success, _ = delete_memory_block_from_dolt(
+            block_id=block_id,
+            db_path=self.dolt_db_path,
+            auto_commit=True
+        )
+
+        if not dolt_delete_success:
+            logger.error(f"Failed to delete block {block_id} data from Dolt.")
+            # Even if Dolt delete failed, we might still want to try removing from index
+            # but for now, we'll return False early.
+            return False
+
+        # 2. Delete node from LlamaIndex
+        try:
+            self.llama_memory.index.delete_nodes([block_id])
+            # Persist changes in LlamaIndex storage (ChromaDB)
+            self.llama_memory.storage_context.persist(persist_dir=self.llama_memory.chroma_path)
+            # Also persist potential graph store changes (though delete_nodes might not affect SimpleGraphStore directly)
+            self.llama_memory._persist_graph_store()
+            logger.info(f"Successfully deleted node {block_id} from LlamaIndex.")
+        except ValueError as ve:
+             # llama_index raises ValueError if the node doesn't exist
+             logger.warning(f"Node {block_id} not found in LlamaIndex for deletion (or already deleted): {ve}")
+             # Continue as success, since the desired state (not indexed) is achieved.
+        except Exception as e:
+            logger.error(f"Failed to delete node {block_id} from LlamaIndex: {e}", exc_info=True)
+            # State is inconsistent: Deleted from Dolt, but not from LlamaIndex.
+            # Proper atomicity (Task 3.4) would require rollback.
+            return False
+
+        logger.info(f"Successfully deleted memory block {block_id} from Dolt and LlamaIndex.")
+        return True
 
     def query_semantic(self, query_text: str, top_k: int = 5) -> List[MemoryBlock]:
         """
