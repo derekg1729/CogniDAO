@@ -162,7 +162,7 @@ async def test_x_posting_flow_e2e(setup_test_queue):
         patch('infra_core.tools.broadcast_queue_update_tool.BROADCAST_QUEUE_ROOT', BROADCAST_QUEUE_TEST_ROOT),
         patch('infra_core.tools.broadcast_queue_update_tool.BROADCAST_QUEUE_SESSION', BROADCAST_QUEUE_TEST_SESSION),
         # Patch the memory bank class to use our mock that forces test paths
-        patch('infra_core.flows.broadcast.x_posting_flow.CogniMemoryBank', MockMemoryBank)
+        patch('infra_core.flows.broadcast.x_posting_flow.FileMemoryBank', MockMemoryBank)
     ]
     
     # Create a mock for the create_tweet method

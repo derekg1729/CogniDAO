@@ -227,7 +227,7 @@
       "Generate schema.sql automatically from MemoryBlock definition to ensure DB-schema consistency."
     ],
     "phase_3_agent_tools": [
-      "Successfully rename the old CogniMemoryBank to FileMemoryBank.",
+      "Successfully rename the old FileMemoryBank to FileMemoryBank.",
       "Demonstrate StructuredMemoryBank performing CRUD operations on MemoryBlocks in Dolt and LlamaIndex.",
       "Verify StructuredMemoryBank can retrieve blocks by tags, semantic query, and graph links (forward/backward).",
       "Verify CogniStructuredMemoryAdapter successfully wraps StructuredMemoryBank and conforms to LangChain's BaseMemory interface.",

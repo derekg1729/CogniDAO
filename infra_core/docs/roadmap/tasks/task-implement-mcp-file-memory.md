@@ -1,4 +1,4 @@
-# Task: Implement CogniMemoryBank and Adapter
+# Task: Implement FileMemoryBank and Adapter
 :type: Task
 :status: completed
 :project: [[project-langchain-memory-integration]]
@@ -12,7 +12,7 @@
 - [ ] Schema validation integration
 - [ ] Unit tests implemented
 
-Implementation is complete, including core logic (`CogniMemoryBank`) and LangChain adapter (`CogniLangchainMemoryAdapter`). Added `pytest` tests covering both classes and Markdown export.
+Implementation is complete, including core logic (`FileMemoryBank`) and LangChain adapter (`CogniLangchainMemoryAdapter`). Added `pytest` tests covering both classes and Markdown export.
 
 ## Description
 Implement the `MCPFileMemory` adapter that conforms to LangChain's `BaseMemory` interface while storing data in a schema-validated JSON format. This adapter will serve as the primary memory component for Cogni agents, replacing the current `CogniMemoryClient` with a LangChain-compatible solution that maintains all essential functionality.
@@ -35,7 +35,7 @@ Implement the `MCPFileMemory` adapter that conforms to LangChain's `BaseMemory` 
 - [x] Implement `history.json` read/write.
 - [x] Implement `write_context`, `log_decision`, `update_progress` methods.
 - [x] Implement `clear_session` method.
-- [x] Add `pytest` tests for `CogniMemoryBank` and `CogniLangchainMemoryAdapter`.
+- [x] Add `pytest` tests for `FileMemoryBank` and `CogniLangchainMemoryAdapter`.
 
 ## Deliverables
 1. `MCPFileMemory` class implementing BaseMemory interface

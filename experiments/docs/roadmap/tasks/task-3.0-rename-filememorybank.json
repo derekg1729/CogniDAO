@@ -2,8 +2,8 @@
   "type": "Task",
   "status": "todo",
   "project": "../project-CogniMemorySystem-POC.json",
-  "name": "Rename CogniMemoryBank to FileMemoryBank",
-  "description": "Rename the existing file-based CogniMemoryBank implementation to FileMemoryBank to clearly distinguish it from the new StructuredMemoryBank. Update relevant imports.",
+  "name": "Rename FileMemoryBank to FileMemoryBank",
+  "description": "Rename the existing file-based FileMemoryBank implementation to FileMemoryBank to clearly distinguish it from the new StructuredMemoryBank. Update relevant imports.",
   "phase": "⚙️ Phase 3: Agent + Tool Wiring (Structured Memory)",
   "implementation_details": {
     "target_files": [
@@ -11,22 +11,22 @@
     ],
     "dependent_files_to_update": [
       "infra_core/cogni_agents/base.py",
-      "other potential agent implementations importing CogniMemoryBank"
+      "other potential agent implementations importing FileMemoryBank"
     ]
   },
   "action_items": [
-    "[ ] Rename the `CogniMemoryBank` class to `FileMemoryBank` in `infra_core/memory/memory_bank.py`.",
-    "[ ] Update all import statements referencing `CogniMemoryBank` to use `FileMemoryBank` (e.g., in `infra_core/cogni_agents/base.py`).",
-    "[ ] Perform a codebase search for any other usages of `CogniMemoryBank` and update them."
+    "[x] Rename the `FileMemoryBank` class to `FileMemoryBank` in `infra_core/memory/memory_bank.py`.",
+    "[x] Update all import statements referencing `FileMemoryBank` to use `FileMemoryBank` (e.g., in `infra_core/cogni_agents/base.py`).",
+    "[x] Perform a codebase search for any other usages of `FileMemoryBank` and update them."
   ],
   "test_criteria": [
-    "[ ] Codebase search confirms no remaining instances of `CogniMemoryBank` class name.",
-    "[ ] Agents previously using `CogniMemoryBank` now correctly import and instantiate `FileMemoryBank`.",
-    "[ ] Existing tests that relied on the old class name pass after updating imports."
+    "[x] Codebase search confirms no remaining instances of `FileMemoryBank` class name.",
+    "[x] Agents previously using `FileMemoryBank` now correctly import and instantiate `FileMemoryBank`.",
+    "[x] Existing tests that relied on the old class name pass after updating imports."
   ],
   "success_criteria": [
-    "[ ] The file-based memory implementation is consistently named `FileMemoryBank` throughout the codebase.",
-    "[ ] No broken imports related to the rename exist."
+    "[x] The file-based memory implementation is consistently named `FileMemoryBank` throughout the codebase.",
+    "[x] No broken imports related to the rename exist."
   ],
   "current_status": "Task definition created."
 } 

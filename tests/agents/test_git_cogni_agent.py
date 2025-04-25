@@ -9,7 +9,7 @@ import tempfile
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from infra_core.cogni_agents.git_cogni.git_cogni import GitCogniAgent
-from infra_core.memory.memory_bank import CogniMemoryBank
+from infra_core.memory.memory_bank import FileMemoryBank
 
 
 class TestGitCogniAgent(unittest.TestCase):
@@ -71,7 +71,7 @@ class TestGitCogniAgent(unittest.TestCase):
         memory_bank_root = self.project_root_override / "data/memory_banks"
         
         # Create a real memory bank instance instead of a mock
-        agent_memory = CogniMemoryBank(
+        agent_memory = FileMemoryBank(
             memory_bank_root=memory_bank_root,
             project_name="git-cogni",
             session_id="test-session"
@@ -121,7 +121,7 @@ class TestGitCogniAgent(unittest.TestCase):
     
     @patch('infra_core.cogni_agents.base.CogniAgent.load_core_context')
     def test_load_core_context(self, mock_load_core_context):
-        """Test loading core context documents using CogniMemoryBank and fallbacks."""
+        """Test loading core context documents using FileMemoryBank and fallbacks."""
         
         # Skip the actual implementation since we're testing our test environment
         # Just make sure load_core_context can be called without errors

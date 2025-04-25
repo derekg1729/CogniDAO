@@ -6,7 +6,7 @@ from unittest.mock import patch, MagicMock
 
 # Import the update tool
 from infra_core.tools.broadcast_queue_update_tool import update_broadcast_queue_status
-from infra_core.memory.memory_bank import CogniMemoryBank
+from infra_core.memory.memory_bank import FileMemoryBank
 from infra_core.constants import (
     BROADCAST_QUEUE_TEST_SESSION,
     BROADCAST_QUEUE_TEST_ROOT
@@ -263,11 +263,11 @@ class TestBroadcastQueueUpdate:
         assert test_updates[0]["new_status"] == "needs_revision"
         assert updated_state["status"] == "needs_revision"
     
-    @patch('infra_core.memory.memory_bank.CogniMemoryBank')
+    @patch('infra_core.memory.memory_bank.FileMemoryBank')
     def test_memory_bank_integration(self, mock_memory_bank_class, setup_test_queue_env, create_test_queue_item, custom_update_tool):
         """Test that changes are logged to the memory bank."""
         # Set up mock
-        mock_instance = MagicMock(spec=CogniMemoryBank)
+        mock_instance = MagicMock(spec=FileMemoryBank)
         mock_memory_bank_class.return_value = mock_instance
         
         queue_data = create_test_queue_item
@@ -279,7 +279,7 @@ class TestBroadcastQueueUpdate:
         md_file.write_text(approved_content)
         
         # Run update tool
-        with patch('infra_core.tools.broadcast_queue_update_tool.CogniMemoryBank', mock_memory_bank_class):
+        with patch('infra_core.tools.broadcast_queue_update_tool.FileMemoryBank', mock_memory_bank_class):
             custom_update_tool()
         
         # Verify memory bank was used to log decision

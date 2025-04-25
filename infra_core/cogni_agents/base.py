@@ -1,6 +1,6 @@
 """
 Refactored CogniAgent base module
-Replaces memory_client with CogniMemoryBank
+Replaces memory_client with FileMemoryBank
 """
 
 from abc import ABC, abstractmethod
@@ -12,7 +12,7 @@ from typing import Dict, Any, List, Optional
 from infra_core.constants import MEMORY_BANKS_ROOT
 
 # Import BaseCogniMemory for type hinting
-from infra_core.memory.memory_bank import CogniMemoryBank, BaseCogniMemory
+from infra_core.memory.memory_bank import FileMemoryBank, BaseCogniMemory
 
 
 class CogniAgent(ABC):
@@ -95,7 +95,7 @@ class CogniAgent(ABC):
         # Define the location of the central core memory bank.
         # Use the absolute path defined in constants, do NOT prepend self.project_root
         core_bank_root = Path(MEMORY_BANKS_ROOT)
-        core_bank = CogniMemoryBank(
+        core_bank = FileMemoryBank(
             memory_bank_root=core_bank_root,
             project_name="core", 
             session_id="main"
@@ -168,7 +168,7 @@ class CogniAgent(ABC):
 
         # Define the location of the central core memory bank, respecting project_root_override
         core_bank_root = self.project_root / "infra_core/memory/banks"
-        core_bank = CogniMemoryBank(
+        core_bank = FileMemoryBank(
             memory_bank_root=core_bank_root, # Use calculated path
             project_name="core",
             session_id="main"

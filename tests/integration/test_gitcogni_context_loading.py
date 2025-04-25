@@ -8,8 +8,8 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from infra_core.cogni_agents.git_cogni.git_cogni import GitCogniAgent
-from infra_core.memory.memory_bank import CogniMemoryBank
-# No need to import CogniMemoryBank here unless patching
+from infra_core.memory.memory_bank import FileMemoryBank
+# No need to import FileMemoryBank here unless patching
 
 
 class TestGitCogniContextLoading(unittest.TestCase):
@@ -74,7 +74,7 @@ class TestGitCogniContextLoading(unittest.TestCase):
         memory_bank_root = self.project_root_override / "data/memory_banks"
         
         # Create a real memory bank instance instead of a mock
-        agent_memory = CogniMemoryBank(
+        agent_memory = FileMemoryBank(
             memory_bank_root=memory_bank_root,
             project_name="git-cogni",
             session_id="test-session"

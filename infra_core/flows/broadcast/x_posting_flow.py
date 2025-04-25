@@ -23,7 +23,7 @@ from infra_core.constants import (
 )
 
 # --- Memory Imports ---
-from infra_core.memory.memory_bank import CogniMemoryBank
+from infra_core.memory.memory_bank import FileMemoryBank
 
 # --- Channel Imports ---
 from infra_core.flows.broadcast.channel_interface import BroadcastChannel
@@ -259,7 +259,7 @@ def update_queue_status() -> Dict[str, Any]:
     return result
 
 @task
-def filter_already_posted(approved_posts: List[Dict[str, Any]], flow_memory_bank: CogniMemoryBank) -> List[Dict[str, Any]]:
+def filter_already_posted(approved_posts: List[Dict[str, Any]], flow_memory_bank: FileMemoryBank) -> List[Dict[str, Any]]:
     """
     Filters out posts that have already been successfully posted by checking flow history
     
@@ -387,7 +387,7 @@ def x_posting_flow(
     memory_root = Path(MEMORY_BANKS_ROOT)
     memory_root.mkdir(parents=True, exist_ok=True)
     
-    flow_memory_bank = CogniMemoryBank(
+    flow_memory_bank = FileMemoryBank(
         memory_bank_root=memory_root,
         project_name=f"{BROADCAST_QUEUE_PROJECT}",
         session_id=f"{BROADCAST_QUEUE_SESSION}"  # Use fixed session ID for unified memory
@@ -486,7 +486,7 @@ async def async_x_posting_flow(
     memory_root = Path(MEMORY_BANKS_ROOT)
     memory_root.mkdir(parents=True, exist_ok=True)
     
-    flow_memory_bank = CogniMemoryBank(
+    flow_memory_bank = FileMemoryBank(
         memory_bank_root=memory_root,
         project_name=f"flows/{flow_project_name}",
         session_id="main"  # Use fixed session ID for unified memory

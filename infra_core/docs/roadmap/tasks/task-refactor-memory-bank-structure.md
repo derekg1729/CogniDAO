@@ -15,10 +15,10 @@ Reorganize the memory bank structure to eliminate redundancy, improve clarity, a
 
 ## Action Items
 - [ ] Modify `CogniAgent.__init__` (`infra_core/cogni_agents/base.py`):
-    - [ ] Remove the internal creation of a default `CogniMemoryBank`.
+    - [ ] Remove the internal creation of a default `FileMemoryBank`.
     - [ ] Change signature to accept a `memory: BaseCogniMemory` instance passed during instantiation.
 - [ ] Update agent instantiations in flows (e.g., `ritual_of_presence.py`):
-    - [ ] Create **one** `CogniMemoryBank` instance per flow run (e.g., `project_name="flows/ritual_of_presence", session_id="ritual-session"`).
+    - [ ] Create **one** `FileMemoryBank` instance per flow run (e.g., `project_name="flows/ritual_of_presence", session_id="ritual-session"`).
     - [ ] Pass this single bank instance to all agents created within that flow.
 - [ ] Modify `load_core_context` in `CogniAgent`:
     - [ ] Implement logic to read core documents (Charter, Manifesto, etc.) from a designated central bank (e.g., `project_name="core", session_id="main"`).

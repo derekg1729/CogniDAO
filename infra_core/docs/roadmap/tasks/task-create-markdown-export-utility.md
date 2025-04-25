@@ -11,7 +11,7 @@
 - [ ] Memory block export implemented
 - [ ] Agent output export implemented
 - [ ] Tests completed
-A method `export_history_markdown` was added to `CogniMemoryBank` and tested successfully.
+A method `export_history_markdown` was added to `FileMemoryBank` and tested successfully.
 
 ## Description
 Create a minimal Markdown export utility to convert JSON memory data into human-readable output formatting when needed. This utility will provide basic rendering of memory blocks and agent outputs into Markdown format, ensuring human readability while keeping the implementation simple and focused.
@@ -29,7 +29,7 @@ Create a minimal Markdown export utility to convert JSON memory data into human-
 
 ## Action Items
 - [x] Design simple Markdown format for conversation history (e.g., using `### Human:` and `### AI:` headers).
-- [x] Implement an `export_history_markdown()` method within the `CogniMemoryBank` class or as a standalone function.
+- [x] Implement an `export_history_markdown()` method within the `FileMemoryBank` class or as a standalone function.
   - [x] This method should read `history.json` using existing `read_history_dicts()`.
   - [x] It should iterate through the message dictionaries and format them into a single Markdown string.
   - [x] Consider how to handle different message types if the structure evolves beyond simple human/ai pairs. (Current implementation handles basic 'type' and 'data.content').
