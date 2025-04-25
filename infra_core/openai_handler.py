@@ -177,7 +177,7 @@ def thread_completion(
         if run_status.status == 'completed':
             break
         elif run_status.status in ['failed', 'cancelled', 'expired']:
-            raise ValueError(f"Assistant run failed with status: {run_status.status}")
+            raise ValueError(f"Assistant run failed with status: {run_status}")
             
         # Wait before polling again
         import time

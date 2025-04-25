@@ -1,0 +1,23 @@
+{
+  "type": "Task",
+  "status": "completed",
+  "project": "CogniMemorySystem-POC",
+  "name": "Basic Index Test (Manual Block -> Index -> Query)",
+  "description": "Perform a basic end-to-end test of the LlamaIndex vector store: manually create a MemoryBlock, convert it to a LlamaIndex Node, index it in ChromaDB, and perform a simple semantic query.",
+  "action_items": [
+    "[x] Define a sample `MemoryBlock` instance (in code, not from Dolt yet). - Done in test_llama_memory.py",
+    "[x] Implement a basic function to convert a `MemoryBlock` to a LlamaIndex `Node` (initially just text and basic metadata). - Implemented in LlamaMemory.add_block",
+    "[x] Write script to: - Done in test_llama_memory.py",
+    "  [x] Connect to the initialized ChromaDB store. - Handled by LlamaMemory.__init__",
+    "  [x] Create a LlamaIndex `VectorStoreIndex` from the ChromaDB store. - Handled by LlamaMemory.__init__",
+    "  [x] Convert the sample `MemoryBlock` to a `Node`. - Done in LlamaMemory.add_block",
+    "  [x] Insert the `Node` into the index. - Done in LlamaMemory.add_block",
+    "  [x] Create a query engine from the index. - Handled by LlamaMemory.__init__",
+    "  [x] Perform a semantic query related to the sample block's content. - Done in test_llama_memory.py"
+  ],
+  "test_criteria": [
+    "[x] Script executes without errors. - Verified",
+    "[x] The semantic query successfully retrieves the manually created and indexed Node. - Verified"
+  ],
+  "current_status": "Successfully created a test script (test_llama_memory.py) that adds a sample MemoryBlock to the LlamaMemory index (ChromaDB backend) and retrieves it via semantic query. Core indexing/query loop is functional."
+} 

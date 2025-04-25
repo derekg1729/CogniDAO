@@ -1,0 +1,69 @@
+{
+  "type": "Task",
+  "status": "completed",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "1.3",
+  "title": "Write Pydantic MemoryBlock to Dolt Conversion",
+  "phase": "🧱 Phase 1: Schema + Rapid Indexing Loop",
+  "goal": "Create a Python function to serialize a MemoryBlock Pydantic object and insert/replace it into the Dolt `memory_blocks` table.",
+  "schema_references": [
+    "experiments/src/memory_system/schemas/memory_block.py",
+    "experiments/dolt_data/memory_db/memory_blocks"
+  ],
+  "action_items": [
+    "[x] Create `experiments/src/memory_system/dolt_writer.py`.",
+    "[x] Define a function `write_memory_block_to_dolt(block: MemoryBlock, db_path: str)`.",
+    "[x] Use `doltpy.cli.Dolt` to connect to the database at `db_path`.",
+    "[x] Serialize `tags`, `metadata`, `links`, `confidence` fields to JSON strings.",
+    "[x] Handle `datetime` fields appropriately for SQL.",
+    "[x] Construct a `REPLACE INTO memory_blocks (...) VALUES (...)` SQL query.",
+    "[x] Execute the query using `doltpy` (e.g., `dolt.sql(...)`).",
+    "[x] Add basic error handling (e.g., connection errors).",
+    "[x] Create a simple test script/test case to call the function with a sample `MemoryBlock`.",
+    "[x] Add auto-commit functionality with `dolt add`, `dolt commit`.",
+    "[x] Implement commit hash retrieval using `DOLT_HASHOF_DB('HEAD')`."
+  ],
+  "test_criteria": [
+    "A sample `MemoryBlock` object can be successfully written to the Dolt database using the function.",
+    "Querying the Dolt table (`dolt sql -q 'SELECT * FROM memory_blocks WHERE id=...'`) shows the correctly inserted data, including JSON fields.",
+    "Running the script with `auto_commit=True` creates a new Dolt commit.",
+    "The script returns the correct commit hash after a successful commit."
+  ],
+  "current_status": "Implementation completed and validated via CLI checks. Uses `doltpy.cli.Dolt` and raw SQL for writes. Auto-commit and hash retrieval using DOLT_HASHOF_DB added and tested.",
+  "validation_log": {
+    "validation_run": {
+      "target_script": "experiments/src/memory_system/dolt_writer.py",
+      "timestamp": "2025-04-22T17:03:00Z",
+      "steps": [
+        {
+          "id": "Step 1: Confirm Block Was Written",
+          "description": "Verify that the 'hello-dolt-001' memory block exists in the 'memory_blocks' table with the correct data.",
+          "command": "dolt sql -q \"SELECT * FROM memory_blocks WHERE id = 'hello-dolt-001'\"",
+          "context": "Run inside experiments/dolt_data/memory_db directory",
+          "expected_outcome": "Row for 'hello-dolt-001' is returned with text, tags, metadata.",
+          "actual_outcome": "Query returned the row for 'hello-dolt-001' with expected data.",
+          "status": "Passed"
+        },
+        {
+          "id": "Step 2: Confirm Commit Landed",
+          "description": "Check the latest commit log entry to ensure the write operation was committed.",
+          "command": "dolt log -n 1",
+          "context": "Run inside experiments/dolt_data/memory_db directory",
+          "expected_outcome": "Log entry shows a commit with hash 'oi6atl09umap1t9v5stk1vboe6bmglsv' and message 'Write memory block hello-dolt-001'.",
+          "actual_outcome": "Log showed commit 'oi6atl09umap1t9v5stk1vboe6bmglsv' with the correct message.",
+          "status": "Passed"
+        },
+        {
+          "id": "Step 4: Confirm Branch Commit Hash",
+          "description": "Verify the commit hash associated with the 'main' branch using DOLT_HASHOF.",
+          "command": "dolt sql -q \"SELECT DOLT_HASHOF('main')\"",
+          "context": "Run inside experiments/dolt_data/memory_db directory",
+          "expected_outcome": "Query returns the commit hash 'oi6atl09umap1t9v5stk1vboe6bmglsv'.",
+          "actual_outcome": "Query returned 'oi6atl09umap1t9v5stk1vboe6bmglsv'.",
+          "status": "Passed"
+        }
+      ],
+      "overall_status": "Passed"
+    }
+  }
+} 

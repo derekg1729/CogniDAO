@@ -1,0 +1,25 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "4.1",
+  "title": "Create /api/chat endpoint",
+  "phase": "🌐 Frontend + API Hookup",
+  "goal": "Provide an API interface to relay user messages to the LangChain agent.",
+  "action_items": [
+    "[ ] Set up a basic FastAPI application.",
+    "[ ] Define a Pydantic model for the incoming request body (e.g., `ChatMessageRequest` with a `message` field).",
+    "[ ] Create a POST endpoint at `/api/chat`.",
+    "[ ] In the endpoint handler, receive the request body.",
+    "[ ] Instantiate or access the LangChain agent (from Phase 3).",
+    "[ ] Invoke the agent with the user's message.",
+    "[ ] Implement streaming response (e.g., using FastAPI's `StreamingResponse` and LangChain's `AsyncIteratorCallbackHandler` or Vercel AI SDK).",
+    "[ ] Define CORS settings if the frontend will be on a different origin."
+  ],
+  "test_criteria": [
+    "Send a POST request to `/api/chat` using `curl` or a tool like Postman with a JSON body `{ "message": "Hi" }`.",
+    "Verify the endpoint returns a streaming response.",
+    "Verify the streamed content corresponds to the agent's output (e.g., 'Hello, I am Cogni' initially, or memory-augmented later)."
+  ],
+  "current_status": "Not started."
+} 

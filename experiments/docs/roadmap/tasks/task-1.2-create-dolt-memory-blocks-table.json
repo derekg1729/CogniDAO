@@ -1,0 +1,28 @@
+{
+  "type": "Task",
+  "status": "completed",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "1.2",
+  "title": "Create Dolt `memory_blocks` table schema",
+  "phase": "🧱 Phase 1: Schema + Rapid Indexing Loop",
+  "goal": "Define the SQL table structure in Dolt to store MemoryBlock data, mirroring the Pydantic schema.",
+  "schema_references": [
+    "project.schemas.dolt_sql",
+    "experiments/src/memory_system/schemas/memory_block.py"
+  ],
+  "action_items": [
+    "[x] Install Dolt CLI (e.g., via Homebrew).",
+    "[x] Configure Dolt user identity (`dolt config --global ...`).",
+    "[x] Create directory `experiments/dolt_data/memory_db`.",
+    "[x] Initialize Dolt repository within the created directory (`dolt init`).",
+    "[x] Define `CREATE TABLE memory_blocks (...)` SQL statement based on `MemoryBlock` Pydantic model.",
+    "[x] Use appropriate SQL types (e.g., `VARCHAR(36)` for ID, `TEXT`, `DATETIME`, `JSON` for complex fields).",
+    "[x] Execute the `CREATE TABLE` statement using `dolt sql -q \"...\"`"
+  ],
+  "test_criteria": [
+    "`experiments/dolt_data/memory_db/.dolt` directory exists.",
+    "Running `dolt table ls` within `experiments/dolt_data/memory_db` shows the `memory_blocks` table.",
+    "Running `dolt schema show memory_blocks` shows the correct column names and types."
+  ],
+  "current_status": "Completed. Installed Dolt CLI, configured user identity, initialized Dolt repo in `experiments/dolt_data/memory_db`, and successfully created the `memory_blocks` table with the appropriate schema using `VARCHAR(36)` for the primary key."
+}

@@ -1,0 +1,90 @@
+{
+  "type": "Project",
+  "status": "planning",
+  "epic": "[[Epic_CodeBlock_Graphs]]", // Assuming this Epic exists or will be created
+  "name": "CogniCodeIndexingSystem-POC",
+  "description": "Proof-of-concept for parsing and semantically indexing AI system code into CodeBlocks within the CogniMemory graph. CodeBlocks will be linked to MemoryBlocks and governed by the same primitives as memory: versioned commits, semantic links, agent reflection, and DAO approval.",
+  "implementation_flow": [
+    {
+      "phase": "📘 Phase 1: Selective CodeBlocks",
+      "tasks": [
+        "task-ccs-1.1-identify-critical-code-files.json",
+        "task-ccs-1.2-manually-parse-functions-to-codeblocks.json",
+        "task-ccs-1.3-save-as-memoryblock-type-code.json"
+      ]
+    },
+    {
+      "phase": "🧠 Phase 2: Auto-Extracted Code Graph",
+      "tasks": [
+        "task-ccs-2.1-build-script-parse-functions-and-classes.json",
+        "task-ccs-2.2-generate-codeblock-metadata.json",
+        "task-ccs-2.3-index-codeblocks-with-llamaindex.json",
+        "task-ccs-2.4-tag-functions-with-memory-interaction.json"
+      ]
+    },
+    {
+      "phase": "🕸️ Phase 3: Link Code ↔ Memory",
+      "tasks": [
+        "task-ccs-3.1-match-codeblocks-to-memory-operations.json",
+        "task-ccs-3.2-create-cross-block-links.json",
+        "task-ccs-3.3-query-memory-and-code-together.json"
+      ]
+    },
+    {
+      "phase": "🌍 Phase 4: Emergent OS Behaviors",
+      "tasks": [
+        "task-ccs-4.1-auto-generate-docs-from-linked-blocks.json",
+        "task-ccs-4.2-agent-proposes-codeblock-edits-via-tools.json",
+        "task-ccs-4.3-dao-approves-code-prs.json",
+        "task-ccs-4.4-query-codegraph-llm-reflection.json",
+        "task-ccs-4.5-gitcogni-query-indexed-files-for-pr-review.json"
+      ]
+    }
+  ],
+  "schemas": {
+    "code_block": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "CodeBlock",
+      "type": "object",
+      "required": ["id", "type", "text"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["code"] },
+        "text": { "type": "string" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "file": { "type": "string" },
+            "docstring": { "type": "string" },
+            "function_name": { "type": "string" },
+            "defined_in": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["to_id", "relation"],
+            "properties": {
+              "to_id": { "type": "string" },
+              "relation": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "success_criteria": [
+    "Index core code functions as CodeBlocks into CogniMemory graph.",
+    "Retrieve relevant CodeBlocks from LlamaIndex using natural language queries.",
+    "Link CodeBlocks to related MemoryBlocks via tags and graph relationships.",
+    "Show that agents can reason across both code and knowledge graphs.",
+    "Generate agent proposals to update CodeBlocks, reviewed like memory proposals.",
+    "Enable GitCogni to query indexed CodeBlocks to contextually review pull requests."
+  ]
+} 

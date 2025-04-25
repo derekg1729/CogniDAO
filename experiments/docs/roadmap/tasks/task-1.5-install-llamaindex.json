@@ -1,0 +1,16 @@
+{
+  "type": "Task",
+  "status": "in-progress",
+  "project": "CogniMemorySystem-POC",
+  "name": "Install LlamaIndex",
+  "description": "Install the LlamaIndex library and its core dependencies.",
+  "action_items": [
+    "[x] Identify required LlamaIndex packages (e.g., `llama-index`, specific integrations if known). - Found in requirements.txt",
+    "[x] Add LlamaIndex to project dependencies (e.g., requirements.txt or pyproject.toml). - Already present in requirements.txt",
+    "[x] Verify installation by importing LlamaIndex in a test script or interactive session. - Verified with `python -c 'import llama_index'`"
+  ],
+  "test_criteria": [
+    "Successful import of `llama_index`. - Verified with `python -c 'import llama_index'`"
+  ],
+  "current_status": "LlamaIndex and related dependencies confirmed present in requirements.txt and installation verified via pip install and successful import test."
+} 

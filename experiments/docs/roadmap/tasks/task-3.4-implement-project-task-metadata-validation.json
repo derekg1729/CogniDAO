@@ -1,0 +1,40 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "CogniMemorySystem-POC",
+  "name": "Implement and Test Metadata Validation for Project and Task MemoryBlocks",
+  "description": "Finalize and test Pydantic submodels for project and task metadata within MemoryBlock.metadata. Ensure instances are valid per block type, and index them into LlamaIndex with structured filtering support.",
+  "epic": "⚙️ Phase 3: Agent + Tool Wiring",
+  "implementation_details": {
+    "target_files": [
+      "experiments/src/memory_system/schemas/memory_block.py",
+      "(MemoryBlock creation logic, likely in Task 3.3 tool)",
+      "(Indexing logic, likely in LlamaMemory or Task 3.3 tool)",
+      "(Retrieval/filtering logic, e.g., in Task 2.2 or new query functions/tools)"
+    ],
+    "dolt_tables": ["memory_blocks", "node_schemas (optional)"]
+  },
+  "action_items": [
+    "[ ] Finalize ProjectMetadata and TaskMetadata models in `memory_block.py`: Add any missing fields (e.g., `status`, `priority`, `assignee`, `deadline`) and confirm types align with downstream agent usage.",
+    "[ ] Enforce Validation Using TYPE_METADATA_MAP: Update MemoryBlock creation logic (likely in Task 3.3 tool) to validate that `metadata` conforms to the correct Pydantic submodel based on the block's `type`.",
+    "[ ] Seed Example MemoryBlocks: Create and save to Dolt at least one `project` and one `task` block with valid, populated metadata. Confirm successful save and retrieval.",
+    "[ ] Index with LlamaIndex: Ensure the structured metadata (ideally flattened or as JSON string) is included in the `Node.metadata` during indexing (confirm logic in Task 2.1 converter and Task 3.3 indexing trigger).",
+    "[ ] Query by Task Metadata: Implement and test querying/filtering nodes based on metadata fields (e.g., task status, assignee) using LlamaIndex metadata filters or LangChain tool parameters.",
+    "[ ] (Optional) Persist JSON Schema in Dolt: Implement logic (perhaps in `generate_dolt_schema.py` or manually) to export metadata submodel JSON schemas using `model_json_schema()` and save them to the `node_schemas` table (requires Task 2.0 completion)."
+  ],
+  "test_criteria": [
+    "[ ] `ProjectMetadata` and `TaskMetadata` Pydantic models are defined with relevant fields.",
+    "[ ] MemoryBlock creation fails or warns if `metadata` is invalid for the given `type`.",
+    "[ ] Example `project` and `task` blocks with valid metadata exist in Dolt.",
+    "[ ] Indexed LlamaIndex nodes for these blocks contain the structured metadata.",
+    "[ ] LlamaIndex queries successfully filter nodes based on specific metadata fields (e.g., `status == 'todo'`).",
+    "[ ] (Optional) JSON schemas for metadata submodels are present in the `node_schemas` Dolt table."
+  ],
+  "success_criteria": [
+    "[ ] Validation for `project` and `task` metadata is enforced during MemoryBlock creation.",
+    "[ ] Structured metadata is correctly indexed and usable for filtering MemoryBlocks.",
+    "[ ] Example blocks demonstrating the functionality exist."
+  ],
+  "tags": ["metadata", "memoryblock", "project-management", "pydantic", "llamaindex", "validation"],
+  "current_status": "Task definition created based on feedback."
+} 

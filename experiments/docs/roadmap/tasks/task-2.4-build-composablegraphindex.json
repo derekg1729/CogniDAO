@@ -1,0 +1,36 @@
+{
+  "type": "Task",
+  "status": "completed",
+  "project": "CogniMemorySystem-POC",
+  "name": "Build Composable Graph Index",
+  "description": "Set up and integrate a LlamaIndex graph store (e.g., KnowledgeGraphIndex, SimpleGraphStore) alongside the vector store within the LlamaMemory class to store and manage block relationships.",
+  "implementation_details": {
+    "target_file": "experiments/src/memory_system/llama_memory.py",
+    "test_file": "experiments/src/memory_system/tests/test_llama_memory.py"
+  },
+  "action_items": [
+    "[x] Research & Decide: Choose the most suitable LlamaIndex graph mechanism (Implicitly chose SimpleGraphStore based on code).",
+    "[x] Modify `LlamaMemory.__init__`: Initialize the chosen graph index/store. Ensure it shares the same `StorageContext` or underlying stores (like ChromaDB) if appropriate, or configure its persistence. (Implemented in code).",
+    "[x] Modify Indexing Method(s) (e.g., `add_nodes` or `_index_nodes`): (Implemented in `add_block` and `update_block`).",
+    "[x]   Ensure that nodes created by `memory_block_to_node` (now including relationships from Task 2.3) are explicitly added to *both* the vector index and the graph index/store. (Implemented in code using `upsert_triplet`).",
+    "[x]   Verify if the chosen graph store automatically infers relationships from `TextNode.relationships` or if explicit relationship insertion APIs need to be called (e.g., `graph_store.add_triplets`). (Confirmed explicit call needed and implemented).",
+    "[x] (TDD) Add integration tests to `test_llama_memory.py`. (Added `test_graph_relationships` and `test_graph_link_to_nonexistent`).",
+    "[x] (TDD) Write test: Create multiple `MemoryBlock` objects with links between them (e.g., A->B, A->C). (Done in `test_graph_relationships`).",
+    "[x] (TDD) Convert them to nodes using the updated converter. (Implicitly tested).",
+    "[x] (TDD) Index these nodes using the `LlamaMemory` indexing method. (Done in tests).",
+    "[x] (TDD) Assert that querying the vector store still works for these nodes. (Confirmed by passing suite).",
+    "[x] (TDD) Query the graph store/index directly (if API allows) or retrieve nodes via vector search and inspect their `relationships` attribute to confirm the A->B and A->C links were persisted in the graph structure. (Done via `get_rel_map` and `get_backlinks` in tests)."
+  ],
+  "test_criteria": [
+    "[x] Integration tests pass in `test_llama_memory.py`. (All 8 tests pass).",
+    "[x] Test confirms that indexing multiple linked `MemoryBlock` objects results in updates to *both* the vector index and the graph store/index within `LlamaMemory`. (Verified by `test_graph_relationships`).",
+    "[x] Test successfully retrieves a node and inspects its `relationships` (or queries the graph store directly) to confirm the expected graph structure reflects the indexed links. (Verified by `test_graph_relationships`).",
+    "[x] Test verifies indexing a block that links to a non-existent ID handles the situation gracefully (e.g., doesn't crash, potentially logs a warning). (Verified by `test_graph_link_to_nonexistent`)."
+  ],
+  "success_criteria": [
+    "[x] The `LlamaMemory` system initializes and manages both a vector store and a graph store/index. (Implemented in code).",
+    "[x] The indexing process correctly populates both stores with node data and relationship information derived from `MemoryBlocks`. (Implemented in code, verified by tests).",
+    "[x] Integration tests demonstrate that linked blocks are structurally represented within the graph component. (Verified by tests)."
+  ],
+  "current_status": "Task complete. SimpleGraphStore integrated into LlamaMemory. Graph relationships are stored during add/update operations. Tests added (`test_graph_relationships`, `test_graph_link_to_nonexistent`) confirming graph functionality, including handling links to non-existent nodes and verifying via `get_rel_map` and `get_backlinks`. All tests pass."
+} 

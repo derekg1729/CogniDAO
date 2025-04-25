@@ -1,0 +1,29 @@
+{
+  "type": "Task",
+  "status": "completed",
+  "project": "CogniMemorySystem-POC",
+  "name": "Create Basic Retrieval Function",
+  "description": "Implement a function/method to perform semantic search against the indexed MemoryBlocks using the LlamaIndex vector store.",
+  "implementation_details": {
+    "target_file": "experiments/src/memory_system/llama_memory.py",
+    "test_file": "experiments/src/memory_system/tests/test_llama_memory.py"
+  },
+  "action_items": [
+    "[x] Define method signature in `LlamaMemory` class: `def query_vector_store(self, query_text: str, top_k: int = 5) -> List[NodeWithScore]:` (adjust return type if needed).",
+    "[x] Ensure the method accesses the initialized LlamaIndex `VectorStoreIndex` instance held by the `LlamaMemory` class.",
+    "[x] Use the index's query engine (`index.as_query_engine()`) to retrieve nodes based on `query_text` and `top_k`.",
+    "[x] Return the list of retrieved LlamaIndex `NodeWithScore` objects.",
+    "[x] (TDD) Add tests to `test_llama_memory.py`.",
+    "[x] (TDD) Write test: Use `memory_block_to_node` (from 2.1) to create a node, index it using `LlamaMemory.add_nodes`, then call `query_vector_store` with relevant text and assert the original node ID is retrieved with a high score."
+  ],
+  "test_criteria": [
+    "[x] Unit/Integration tests pass for `LlamaMemory.query_vector_store`.",
+    "[x] Test confirms that indexing a `MemoryBlock` (via the node converter) and then querying with relevant text retrieves the correct `NodeWithScore` (checking ID and score > threshold).",
+    "[x] Test confirms that querying with irrelevant text does *not* retrieve the indexed block or returns it with a significantly lower score."
+  ],
+  "success_criteria": [
+    "[x] The `LlamaMemory` class has a method that can perform semantic search against the LlamaIndex vector store.",
+    "[x] Tests demonstrate a basic index -> query -> retrieval loop works for semantic similarity."
+  ],
+  "current_status": "Completed implementation of query_vector_store method in LlamaMemory class. Created comprehensive test suite in test_llama_memory.py that verifies semantic search functionality, including ranking of results by relevance."
+} 

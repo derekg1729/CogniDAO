@@ -1,0 +1,24 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "4.2",
+  "title": "Build basic frontend chatbox with message history",
+  "phase": "🌐 Frontend + API Hookup",
+  "goal": "Provide a user interface for sending messages and viewing streamed responses.",
+  "action_items": [
+    "[ ] Choose a frontend framework (e.g., Next.js, React, basic HTML+JS).",
+    "[ ] Create a simple UI with an input field and a submit button.",
+    "[ ] Add a display area for showing the conversation history (user messages and agent responses).",
+    "[ ] Implement JavaScript to capture user input and send it to the `/api/chat` endpoint (Task 4.1) via a POST request.",
+    "[ ] Implement JavaScript to handle the streaming response from the API.",
+    "[ ] Append the streamed tokens to the message history display area in real-time."
+  ],
+  "test_criteria": [
+    "Open the frontend UI in a browser.",
+    "Type a message (e.g., 'Hi') into the input field and submit.",
+    "Verify the user message appears in the history.",
+    "Verify the agent's response streams into the history display area."
+  ],
+  "current_status": "Not started."
+} 

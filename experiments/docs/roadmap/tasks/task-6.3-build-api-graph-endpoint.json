@@ -1,0 +1,23 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "6.3",
+  "title": "Build /api/graph endpoint for frontend graph visualization",
+  "phase": "🧪 Optional Debugging + Inspection",
+  "goal": "Expose the memory block relationships as structured graph data for visualization.",
+  "action_items": [
+    "[ ] Create a new GET endpoint in the FastAPI app, e.g., `/api/graph`.",
+    "[ ] In the endpoint handler, query Dolt for both `memory_blocks` and `block_links` tables.",
+    "[ ] Format the data into a structure suitable for graph libraries like Cytoscape.js:",
+    "[ ]   - A list of nodes (e.g., `{ data: { id: 'block_id', label: 'block_text_snippet', type: 'block_type' } }`).",
+    "[ ]   - A list of edges (e.g., `{ data: { source: 'source_id', target: 'target_id', relation: 'link_type' } }`).",
+    "[ ] Return the formatted graph data as a JSON response."
+  ],
+  "test_criteria": [
+    "Make a GET request to the `/api/graph` endpoint.",
+    "Verify the endpoint returns a JSON object with 'nodes' and 'edges' keys.",
+    "Verify the structure and content of nodes and edges match the data in the Dolt tables."
+  ],
+  "current_status": "Not started."
+} 

@@ -1,0 +1,38 @@
+{
+  "title": "Dolt Usage Strategy for Cogni Memory System",
+  "description": "Outlines the strategy for using Dolt for versioned memory storage during the MVP (Proof-of-Concept) phase conducted within the /experiments directory and the planned migration path for production.",
+  "mvp_phase": {
+    "phase_name": "MVP (Experiments Directory)",
+    "dolt_location": "./.dolt/ relative to experiments/dolt_data/memory_db",
+    "tracked_in_git": true,
+    "rationale": [
+      "Primary Git repo already tracks .md design files and experimental code, acting as a historical ledger.",
+      "Integrating Dolt history directly simplifies traceability between code and memory state for POC.",
+      "Provides convenience for development without separate repo management in early phase."
+    ],
+    "usage_notes": {
+      "sync_commits": "Aim to pair Dolt commits with relevant Git commits to link memory state and code versions.",
+      "monitor_size": "Monitor size of experiments/dolt_data/memory_db/.dolt/noms/ folder to prevent Git bloat.",
+      "readme_required": "Add a README.md inside experiments/dolt_data/memory_db explaining this strategy."
+    }
+  },
+  "migration_plan": {
+    "phase_name": "Migration Plan to Production",
+    "trigger_conditions": [
+      "Dolt data directory grows significantly (e.g., > 100MB) impacting Git performance.",
+      "Agent memory updates become very frequent or high-volume.",
+      "Need to expose memory repo publicly, share independently, or connect to other services."
+    ],
+    "future_action": "Migrate Dolt database to a standalone repository (e.g., 'cogni-memory-dolt') or deploy as a separate service.",
+    "sync_method": [
+      "Referencing specific Dolt commit hashes in application configuration/deployments.",
+      "CI/CD automation pipelines pulling specific memory states."
+    ],
+    "recommended_structure": "Standalone Dolt repository or a Dolt SQL server (API access or embedded mode)."
+  },
+  "success_criteria": [
+    "MVP: Dolt schema, data, and commits function correctly in /experiments without bloating Git history.",
+    "Documentation: Strategy for MVP and migration path are clearly documented.",
+    "Auditability: Dolt commits are reasonably paired with corresponding Git commits."
+  ]
+} 

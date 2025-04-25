@@ -1,0 +1,24 @@
+{
+  "type": "Task",
+  "status": "completed",
+  "project": "CogniMemorySystem-POC",
+  "name": "Define and Register Block Type Schemas",
+  "description": "Create structured Pydantic sub-schemas for each `MemoryBlock.type` (e.g., task, project, doc, thought) and register their JSON Schema output into the `node_schemas` Dolt table.",
+  "implementation_details": {
+    "target_file": "experiments/src/memory_system/schemas/memory_block.py",
+    "dolt_table": "node_schemas"
+  },
+  "action_items": [
+    "[x] Define Pydantic models for `TaskMetadata`, `ProjectMetadata`, `DocMetadata`, and `KnowledgeMetadata`.",
+    "[x] Validate and export each model's JSON Schema using `model_json_schema()`.",
+    "[x] Implement a utility function to insert or update each schema definition into the Dolt `node_schemas` table.",
+    "[x] Ensure each schema has a `schema_version` and is registered under the appropriate `node_type`.",
+    "[x] Create a test or script to verify schema registration works and persists correctly in Dolt."
+  ],
+  "success_criteria": [
+    "[x] All current `MemoryBlock.type` variants have a registered schema in Dolt.",
+    "[x] The `node_schemas` table reflects a valid JSON Schema for each type.",
+    "[x] Schema registration can be triggered automatically or manually in future tooling pipelines."
+  ],
+  "current_status": "Implementation complete. Enhanced the existing placeholder metadata models in memory_block.py with full definitions for ProjectMetadata, TaskMetadata, DocMetadata, and KnowledgeMetadata. Created schema_registry.py with functions to register schemas in Dolt, including register_schema(), register_all_metadata_schemas(), get_schema(), and list_available_schemas(). Added a comprehensive test suite in test_schema_registry.py to verify all functionality."
+} 

@@ -1,0 +1,35 @@
+{
+  "type": "Task",
+  "status": "completed",
+  "project": "CogniMemorySystem-POC",
+  "name": "Build MemoryBlock to Node Function",
+  "description": "Create a function to convert a MemoryBlock Pydantic object into a LlamaIndex TextNode, including essential metadata and enriched text.",
+  "implementation_details": {
+    "target_file": "experiments/src/memory_system/conversion.py",
+    "test_file": "experiments/src/memory_system/tests/test_conversion.py"
+  },
+  "action_items": [
+    "[x] Define function signature: `def memory_block_to_node(block: MemoryBlock) -> TextNode:`",
+    "[x] Import `MemoryBlock` from `experiments.src.memory_system.schemas.memory_block` and `TextNode` from `llama_index.core.schema`.",
+    "[x] Instantiate `TextNode` within the function.",
+    "[x] Map `block.text` to enriched `TextNode.text` (including Title, Type, Tags).",
+    "[x] Map `block.id` to `TextNode.id_` (note the underscore).",
+    "[x] Map relevant `MemoryBlock` fields (e.g., `type`, `tags`, `source_file`, `source_uri`, `created_at`, `updated_at`, `created_by`) to the `TextNode.metadata` dictionary.",
+    "[x] (Add) Ensure `memory_block_to_node` maps `block.schema_version` to `TextNode.metadata` if present.",
+    "[x] (Add) Add enriched title and tags strings to `TextNode.metadata`.",
+    "[x] (TDD) Create the test file (`tests/test_conversion.py`).",
+    "[x] (TDD) Write and pass unit tests for `memory_block_to_node` validating enriched text and metadata mapping.",
+    "[ ] (Consider) Add logic to handle type-specific `metadata_json` if needed for node structure (or defer this complexity)."
+  ],
+  "test_criteria": [
+    "[x] Unit tests pass for `memory_block_to_node`.",
+    "[x] Test verifies `TextNode.text` matches the expected enriched format.",
+    "[x] Test verifies `TextNode.id_` matches input `MemoryBlock.id`.",
+    "[x] Test verifies key fields like `type`, `tags`, `schema_version`, `enriched_title`, `enriched_tags` are present and correctly mapped in `TextNode.metadata`."
+  ],
+  "success_criteria": [
+    "[x] A function `memory_block_to_node` exists and correctly converts a `MemoryBlock` object into a LlamaIndex `TextNode` with enriched text and essential metadata, including schema version.",
+    "[x] Unit tests confirm the mapping and enrichment logic."
+  ],
+  "current_status": "Implementation complete in conversion.py, including text enrichment and metadata mapping. Tests pass in tests/test_conversion.py."
+} 

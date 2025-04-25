@@ -1,0 +1,17 @@
+{
+  "type": "Task",
+  "status": "completed",
+  "project": "CogniMemorySystem-POC",
+  "name": "Create Dolt block_links Table",
+  "description": "Define and create the 'block_links' table in the Dolt database according to the project schema.",
+  "action_items": [
+    "[x] Define SQL CREATE TABLE statement for block_links (using VARCHAR for PKs).",
+    "[x] Connect to Dolt database (experiments/dolt_data/memory_db).",
+    "[x] Execute CREATE TABLE statement using `dolt sql -q \\\"...\\\"`."
+  ],
+  "test_criteria": [
+    "[x] `dolt sql -q \\\"SHOW TABLES;\\\"` includes 'block_links'.",
+    "[x] `dolt sql -q \\\"DESCRIBE block_links;\\\"` shows the correct schema (VARCHAR PKs, FKs)."
+  ],
+  "current_status": "Executed `dolt sql` command successfully to create the `block_links` table with VARCHAR primary keys after initial attempts with TEXT failed due to prefix index limitations. Agent validation confirmed: the 'block_links' table exists in the Dolt database (via `SHOW TABLES;`) and this task file is marked complete and staged in Git (via `git status`)."
+}

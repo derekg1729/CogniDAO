@@ -1,0 +1,35 @@
+{
+  "type": "Task",
+  "status": "in-progress",
+  "project": "CogniMemorySystem-POC",
+  "name": "Establish Schema Registry & Versioning",
+  "description": "Implement Dolt table for storing node/block JSON schemas and add schema version tracking to memory_blocks, based on design feedback.",
+  "implementation_details": {
+    "target_files": [
+      "experiments/src/memory_system/schemas/memory_block.py", 
+      "experiments/src/memory_system/schemas/registry.py",
+      "experiments/dolt_data/schema.sql",
+      "experiments/scripts/generate_dolt_schema.py (conceptual update)"
+    ],
+    "test_file": "(No specific tests for schema definition, validation happens elsewhere)"
+  },
+  "action_items": [
+    "[x] Define `NodeSchemaRecord` Pydantic model (in `registry.py` or `memory_block.py`) with fields: `node_type: str`, `schema_version: int`, `json_schema: dict`, `created_at: datetime`.",
+    "[x] Define `CREATE TABLE node_schemas (...)` SQL based on `NodeSchemaRecord`.",
+    "[x] Add `schema_version: Optional[int] = None` field to `MemoryBlock` Pydantic model in `memory_block.py`.",
+    "[x] Update `experiments/dolt_data/schema.sql`:",
+    "[x]   Add the `CREATE TABLE node_schemas (...)` statement.",
+    "[x]   Add `schema_version INT NULL` column to `memory_blocks` table definition.",
+    "[ ] (Future) Plan to enhance `generate_dolt_schema.py` to populate `node_schemas` table and generate full `schema.sql`."
+  ],
+  "test_criteria": [
+    "[x] `schema.sql` file contains syntactically correct definitions for `memory_blocks` (with new column), `block_links`, and `node_schemas`.",
+    "[x] `MemoryBlock` Pydantic model includes the `schema_version` field.",
+    "[x] `NodeSchemaRecord` Pydantic model exists (or equivalent definition)."
+  ],
+  "success_criteria": [
+    "[x] The canonical Dolt schema definition (`schema.sql`) includes the `node_schemas` table and the `schema_version` column in `memory_blocks`.",
+    "[x] The `MemoryBlock` Pydantic model is updated to support schema versioning."
+  ],
+  "current_status": "Schema registry and versioning established. NodeSchemaRecord Pydantic model defined in memory_block.py, schema_version field added to MemoryBlock model, and Dolt database updated with new table and column."
+} 

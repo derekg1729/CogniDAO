@@ -1,0 +1,28 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "1.1",
+  "title": "Define MemoryBlock schema within /experiments",
+  "phase": "🧱 Phase 1: Schema + Rapid Indexing Loop",
+  "goal": "Establish the Pydantic schema for MemoryBlock within the /experiments directory, supporting types, links, and confidence, based on the project design.",
+  "schema_references": [
+    "project.schemas.memory_block_pydantic",
+    "project.schemas.memory_block_json",
+    "experiments/src/memory_system/schemas/memory_block.py"
+  ],
+  "action_items": [
+    "[ ] Create directory `experiments/src/memory_system/schemas/`.",
+    "[ ] Create file `experiments/src/memory_system/schemas/memory_block.py`.",
+    "[ ] Define Pydantic BaseModel `MemoryBlock` based on `project.schemas.memory_block_pydantic`.",
+    "[ ] Define supporting models `BlockLink` (with `RelationType` enum) and `ConfidenceScore`.",
+    "[ ] Include fields: id, type, text, tags, metadata, links, confidence, source_file, source_uri, created_by, created_at, updated_at, embedding.",
+    "[ ] Ensure appropriate types (e.g., Literal, List, Optional, datetime) are used.",
+    "[ ] Add basic tests within `/experiments` to validate instantiation of `MemoryBlock`."
+  ],
+  "test_criteria": [
+    "`experiments/src/memory_system/schemas/memory_block.py` exists and contains correct Pydantic models.",
+    "Instantiate a valid `MemoryBlock` with dummy data, links, and confidence within a test script in `/experiments`."
+  ],
+  "current_status": "Resetting task to define schema cleanly within `/experiments` directory after reverting changes to core schema file."
+} 

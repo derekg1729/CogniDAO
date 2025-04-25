@@ -1,0 +1,22 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "2.1",
+  "title": "Install LlamaIndex and create a VectorStoreIndex from JSON",
+  "phase": "🧠 Indexing + Retrieval (LlamaIndex)",
+  "goal": "Allow querying MemoryBlocks semantically using LlamaIndex.",
+  "action_items": [
+    "[ ] Add `llama-index` to the project dependencies (e.g., requirements.txt).",
+    "[ ] Export sample data from the Dolt `memory_blocks` table to a JSON file (using Task 1.3 functionality or `dolt sql -r json`).",
+    "[ ] Write a script to load this JSON data.",
+    "[ ] Convert the loaded JSON/MemoryBlocks into LlamaIndex `Document` objects (or skip if using Nodes directly in next step).",
+    "[ ] Create a `VectorStoreIndex` from these `Document` objects.",
+    "[ ] Configure an embedding model (e.g., use `llama-index-embeddings-huggingface` for BGE or configure OpenAI)."
+  ],
+  "test_criteria": [
+    "Run a sample semantic query using the index's query engine (e.g., `query_engine.query('What is governance?')`).",
+    "Verify that relevant Document(s)/Node(s) are returned based on the sample JSON data."
+  ],
+  "current_status": "Not started."
+} 
