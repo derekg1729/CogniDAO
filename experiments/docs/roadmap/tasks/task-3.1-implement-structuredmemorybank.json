@@ -25,7 +25,7 @@
     "[ ]   Query `node_schemas` table for latest version (Task 2.0).",
     "[ ]   Set `schema_version` on the block object.",
     "[/]   Write block data to Dolt `memory_blocks` table. (Using `dolt_writer`, needs secure migration - see project-SecureDoltWriteMigration.json)",
-    "[ ]   Write links to Dolt `block_links` table.",
+    "[x]   Write links to Dolt `block_links` table.",
     "[/]   Convert block to LlamaIndex Node(s) (Task 2.1).",
     "[/]   Add/update node(s) in LlamaIndex VectorStore and GraphStore.",
     "[/]   Commit changes in Dolt. (Using `dolt_writer`, needs secure migration - see project-SecureDoltWriteMigration.json)",
@@ -35,8 +35,8 @@
     "[/] Implement `delete_memory_block(block_id: str) -> bool` (Delete from Dolt, delete from LlamaIndex, commit).",
     "[/] Implement `query_semantic(query_text: str, top_k: int = 5) -> List[MemoryBlock]` (Query LlamaIndex vector store, retrieve full blocks from Dolt).",
     "[/] Implement `get_blocks_by_tags(tags: List[str], match_all: bool = True) -> List[MemoryBlock]` (Query Dolt `tags_json` or LlamaIndex metadata).",
-    "[ ] Implement `get_forward_links(block_id: str, relation: str | None = None) -> List[BlockLink]` (Query Dolt `block_links` or LlamaIndex graph).",
-    "[ ] Implement `get_backlinks(block_id: str, relation: str | None = None) -> List[BlockLink]` (Query Dolt `block_links` or LlamaIndex graph).",
+    "[x] Implement `get_forward_links(block_id: str, relation: str | None = None) -> List[BlockLink]` (Query Dolt `block_links` or LlamaIndex graph).",
+    "[x] Implement `get_backlinks(block_id: str, relation: str | None = None) -> List[BlockLink]` (Query Dolt `block_links` or LlamaIndex graph).",
     "[ ] (Optional) Implement chat history fallback methods (`read_history_dicts`, `write_history_dicts`) if desired, potentially reading/writing special `chat_message` MemoryBlocks."
   ],
   "test_criteria": [
@@ -49,5 +49,5 @@
     "[ ] Semantic, tag-based, and link-based querying methods are available.",
     "[ ] Writes are atomic (Dolt commit) and trigger indexing."
   ],
-  "current_status": "CRUD + query_semantic implemented and tested (with known atomicity/security issues). get_blocks_by_tags implemented (querying Dolt JSON) and tested. Dolt interactions use manual escaping due to doltpy.cli limits; secure migration planned."
+  "current_status": "CRUD + query_semantic implemented and tested (with known atomicity/security issues). get_blocks_by_tags implemented (querying Dolt JSON) and tested. get_forward_links and get_backlinks implemented and tested using the block_links table. Dolt interactions use manual escaping due to doltpy.cli limits; secure migration planned."
 } 

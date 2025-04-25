@@ -37,7 +37,6 @@ if str(project_root_dir) not in sys.path:
 
 # Import schema using path relative to project root
 try:
-    # Removed unused BlockLink import
     from experiments.src.memory_system.schemas.memory_block import MemoryBlock, ConfidenceScore
 except ImportError as e:
     # Add more context to the error message
@@ -168,12 +167,26 @@ def write_memory_block_to_dolt(block: MemoryBlock, db_path: str, auto_commit: bo
         repo.sql(query=query)
         write_msg = f"Successfully wrote/updated block {block.id} in Dolt working set (using manual formatting)."
         logger.info(write_msg)
-
+        
+        # Write links to block_links table - ensure table exists first
+        try:
+            repo.sql(query="CREATE TABLE IF NOT EXISTS block_links (from_id VARCHAR(255) NOT NULL, to_id VARCHAR(255) NOT NULL, relation VARCHAR(255) NOT NULL, PRIMARY KEY (from_id, to_id, relation), FOREIGN KEY (from_id) REFERENCES memory_blocks(id) ON DELETE CASCADE, FOREIGN KEY (to_id) REFERENCES memory_blocks(id) ON DELETE CASCADE);")
+            # Now write the links
+            for link in block.links:
+                # Only insert links where target exists (to avoid foreign key constraint errors)
+                check_query = f"SELECT 1 FROM memory_blocks WHERE id = {_format_sql_value(link.to_id)};"
+                check_result = repo.sql(query=check_query, result_format='json')
+                if check_result and 'rows' in check_result and check_result['rows']:
+                    link_query = f"REPLACE INTO block_links (from_id, to_id, relation) VALUES ({_format_sql_value(block.id)}, {_format_sql_value(link.to_id)}, {_format_sql_value(link.relation)});"
+                    repo.sql(query=link_query)
+        except Exception as e:
+            logger.warning(f"Failed to write links for block {block.id}: {e}")
+        
         if auto_commit:
             # Commit logic remains the same as before
             try:
                 logger.info(f"Auto-committing changes for block {block.id}...")
-                repo.add(['memory_blocks']) # Be specific about the table
+                repo.add(['memory_blocks', 'block_links']) # Be specific about both tables
                 status = repo.status()
                 # Correct check for clean status based on original working code
                 if status.is_clean and not status.staged_tables:
@@ -248,6 +261,12 @@ def delete_memory_block_from_dolt(block_id: str, db_path: str, auto_commit: bool
 
         # Escape the block_id for safe inclusion in the SQL string
         escaped_block_id = _escape_sql_string(block_id)
+        
+        # Delete from block_links first (though ON DELETE CASCADE should handle this)
+        try:
+            repo.sql(query=f"DELETE FROM block_links WHERE from_id = {escaped_block_id};")
+        except Exception as e:
+            logger.warning(f"Error deleting from block_links (table may not exist): {e}")
 
         # Construct the raw SQL query string
         query = f"DELETE FROM memory_blocks WHERE id = {escaped_block_id};"
@@ -265,7 +284,7 @@ def delete_memory_block_from_dolt(block_id: str, db_path: str, auto_commit: bool
         if auto_commit:
             try:
                 logger.info(f"Auto-committing deletion for block {block_id}...")
-                repo.add(['memory_blocks']) # Be specific about the table
+                repo.add(['memory_blocks', 'block_links']) # Be specific about both tables
                 status = repo.status()
 
                 # Check if there are staged changes. If not, maybe the block didn't exist?

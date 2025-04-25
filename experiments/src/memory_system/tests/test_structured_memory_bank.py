@@ -350,17 +350,58 @@ class TestStructuredMemoryBank:
 
     def test_get_forward_links(self, memory_bank_instance: StructuredMemoryBank, sample_memory_block: MemoryBlock):
         """Tests retrieving forward links."""
-        pytest.skip("get_forward_links depends on create or direct DB setup")
-        # # Pre-requisite: Create the block with links
-        # links = memory_bank_instance.get_forward_links(sample_memory_block.id)
-        # assert len(links) == 1
-        # assert links[0].to_id == "related-block-002"
-        # assert links[0].relation == "related_to"
+        # First create the target block
+        target_block = MemoryBlock(
+            id="related-block-002",
+            type="knowledge",
+            text="This is a target block for forward link testing.",
+            tags=["test", "target"]
+        )
+        target_success = memory_bank_instance.create_memory_block(target_block)
+        assert target_success, "Failed to create target block for forward link test"
+        
+        # Now create a block with links
+        success = memory_bank_instance.create_memory_block(sample_memory_block)
+        assert success, "Failed to create block with links for test"
+        
+        # Now test the forward link functionality
+        links = memory_bank_instance.get_forward_links(sample_memory_block.id)
+        assert len(links) == 1, f"Expected 1 link, got {len(links)}"
+        assert links[0].to_id == "related-block-002", f"Expected link to 'related-block-002', got '{links[0].to_id}'"
+        assert links[0].relation == "related_to", f"Expected relation 'related_to', got '{links[0].relation}'"
 
     def test_get_backlinks(self, memory_bank_instance: StructuredMemoryBank, sample_memory_block: MemoryBlock):
         """Tests retrieving backlinks."""
-        pytest.skip("get_backlinks depends on create or direct DB setup")
-        # # Pre-requisite: Create sample_memory_block AND a block that links TO it
-        # backlinks = memory_bank_instance.get_backlinks("related-block-002") # Find links pointing to this ID
-        # assert len(backlinks) >= 1
-        # assert backlinks[0].from_id == sample_memory_block.id # Assuming sample_memory_block links to it 
+        # First create a block that will be the target of a link
+        target_block = MemoryBlock(
+            id="related-block-002",
+            type="knowledge",
+            text="This is a target block for backlink testing.",
+            tags=["test", "target"],
+            links=[]  # No links in the target block
+        )
+        success = memory_bank_instance.create_memory_block(target_block)
+        assert success, "Failed to create target block for backlink test"
+        
+        # Create a block that links to the target
+        source_block = sample_memory_block  # Already has a link to "related-block-002"
+        success = memory_bank_instance.create_memory_block(source_block)
+        assert success, "Failed to create source block with link for backlink test"
+        
+        # Now test the backlink functionality
+        backlinks = memory_bank_instance.get_backlinks("related-block-002")
+        assert len(backlinks) >= 1, f"Expected at least 1 backlink, got {len(backlinks)}"
+        
+        # Find the backlink from our test block
+        found_backlink = False
+        for link in backlinks:
+            if link.to_id == source_block.id:
+                found_backlink = True
+                assert link.relation == "related_to", f"Expected relation 'related_to', got '{link.relation}'"
+                break
+        
+        assert found_backlink, f"Did not find expected backlink from {source_block.id} to 'related-block-002'"
+        
+        # Test filtering by relation
+        filtered_backlinks = memory_bank_instance.get_backlinks("related-block-002", relation="related_to")
+        assert len(filtered_backlinks) >= 1, "Expected at least 1 backlink when filtering by 'related_to'" 
