@@ -6,6 +6,7 @@ import logging
 import sys
 from pathlib import Path
 from typing import List, Optional, Dict, Any
+import json
 
 from pydantic import ValidationError
 
@@ -201,6 +202,92 @@ def read_memory_block(db_path: str, block_id: str, branch: str = 'main') -> Opti
     except Exception as e:
         logger.error(f"Failed to read block {block_id} from Dolt DB at {db_path} on branch '{branch}': {e}", exc_info=True)
         return None
+
+
+def read_memory_blocks_by_tags(db_path: str, tags: List[str], match_all: bool = True, branch: str = 'main') -> List[MemoryBlock]:
+    """
+    Reads MemoryBlocks from Dolt filtered by tags contained in the 'tags' JSON column.
+
+    WARNING: This function constructs SQL queries with tag values manually formatted
+    due to limitations in doltpy.cli.Dolt.sql() (lack of parameterized query support
+    for complex JSON operations). This carries SQL injection risks if tags
+    originate from untrusted input without robust validation elsewhere.
+
+    Args:
+        db_path: Path to the Dolt database directory.
+        tags: A list of tags to filter by.
+        match_all: If True, blocks must contain ALL tags. If False, blocks must contain AT LEAST ONE tag.
+        branch: The Dolt branch to read from (defaults to 'main').
+
+    Returns:
+        A list of validated MemoryBlock objects matching the tag criteria.
+    """
+    if not tags:
+        logger.warning("read_memory_blocks_by_tags called with empty tags list.")
+        return []
+
+    logger.info(f"Attempting to read MemoryBlocks by tags {tags} (match_all={match_all}) from Dolt DB at {db_path} on branch '{branch}'")
+    memory_blocks_list: List[MemoryBlock] = []
+    repo: Optional[Dolt] = None
+
+    try:
+        repo = Dolt(db_path)
+
+        # --- Construct WHERE clause based on tags --- 
+        where_clauses = []
+        for tag in tags:
+            # Escape each tag individually for safe inclusion in the JSON_CONTAINS check
+            escaped_tag_for_json = json.dumps(tag) # JSON encode the tag string
+            # Escape the resulting JSON string for the SQL query
+            escaped_tag_for_sql = _escape_sql_string(escaped_tag_for_json)
+            # Use JSON_CONTAINS to check if the tag exists in the 'tags' JSON array
+            # Assumes the 'tags' column is named 'tags' and stores a JSON array.
+            where_clauses.append(f"JSON_CONTAINS(tags, {escaped_tag_for_sql})")
+
+        if not where_clauses:
+             logger.error("Could not generate WHERE clauses for tags.")
+             return [] # Should not happen if tags list is not empty
+
+        # Combine clauses with AND or OR
+        clause_separator = " AND " if match_all else " OR "
+        full_where_clause = clause_separator.join(where_clauses)
+        # --- End WHERE clause construction ---
+
+        query = f"""
+        SELECT
+            id, type, schema_version, text, tags, metadata, links,
+            source_file, source_uri, confidence, created_by, created_at, updated_at
+        FROM memory_blocks
+        AS OF '{branch}'
+        WHERE {full_where_clause}
+        """
+        logger.debug(f"Executing SQL query for tags on branch '{branch}':\n{query}")
+
+        result = repo.sql(query=query, result_format='json')
+
+        if result and 'rows' in result and result['rows']:
+            logger.info(f"Retrieved {len(result['rows'])} rows matching tags from Dolt.")
+            for row in result['rows']:
+                try:
+                    parsed_row: Dict[str, Any] = {k: v for k, v in row.items() if v is not None}
+                    memory_block = MemoryBlock.model_validate(parsed_row)
+                    memory_blocks_list.append(memory_block)
+                except ValidationError as e:
+                    logger.error(f"Pydantic validation failed for row (Block ID: {row.get('id', 'UNKNOWN')}): {e}")
+                except Exception as parse_e:
+                    logger.error(f"Unexpected error processing row (Block ID: {row.get('id', 'UNKNOWN')}): {parse_e}", exc_info=True)
+        else:
+            logger.info("No rows returned from the Dolt tag query.")
+
+    except FileNotFoundError:
+        logger.error(f"Dolt database path not found: {db_path}")
+        raise
+    except Exception as e:
+        logger.error(f"Failed to read by tags from Dolt DB at {db_path} on branch '{branch}': {e}", exc_info=True)
+        return [] # Return empty list on error
+
+    logger.info(f"Finished reading by tags. Successfully parsed {len(memory_blocks_list)} MemoryBlocks.")
+    return memory_blocks_list
 
 
 # Example Usage (can be run as a script for testing)

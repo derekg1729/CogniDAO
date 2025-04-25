@@ -283,11 +283,70 @@ class TestStructuredMemoryBank:
 
     def test_get_blocks_by_tags(self, memory_bank_instance: StructuredMemoryBank):
         """Tests retrieving blocks by tags."""
-        pytest.skip("get_blocks_by_tags not yet implemented")
-        # # Pre-requisite: Create blocks with specific tags
-        # results = memory_bank_instance.get_blocks_by_tags(["test"])
-        # assert len(results) >= 1
-        # # TODO: Add more specific tag tests (match_all=False, multiple tags)
+        # pytest.skip("get_blocks_by_tags not yet implemented")
+
+        # --- Setup: Create blocks with specific tags ---
+        block_a = MemoryBlock(
+            id="tag-block-a", type="knowledge", text="Block with tag alpha", tags=["alpha"], 
+            created_at=datetime.datetime.now(), updated_at=datetime.datetime.now()
+        )
+        block_b = MemoryBlock(
+            id="tag-block-b", type="knowledge", text="Block with tag beta", tags=["beta"], 
+            created_at=datetime.datetime.now(), updated_at=datetime.datetime.now()
+        )
+        block_ab = MemoryBlock(
+            id="tag-block-ab", type="knowledge", text="Block with tags alpha and beta", tags=["alpha", "beta"], 
+            created_at=datetime.datetime.now(), updated_at=datetime.datetime.now()
+        )
+        block_c = MemoryBlock(
+            id="tag-block-c", type="task", text="Block with no relevant tags", tags=["gamma"], 
+            created_at=datetime.datetime.now(), updated_at=datetime.datetime.now()
+        )
+
+        # Write directly for setup simplicity
+        write_memory_block_to_dolt(block_a, memory_bank_instance.dolt_db_path, auto_commit=True)
+        write_memory_block_to_dolt(block_b, memory_bank_instance.dolt_db_path, auto_commit=True)
+        write_memory_block_to_dolt(block_ab, memory_bank_instance.dolt_db_path, auto_commit=True)
+        write_memory_block_to_dolt(block_c, memory_bank_instance.dolt_db_path, auto_commit=True)
+
+        # --- Test Match Any (OR) --- 
+        results_any_alpha = memory_bank_instance.get_blocks_by_tags(["alpha"], match_all=False)
+        assert len(results_any_alpha) == 2
+        assert {b.id for b in results_any_alpha} == {"tag-block-a", "tag-block-ab"}
+
+        results_any_beta = memory_bank_instance.get_blocks_by_tags(["beta"], match_all=False)
+        assert len(results_any_beta) == 2
+        assert {b.id for b in results_any_beta} == {"tag-block-b", "tag-block-ab"}
+
+        results_any_ab = memory_bank_instance.get_blocks_by_tags(["alpha", "beta"], match_all=False)
+        assert len(results_any_ab) == 3
+        assert {b.id for b in results_any_ab} == {"tag-block-a", "tag-block-b", "tag-block-ab"}
+        
+        results_any_gamma = memory_bank_instance.get_blocks_by_tags(["gamma"], match_all=False)
+        assert len(results_any_gamma) == 1
+        assert results_any_gamma[0].id == "tag-block-c"
+        
+        results_any_none = memory_bank_instance.get_blocks_by_tags(["delta"], match_all=False)
+        assert len(results_any_none) == 0
+
+        # --- Test Match All (AND) ---
+        results_all_alpha = memory_bank_instance.get_blocks_by_tags(["alpha"], match_all=True)
+        assert len(results_all_alpha) == 2 # block_a and block_ab
+        assert {b.id for b in results_all_alpha} == {"tag-block-a", "tag-block-ab"}
+        
+        results_all_beta = memory_bank_instance.get_blocks_by_tags(["beta"], match_all=True)
+        assert len(results_all_beta) == 2 # block_b and block_ab
+        assert {b.id for b in results_all_beta} == {"tag-block-b", "tag-block-ab"}
+
+        results_all_ab = memory_bank_instance.get_blocks_by_tags(["alpha", "beta"], match_all=True)
+        assert len(results_all_ab) == 1
+        assert results_all_ab[0].id == "tag-block-ab"
+        
+        results_all_ag = memory_bank_instance.get_blocks_by_tags(["alpha", "gamma"], match_all=True)
+        assert len(results_all_ag) == 0
+        
+        results_all_none = memory_bank_instance.get_blocks_by_tags(["delta"], match_all=True)
+        assert len(results_all_none) == 0
 
     def test_get_forward_links(self, memory_bank_instance: StructuredMemoryBank, sample_memory_block: MemoryBlock):
         """Tests retrieving forward links."""

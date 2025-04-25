@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional
 import datetime
 
 # Dolt Interactions
-from experiments.src.memory_system.dolt_reader import read_memory_block # Assuming read_memory_blocks will be needed
+from experiments.src.memory_system.dolt_reader import read_memory_block, read_memory_blocks_by_tags # Assuming read_memory_blocks will be needed
 from experiments.src.memory_system.dolt_writer import write_memory_block_to_dolt, delete_memory_block_from_dolt # Assuming write_memory_block_to_dolt and delete_memory_block_from_dolt will be needed
 
 # LlamaIndex Interactions
@@ -308,7 +308,7 @@ class StructuredMemoryBank:
 
     def get_blocks_by_tags(self, tags: List[str], match_all: bool = True) -> List[MemoryBlock]:
         """
-        Retrieves MemoryBlocks based on tags.
+        Retrieves MemoryBlocks based on tags by querying Dolt directly.
 
         Args:
             tags: A list of tags to filter by.
@@ -318,10 +318,19 @@ class StructuredMemoryBank:
             A list of matching MemoryBlock objects.
         """
         logger.info(f"Getting blocks by tags: {tags} (match_all={match_all})")
-        # TODO: Implement querying Dolt's JSON tags column (using SQL JSON functions)
-        # OR
-        # TODO: Filter results from LlamaIndex metadata if tags are indexed there
-        pass # Placeholder
+        try:
+            # Call the new reader function
+            # Assumes read_memory_blocks_by_tags is imported
+            matching_blocks = read_memory_blocks_by_tags(
+                db_path=self.dolt_db_path,
+                tags=tags,
+                match_all=match_all
+                # branch='main' # Or allow specifying branch if needed
+            )
+            return matching_blocks
+        except Exception as e:
+            logger.error(f"Error retrieving blocks by tags ({tags}): {e}", exc_info=True)
+            return [] # Return empty list on error
 
     def get_forward_links(self, block_id: str, relation: Optional[str] = None) -> List[BlockLink]:
         """
