@@ -36,7 +36,7 @@ CREATE TABLE node_schemas (
   PRIMARY KEY (node_type, schema_version)
 );
 
--- Added in Task 7.2 (block_proofs) and updated in Task 3.1.2
+-- Added in Task 7.2 (block_proofs creation); updated in Task 3.1.2 (standardized operation field and added index on block_id)
 CREATE TABLE block_proofs (
   id INTEGER PRIMARY KEY AUTO_INCREMENT,
   block_id VARCHAR(255) NOT NULL,

@@ -1,22 +1,22 @@
 {
   "type": "Task",
-  "status": "todo",
+  "status": "completed",
   "project": "../project-CogniMemorySystem-POC.json",
   "id": "7.2",
   "title": "Store block_id + commit_hash in new block_proofs table",
   "phase": "🛡️ Decentralized Hashing + DAO Integration (Early POC)",
   "goal": "Create a traceable link between a specific MemoryBlock version and the Dolt commit it was part of.",
   "action_items": [
-    "[ ] Define a new Dolt table `block_proofs` with columns like `block_id` (TEXT, FOREIGN KEY to `memory_blocks.id`), `commit_hash` (TEXT), `write_timestamp` (DATETIME).",
-    "[ ] Consider a PRIMARY KEY (e.g., on `block_id` and `commit_hash` or a separate proof ID).",
-    "[ ] Commit the new table schema (`dolt add .`, `dolt commit -m 'Create block_proofs table'`).",
-    "[ ] Modify the Dolt writing functions (from Task 5.1) to insert a new row into `block_proofs` after retrieving the commit hash (from Task 7.1).",
-    "[ ] Ensure the correct `block_id` and `commit_hash` are inserted."
+    "[x] Define a new Dolt table `block_proofs` with columns like `block_id` (TEXT, FOREIGN KEY to `memory_blocks.id`), `commit_hash` (TEXT), `write_timestamp` (DATETIME).",
+    "[x] Consider a PRIMARY KEY (e.g., on `block_id` and `commit_hash` or a separate proof ID).",
+    "[x] Commit the new table schema (`dolt add .`, `dolt commit -m 'Create block_proofs table'`).",
+    "[x] Modify the Dolt writing functions (from Task 5.1) to insert a new row into `block_proofs` after retrieving the commit hash (from Task 7.1).",
+    "[x] Ensure the correct `block_id` and `commit_hash` are inserted."
   ],
   "test_criteria": [
     "Trigger a MemoryBlock save/update.",
     "Verify a new row is added to the `block_proofs` table.",
     "Verify the `block_id` matches the saved/updated block and the `commit_hash` matches the hash retrieved in Task 7.1."
   ],
-  "current_status": "Not started."
+  "current_status": "Completed. The block_proofs table has been implemented with schema.sql generation, and a proper schema including an auto-increment ID primary key, block_id, commit_hash, operation, and timestamp fields. The StructuredMemoryBank._store_block_proof method successfully tracks all CRUD operations (create, update, delete) for memory blocks. Comprehensive tests verify proper operation with the test_block_proofs test that checks all three operation types."
 } 
