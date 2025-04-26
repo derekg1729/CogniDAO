@@ -195,12 +195,13 @@
       ]
     },
     {
-      "phase": "🛡️ Phase 7: Decentralized Hashing + DAO Integration (Early POC)",
+      "phase": "⚙️ Phase 7: Security + Dev Experience",
       "tasks": [
         "task-7.1-fetch-dolt-hash-on-write.json",
         "task-7.2-store-block-proofs.json",
         "task-7.3-mock-dao-submitmemoryupdate.json",
-        "task-7.4-optional-submit-zkvm-hash.json"
+        "task-7.4-optional-submit-zkvm-hash.json",
+        "task-7.5-implement-identity-auth-foundation.json"
       ]
     },
     {

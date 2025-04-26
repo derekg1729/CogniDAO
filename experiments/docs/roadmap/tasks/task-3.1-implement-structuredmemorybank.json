@@ -29,7 +29,7 @@
     "[/]   Convert block to LlamaIndex Node(s) (Task 2.1).",
     "[/]   Add/update node(s) in LlamaIndex VectorStore and GraphStore.",
     "[/]   Commit changes in Dolt. (Using `dolt_writer`, needs secure migration - see project-SecureDoltWriteMigration.json)",
-    "[ ]   (Optional) Store commit hash in `block_proofs` (Phase 7).",
+    "[x]   Store commit hash in `block_proofs` (Phase 7).",
     "[x] Implement `get_memory_block(block_id: str) -> MemoryBlock | None` (Read from Dolt).",
     "[/] Implement `update_memory_block(block_id: str, update_data: dict) -> bool` (Fetch, update, validate, write to Dolt, re-index, commit).",
     "[/] Implement `delete_memory_block(block_id: str) -> bool` (Delete from Dolt, delete from LlamaIndex, commit).",
@@ -49,5 +49,5 @@
     "[ ] Semantic, tag-based, and link-based querying methods are available.",
     "[ ] Writes are atomic (Dolt commit) and trigger indexing."
   ],
-  "current_status": "CRUD + query_semantic implemented and tested (with known atomicity/security issues). get_blocks_by_tags implemented (querying Dolt JSON) and tested. get_forward_links and get_backlinks implemented and tested using the block_links table. Schema version lookup and assignment implemented with tests. Dolt interactions use manual escaping due to doltpy.cli limits; secure migration planned."
+  "current_status": "CRUD + query_semantic implemented and tested (with known atomicity/security issues). get_blocks_by_tags implemented (querying Dolt JSON) and tested. get_forward_links and get_backlinks implemented and tested using the block_links table. Schema version lookup and assignment implemented with tests. Block proof commit tracking implemented with separate block_proofs table that stores block_id, commit_hash, operation and timestamp for all CRUD operations. Dolt interactions use manual escaping due to doltpy.cli limits; secure migration planned."
 } 

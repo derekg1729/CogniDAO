@@ -1,0 +1,61 @@
+{
+  "type": "Task",
+  "status": "todo", 
+  "project": "../project-CogniMemorySystem-POC.json",
+  "name": "Implement Identity and Authentication Foundation",
+  "description": "Establish a foundational identity system for the memory system that can attribute actions to specific actors (human users, agents, etc.) and lay groundwork for future authentication and authorization features.",
+  "phase": "⚙️ Phase 7: Security + Dev Experience",
+  "implementation_details": {
+    "target_files": [
+      "experiments/src/memory_system/identity_manager.py",
+      "experiments/src/memory_system/tests/test_identity_manager.py", 
+      "experiments/src/memory_system/structured_memory_bank.py"
+    ],
+    "database_changes": [
+      "Create `identities` table with columns: `identity_id` (primary key), `name`, `type` (enum: 'human', 'agent', 'system'), `metadata_json`, `created_at`",
+      "Modify `block_proofs` table to include an `actor_identity_id` column referencing `identities.identity_id`"
+    ],
+    "identity_example": {
+      "identity_id": "d27ab6d0-912f-42b4-99f2-7385129c7032",
+      "display_name": "Derek",
+      "created_at": "2025-04-25T20:23:00Z",
+      "wallets": [
+        {
+          "address": "0x1234567890abcdef1234567890abcdef12345678",
+          "verified_at": "2025-04-25T20:30:00Z",
+          "network": "ethereum"
+        }
+      ],
+      "auth_methods": [
+        {
+          "provider": "ethereum_wallet",
+          "provider_id": "0x1234567890abcdef1234567890abcdef12345678"
+        },
+        {
+          "provider": "email",
+          "provider_id": "derek@example.com"
+        }
+      ]
+    }
+  },
+  "action_items": [
+    "[ ] Establish basic entity model with Pydantic Schema for Identity",
+    "[ ] Create `identities` table in Dolt",
+    "[ ] Implement `IdentityManager` class with CRUD operations for identities",
+    "[ ] Modify `block_proofs` table to include `actor_identity_id` foreign key",
+    "[ ] Update `StructuredMemoryBank` to track identity for operations",
+    "[ ] Create system identity for automated operations",
+    "[ ] Add tests for identity tracking and attribution"
+  ],
+  "test_criteria": [
+    "[ ] Tests verify identities can be created, retrieved, and updated",
+    "[ ] Tests confirm block operations are properly attributed to identities",
+    "[ ] Tests validate system identity is used for automated operations"
+  ],
+  "success_criteria": [
+    "[ ] Operations in the system can be attributed to specific identities",
+    "[ ] Block proofs include information about which actor performed operations",
+    "[ ] Foundation exists for future auth improvements"
+  ],
+  "current_status": "Planning stage. block_proofs table exists but does not yet track actor identity."
+}

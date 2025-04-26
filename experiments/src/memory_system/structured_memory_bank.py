@@ -38,6 +38,30 @@ from experiments.src.memory_system.dolt_schema_manager import get_schema  # noqa
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+# TODO: Security Migration Plan for SQL Parameterization
+# Currently, the code uses manual SQL string escaping via _escape_sql_string which
+# is not ideal from a security perspective. A future enhancement should:
+#
+# 1. Wait for Doltpy to add proper parameterized query support (check latest updates)
+# 2. If direct parameterization is still not available, consider:
+#    - Creating a wrapper around the Dolt CLI that supports parameterized queries
+#    - Using a more robust SQL escaping library instead of the current approach
+#    - Implementing a query builder pattern with parameterization
+# 3. Replace all instances of manual string interpolation with parameterized queries
+#    in the following methods:
+#    - _store_block_proof
+#    - get_block_proofs
+#    - get_forward_links
+#    - get_backlinks
+#
+# Example of desired future API:
+# ```
+# self.repo.sql(
+#     query="INSERT INTO block_proofs (block_id, commit_hash, operation, timestamp) VALUES (?, ?, ?, ?)",
+#     params=[block_id, commit_hash, operation, timestamp]
+# )
+# ```
+
 def diff_memory_blocks(old_block: MemoryBlock, new_block: MemoryBlock) -> Dict[str, Tuple[Any, Any]]:
     """
     Creates a diff between two MemoryBlock objects, showing what fields changed.
@@ -88,6 +112,7 @@ class StructuredMemoryBank:
             chroma_collection: Name of the ChromaDB collection.
         """
         self.dolt_db_path = dolt_db_path
+        self.repo = Dolt(dolt_db_path)  # Initialize a single Dolt repository connection
         self.llama_memory = LlamaMemory(
             chroma_path=chroma_path,
             collection_name=chroma_collection
@@ -176,7 +201,7 @@ class StructuredMemoryBank:
         # --- PERSISTENCE PHASE ---
         try:
             # 1. Write block data to Dolt memory_blocks table
-            dolt_write_success, _ = write_memory_block_to_dolt(
+            dolt_write_success, commit_hash = write_memory_block_to_dolt(
                 block=block,
                 db_path=self.dolt_db_path,
                 auto_commit=True
@@ -190,6 +215,10 @@ class StructuredMemoryBank:
             self.llama_memory.add_block(block)
             logger.info(f"Successfully indexed block {block.id} in LlamaIndex.")
             
+            # 3. Store proof of creation in block_proofs table (Phase 7)
+            if commit_hash:
+                self._store_block_proof(block.id, commit_hash, "create", "New memory block created")
+                
             logger.info(f"Successfully created and indexed memory block: {block.id}")
             return True
             
@@ -281,11 +310,17 @@ class StructuredMemoryBank:
         # --- DIFF PHASE ---
         # Generate and log diff before writing
         changes = diff_memory_blocks(existing_block, updated_block)
+        change_summary = "No significant changes"
         if changes:
             change_log = []
+            change_fields = []
             for field, (old_val, new_val) in changes.items():
                 # Format the change in a readable way
                 change_log.append(f"{field}: {old_val!r} -> {new_val!r}")
+                change_fields.append(field)
+            
+            # Create a summary for the commit message
+            change_summary = f"Updated {', '.join(change_fields)}"
             
             # Log at INFO level
             diff_message = f"Changes for block {block_id}:\n- " + "\n- ".join(change_log)
@@ -297,7 +332,7 @@ class StructuredMemoryBank:
         # --- PERSISTENCE PHASE ---
         try:
             # 1. Write updated block to Dolt
-            dolt_write_success, _ = write_memory_block_to_dolt(
+            dolt_write_success, commit_hash = write_memory_block_to_dolt(
                 block=updated_block,
                 db_path=self.dolt_db_path,
                 auto_commit=True
@@ -309,6 +344,10 @@ class StructuredMemoryBank:
             # 2. Re-index in LlamaIndex
             self.llama_memory.update_block(updated_block)
             logger.info(f"Successfully re-indexed updated block {block_id} in LlamaIndex.")
+            
+            # 3. Store proof of update in block_proofs table (Phase 7)
+            if commit_hash:
+                self._store_block_proof(block_id, commit_hash, "update", change_summary)
             
             logger.info(f"Successfully updated and re-indexed memory block: {block_id}")
             return True
@@ -339,7 +378,7 @@ class StructuredMemoryBank:
         # Relies on insecure writer and auto_commit=True (not atomic)
         # Assumes block_links table uses ON DELETE CASCADE or links are irrelevant/handled elsewhere.
         # TODO: Explicitly delete from block_links if CASCADE is not set up.
-        dolt_delete_success, _ = delete_memory_block_from_dolt(
+        dolt_delete_success, commit_hash = delete_memory_block_from_dolt(
             block_id=block_id,
             db_path=self.dolt_db_path,
             auto_commit=True
@@ -359,14 +398,29 @@ class StructuredMemoryBank:
             # Also persist potential graph store changes (though delete_nodes might not affect SimpleGraphStore directly)
             self.llama_memory._persist_graph_store()
             logger.info(f"Successfully deleted node {block_id} from LlamaIndex.")
+            
+            # 3. Store proof of deletion in block_proofs table (Phase 7)
+            if commit_hash:
+                self._store_block_proof(block_id, commit_hash, "delete", "Block deleted")
+                
         except ValueError as ve:
              # llama_index raises ValueError if the node doesn't exist
              logger.warning(f"Node {block_id} not found in LlamaIndex for deletion (or already deleted): {ve}")
              # Continue as success, since the desired state (not indexed) is achieved.
+             
+             # Still store proof of deletion even if node wasn't in LlamaIndex
+             if commit_hash:
+                self._store_block_proof(block_id, commit_hash, "delete", "Block deleted (not found in index)")
+                
         except Exception as e:
             logger.error(f"Failed to delete node {block_id} from LlamaIndex: {e}", exc_info=True)
             # State is inconsistent: Deleted from Dolt, but not from LlamaIndex.
             # Proper atomicity (Task 3.4) would require rollback.
+            
+            # Still store proof of deletion since the Dolt operation succeeded
+            if commit_hash:
+                self._store_block_proof(block_id, commit_hash, "delete", "Block deleted (index deletion failed)")
+                
             return False
 
         logger.info(f"Successfully deleted memory block {block_id} from Dolt and LlamaIndex.")
@@ -461,13 +515,9 @@ class StructuredMemoryBank:
             A list of BlockLink objects representing the forward links.
         """
         logger.info(f"Getting forward links for block: {block_id} (relation={relation})")
-        repo = None
         forward_links: List[BlockLink] = []
         
         try:
-            # Connect to Dolt repository
-            repo = Dolt(self.dolt_db_path)
-            
             # Escape input values for SQL query
             escaped_block_id = _escape_sql_string(block_id)
             
@@ -487,7 +537,7 @@ class StructuredMemoryBank:
                 """
             
             logger.debug(f"Executing forward links query: {query}")
-            result = repo.sql(query=query, result_format='json')
+            result = self.repo.sql(query=query, result_format='json')
             
             # Process results
             if result and 'rows' in result and result['rows']:
@@ -520,13 +570,9 @@ class StructuredMemoryBank:
             A list of BlockLink objects representing the backlinks.
         """
         logger.info(f"Getting backlinks for block: {block_id} (relation={relation})")
-        repo = None
         backlinks: List[BlockLink] = []
         
         try:
-            # Connect to Dolt repository
-            repo = Dolt(self.dolt_db_path)
-            
             # Escape input values for SQL query
             escaped_block_id = _escape_sql_string(block_id)
             
@@ -546,7 +592,7 @@ class StructuredMemoryBank:
                 """
             
             logger.debug(f"Executing backlinks query: {query}")
-            result = repo.sql(query=query, result_format='json')
+            result = self.repo.sql(query=query, result_format='json')
             
             # Process results
             if result and 'rows' in result and result['rows']:
@@ -573,4 +619,178 @@ class StructuredMemoryBank:
     # def write_history_dicts(self, messages: List[Dict[str, Any]]) -> None: ...
 
     # TODO: (Optional) Store commit hash in block_proofs (Phase 7)
-    pass # Placeholder 
+    def _ensure_block_proofs_table_exists(self) -> bool:
+        """
+        Ensures that the block_proofs table exists in the Dolt database.
+        Creates it if it does not exist.
+        
+        The block_proofs table tracks the commit hash for each operation
+        on a memory block, enabling historical proof tracking.
+        
+        Returns:
+            bool: True if the table exists or was created successfully, False otherwise.
+        """
+        logger.info("Ensuring block_proofs table exists in Dolt database")
+        try:
+            # Check if the table already exists
+            table_check_query = "SHOW TABLES LIKE 'block_proofs'"
+            table_check_result = self.repo.sql(query=table_check_query, result_format='json')
+            
+            if table_check_result and 'rows' in table_check_result and table_check_result['rows']:
+                logger.info("block_proofs table already exists")
+                return True
+                
+            # Create the table if it doesn't exist
+            # Use VARCHAR instead of TEXT to match the memory_blocks table column types
+            create_table_query = """
+            CREATE TABLE block_proofs (
+                id INTEGER PRIMARY KEY AUTO_INCREMENT,
+                block_id VARCHAR(255) NOT NULL,
+                commit_hash VARCHAR(255) NOT NULL,
+                operation VARCHAR(10) NOT NULL CHECK (operation IN ('create', 'update', 'delete')),
+                timestamp DATETIME NOT NULL,
+                INDEX block_id_idx (block_id)
+            );
+            """
+            
+            self.repo.sql(query=create_table_query)
+            logger.info("Successfully created block_proofs table")
+            
+            # Commit the table creation
+            self.repo.add(['block_proofs'])
+            self.repo.commit('Create block_proofs table for tracking block history')
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to ensure block_proofs table exists: {e}", exc_info=True)
+            return False
+            
+    def format_commit_message(self, operation: str, block_id: str, change_summary: Optional[str] = None, extra_info: Optional[str] = None) -> str:
+        """
+        Format a standardized commit message for block operations.
+        
+        Args:
+            operation: The operation type ('create', 'update', or 'delete')
+            block_id: The ID of the block being operated on
+            change_summary: Optional summary of changes. Defaults to 'No significant changes'
+            extra_info: Optional additional metadata (e.g., actor_identity_id, tool_name, session_id)
+            
+        Returns:
+            Formatted commit message following the standard: 
+            "{OPERATION}: {block_id} - {summary_of_change} [{extra_info}]" if extra_info is provided,
+            or "{OPERATION}: {block_id} - {summary_of_change}" otherwise
+        """
+        # Standardize operation to uppercase
+        operation_upper = operation.upper()
+        
+        # Use default summary if none provided
+        if not change_summary:
+            change_summary = "No significant changes"
+            
+        # Format according to the standard
+        message = f"{operation_upper}: {block_id} - {change_summary}"
+        
+        # Append extra info if provided
+        if extra_info:
+            message += f" [{extra_info}]"
+            
+        return message
+
+    def _store_block_proof(self, block_id: str, commit_hash: str, operation: str, change_summary: Optional[str] = None) -> bool:
+        """
+        Stores a proof record in the block_proofs table.
+        
+        Args:
+            block_id: The ID of the block that was modified
+            commit_hash: The Dolt commit hash after the operation
+            operation: The type of operation ('create', 'update', or 'delete')
+            change_summary: Optional summary of changes. Defaults to 'No significant changes'
+            
+        Returns:
+            bool: True if the proof was stored successfully, False otherwise
+        """
+        if not commit_hash:
+            logger.warning(f"Cannot store block proof for {block_id}: No commit hash provided")
+            return False
+            
+        try:
+            # Ensure the table exists
+            if not self._ensure_block_proofs_table_exists():
+                return False
+                
+            # Format values for the query
+            escaped_block_id = _escape_sql_string(block_id)
+            escaped_commit_hash = _escape_sql_string(commit_hash)
+            escaped_operation = _escape_sql_string(operation)
+            now = datetime.datetime.now().isoformat(sep=' ', timespec='seconds')
+            escaped_timestamp = _escape_sql_string(now)
+            
+            # Insert the proof record
+            query = f"""
+            INSERT INTO block_proofs (block_id, commit_hash, operation, timestamp)
+            VALUES ({escaped_block_id}, {escaped_commit_hash}, {escaped_operation}, {escaped_timestamp});
+            """
+            
+            self.repo.sql(query=query)
+            
+            # Generate standardized commit message
+            commit_message = self.format_commit_message(operation, block_id, change_summary)
+            
+            # Log the commit message before submitting
+            logger.info(f"Commit message: {commit_message}")
+            
+            # Commit the changes to the block_proofs table
+            self.repo.add(['block_proofs'])
+            self.repo.commit(commit_message)
+            
+            logger.info(f"Stored {operation} proof for block {block_id} with commit hash {commit_hash}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to store block proof for {block_id}: {e}", exc_info=True)
+            return False
+
+    def get_block_proofs(self, block_id: str) -> List[Dict[str, Any]]:
+        """
+        Retrieves all proof records for a specific block_id.
+        
+        Args:
+            block_id: The ID of the block to retrieve proofs for
+            
+        Returns:
+            A list of dictionaries containing proof records, each with
+            fields: id, block_id, commit_hash, operation, and timestamp
+        """
+        logger.info(f"Retrieving proof records for block: {block_id}")
+        proofs = []
+        
+        try:
+            # Ensure the table exists
+            if not self._ensure_block_proofs_table_exists():
+                return []
+                
+            # Escape the block_id for SQL
+            escaped_block_id = _escape_sql_string(block_id)
+            
+            # Query for proofs
+            query = f"""
+            SELECT id, block_id, commit_hash, operation, timestamp
+            FROM block_proofs
+            WHERE block_id = {escaped_block_id}
+            ORDER BY timestamp DESC;
+            """
+            
+            result = self.repo.sql(query=query, result_format='json')
+            
+            if result and 'rows' in result:
+                proofs = result['rows']
+                logger.info(f"Found {len(proofs)} proof records for block {block_id}")
+            else:
+                logger.info(f"No proof records found for block {block_id}")
+                
+            return proofs
+            
+        except Exception as e:
+            logger.error(f"Failed to retrieve proof records for block {block_id}: {e}", exc_info=True)
+            return [] 

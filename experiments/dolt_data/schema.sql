@@ -36,5 +36,15 @@ CREATE TABLE node_schemas (
   PRIMARY KEY (node_type, schema_version)
 );
 
+-- Added in Task 7.2 (block_proofs) and updated in Task 3.1.2
+CREATE TABLE block_proofs (
+  id INTEGER PRIMARY KEY AUTO_INCREMENT,
+  block_id VARCHAR(255) NOT NULL,
+  commit_hash VARCHAR(255) NOT NULL,
+  operation VARCHAR(10) NOT NULL CHECK (operation IN ('create', 'update', 'delete')),
+  timestamp DATETIME NOT NULL,
+  INDEX block_id_idx (block_id)
+);
+
 -- Future considerations mentioned in project plan might add:
 -- ALTER TABLE memory_blocks ADD COLUMN status VARCHAR(50); 

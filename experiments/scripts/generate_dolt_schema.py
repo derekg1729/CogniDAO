@@ -15,6 +15,7 @@ def generate_schema_sql(output_path: str):
     1. memory_blocks table (primary table for storing memory blocks)
     2. block_links table (for storing relationships between blocks)
     3. node_schemas table (for schema registry and versioning)
+    4. block_proofs table (for tracking operation history with commit hashes)
     
     Args:
         output_path: The file path to write the generated schema to.
@@ -57,6 +58,16 @@ CREATE TABLE node_schemas (
   PRIMARY KEY (node_type, schema_version)
 );
 
+-- Added in Task 7.2 (block_proofs creation); updated in Task 3.1.2 (standardized operation field and added index on block_id)
+CREATE TABLE block_proofs (
+  id INTEGER PRIMARY KEY AUTO_INCREMENT,
+  block_id VARCHAR(255) NOT NULL,
+  commit_hash VARCHAR(255) NOT NULL,
+  operation VARCHAR(10) NOT NULL CHECK (operation IN ('create', 'update', 'delete')),
+  timestamp DATETIME NOT NULL,
+  INDEX block_id_idx (block_id)
+);
+
 -- Future considerations mentioned in project plan might add:
 -- ALTER TABLE memory_blocks ADD COLUMN status VARCHAR(50); 
 """
@@ -81,7 +92,7 @@ def main():
     
     if success:
         print("Schema generation completed successfully.")
-        print("Generated tables: memory_blocks, block_links, node_schemas")
+        print("Generated tables: memory_blocks, block_links, node_schemas, block_proofs")
     else:
         print("Schema generation failed.")
 

@@ -689,4 +689,128 @@ class TestStructuredMemoryBank:
         
         # Test with identical blocks
         changes_identical = diff_memory_blocks(block1, block1)
-        assert not changes_identical, "No changes should be detected between identical blocks" 
+        assert not changes_identical, "No changes should be detected between identical blocks"
+
+    def test_block_proofs(self, memory_bank_instance: StructuredMemoryBank):
+        """Tests that block proofs are correctly recorded for CRUD operations."""
+        # Generate a unique block ID for this test
+        test_id = f"proof-test-block-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+        
+        # Create a test block
+        test_block = MemoryBlock(
+            id=test_id,
+            type="knowledge",
+            text="Initial text for proof testing",
+            tags=["proof", "test"]
+        )
+        
+        # 1. Test create operation
+        create_success = memory_bank_instance.create_memory_block(test_block)
+        assert create_success, "Failed to create test block for proof testing"
+        
+        # Check that a proof was recorded for the create operation
+        create_proofs = memory_bank_instance.get_block_proofs(test_id)
+        assert len(create_proofs) >= 1, "No proof record found after create operation"
+        assert create_proofs[0]["operation"] == "create", "First proof should be a 'create' operation"
+        assert create_proofs[0]["commit_hash"], "Commit hash should not be empty"
+        
+        # 2. Test update operation
+        update_success = memory_bank_instance.update_memory_block(test_id, {
+            "text": "Updated text for proof testing",
+            "tags": ["proof", "test", "updated"]
+        })
+        assert update_success, "Failed to update test block for proof testing"
+        
+        # Check that a proof was recorded for the update operation
+        update_proofs = memory_bank_instance.get_block_proofs(test_id)
+        assert len(update_proofs) >= 2, "Should have at least 2 proof records after update"
+        assert update_proofs[0]["operation"] == "update", "Most recent proof should be an 'update' operation"
+        assert update_proofs[0]["commit_hash"], "Commit hash should not be empty"
+        assert update_proofs[0]["commit_hash"] != update_proofs[1]["commit_hash"], "Update commit hash should differ from create hash"
+        
+        # 3. Test delete operation
+        delete_success = memory_bank_instance.delete_memory_block(test_id)
+        assert delete_success, "Failed to delete test block for proof testing"
+        
+        # Check that a proof was recorded for the delete operation
+        delete_proofs = memory_bank_instance.get_block_proofs(test_id)
+        assert len(delete_proofs) >= 3, "Should have at least 3 proof records after delete"
+        assert delete_proofs[0]["operation"] == "delete", "Most recent proof should be a 'delete' operation"
+        assert delete_proofs[0]["commit_hash"], "Commit hash should not be empty"
+        assert delete_proofs[0]["commit_hash"] != delete_proofs[1]["commit_hash"], "Delete commit hash should differ from update hash"
+        
+        # Verify full history is preserved in chronological order (newest first)
+        assert delete_proofs[2]["operation"] == "create", "Oldest proof should be 'create' operation"
+        assert delete_proofs[1]["operation"] == "update", "Middle proof should be 'update' operation"
+        assert delete_proofs[0]["operation"] == "delete", "Newest proof should be 'delete' operation" 
+
+    def test_commit_message_basic(self, memory_bank_instance: StructuredMemoryBank):
+        """Tests that the default format still produces '{OPERATION}: {block_id} - {summary}' when no extra info is provided."""
+        
+        # Test with default summary
+        message = memory_bank_instance.format_commit_message("create", "test-block-001")
+        assert message == "CREATE: test-block-001 - No significant changes"
+        
+        # Test with custom summary
+        message = memory_bank_instance.format_commit_message("update", "test-block-001", "Changed text field")
+        assert message == "UPDATE: test-block-001 - Changed text field"
+        
+        # Test explicitly passing None for extra_info
+        message = memory_bank_instance.format_commit_message("delete", "test-block-001", "Block deleted", None)
+        assert message == "DELETE: test-block-001 - Block deleted"
+        
+    def test_commit_message_with_extra_info(self, memory_bank_instance: StructuredMemoryBank):
+        """Tests that extra_info appends neatly to the commit string."""
+        
+        # Test with extra_info
+        message = memory_bank_instance.format_commit_message(
+            operation="create", 
+            block_id="test-block-001", 
+            change_summary="New block",
+            extra_info="actor=user-123"
+        )
+        assert message == "CREATE: test-block-001 - New block [actor=user-123]"
+        
+        # Test with extra_info but default summary
+        message = memory_bank_instance.format_commit_message(
+            operation="update",
+            block_id="test-block-001",
+            extra_info="session=abc123"
+        )
+        assert message == "UPDATE: test-block-001 - No significant changes [session=abc123]"
+
+    def test_repo_connection_reuse(self):
+        """Tests that StructuredMemoryBank reuses the same Dolt repository connection."""
+        with patch('experiments.src.memory_system.structured_memory_bank.Dolt') as mock_dolt, \
+             patch('experiments.src.memory_system.structured_memory_bank.LlamaMemory') as mock_llama:
+            # Setup mock Dolt to return a mock repo
+            mock_repo = mock_dolt.return_value
+            mock_repo.sql.return_value = {'rows': []}
+            
+            # Setup mock LlamaMemory
+            mock_llama_instance = mock_llama.return_value
+            mock_llama_instance.is_ready.return_value = True
+            
+            # Create a memory bank instance
+            bank = StructuredMemoryBank(
+                dolt_db_path=MOCK_DOLT_PATH,
+                chroma_path=MOCK_CHROMA_PATH,
+                chroma_collection=MOCK_COLLECTION
+            )
+            
+            # Verify Dolt was called only once during initialization
+            mock_dolt.assert_called_once_with(MOCK_DOLT_PATH)
+            
+            # Reset the mock to clear initialization call
+            mock_dolt.reset_mock()
+            
+            # Call multiple methods that use Dolt
+            bank.get_block_proofs("test-id")
+            bank.get_forward_links("test-id")
+            bank.get_backlinks("test-id")
+            
+            # Verify Dolt constructor was not called again
+            mock_dolt.assert_not_called()
+            
+            # Verify the same repo instance was used for all method calls
+            assert mock_repo.sql.call_count >= 3, "Expected at least 3 SQL calls on the same repo instance" 
