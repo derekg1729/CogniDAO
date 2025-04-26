@@ -17,7 +17,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # Target class
-from experiments.src.memory_system.structured_memory_bank import StructuredMemoryBank  # noqa: E402
+from experiments.src.memory_system.structured_memory_bank import StructuredMemoryBank, diff_memory_blocks  # noqa: E402
 
 # Schemas needed for creating test blocks
 from experiments.src.memory_system.schemas.memory_block import MemoryBlock, BlockLink, ConfidenceScore  # noqa: E402
@@ -647,3 +647,46 @@ class TestStructuredMemoryBank:
             
             # Verify no LlamaIndex update was attempted
             mock_llama_memory.update_block.assert_not_called() 
+
+    def test_diff_memory_blocks(self):
+        """Tests the diff_memory_blocks helper function."""
+        # Create two blocks with some differences
+        block1 = MemoryBlock(
+            id="diff-test-block",
+            type="knowledge",
+            text="Original text",
+            tags=["tag1", "tag2"],
+            metadata={"key1": "value1", "key2": "value2"}
+        )
+        
+        block2 = MemoryBlock(
+            id="diff-test-block",  # Same ID
+            type="knowledge",      # Same type
+            text="Updated text",   # Different text
+            tags=["tag1", "tag3"], # Modified tags
+            metadata={"key1": "value1", "key2": "modified"} # Modified metadata
+        )
+        
+        # Generate diff
+        changes = diff_memory_blocks(block1, block2)
+        
+        # Verify changes were detected correctly
+        assert "text" in changes, "Text change not detected"
+        assert changes["text"] == ("Original text", "Updated text")
+        
+        assert "tags" in changes, "Tags change not detected"
+        assert set(changes["tags"][0]) == {"tag1", "tag2"}
+        assert set(changes["tags"][1]) == {"tag1", "tag3"}
+        
+        assert "metadata" in changes, "Metadata change not detected"
+        assert changes["metadata"][0]["key2"] == "value2"
+        assert changes["metadata"][1]["key2"] == "modified"
+        
+        # Verify unchanged fields are not in the diff
+        assert "id" not in changes, "ID should not be in diff since it didn't change"
+        assert "type" not in changes, "Type should not be in diff since it didn't change"
+        assert "updated_at" not in changes, "updated_at should be excluded from diff"
+        
+        # Test with identical blocks
+        changes_identical = diff_memory_blocks(block1, block1)
+        assert not changes_identical, "No changes should be detected between identical blocks" 

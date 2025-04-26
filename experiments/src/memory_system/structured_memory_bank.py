@@ -8,7 +8,7 @@ and the LlamaIndex (ChromaDB) indexing/retrieval system.
 import logging
 import sys
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import datetime
 from pydantic import ValidationError
 
@@ -37,6 +37,41 @@ from experiments.src.memory_system.dolt_schema_manager import get_schema  # noqa
 # Setup logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+def diff_memory_blocks(old_block: MemoryBlock, new_block: MemoryBlock) -> Dict[str, Tuple[Any, Any]]:
+    """
+    Creates a diff between two MemoryBlock objects, showing what fields changed.
+
+    Args:
+        old_block: The original MemoryBlock object
+        new_block: The updated MemoryBlock object
+
+    Returns:
+        Dictionary where keys are field names and values are tuples of (old_value, new_value)
+        Only includes fields that actually changed.
+    """
+    changes = {}
+    
+    # Convert both blocks to dictionaries for comparison
+    old_dict = old_block.model_dump()
+    new_dict = new_block.model_dump()
+    
+    # Find differences
+    for key in set(old_dict.keys()) | set(new_dict.keys()):
+        old_value = old_dict.get(key)
+        new_value = new_dict.get(key)
+        
+        # Special handling for complex fields to avoid comparing timestamps or
+        # other fields that are expected to change
+        if key == "updated_at":
+            # Skip updated_at, as it's expected to change
+            continue
+            
+        # Check if values are different
+        if old_value != new_value:
+            changes[key] = (old_value, new_value)
+    
+    return changes
 
 class StructuredMemoryBank:
     """
@@ -114,64 +149,54 @@ class StructuredMemoryBank:
 
         # Query node_schemas for latest version and set block.schema_version if not already set
         if block.schema_version is None:
-            latest_version = self.get_latest_schema_version(block.type)
-            if latest_version is not None:
-                block.schema_version = latest_version
-                logger.info(f"Set schema_version to {latest_version} for block {block.id}")
-            else:
-                logger.warning(f"No schema version found for block type '{block.type}'. Creating block without schema_version.")
+            try:
+                latest_version = self.get_latest_schema_version(block.type)
+                if latest_version is not None:
+                    block.schema_version = latest_version
+                    logger.info(f"Set schema_version to {latest_version} for block {block.id}")
+                else:
+                    logger.warning(f"No schema version found for block type '{block.type}'. Creating block without schema_version.")
+            except Exception as e:
+                logger.warning(f"Error looking up schema version for {block.type}: {e}")
+                # Continue without schema version
 
+        # --- VALIDATION PHASE ---
         # Ensure the block is valid before writing
         try:
             # Force re-validation of the entire block including nested fields
             block = MemoryBlock.model_validate(block)
         except ValidationError as ve:
-            logger.error(f"Validation failed for block {block.id}: {ve}")
+            # Clear, specific logging for validation errors
+            field_errors = [f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in ve.errors()]
+            error_details = "\n- ".join(field_errors)
+            logger.error(f"Validation failed for block {block.id}:\n- {error_details}")
             return False
+        # --- END VALIDATION PHASE ---
 
-        # 1. Write block data to Dolt memory_blocks table
-        # Using auto_commit=True for now, which isn't ideal for atomicity with indexing.
-        # The secure migration project should address transactional writes.
-        # This also relies on the insecure manual escaping in dolt_writer.
-        dolt_write_success, _ = write_memory_block_to_dolt(
-            block=block,
-            db_path=self.dolt_db_path,
-            auto_commit=True
-        )
-
-        if not dolt_write_success:
-            logger.error(f"Failed to write block {block.id} data to Dolt.")
-            return False
-
-        # TODO: Implement writing links to the separate block_links table.
-        # The current write_memory_block_to_dolt writes links to a JSON column in memory_blocks,
-        # which might be redundant or incorrect depending on the final design.
-
-        # 2. Convert block to LlamaIndex Node(s) <- This step is redundant
-        # try:
-        #     node = memory_block_to_node(block)
-        # except Exception as e:
-        #     logger.error(f"Failed to convert block {block.id} to LlamaIndex node: {e}", exc_info=True)
-        #     # Consider cleanup: Should we try to delete the Dolt record if indexing fails?
-        #     # For now, we report failure but leave the Dolt record.
-        #     return False
-
-        # 3. Add block to LlamaIndex (add_block handles conversion internally)
+        # --- PERSISTENCE PHASE ---
         try:
-            self.llama_memory.add_block(block) # add_block handles the node conversion internally now
+            # 1. Write block data to Dolt memory_blocks table
+            dolt_write_success, _ = write_memory_block_to_dolt(
+                block=block,
+                db_path=self.dolt_db_path,
+                auto_commit=True
+            )
+
+            if not dolt_write_success:
+                logger.error(f"Failed to write block {block.id} data to Dolt.")
+                return False
+
+            # 2. Add block to LlamaIndex (add_block handles conversion internally)
+            self.llama_memory.add_block(block)
             logger.info(f"Successfully indexed block {block.id} in LlamaIndex.")
+            
+            logger.info(f"Successfully created and indexed memory block: {block.id}")
+            return True
+            
         except Exception as e:
-            logger.error(f"Failed to index block {block.id} in LlamaIndex: {e}", exc_info=True)
-            # Consider cleanup: Delete Dolt record?
+            logger.error(f"Failed during persistence of block {block.id}: {e}", exc_info=True)
             return False
-
-        # TODO: Implement transactional commit (Phase 2/3 of Secure Dolt Write Migration)
-        # Currently relies on auto_commit=True in write_memory_block_to_dolt
-
-        # TODO: (Optional) Store commit hash in block_proofs (Phase 7)
-
-        logger.info(f"Successfully created and indexed memory block: {block.id}")
-        return True
+        # --- END PERSISTENCE PHASE ---
 
     def get_memory_block(self, block_id: str) -> Optional[MemoryBlock]:
         """
@@ -226,52 +251,72 @@ class StructuredMemoryBank:
             logger.error(f"Cannot update block {block_id}: block not found.")
             return False
 
-        # 2. Apply updates and validate
+        # --- UPDATE PHASE ---
+        # Create updated block data, ensuring updated_at is set
+        update_payload = update_data.copy()
+        update_payload['updated_at'] = datetime.datetime.now() # Use current time for update
+        
+        # Create the merged update
+        updated_block = None
         try:
-            # Create updated block data, ensuring updated_at is set
-            update_payload = update_data.copy()
-            update_payload['updated_at'] = datetime.datetime.now() # Use current time for update
+            # Merge updates
+            updated_block = existing_block.model_copy(update=update_payload)
+        except Exception as e:
+            logger.error(f"Failed to apply updates to block {block_id}: {e}")
+            return False
+        # --- END UPDATE PHASE ---
             
-            try:
-                # Merge updates
-                updated_block = existing_block.model_copy(update=update_payload)
-                # Validate fully (forces re-validation of nested fields too)
-                updated_block = MemoryBlock.model_validate(updated_block)
-            except ValidationError as ve:
-                logger.error(f"Validation failed after update for block {block_id}: {ve}")
+        # --- VALIDATION PHASE ---
+        try:
+            # Validate fully (forces re-validation of nested fields too)
+            updated_block = MemoryBlock.model_validate(updated_block)
+        except ValidationError as ve:
+            # Clear, specific logging for validation errors
+            field_errors = [f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in ve.errors()]
+            error_details = "\n- ".join(field_errors)
+            logger.error(f"Validation failed after update for block {block_id}:\n- {error_details}")
+            return False
+        # --- END VALIDATION PHASE ---
+        
+        # --- DIFF PHASE ---
+        # Generate and log diff before writing
+        changes = diff_memory_blocks(existing_block, updated_block)
+        if changes:
+            change_log = []
+            for field, (old_val, new_val) in changes.items():
+                # Format the change in a readable way
+                change_log.append(f"{field}: {old_val!r} -> {new_val!r}")
+            
+            # Log at INFO level
+            diff_message = f"Changes for block {block_id}:\n- " + "\n- ".join(change_log)
+            logger.info(diff_message)
+        else:
+            logger.info(f"No significant changes detected for block {block_id}")
+        # --- END DIFF PHASE ---
+
+        # --- PERSISTENCE PHASE ---
+        try:
+            # 1. Write updated block to Dolt
+            dolt_write_success, _ = write_memory_block_to_dolt(
+                block=updated_block,
+                db_path=self.dolt_db_path,
+                auto_commit=True
+            )
+            if not dolt_write_success:
+                logger.error(f"Failed to write updated block {block_id} data to Dolt.")
                 return False
-            
-            logger.debug(f"Block {block_id} updated in memory. New text: '{updated_block.text[:50]}...'")
-        except Exception as e: # Catch potential other errors
-            logger.error(f"Failed to apply updates or validate block {block_id}: {e}", exc_info=True)
-            return False
 
-        # 3. Write updated block to Dolt
-        # Relies on insecure writer and auto_commit=True (not atomic)
-        dolt_write_success, _ = write_memory_block_to_dolt(
-            block=updated_block,
-            db_path=self.dolt_db_path,
-            auto_commit=True
-        )
-        if not dolt_write_success:
-            logger.error(f"Failed to write updated block {block_id} data to Dolt.")
-            # State is now inconsistent: update attempted but not saved in Dolt.
-            return False
-
-        # TODO: Update links in Dolt block_links table if links changed.
-
-        # 4. Re-index in LlamaIndex
-        try:
+            # 2. Re-index in LlamaIndex
             self.llama_memory.update_block(updated_block)
             logger.info(f"Successfully re-indexed updated block {block_id} in LlamaIndex.")
+            
+            logger.info(f"Successfully updated and re-indexed memory block: {block_id}")
+            return True
+            
         except Exception as e:
-            logger.error(f"Failed to re-index updated block {block_id} in LlamaIndex: {e}", exc_info=True)
-            # State is now inconsistent: Dolt updated, but LlamaIndex update failed.
-            # Proper atomicity (Task 3.4) would require rollback here.
+            logger.error(f"Failed during persistence of updated block {block_id}: {e}", exc_info=True)
             return False
-
-        logger.info(f"Successfully updated and re-indexed memory block: {block_id}")
-        return True
+        # --- END PERSISTENCE PHASE ---
 
     def delete_memory_block(self, block_id: str) -> bool:
         """
