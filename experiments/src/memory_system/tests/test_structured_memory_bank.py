@@ -7,21 +7,34 @@ import os
 from pathlib import Path
 import time
 import datetime
+from unittest.mock import patch
+import sys
+from pydantic import ValidationError
+
+# Add the project root to path for imports
+project_root = Path(__file__).parent.parent.parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 # Target class
-from experiments.src.memory_system.structured_memory_bank import StructuredMemoryBank
+from experiments.src.memory_system.structured_memory_bank import StructuredMemoryBank  # noqa: E402
 
 # Schemas needed for creating test blocks
-from experiments.src.memory_system.schemas.memory_block import MemoryBlock, BlockLink, ConfidenceScore
+from experiments.src.memory_system.schemas.memory_block import MemoryBlock, BlockLink, ConfidenceScore  # noqa: E402
 
 # Helper for initializing test Dolt DB
-from experiments.src.memory_system.initialize_dolt import initialize_dolt_db
+from experiments.src.memory_system.initialize_dolt import initialize_dolt_db  # noqa: E402
 
 # Helper for writing directly to Dolt for test setup
-from experiments.src.memory_system.dolt_writer import write_memory_block_to_dolt
+from experiments.src.memory_system.dolt_writer import write_memory_block_to_dolt  # noqa: E402
 
 # Helper for reading directly from Dolt for verification
-from experiments.src.memory_system.dolt_reader import read_memory_block
+from experiments.src.memory_system.dolt_reader import read_memory_block  # noqa: E402
+
+# Mock data paths
+MOCK_DOLT_PATH = "/mock/dolt/path"
+MOCK_CHROMA_PATH = "/mock/chroma/path"
+MOCK_COLLECTION = "mock_collection"
 
 # --- Fixtures ---
 
@@ -68,6 +81,50 @@ def sample_memory_block() -> MemoryBlock:
         links=[BlockLink(to_id="related-block-002", relation="related_to")],
         confidence=ConfidenceScore(human=0.9)
     )
+
+@pytest.fixture
+def mock_llama_memory():
+    """Create a mock LlamaMemory instance."""
+    with patch('experiments.src.memory_system.structured_memory_bank.LlamaMemory') as mock_llama:
+        mock_instance = mock_llama.return_value
+        mock_instance.is_ready.return_value = True
+        mock_instance.add_block.return_value = None  # No return value
+        mock_instance.chroma_path = MOCK_CHROMA_PATH
+        yield mock_instance
+
+@pytest.fixture
+def mock_dolt_writer():
+    """Mock the dolt_writer functions."""
+    with patch('experiments.src.memory_system.structured_memory_bank.write_memory_block_to_dolt') as mock_write:
+        mock_write.return_value = (True, "mock_commit_hash")  # Success, with hash
+        yield mock_write
+
+@pytest.fixture
+def mock_dolt_reader():
+    """Mock the dolt_reader functions."""
+    with patch('experiments.src.memory_system.structured_memory_bank.read_memory_block') as mock_read:
+        mock_read.return_value = None  # Default to no block found
+        yield mock_read
+
+@pytest.fixture
+def mock_schema_manager():
+    """Mock the dolt_schema_manager functions."""
+    with patch('experiments.src.memory_system.structured_memory_bank.get_schema') as mock_get_schema:
+        # Default to returning None (no schema found)
+        mock_get_schema.return_value = None
+        yield mock_get_schema
+
+@pytest.fixture
+def memory_bank(mock_llama_memory, mock_dolt_writer, mock_dolt_reader, mock_schema_manager):
+    """Create a StructuredMemoryBank instance with mocked dependencies."""
+    # TODO: Consider adding the node_schemas table here if needed for tests
+    with patch('experiments.src.memory_system.structured_memory_bank.Dolt'):
+        bank = StructuredMemoryBank(
+            dolt_db_path=MOCK_DOLT_PATH,
+            chroma_path=MOCK_CHROMA_PATH,
+            chroma_collection=MOCK_COLLECTION
+        )
+        yield bank
 
 # --- Test Class ---
 
@@ -404,4 +461,189 @@ class TestStructuredMemoryBank:
         
         # Test filtering by relation
         filtered_backlinks = memory_bank_instance.get_backlinks("related-block-002", relation="related_to")
-        assert len(filtered_backlinks) >= 1, "Expected at least 1 backlink when filtering by 'related_to'" 
+        assert len(filtered_backlinks) >= 1, "Expected at least 1 backlink when filtering by 'related_to'"
+
+    def test_create_memory_block_basic(self, memory_bank, mock_dolt_writer, mock_llama_memory):
+        """Test basic memory block creation functionality."""
+        # Create a simple test block
+        test_block = MemoryBlock(
+            id="test-block-1",
+            type="knowledge",
+            text="This is a test block."
+        )
+        
+        # TODO: Add basic schema definition to node_schemas if needed for create tests
+        
+        # Execute the create operation
+        result = memory_bank.create_memory_block(test_block)
+        
+        # Verify the result and interactions
+        assert result is True
+        mock_dolt_writer.assert_called_once()
+        mock_llama_memory.add_block.assert_called_once_with(test_block)
+
+    def test_create_memory_block_with_schema_version_lookup(self, memory_bank, mock_dolt_writer, mock_llama_memory, mock_schema_manager):
+        """Test that create_memory_block fetches and sets schema_version when missing."""
+        # Configure mock to return a schema with version
+        mock_schema = {
+            'x_schema_version': 2,
+            'title': 'Knowledge',
+            'type': 'object'
+        }
+        mock_schema_manager.return_value = mock_schema
+        
+        # Create a test block without schema_version
+        test_block = MemoryBlock(
+            id="test-block-schema",
+            type="knowledge",
+            text="This is a test block for schema versioning."
+        )
+        assert test_block.schema_version is None
+        
+        # Execute the create operation
+        result = memory_bank.create_memory_block(test_block)
+        
+        # Verify schema version was set
+        assert result is True
+        assert test_block.schema_version == 2
+        mock_schema_manager.assert_called_once_with(db_path=MOCK_DOLT_PATH, node_type="knowledge")
+        mock_dolt_writer.assert_called_once()
+        mock_llama_memory.add_block.assert_called_once_with(test_block)
+
+    def test_create_memory_block_missing_schema(self, memory_bank, mock_dolt_writer, mock_llama_memory, mock_schema_manager):
+        """Test that create_memory_block works even when no schema is found."""
+        # Configure mock to return None (no schema found)
+        mock_schema_manager.return_value = None
+        
+        # Create a test block without schema_version
+        test_block = MemoryBlock(
+            id="test-block-no-schema",
+            type="knowledge",
+            text="This is a test block with no available schema."
+        )
+        assert test_block.schema_version is None
+        
+        # Execute the create operation
+        result = memory_bank.create_memory_block(test_block)
+        
+        # Verify operation succeeded but schema_version remained None
+        assert result is True
+        assert test_block.schema_version is None
+        mock_schema_manager.assert_called_once_with(db_path=MOCK_DOLT_PATH, node_type="knowledge")
+        mock_dolt_writer.assert_called_once()
+        mock_llama_memory.add_block.assert_called_once_with(test_block)
+
+    def test_create_memory_block_preserves_existing_schema_version(self, memory_bank, mock_dolt_writer, mock_llama_memory, mock_schema_manager):
+        """Test that create_memory_block doesn't change schema_version if already set."""
+        # Configure mock to return a schema with different version
+        mock_schema = {
+            'x_schema_version': 3,
+            'title': 'Knowledge',
+            'type': 'object'
+        }
+        mock_schema_manager.return_value = mock_schema
+        
+        # Create a test block with schema_version already set
+        test_block = MemoryBlock(
+            id="test-block-existing-schema",
+            type="knowledge",
+            text="This is a test block with pre-set schema version.",
+            schema_version=1
+        )
+        
+        # Execute the create operation
+        result = memory_bank.create_memory_block(test_block)
+        
+        # Verify schema version was not changed
+        assert result is True
+        assert test_block.schema_version == 1  # Should remain 1, not changed to 3
+        # Schema lookup shouldn't be called since version is already set
+        mock_schema_manager.assert_not_called()
+        mock_dolt_writer.assert_called_once()
+        mock_llama_memory.add_block.assert_called_once_with(test_block)
+
+    def test_create_memory_block_validation_fails(self, memory_bank, mock_dolt_writer, mock_llama_memory):
+        """Tests that create_memory_block fails when given an invalid block."""
+        # Create a valid block first
+        block = MemoryBlock(
+            id="test-invalid-block",
+            type="knowledge",
+            text="This should fail validation"
+        )
+        
+        # Setup a patched version of model_validate that raises ValidationError
+        original_model_validate = MemoryBlock.model_validate
+        
+        def mock_model_validate(obj, *args, **kwargs):
+            if hasattr(obj, 'id') and obj.id == "test-invalid-block":
+                # For this specific test block, raise a validation error
+                # Use the lower-level PydanticCustomError directly
+                raise ValidationError.from_exception_data(
+                    title="validation-error",
+                    line_errors=[{
+                        "type": "string_type",
+                        "loc": ("id",),
+                        "msg": "Mock validation error for testing",
+                        "input": "test-invalid-block",
+                        "ctx": {"error": "mocked validation failure"}
+                    }]
+                )
+            # For any other object, use the original method
+            return original_model_validate(obj, *args, **kwargs)
+        
+        # Apply the patch
+        with patch.object(MemoryBlock, 'model_validate', side_effect=mock_model_validate):
+            # The validation should fail during create_memory_block
+            result = memory_bank.create_memory_block(block)
+            
+            # Assert the operation failed
+            assert result is False, "create_memory_block should return False for invalid blocks"
+            
+            # Verify no Dolt write was attempted
+            mock_dolt_writer.assert_not_called()
+            
+            # Verify no LlamaIndex add was attempted
+            mock_llama_memory.add_block.assert_not_called()
+
+    def test_update_memory_block_validation_fails(self, memory_bank, mock_dolt_writer, mock_llama_memory, mock_dolt_reader):
+        """Tests that update_memory_block fails when given invalid update data."""
+        # Set up mock reader to return a valid block
+        valid_block = MemoryBlock(
+            id="test-block-to-update",
+            type="knowledge",
+            text="Original text",
+            tags=["original", "tags"]
+        )
+        mock_dolt_reader.return_value = valid_block
+        
+        # Set up a deeper mock to intercept model_validate to trigger validation error
+        with patch('experiments.src.memory_system.structured_memory_bank.MemoryBlock.model_validate') as mock_validate:
+            mock_validate.side_effect = ValidationError.from_exception_data(
+                title='MemoryBlock',
+                line_errors=[{
+                    'type': 'list_type',
+                    'loc': ('tags',),
+                    'msg': 'Input should be a valid list',
+                    'input': 'invalid-tags-format',
+                }]
+            )
+            
+            # Try to update with invalid data (tags should be a list, not a string)
+            update_data = {
+                "tags": "invalid-tags-format",  # This is incorrect - should be a list
+            }
+            
+            # The validation should fail
+            result = memory_bank.update_memory_block("test-block-to-update", update_data)
+            
+            # Assert the operation failed
+            assert result is False, "update_memory_block should return False for invalid update data"
+            
+            # Verify model_validate was called
+            mock_validate.assert_called_once()
+            
+            # Verify no Dolt write was attempted
+            mock_dolt_writer.assert_not_called()
+            
+            # Verify no LlamaIndex update was attempted
+            mock_llama_memory.update_block.assert_not_called() 

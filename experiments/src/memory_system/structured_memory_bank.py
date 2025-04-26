@@ -6,18 +6,33 @@ and the LlamaIndex (ChromaDB) indexing/retrieval system.
 """
 
 import logging
+import sys
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 import datetime
+from pydantic import ValidationError
+
+# --- Path Setup --- START
+script_dir = Path(__file__).parent
+project_root_dir = script_dir.parent.parent.parent
+if str(project_root_dir) not in sys.path:
+    sys.path.insert(0, str(project_root_dir))
+# --- Path Setup --- END
 
 # Dolt Interactions
-from experiments.src.memory_system.dolt_reader import read_memory_block, read_memory_blocks_by_tags # Assuming read_memory_blocks will be needed
-from experiments.src.memory_system.dolt_writer import write_memory_block_to_dolt, delete_memory_block_from_dolt # Assuming write_memory_block_to_dolt and delete_memory_block_from_dolt will be needed
+from doltpy.cli import Dolt  # noqa: E402
+from experiments.src.memory_system.dolt_reader import read_memory_block, read_memory_blocks_by_tags  # noqa: E402
+from experiments.src.memory_system.dolt_writer import write_memory_block_to_dolt, delete_memory_block_from_dolt, _escape_sql_string  # noqa: E402
 
 # LlamaIndex Interactions
-from experiments.src.memory_system.llama_memory import LlamaMemory
+from experiments.src.memory_system.llama_memory import LlamaMemory  # noqa: E402
 
 # Schemas
-from experiments.src.memory_system.schemas.memory_block import MemoryBlock, BlockLink
+from experiments.src.memory_system.schemas.memory_block import MemoryBlock  # noqa: E402
+from experiments.src.memory_system.schemas.common import BlockLink  # noqa: E402
+
+# Schema manager
+from experiments.src.memory_system.dolt_schema_manager import get_schema  # noqa: E402
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -38,12 +53,46 @@ class StructuredMemoryBank:
             chroma_collection: Name of the ChromaDB collection.
         """
         self.dolt_db_path = dolt_db_path
-        self.llama_memory = LlamaMemory(chroma_path=chroma_path, collection_name=chroma_collection)
+        self.llama_memory = LlamaMemory(
+            chroma_path=chroma_path,
+            collection_name=chroma_collection
+        )
 
         if not self.llama_memory.is_ready():
             raise RuntimeError("Failed to initialize LlamaMemory backend.")
 
         logger.info(f"StructuredMemoryBank initialized. Dolt Path: {dolt_db_path}, LlamaIndex Ready: {self.llama_memory.is_ready()}")
+
+    def get_latest_schema_version(self, node_type: str) -> Optional[int]:
+        """
+        Gets the latest schema version for a given node type by querying the node_schemas table.
+        
+        Args:
+            node_type: The type of node/block (e.g., 'knowledge', 'task', 'project', 'doc')
+            
+        Returns:
+            The latest schema version as an integer, or None if no schema is found
+        """
+        logger.debug(f"Fetching latest schema version for node type: {node_type}")
+        
+        try:
+            # Use get_schema from dolt_schema_manager which already has logic to fetch latest version
+            schema = get_schema(
+                db_path=self.dolt_db_path,
+                node_type=node_type
+            )
+            
+            if schema and 'x_schema_version' in schema:
+                version = schema['x_schema_version']
+                logger.debug(f"Found schema version {version} for {node_type}")
+                return version
+            else:
+                logger.warning(f"No schema found for node type: {node_type}")
+                return None
+                
+        except Exception as e:
+            logger.warning(f"Error fetching schema version for {node_type}: {e}")
+            return None
 
     def create_memory_block(self, block: MemoryBlock) -> bool:
         """
@@ -63,7 +112,22 @@ class StructuredMemoryBank:
              logger.error("LlamaMemory backend is not ready. Cannot create block.")
              return False
 
-        # TODO: Query node_schemas for latest version and set block.schema_version
+        # Query node_schemas for latest version and set block.schema_version if not already set
+        if block.schema_version is None:
+            latest_version = self.get_latest_schema_version(block.type)
+            if latest_version is not None:
+                block.schema_version = latest_version
+                logger.info(f"Set schema_version to {latest_version} for block {block.id}")
+            else:
+                logger.warning(f"No schema version found for block type '{block.type}'. Creating block without schema_version.")
+
+        # Ensure the block is valid before writing
+        try:
+            # Force re-validation of the entire block including nested fields
+            block = MemoryBlock.model_validate(block)
+        except ValidationError as ve:
+            logger.error(f"Validation failed for block {block.id}: {ve}")
+            return False
 
         # 1. Write block data to Dolt memory_blocks table
         # Using auto_commit=True for now, which isn't ideal for atomicity with indexing.
@@ -168,9 +232,17 @@ class StructuredMemoryBank:
             update_payload = update_data.copy()
             update_payload['updated_at'] = datetime.datetime.now() # Use current time for update
             
-            updated_block = existing_block.model_copy(update=update_payload)
+            try:
+                # Merge updates
+                updated_block = existing_block.model_copy(update=update_payload)
+                # Validate fully (forces re-validation of nested fields too)
+                updated_block = MemoryBlock.model_validate(updated_block)
+            except ValidationError as ve:
+                logger.error(f"Validation failed after update for block {block_id}: {ve}")
+                return False
+            
             logger.debug(f"Block {block_id} updated in memory. New text: '{updated_block.text[:50]}...'")
-        except Exception as e: # Catch potential Pydantic validation errors or others
+        except Exception as e: # Catch potential other errors
             logger.error(f"Failed to apply updates or validate block {block_id}: {e}", exc_info=True)
             return False
 
@@ -344,10 +416,52 @@ class StructuredMemoryBank:
             A list of BlockLink objects representing the forward links.
         """
         logger.info(f"Getting forward links for block: {block_id} (relation={relation})")
-        # TODO: Query Dolt block_links table for matching from_id
-        # OR
-        # TODO: Query LlamaIndex graph store (using self.llama_memory.graph_store)
-        pass # Placeholder
+        repo = None
+        forward_links: List[BlockLink] = []
+        
+        try:
+            # Connect to Dolt repository
+            repo = Dolt(self.dolt_db_path)
+            
+            # Escape input values for SQL query
+            escaped_block_id = _escape_sql_string(block_id)
+            
+            # Build the query based on whether relation is specified
+            if relation:
+                escaped_relation = _escape_sql_string(relation)
+                query = f"""
+                SELECT from_id, to_id, relation 
+                FROM block_links 
+                WHERE from_id = {escaped_block_id} AND relation = {escaped_relation}
+                """
+            else:
+                query = f"""
+                SELECT from_id, to_id, relation 
+                FROM block_links 
+                WHERE from_id = {escaped_block_id}
+                """
+            
+            logger.debug(f"Executing forward links query: {query}")
+            result = repo.sql(query=query, result_format='json')
+            
+            # Process results
+            if result and 'rows' in result and result['rows']:
+                logger.info(f"Found {len(result['rows'])} forward links for block {block_id}")
+                for row in result['rows']:
+                    # Convert SQL results to BlockLink objects
+                    link = BlockLink(
+                        to_id=row['to_id'],
+                        relation=row['relation']
+                    )
+                    forward_links.append(link)
+            else:
+                logger.info(f"No forward links found for block {block_id}")
+                
+            return forward_links
+            
+        except Exception as e:
+            logger.error(f"Error retrieving forward links for block {block_id}: {e}", exc_info=True)
+            return []
 
     def get_backlinks(self, block_id: str, relation: Optional[str] = None) -> List[BlockLink]:
         """
@@ -361,10 +475,53 @@ class StructuredMemoryBank:
             A list of BlockLink objects representing the backlinks.
         """
         logger.info(f"Getting backlinks for block: {block_id} (relation={relation})")
-        # TODO: Query Dolt block_links table for matching to_id
-        # OR
-        # TODO: Query LlamaIndex graph store (using self.llama_memory.get_backlinks and potentially filtering)
-        pass # Placeholder
+        repo = None
+        backlinks: List[BlockLink] = []
+        
+        try:
+            # Connect to Dolt repository
+            repo = Dolt(self.dolt_db_path)
+            
+            # Escape input values for SQL query
+            escaped_block_id = _escape_sql_string(block_id)
+            
+            # Build the query based on whether relation is specified
+            if relation:
+                escaped_relation = _escape_sql_string(relation)
+                query = f"""
+                SELECT from_id, to_id, relation 
+                FROM block_links 
+                WHERE to_id = {escaped_block_id} AND relation = {escaped_relation}
+                """
+            else:
+                query = f"""
+                SELECT from_id, to_id, relation 
+                FROM block_links 
+                WHERE to_id = {escaped_block_id}
+                """
+            
+            logger.debug(f"Executing backlinks query: {query}")
+            result = repo.sql(query=query, result_format='json')
+            
+            # Process results
+            if result and 'rows' in result and result['rows']:
+                logger.info(f"Found {len(result['rows'])} backlinks for block {block_id}")
+                for row in result['rows']:
+                    # BlockLink constructor expects to_id, so we need to adjust 
+                    # when creating from backlinks table data
+                    link = BlockLink(
+                        to_id=row['from_id'],  # The "from" block is our target for backlinks
+                        relation=row['relation']
+                    )
+                    backlinks.append(link)
+            else:
+                logger.info(f"No backlinks found for block {block_id}")
+                
+            return backlinks
+            
+        except Exception as e:
+            logger.error(f"Error retrieving backlinks for block {block_id}: {e}", exc_info=True)
+            return []
 
     # Optional: Add chat history methods if needed
     # def read_history_dicts(self, ...) -> List[Dict[str, Any]]: ...
