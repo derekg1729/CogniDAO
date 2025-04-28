@@ -1,6 +1,6 @@
 {
   "type": "Task",
-  "status": "todo",
+  "status": "in-progress",
   "project": "../project-CogniMemorySystem-POC.json",
   "name": "Test CogniStructuredMemoryAdapter",
   "description": "Implement unit and integration tests for the CogniStructuredMemoryAdapter, ensuring it correctly wraps StructuredMemoryBank and conforms to the LangChain BaseMemory interface.",
@@ -17,18 +17,18 @@
     ]
   },
   "action_items": [
-    "[ ] Set up pytest fixtures.",
-    "[ ] Create a mock `StructuredMemoryBank` instance using `unittest.mock.MagicMock`.",
-    "[ ] Configure mock return values for methods like `query_semantic` and mock expectations for `create_memory_block`.",
-    "[ ] Instantiate `CogniStructuredMemoryAdapter` with the mocked bank.",
-    "[ ] Test `load_memory_variables`:",
-    "[ ]   Call the method with sample input.",
-    "[ ]   Assert that the mock `query_semantic` was called with the correct arguments.",
-    "[ ]   Assert that the returned dictionary has the expected structure and contains the formatted mock results.",
-    "[ ] Test `save_context`:",
-    "[ ]   Call the method with sample inputs and outputs.",
-    "[ ]   Assert that the mock `create_memory_block` was called.",
-    "[ ]   Assert that the `MemoryBlock` object passed to `create_memory_block` has the expected text, type, and tags based on the inputs/outputs.",
+    "[x] Set up pytest fixtures.",
+    "[x] Create a mock `StructuredMemoryBank` instance using `unittest.mock.MagicMock`.",
+    "[x] Configure mock return values for methods like `query_semantic` and mock expectations for `create_memory_block`.",
+    "[x] Instantiate `CogniStructuredMemoryAdapter` with the mocked bank.",
+    "[x] Test `load_memory_variables`:",
+    "[x]   Call the method with sample input.",
+    "[x]   Assert that the mock `query_semantic` was called with the correct arguments.",
+    "[x]   Assert that the returned dictionary has the expected structure and contains the formatted mock results.",
+    "[x] Test `save_context`:",
+    "[x]   Call the method with sample inputs and outputs.",
+    "[x]   Assert that the mock `create_memory_block` was called.",
+    "[x]   Assert that the `MemoryBlock` object passed to `create_memory_block` has the expected text, type, and tags based on the inputs/outputs.",
     "[ ] Test `memory_variables` property returns the expected list of keys.",
     "[ ] Test `clear` method (if implemented, test its behavior; otherwise, test that it raises `NotImplementedError` or logs appropriately)."
   ],
@@ -42,5 +42,5 @@
     "[ ] High test coverage for `CogniStructuredMemoryAdapter`.",
     "[ ] Confidence that the adapter functions correctly as a bridge between LangChain and `StructuredMemoryBank`."
   ],
-  "current_status": "Task definition created."
+  "current_status": "Test file test_langchain_adapter.py created. Initial tests for load_memory_variables and save_context (success and missing input cases) added and passing after schema fix. Next steps: Add tests for memory_variables property and clear method."
 } 

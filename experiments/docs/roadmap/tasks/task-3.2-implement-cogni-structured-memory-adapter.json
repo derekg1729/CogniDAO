@@ -1,6 +1,6 @@
 {
   "type": "Task",
-  "status": "todo",
+  "status": "in-progress",
   "project": "../project-CogniMemorySystem-POC.json",
   "name": "Implement CogniStructuredMemoryAdapter",
   "description": "Create a LangChain BaseMemory adapter that wraps StructuredMemoryBank, allowing LangChain agents to interact with persistent structured memory.",
@@ -12,25 +12,39 @@
     "inherits_from": "langchain_core.memory.BaseMemory"
   },
   "action_items": [
-    "[ ] Import `BaseMemory` from `langchain_core.memory`.",
-    "[ ] Import `StructuredMemoryBank`.",
-    "[ ] Define the `CogniStructuredMemoryAdapter` class inheriting from `BaseMemory`.",
-    "[ ] Implement `__init__` to accept a `StructuredMemoryBank` instance.",
-    "[ ] Define `memory_variables` property (e.g., return `['relevant_blocks']` or similar).",
-    "[ ] Implement `load_memory_variables(inputs: Dict[str, Any]) -> Dict[str, Any]`:",
-    "[ ]   Extract the main input key (e.g., `inputs['input']`).",
-    "[ ]   Use the wrapped `StructuredMemoryBank.query_semantic()` with the input text.",
-    "[ ]   Format the retrieved `MemoryBlock` list (e.g., as a formatted string or list of dicts) under the key defined in `memory_variables`.",
-    "[ ]   Return the dictionary (e.g., `{'relevant_blocks': formatted_blocks}`).",
-    "[ ] Implement `save_context(inputs: Dict[str, Any], outputs: Dict[str, str]) -> None`:",
-    "[ ]   Decide on a strategy for creating a block (e.g., combine input and output, use a specific template).",
-    "[ ]   Construct the `text` for a new `MemoryBlock`.",
-    "[ ]   Define `type` (e.g., 'interaction', 'knowledge').",
-    "[ ]   Generate relevant `tags` (e.g., `agent:<agent_name>`, `session:<session_id>`, maybe extract keywords from input/output).",
-    "[ ]   Instantiate a `MemoryBlock` object (ID, timestamps etc. will be handled by `create_memory_block`).",
-    "[ ]   Call the wrapped `StructuredMemoryBank.create_memory_block()`.",
-    "[ ] Implement `clear()` method:",
-    "[ ]   Decide on clearing strategy (e.g., delete blocks with a specific session tag? No-op? Needs clarification based on use case). For now, maybe just log a message or raise `NotImplementedError`."
+    "[x] Import `BaseMemory` from `langchain_core.memory`.",
+    "[x] Import `StructuredMemoryBank`.",
+    "[x] Define the `CogniStructuredMemoryAdapter` class inheriting from `BaseMemory`.",
+    "[x] Implement `__init__` to accept a `StructuredMemoryBank` instance.",
+    "[x] Define `memory_variables` property (e.g., return `['relevant_blocks']` or similar).",
+    "[x] Implement `load_memory_variables(inputs: Dict[str, Any]) -> Dict[str, Any]`:",
+    "[x]   Extract the main input key (e.g., `inputs['input']`).",
+    "[x]   Use the wrapped `StructuredMemoryBank.query_semantic()` with the input text.",
+    "[x]   Format the retrieved `MemoryBlock` list as structured markdown (not raw dicts) under the key defined in `memory_variables`.",
+    "[x]   For each block, include type, tags, and other metadata in a consistent markdown format that's easily parsed by LLMs.",
+    "[x]   Example markdown format:",
+    "[x]   ```",
+    "[x]   ## Memory Block: {block.id}",
+    "[x]   **Type**: {block.type}",
+    "[x]   **Tags**: {', '.join(block.tags)}",
+    "[x]   **Created**: {block.created_at}",
+    "[x]   ",
+    "[x]   {block.text}",
+    "[x]   ```",
+    "[x]   Return the dictionary (e.g., `{'relevant_blocks': formatted_markdown_blocks}`).",
+    "[x] Implement `save_context(inputs: Dict[str, Any], outputs: Dict[str, str]) -> None`:",
+    "[x]   Use a standardized template for creating block text, e.g.:",
+    "[x]   ```",
+    "[x]   [Interaction Record]",
+    "[x]   Input: {input}",
+    "[x]   Output: {output}",
+    "[x]   ```",
+    "[x]   Define `type` (e.g., 'interaction', 'knowledge').",
+    "[x]   Generate relevant `tags` (e.g., `agent:<agent_name>`, `session:<session_id>`, maybe extract keywords from input/output).",
+    "[x]   Instantiate a `MemoryBlock` object (ID, timestamps etc. will be handled by `create_memory_block`).",
+    "[x]   Call the wrapped `StructuredMemoryBank.create_memory_block()`.",
+    "[x] Implement `clear()` method:",
+    "[x]   Decide on clearing strategy (e.g., delete blocks with a specific session tag? No-op? Needs clarification based on use case). For now, maybe just log a message or raise `NotImplementedError`."
   ],
   "test_criteria": [
     "[ ] See `task-3.7-test-cogni-structured-memory-adapter.json`."
@@ -39,7 +53,9 @@
     "[ ] A class conforming to LangChain's `BaseMemory` interface exists.",
     "[ ] The adapter successfully uses `StructuredMemoryBank` for semantic retrieval in `load_memory_variables`.",
     "[ ] The adapter successfully uses `StructuredMemoryBank` to create new blocks in `save_context`.",
-    "[ ] The adapter can be instantiated and used within a LangChain agent/chain."
+    "[ ] The adapter can be instantiated and used within a LangChain agent/chain.",
+    "[ ] Memory blocks are formatted as structured markdown for better LLM comprehension.",
+    "[ ] Saved interactions follow a standardized template for consistency."
   ],
-  "current_status": "Task definition created."
+  "current_status": "Adapter class CogniStructuredMemoryAdapter implemented in langchain_adapter.py. Methods load_memory_variables, save_context, and _format_blocks_to_markdown are complete. Next step: Testing (Task 3.7)."
 } 

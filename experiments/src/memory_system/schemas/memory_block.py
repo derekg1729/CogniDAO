@@ -16,7 +16,7 @@ class MemoryBlock(BaseModel):
     Includes schema versioning support (Task 2.0).
     """
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Globally unique ID for this memory block")
-    type: Literal["knowledge", "task", "project", "doc"] = Field(..., description="Block type used to determine structure and relationships")
+    type: Literal["knowledge", "task", "project", "doc", "interaction"] = Field(..., description="Block type used to determine structure and relationships")
     schema_version: Optional[int] = Field(None, description="Version of the schema this block adheres to (links to node_schemas table)")
     text: str = Field(..., description="Primary content or description of the block")
     tags: List[str] = Field(default_factory=list, description="Optional tags for filtering, theming, or metadata")
