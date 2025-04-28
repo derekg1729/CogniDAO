@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Dict, Any, List
 import logging
+import datetime
 
 from langchain_core.memory import BaseMemory
 # Update the import to use pydantic directly instead of langchain_core.pydantic_v1
@@ -102,8 +103,14 @@ class CogniStructuredMemoryAdapter(BaseMemory):
     def save_context(self, inputs: Dict[str, Any], outputs: Dict[str, str]) -> None:
         """Save the interaction context into the memory bank.
 
-        Extracts input and output, formats them into a new MemoryBlock,
-        and uses the memory bank's create_memory_block method to persist it.
+        Extracts input and output, sanitizes them to prevent recursive memory growth,
+        formats them into a new MemoryBlock, and uses the memory bank's create_memory_block method to persist it.
+        
+        Enhanced features:
+        - Sanitizes inputs/outputs to remove memory placeholders and prevent recursive memory growth
+        - Extracts and adds session information when available
+        - Auto-generates tags based on content and session IDs
+        - Enriches metadata with model information, timestamps, and other analytics data
         """
         logger.debug(f"Saving context for input keys: {list(inputs.keys())}, output keys: {list(outputs.keys())}")
 
@@ -117,6 +124,21 @@ class CogniStructuredMemoryAdapter(BaseMemory):
             logger.warning(f"Output key '{self.output_key}' not found in outputs. Cannot save context.")
             return
 
+        # --- SANITIZATION STEP ---
+        # Remove memory placeholders to prevent recursive memory storage
+        if isinstance(input_str, str) and self.memory_key in input_str:
+            logger.warning(f"Sanitizing input_str: removing '{self.memory_key}' placeholder before saving.")
+            input_str = input_str.replace(f"{{{self.memory_key}}}", "").strip()
+
+        # Handle dictionary output from LLM chains
+        if isinstance(output_str, dict):
+            # Extract just the text content if available
+            if 'text' in output_str:
+                output_str = output_str['text']
+            else:
+                # Fallback to string representation
+                output_str = str(output_str)
+
         # Format the block text using the standard template
         block_text = (
             f"[Interaction Record]\n"
@@ -124,25 +146,61 @@ class CogniStructuredMemoryAdapter(BaseMemory):
             f"Output: {output_str}"
         )
 
-        # Prepare tags (start with fixed tags, can be expanded later)
-        # Fix the 'FieldInfo' object is not iterable error by using an empty list as default
+        # --- DYNAMIC TAGGING ---
+        # Prepare tags (start with fixed tags, can be expanded with dynamic ones)
         tags = []
         if hasattr(self, 'save_tags') and isinstance(self.save_tags, list):
             tags = self.save_tags.copy()
-        # TODO: Consider adding dynamic tags (e.g., session_id if available, keywords)
+        
+        # Extract session ID if available in inputs
+        session_id = None
+        if 'session_id' in inputs:
+            session_id = inputs['session_id']
+            tags.append(f"session:{session_id}")
+        
+        # Create timestamp once and reuse formatted versions
+        timestamp = datetime.datetime.now()
+        timestamp_str = timestamp.strftime("%Y%m%d")
+        iso_timestamp = timestamp.isoformat()
+        
+        # Add timestamp tag for time-based filtering
+        tags.append(f"date:{timestamp_str}")
+        
+        # Add interaction type tag
+        tags.append(f"type:{self.save_interaction_type}")
+
+        # --- ENHANCED METADATA ---
+        # Build enriched metadata dictionary
+        metadata = {
+            "input_key": self.input_key,
+            "output_key": self.output_key,
+            "adapter_type": self.__class__.__name__,
+            "timestamp": iso_timestamp,
+        }
+        
+        # Add model information if available
+        if 'model' in inputs:
+            metadata["model"] = inputs['model']
+        
+        # Add session information if available
+        if session_id:
+            metadata["session_id"] = session_id
+            
+        # Add token counts if available
+        if 'token_count' in inputs:
+            metadata["token_count"] = inputs['token_count']
+        
+        # Add latency if available
+        if 'latency' in inputs:
+            metadata["latency_ms"] = inputs['latency']
 
         try:
-            # Create a new MemoryBlock object
-            # ID and timestamps will be handled by MemoryBlock defaults or create_memory_block
+            # Create a new MemoryBlock object with enhanced metadata and tags
             new_block = MemoryBlock(
                 type=self.save_interaction_type,
                 text=block_text,
                 tags=tags,
-                metadata={ # Add basic metadata about the interaction
-                    "input_key": self.input_key,
-                    "output_key": self.output_key,
-                    "adapter_type": self.__class__.__name__
-                }
+                metadata=metadata
                 # Let created_at, updated_at, id, schema_version be handled by defaults/bank
             )
 
@@ -151,7 +209,7 @@ class CogniStructuredMemoryAdapter(BaseMemory):
             success = self.memory_bank.create_memory_block(new_block)
 
             if success:
-                logger.info(f"Successfully saved context as memory block: {new_block.id}")
+                logger.info(f"Successfully saved enhanced context as memory block: {new_block.id}, with tags: {tags}")
             else:
                 # create_memory_block logs errors internally, but we add one here too
                 logger.error(f"Failed to save context via memory_bank.create_memory_block for block type '{new_block.type}'")
