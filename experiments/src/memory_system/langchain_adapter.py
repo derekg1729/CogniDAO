@@ -8,8 +8,8 @@ from typing import Dict, Any, List
 import logging
 
 from langchain_core.memory import BaseMemory
-# Use Langchain's Pydantic v1 for compatibility if BaseMemory requires it
-from langchain_core.pydantic_v1 import Field, root_validator
+# Update the import to use pydantic directly instead of langchain_core.pydantic_v1
+from pydantic import Field, root_validator
 from experiments.src.memory_system.structured_memory_bank import StructuredMemoryBank
 from experiments.src.memory_system.schemas.memory_block import MemoryBlock
 
@@ -125,7 +125,10 @@ class CogniStructuredMemoryAdapter(BaseMemory):
         )
 
         # Prepare tags (start with fixed tags, can be expanded later)
-        tags = list(self.save_tags) # Make a copy
+        # Fix the 'FieldInfo' object is not iterable error by using an empty list as default
+        tags = []
+        if hasattr(self, 'save_tags') and isinstance(self.save_tags, list):
+            tags = self.save_tags.copy()
         # TODO: Consider adding dynamic tags (e.g., session_id if available, keywords)
 
         try:
