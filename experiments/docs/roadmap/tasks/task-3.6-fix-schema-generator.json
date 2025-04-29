@@ -1,0 +1,65 @@
+{
+  "type": "Task",
+  "status": "completed",
+  "project": "CogniMemorySystem-POC",
+  "id": "3.8",
+  "name": "Fix Dolt Schema Scripts: Clarify Purpose, Add Comments, Improve Workflow",
+  "description": "Separate the concerns between static Dolt table schema generation (generate_dolt_schema.py) and dynamic metadata schema management (dolt_schema_manager.py). Add proper explanatory comments, ensure correct usage, and slightly improve scripts for future-proofing.",
+  "phase": "⚙️ Phase 3: Agent + Tool Wiring (Structured Memory)",
+  "implementation_details": {
+    "files_to_update": [
+      "experiments/scripts/generate_dolt_schema.py",
+      "experiments/src/memory_system/tools/dolt_schema_manager.py"
+    ],
+    "goals": [
+      "Document clearly that generate_dolt_schema.py is for initial CREATE TABLE scripts only.",
+      "Document clearly that dolt_schema_manager.py is for dynamic node type metadata versioning and registration.",
+      "Fix misleading comments about 'auto-generation' in generate_dolt_schema.py (clarify it is static for now).",
+      "Add structured TODO section for future dynamic schema generation from Pydantic models.",
+      "Optionally, improve output messages to make script purposes obvious when run."
+    ],
+    "insert_comments": {
+      "generate_dolt_schema.py": [
+        "Purpose: Generate static CREATE TABLE schema for Dolt database initialization (memory_blocks, block_links, node_schemas, block_proofs).",
+        "Note: This script does NOT manage versioned metadata type schemas stored in node_schemas.",
+        "For dynamic node type schema registration and management, use dolt_schema_manager.py instead."
+      ],
+      "dolt_schema_manager.py": [
+        "Purpose: Manage dynamic node type metadata schemas (Pydantic models) stored in the node_schemas Dolt table.",
+        "Handles schema registration, updates, retrievals, and version control for dynamic memory types like 'task', 'project', 'doc'.",
+        "Note: This does NOT modify base Dolt table layouts. See generate_dolt_schema.py for table initialization."
+      ]
+    }
+  },
+  "action_items": [
+    "[x] Open generate_dolt_schema.py, add top-level comments clarifying purpose and limitations.",
+    "[x] Update existing misleading comments about 'dynamic generation' — clarify it is a static MVP stub.",
+    "[x] Insert TODO section in generate_dolt_schema.py noting that future versions should dynamically introspect Pydantic models.",
+    "[x] Open dolt_schema_manager.py, add top-level comments clarifying its role in dynamic metadata schema management.",
+    "[x] Improve final print statements in both scripts to make it obvious which script manages which concerns.",
+    "[x] Run both scripts once manually and verify their messages match their documented purposes.",
+    "[x] Create comprehensive tests for generate_dolt_schema.py",
+    "[x] Run tests to verify changes"
+  ],
+  "success_criteria": [
+    "Scripts are clearly separated by purpose (static vs dynamic schema).",
+    "Top-level comments explain the distinction correctly.",
+    "Misleading 'auto-generation' comment is removed or replaced.",
+    "Future developers can easily understand which script to use for which task.",
+    "No code behavior changes yet — only documentation, separation, and clarity improvements.",
+    "Tests exist and pass for both scripts."
+  ],
+  "code_snippets_to_insert": {
+    "generate_dolt_schema.py": [
+      "# Purpose: Generate static CREATE TABLE schema for Dolt database initialization (memory_blocks, block_links, node_schemas, block_proofs).",
+      "# Note: This script does NOT manage versioned metadata type schemas stored in node_schemas.",
+      "# Future Enhancement TODO: Replace static SQL with dynamic generation based on MemoryBlock and BlockLink Pydantic models."
+    ],
+    "dolt_schema_manager.py": [
+      "# Purpose: Manage dynamic node type metadata schemas (Pydantic models) stored in the node_schemas Dolt table.",
+      "# Handles schema registration, updates, retrievals, and version control for dynamic memory types like 'task', 'project', 'doc'.",
+      "# Note: This does NOT modify base Dolt table layouts. See generate_dolt_schema.py for table initialization."
+    ]
+  },
+  "current_status": "Task completed. All documentation and test improvements implemented. Both scripts now have clear separation of concerns and comprehensive test coverage. Manual verification confirms that both scripts provide clear output messages about their respective purposes. Tests for both scripts are passing successfully."
+}

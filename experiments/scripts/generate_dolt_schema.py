@@ -1,22 +1,29 @@
 #!/usr/bin/env python3
 
-"""Generates the canonical Dolt SQL schema based on the MemoryBlock model.
+"""Purpose: Generate static CREATE TABLE schema for Dolt database initialization.
 
-This is an MVP stub — manually maps known fields from the MemoryBlock Pydantic model
-into a SQL `CREATE TABLE` statement for use with Dolt. Future versions will support dynamic introspection.
+This script generates the base table structure for the CogniMemorySystem-POC project:
+- memory_blocks: Primary table for storing memory blocks
+- block_links: For storing relationships between blocks
+- node_schemas: For schema registry and versioning
+- block_proofs: For tracking operation history with commit hashes
+
+Note: This script does NOT manage versioned metadata type schemas inside node_schemas table.
+For dynamic node type schema registration and management, use dolt_schema_manager.py instead.
+
+Future Enhancement TODO: Replace static SQL with dynamic generation based on MemoryBlock and BlockLink Pydantic models.
 """
 
 import os
 
+
 def generate_schema_sql(output_path: str):
-    """Generate the Dolt SQL schema for the CogniMemorySystem-POC project.
-    
-    This function creates a schema.sql file with CREATE TABLE statements for:
-    1. memory_blocks table (primary table for storing memory blocks)
-    2. block_links table (for storing relationships between blocks)
-    3. node_schemas table (for schema registry and versioning)
-    4. block_proofs table (for tracking operation history with commit hashes)
-    
+    """Generate the static Dolt SQL schema for database initialization.
+
+    This function creates a schema.sql file with CREATE TABLE statements for the base tables.
+    These tables form the foundation of the memory system and are not meant to be modified
+    by the dynamic schema management system.
+
     Args:
         output_path: The file path to write the generated schema to.
     """
@@ -74,7 +81,7 @@ CREATE TABLE block_proofs (
     try:
         # Ensure the directory exists
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        
+
         # Write the schema to the file
         with open(output_path, "w") as f:
             f.write(sql_content)
@@ -84,17 +91,20 @@ CREATE TABLE block_proofs (
         print(f"[✗] Error writing schema to {output_path}: {e}")
         return False
 
+
 def main():
     """Main function that determines the output path and generates the schema."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     output_path = os.path.join(script_dir, "..", "dolt_data", "schema.sql")
     success = generate_schema_sql(output_path)
-    
+
     if success:
-        print("Schema generation completed successfully.")
-        print("Generated tables: memory_blocks, block_links, node_schemas, block_proofs")
+        print("Static Dolt table schema generation completed successfully.")
+        print("Generated base tables: memory_blocks, block_links, node_schemas, block_proofs")
+        print("Note: For dynamic metadata schema management, use dolt_schema_manager.py")
     else:
         print("Schema generation failed.")
 
+
 if __name__ == "__main__":
-    main() 
+    main()

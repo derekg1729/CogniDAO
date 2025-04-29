@@ -1,0 +1,60 @@
+{
+  "type": "Task",
+  "status": "delayed",
+  "project": "CogniMemorySystem-POC",
+  "id": "4.7",
+  "name": "Implement Dynamic Dolt Table Schema Generator from Pydantic Models",
+  "description": "Replace the static SQL schema generation (generate_dolt_schema.py) with a dynamic generator that introspects Pydantic models (MemoryBlock, BlockLink) and outputs accurate Dolt CREATE TABLE statements.",
+  "phase": "🧠 Phase 4: Full Structured Memory + LlamaMemory Integration",
+  "implementation_details": {
+    "target_file": "experiments/scripts/generate_dolt_schema_dynamic.py",
+    "input_models": [
+      "MemoryBlock (experiments/src/memory_system/schemas/memory_block.py)",
+      "BlockLink (experiments/src/memory_system/schemas/block_link.py)"
+    ],
+    "requirements": [
+      "Introspect fields, types, and required/optional status from Pydantic models.",
+      "Auto-map Pydantic types to Dolt/MySQL compatible SQL types (e.g., str → TEXT, datetime → DATETIME, list/dict → JSON).",
+      "Correctly set NULL vs NOT NULL constraints based on field optionality.",
+      "Support CHECK constraints for enum or literal types (e.g., relation field in BlockLink).",
+      "Generate full CREATE TABLE statements dynamically without manual edits.",
+      "Support future ALTER TABLE generation (optional enhancement)."
+    ],
+    "dependencies": [
+      "MemoryBlock model enhancements from Phase 3",
+      "BlockLink model enhancements from Phase 3",
+      "Stabilization of LlamaMemory indexing structures"
+    ],
+    "optional_enhancements": [
+      "Automatically detect schema drift against existing Dolt tables.",
+      "Generate ALTER TABLE migration scripts if schema differences are found."
+    ]
+  },
+  "action_items": [
+    "[ ] Create helper function to map basic Pydantic field types to SQL types.",
+    "[ ] Write generator to introspect MemoryBlock and BlockLink field metadata.",
+    "[ ] Output correct CREATE TABLE syntax for Dolt/MySQL.",
+    "[ ] Handle optional vs required fields (NULL/NOT NULL).",
+    "[ ] Handle enum/literal validation via SQL CHECK constraints if possible.",
+    "[ ] Generate new schema.sql file programmatically.",
+    "[ ] Validate generated schema file against current needs.",
+    "[ ] Update documentation to reference dynamic schema generation.",
+    "[ ] Archive old static generate_dolt_schema.py after successful replacement."
+  ],
+  "test_criteria": [
+    "Generated CREATE TABLE statements accurately reflect current Pydantic model fields and types.",
+    "All required fields are marked NOT NULL; optional fields allow NULL.",
+    "Enum-like fields generate valid CHECK constraints.",
+    "Generated schema.sql initializes memory_blocks, block_links correctly for new environments.",
+    "Tests pass verifying mapping of Pydantic → SQL types.",
+    "No manual edits required in generated schema."
+  ],
+  "success_criteria": [
+    "Dynamic Pydantic-to-SQL schema generation is fully functional.",
+    "Schema generation automatically stays synchronized with evolving MemoryBlock/BlockLink models.",
+    "Future changes to Pydantic models automatically flow into Dolt table definitions.",
+    "Migration to dynamic schema generation completes without data loss.",
+    "Project achieves fully programmatic schema lifecycle management."
+  ],
+  "current_status": "Task created and queued for Phase 4 execution after MemoryBlock, BlockLink, and indexing structures are stabilized."
+}
