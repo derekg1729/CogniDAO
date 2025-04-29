@@ -224,27 +224,38 @@ class StructuredMemoryBank:
         # --- ATOMIC PERSISTENCE PHASE ---
         # Tables to track for commit/rollback
         tables = ["memory_blocks", "block_links"]
+        dolt_write_success = False
+        llama_success = False
 
-        # Step 1: Write to Dolt without auto-commit
         try:
-            dolt_write_success, _ = write_memory_block_to_dolt(
-                block=block,
-                db_path=self.dolt_db_path,
-                auto_commit=False,  # Do not auto-commit, we need atomicity control
-            )
+            # Step 1: Write to Dolt without auto-commit
+            try:
+                dolt_write_success, _ = write_memory_block_to_dolt(
+                    block=block,
+                    db_path=self.dolt_db_path,
+                    auto_commit=False,  # Do not auto-commit, we need atomicity control
+                )
 
-            if not dolt_write_success:
+                if not dolt_write_success:
+                    logger.error(
+                        f"Failed to write block {block.id} to Dolt. Aborting atomic operation."
+                    )
+                    return False
+
+                logger.info(
+                    f"Successfully wrote block {block.id} to Dolt working set (uncommitted)."
+                )
+
+            except Exception as dolt_e:
                 logger.error(
-                    f"Failed to write block {block.id} to Dolt. Aborting atomic operation."
+                    f"Unexpected error writing block {block.id} to Dolt: {dolt_e}", exc_info=True
                 )
                 return False
 
-            logger.info(f"Successfully wrote block {block.id} to Dolt working set (uncommitted).")
-
             # Step 2: Add block to LlamaIndex
-            llama_success = True
             try:
                 self.llama_memory.add_block(block)
+                llama_success = True
                 logger.info(f"Successfully indexed block {block.id} in LlamaIndex.")
             except Exception as llama_e:
                 llama_success = False
@@ -279,6 +290,9 @@ class StructuredMemoryBank:
                         # Rollback Dolt changes
                         try:
                             discard_working_changes(self.dolt_db_path, tables)
+                            logger.info(
+                                f"Successfully rolled back Dolt changes for block {block.id}"
+                            )
                         except Exception as rollback_e:
                             logger.critical(
                                 f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
@@ -288,50 +302,36 @@ class StructuredMemoryBank:
                             )
 
                         return False
+
                 except Exception as commit_e:
                     logger.error(
-                        f"Exception during Dolt commit for block {block.id}: {commit_e}",
+                        f"Unexpected error during commit for block {block.id}: {commit_e}",
                         exc_info=True,
                     )
-
-                    # Rollback LlamaIndex changes - not yet supported so log as warning
-                    logger.warning(
-                        f"LlamaIndex changes for block {block.id} cannot be automatically rolled back."
-                    )
-
-                    # Rollback Dolt changes
-                    try:
-                        discard_working_changes(self.dolt_db_path, tables)
-                        logger.info(f"Successfully rolled back Dolt changes for block {block.id}.")
-                    except Exception as rollback_e:
-                        logger.critical(
-                            f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
-                        )
-                        self._mark_inconsistent(
-                            f"Dolt commit failed and rollback failed for block {block.id}"
-                        )
-
                     return False
+
             else:
-                # LlamaIndex indexing failed - rollback Dolt changes
+                # LlamaIndex operation failed - rollback Dolt changes
+                logger.error(
+                    f"LlamaIndex operation failed for block {block.id}. Rolling back Dolt changes."
+                )
                 try:
                     discard_working_changes(self.dolt_db_path, tables)
-                    logger.info(
-                        f"Successfully rolled back Dolt changes after LlamaIndex failure for block {block.id}."
-                    )
+                    logger.info(f"Successfully rolled back Dolt changes for block {block.id}")
                 except Exception as rollback_e:
                     logger.critical(
-                        f"Failed to rollback Dolt changes after LlamaIndex failure: {rollback_e}. Database may be in an inconsistent state!"
+                        f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
                     )
                     self._mark_inconsistent(
-                        f"LlamaIndex indexing failed and Dolt rollback failed for block {block.id}"
+                        f"LlamaIndex operation failed and Dolt rollback failed for block {block.id}"
                     )
 
                 return False
 
         except Exception as e:
             logger.error(
-                f"Failed during atomic persistence of block {block.id}: {e}", exc_info=True
+                f"Unexpected error during atomic persistence of block {block.id}: {e}",
+                exc_info=True,
             )
 
             # Attempt rollback of any Dolt changes
@@ -377,217 +377,163 @@ class StructuredMemoryBank:
             logger.error(f"Error retrieving block {block_id}: {e}", exc_info=True)
             return None
 
-    def update_memory_block(self, block_id: str, update_data: Dict[str, Any]) -> bool:
+    def update_memory_block(self, block: MemoryBlock) -> bool:
         """
-        Updates a MemoryBlock with new data, ensuring atomicity between Dolt persistence
-        and LlamaIndex indexing. If either operation fails, both are rolled back to ensure consistency.
+        Updates an existing MemoryBlock, persisting to Dolt and updating in LlamaIndex with atomic guarantees.
+        If either operation fails, both are rolled back to ensure consistency between storage systems.
 
         Args:
-            block_id: The ID of the block to update.
-            update_data: Dictionary of fields to update. Non-specified fields are left unchanged.
+            block: The MemoryBlock object to update.
 
         Returns:
             True if update was successful (both Dolt write and LlamaIndex update), False otherwise.
         """
-        logger.info(f"Attempting to update memory block: {block_id}")
+        logger.info(f"Attempting to update memory block: {block.id}")
 
         if not self.llama_memory.is_ready():
             logger.error("LlamaMemory backend is not ready. Cannot update block.")
             return False
 
-        # --- READ PHASE ---
-        # First, retrieve the existing block
-        try:
-            existing_block = read_memory_block(db_path=self.dolt_db_path, block_id=block_id)
-            if not existing_block:
-                logger.error(f"Block {block_id} not found. Cannot update non-existent block.")
-                return False
-        except Exception as e:
-            logger.error(
-                f"Failed to retrieve existing block {block_id} for update: {e}", exc_info=True
-            )
-            return False
-        # --- END READ PHASE ---
-
-        # --- UPDATE PHASE ---
-        # 1. Create an updated copy of the block
-        try:
-            # Create a copy of the existing block to update
-            updated_block = MemoryBlock.model_validate(existing_block.model_dump())
-
-            # Apply updates from update_data
-            updated_fields = []
-            for key, value in update_data.items():
-                if hasattr(updated_block, key):
-                    setattr(updated_block, key, value)
-                    updated_fields.append(key)
-                else:
-                    logger.warning(f"Ignoring update to unknown field '{key}' for block {block_id}")
-
-            # Update the updated_at timestamp to now
-            updated_block.updated_at = datetime.datetime.now()
-            updated_fields.append("updated_at")
-
-            # Create a human-readable change summary for the commit message
-            changes = diff_memory_blocks(existing_block, updated_block)
-            change_summary = ", ".join([f"{key}" for key in changes])
-        except Exception as e:
-            logger.error(f"Failed to prepare update for block {block_id}: {e}", exc_info=True)
-            return False
-        # --- END UPDATE PHASE ---
-
         # --- VALIDATION PHASE ---
-        # Ensure the updated block is valid before writing
+        # Ensure the block is valid before writing
         try:
             # Force re-validation of the entire block including nested fields
-            updated_block = MemoryBlock.model_validate(updated_block)
+            block = MemoryBlock.model_validate(block)
         except ValidationError as ve:
             # Clear, specific logging for validation errors
             field_errors = [
                 f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in ve.errors()
             ]
             error_details = "\n- ".join(field_errors)
-            logger.error(f"Validation failed for updated block {block_id}:\n- {error_details}")
+            logger.error(f"Validation failed for block {block.id}:\n- {error_details}")
             return False
         # --- END VALIDATION PHASE ---
 
         # --- ATOMIC PERSISTENCE PHASE ---
         # Tables to track for commit/rollback
         tables = ["memory_blocks", "block_links"]
+        dolt_write_success = False
+        llama_success = False
 
-        # Step 1: Write to Dolt without auto-commit
         try:
-            dolt_write_success, _ = write_memory_block_to_dolt(
-                block=updated_block,
-                db_path=self.dolt_db_path,
-                auto_commit=False,  # Do not auto-commit, we need atomicity control
-            )
+            # Step 1: Write to Dolt without auto-commit
+            try:
+                dolt_write_success, _ = write_memory_block_to_dolt(
+                    block=block,
+                    db_path=self.dolt_db_path,
+                    auto_commit=False,  # Do not auto-commit, we need atomicity control
+                )
 
-            if not dolt_write_success:
+                if not dolt_write_success:
+                    logger.error(
+                        f"Failed to write block {block.id} to Dolt. Aborting atomic operation."
+                    )
+                    return False
+
+                logger.info(
+                    f"Successfully wrote block {block.id} to Dolt working set (uncommitted)."
+                )
+
+            except Exception as dolt_e:
                 logger.error(
-                    f"Failed to write updated block {block_id} to Dolt. Aborting atomic operation."
+                    f"Unexpected error writing block {block.id} to Dolt: {dolt_e}", exc_info=True
                 )
                 return False
 
-            logger.info(
-                f"Successfully wrote updated block {block_id} to Dolt working set (uncommitted)."
-            )
-
             # Step 2: Update block in LlamaIndex
-            llama_success = True
             try:
-                self.llama_memory.update_block(updated_block)
-                logger.info(f"Successfully updated block {block_id} in LlamaIndex.")
+                self.llama_memory.update_block(block)
+                llama_success = True
+                logger.info(f"Successfully updated block {block.id} in LlamaIndex.")
             except Exception as llama_e:
                 llama_success = False
                 logger.error(
-                    f"Failed to update block {block_id} in LlamaIndex: {llama_e}", exc_info=True
+                    f"Failed to update block {block.id} in LlamaIndex: {llama_e}", exc_info=True
                 )
 
             # Step 3: Handle success or failure path
             if llama_success:
                 # Both operations succeeded - commit the Dolt changes
                 try:
-                    commit_msg = self.format_commit_message(
-                        operation="update",
-                        block_id=block_id,
-                        change_summary=change_summary
-                        if change_summary
-                        else "Updated fields: " + ", ".join(updated_fields),
-                    )
-
+                    commit_msg = f"Update memory block {block.id}"
                     commit_success, commit_hash = commit_working_changes(
                         db_path=self.dolt_db_path, commit_msg=commit_msg, tables=tables
                     )
 
                     if commit_success:
-                        # Store proof of update in block_proofs table
+                        # 3a. Store proof of update in block_proofs table
                         if commit_hash:
                             self._store_block_proof(
-                                block_id=block_id,
-                                commit_hash=commit_hash,
-                                operation="update",
-                                change_summary=change_summary,
+                                block.id, commit_hash, "update", "Memory block updated"
                             )
 
-                        logger.info(f"Successfully updated memory block: {block_id}")
+                        logger.info(f"Successfully updated and indexed memory block: {block.id}")
                         return True
                     else:
                         # Commit failed - attempt rollback
                         logger.error(
-                            f"Failed to commit Dolt changes for updated block {block_id}. Attempting rollback."
+                            f"Failed to commit Dolt changes for block {block.id}. Attempting rollback."
                         )
 
                         # Rollback Dolt changes
                         try:
                             discard_working_changes(self.dolt_db_path, tables)
+                            logger.info(
+                                f"Successfully rolled back Dolt changes for block {block.id}"
+                            )
                         except Exception as rollback_e:
                             logger.critical(
                                 f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
                             )
                             self._mark_inconsistent(
-                                f"Dolt commit failed and rollback failed for updated block {block_id}"
+                                f"Dolt commit failed and rollback failed for block {block.id}"
                             )
 
                         return False
+
                 except Exception as commit_e:
                     logger.error(
-                        f"Exception during Dolt commit for updated block {block_id}: {commit_e}",
+                        f"Unexpected error during commit for block {block.id}: {commit_e}",
                         exc_info=True,
                     )
-
-                    # Rollback LlamaIndex changes - would need to re-add the original block
-                    logger.warning(
-                        f"LlamaIndex changes for block {block_id} cannot be automatically rolled back."
-                    )
-
-                    # Rollback Dolt changes
-                    try:
-                        discard_working_changes(self.dolt_db_path, tables)
-                        logger.info(
-                            f"Successfully rolled back Dolt changes for updated block {block_id}."
-                        )
-                    except Exception as rollback_e:
-                        logger.critical(
-                            f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
-                        )
-                        self._mark_inconsistent(
-                            f"Dolt commit failed and rollback failed for updated block {block_id}"
-                        )
-
                     return False
+
             else:
-                # LlamaIndex update failed - rollback Dolt changes
+                # LlamaIndex operation failed - rollback Dolt changes
+                logger.error(
+                    f"LlamaIndex operation failed for block {block.id}. Rolling back Dolt changes."
+                )
                 try:
                     discard_working_changes(self.dolt_db_path, tables)
-                    logger.info(
-                        f"Successfully rolled back Dolt changes after LlamaIndex update failure for block {block_id}."
-                    )
+                    logger.info(f"Successfully rolled back Dolt changes for block {block.id}")
                 except Exception as rollback_e:
                     logger.critical(
-                        f"Failed to rollback Dolt changes after LlamaIndex update failure: {rollback_e}. Database may be in an inconsistent state!"
+                        f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
                     )
                     self._mark_inconsistent(
-                        f"LlamaIndex update failed and Dolt rollback failed for block {block_id}"
+                        f"LlamaIndex operation failed and Dolt rollback failed for block {block.id}"
                     )
 
                 return False
 
         except Exception as e:
-            logger.error(f"Failed during atomic update of block {block_id}: {e}", exc_info=True)
+            logger.error(
+                f"Unexpected error during atomic persistence of block {block.id}: {e}",
+                exc_info=True,
+            )
 
             # Attempt rollback of any Dolt changes
             try:
                 discard_working_changes(self.dolt_db_path, tables)
                 logger.info(
-                    f"Successfully rolled back any Dolt changes after exception for updated block {block_id}."
+                    f"Successfully rolled back any Dolt changes after exception for block {block.id}."
                 )
             except Exception as rollback_e:
                 logger.critical(
                     f"Failed to rollback Dolt changes after exception: {rollback_e}. Database may be in an inconsistent state!"
                 )
                 self._mark_inconsistent(
-                    f"Exception during update and Dolt rollback failed for block {block_id}"
+                    f"Exception during update and Dolt rollback failed for block {block.id}"
                 )
 
             return False

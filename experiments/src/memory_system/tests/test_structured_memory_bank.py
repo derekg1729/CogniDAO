@@ -264,14 +264,18 @@ class TestStructuredMemoryBank:
         time.sleep(0.5)  # Give indexing a moment
 
         # --- Perform Update ---
-        update_data = {
-            "text": "This is the updated text.",
-            "tags": ["updated", "test"],
-            "metadata": {"source": "pytest", "update_run": True},
-        }
-        update_success = memory_bank_instance.update_memory_block(
-            sample_memory_block.id, update_data
+        # Create an updated version of the block
+        updated_block = MemoryBlock(
+            id=sample_memory_block.id,
+            type=sample_memory_block.type,
+            text="This is the updated text.",
+            tags=["updated", "test"],
+            metadata={"source": "pytest", "update_run": True},
+            created_at=sample_memory_block.created_at,
+            updated_at=datetime.datetime.now(),
         )
+
+        update_success = memory_bank_instance.update_memory_block(updated_block)
         assert update_success, "update_memory_block returned False"
 
         # --- Verify Dolt Update ---
@@ -279,9 +283,9 @@ class TestStructuredMemoryBank:
             memory_bank_instance.dolt_db_path, sample_memory_block.id
         )
         assert read_back_block is not None, "Block not found in Dolt after update"
-        assert read_back_block.text == update_data["text"]
-        assert read_back_block.tags == update_data["tags"]
-        assert read_back_block.metadata == update_data["metadata"]
+        assert read_back_block.text == updated_block.text
+        assert read_back_block.tags == updated_block.tags
+        assert read_back_block.metadata == updated_block.metadata
         # Check that updated_at timestamp has changed (is later than original)
         assert read_back_block.updated_at > sample_memory_block.updated_at, (
             "updated_at timestamp was not updated"
@@ -292,7 +296,7 @@ class TestStructuredMemoryBank:
         try:
             # Query for the *updated* text
             query_results = memory_bank_instance.llama_memory.query_vector_store(
-                update_data["text"], top_k=1
+                updated_block.text, top_k=1
             )
             assert len(query_results) > 0, "Updated block not found in LlamaIndex vector store"
             assert query_results[0].node.id_ == sample_memory_block.id, (
@@ -751,13 +755,16 @@ class TestStructuredMemoryBank:
                 ],
             )
 
-            # Try to update with invalid data (tags should be a list, not a string)
-            update_data = {
-                "tags": "invalid-tags-format",  # This is incorrect - should be a list
-            }
+            # Create a valid block first
+            valid_block = MemoryBlock(
+                id="test-block-to-update",
+                type="knowledge",
+                text="Original text",
+                tags=["original", "tags"],
+            )
 
-            # The validation should fail
-            result = memory_bank.update_memory_block("test-block-to-update", update_data)
+            # The validation should fail when model_validate is called
+            result = memory_bank.update_memory_block(valid_block)
 
             # Assert the operation failed
             assert result is False, (
@@ -842,10 +849,15 @@ class TestStructuredMemoryBank:
         assert create_proofs[0]["commit_hash"], "Commit hash should not be empty"
 
         # 2. Test update operation
-        update_success = memory_bank_instance.update_memory_block(
-            test_id,
-            {"text": "Updated text for proof testing", "tags": ["proof", "test", "updated"]},
+        # Create an updated version of the block
+        updated_block = MemoryBlock(
+            id=test_id,
+            type="knowledge",
+            text="Updated text for proof testing",
+            tags=["proof", "test", "updated"],
         )
+
+        update_success = memory_bank_instance.update_memory_block(updated_block)
         assert update_success, "Failed to update test block for proof testing"
 
         # Check that a proof was recorded for the update operation
