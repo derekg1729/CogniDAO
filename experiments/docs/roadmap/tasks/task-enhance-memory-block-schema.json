@@ -1,0 +1,71 @@
+{
+    "type": "Task",
+    "status": "in-progress",
+    "project": "../project-CogniMemorySystem-POC.json",
+    "id": "3.6",
+    "title": "Enhance MemoryBlock and BlockLink Schemas for Production Use",
+    "phase": "⚙️ Phase 3: Agent + Tool Wiring (Structured Memory)",
+    "goal": "Enhance both MemoryBlock and BlockLink schemas to support production use cases with state management, visibility controls, versioning, and scalable graph traversal while maintaining backward compatibility.",
+    "implementation_details": {
+        "target_file": "experiments/src/memory_system/schemas/memory_block.py",
+        "test_file": "experiments/src/memory_system/tests/test_memory_block.py",
+        "dolt_table": "memory_blocks",
+        "dependencies": [
+            "task-2.8-define-schemas.json",
+            "task-3.1-implement-structuredmemorybank.json"
+        ]
+    },
+    "action_items": [
+        "[x] Add new fields to MemoryBlock model:",
+        "[x]   - state: Optional[Literal['draft', 'published', 'archived']]",
+        "[ ]   - visibility: Optional[Literal['internal', 'public', 'restricted']]",
+        "[ ]   - block_version: Optional[int]",
+        "[ ] Enhance existing fields:",
+        "[ ]   - Make embedding explicitly Optional[List[float]] with vector size enforcement",
+        "[ ]   - Add max_items=20 constraint to tags list",
+        "[ ] Add validation methods:",
+        "[x]   - validate_state_transitions()",
+        "[ ]   - validate_visibility_changes()",
+        "[ ] Update Dolt schema:",
+        "[ ]   - Add new columns: status, visibility, block_version",
+        "[ ]   - Create composite index on (type, state, visibility)",
+        "[ ] Update BlockLink model to support graph scaling:",
+        "[ ]   - Add priority: Optional[int] (default 0)",
+        "[ ]   - Add link_metadata: Optional[Dict[str, Any]]",
+        "[ ]   - Add created_by: Optional[str]",
+        "[ ]   - Add created_at: datetime (default now)",
+        "[ ]   - Enforce canonical relation types with stricter validation",
+        "[ ] Update Dolt schema for block_links:",
+        "[ ]   - ALTER TABLE to add priority, link_metadata, created_by, created_at fields",
+        "[ ]   - Create INDEX on to_id for reverse graph traversal optimizations",
+        "[ ] Create migration script:",
+        "[ ]   - Add new columns with default values",
+        "[ ]   - Update existing blocks with appropriate state/visibility",
+        "[ ]   - Migrate/update block_links to default priority 0, link_metadata as NULL",
+        "[ ] Add validation logic for state/visibility transitions",
+        "[ ] Update query patterns to use new indexes"
+    ],
+    "test_criteria": [
+        "Unit tests for state transition validation pass",
+        "Unit tests for visibility change validation pass",
+        "Unit tests for BlockLink priority field default behavior",
+        "Integration tests for visibility-based access control pass",
+        "Integration tests for reverse traversal queries using to_id index",
+        "Tests validating canonical relation types (e.g., only 'related_to', 'subtask_of', etc.)",
+        "Performance tests for new composite index show improvement",
+        "Migration tests verify existing blocks are updated correctly",
+        "All existing functionality remains unchanged"
+    ],
+    "success_criteria": [
+        "All new fields are properly integrated into the MemoryBlock model",
+        "Dolt schema updates are applied without data loss",
+        "New indexes improve query performance for common patterns",
+        "State transitions and visibility changes are properly validated",
+        "BlockLink schema supports scalable forward and reverse traversal with minimal query overhead",
+        "Relation types in block_links are fully validated against canonical list",
+        "Graph traversal queries perform efficiently with large numbers of links",
+        "Existing functionality remains unchanged",
+        "All tests pass with new schema"
+    ],
+    "current_status": "In progress. Completed implementation of state field with validation and tests. Next step is to implement visibility field."
+}
