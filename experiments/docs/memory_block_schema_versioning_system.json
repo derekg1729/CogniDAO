@@ -1,0 +1,66 @@
+{
+    "schema_versioning_policy": {
+        "description": "System for tracking and validating schema versions across block types",
+        "core_components": {
+            "version_registry": {
+                "file": "experiments/src/memory_system/schemas/registry.py",
+                "purpose": "Single source of truth for schema versions",
+                "key_component": "SCHEMA_VERSIONS dictionary",
+                "structure": {
+                    "block_type": "version_number",
+                    "example": {
+                        "task": 1,
+                        "memory": 1
+                    }
+                }
+            },
+            "database_table": {
+                "file": "experiments/src/memory_system/initialize_dolt.py",
+                "table_name": "node_schemas",
+                "schema": {
+                    "block_type": "VARCHAR(255)",
+                    "version": "INT",
+                    "schema": "JSON",
+                    "primary_key": [
+                        "block_type",
+                        "version"
+                    ]
+                }
+            },
+            "metadata_schemas": {
+                "directory": "experiments/src/memory_system/schemas/metadata/",
+                "file_pattern": "{block_type}.py",
+                "triggers": "Version validation on modification"
+            }
+        },
+        "validation_system": {
+            "pre_commit_hook": {
+                "file": "scripts/validate_schema_versions.py",
+                "triggers": [
+                    "Git pre-commit",
+                    "Schema file modifications"
+                ],
+                "validation_rules": [
+                    "Modified schema must have SCHEMA_VERSIONS entry",
+                    "Version must be incremented for schema changes"
+                ]
+            }
+        },
+        "workflow": {
+            "make_schema_change": [
+                "Modify schemas/metadata/{block_type}.py",
+                "Increment SCHEMA_VERSIONS[block_type]",
+                "Commit changes (triggers validation)"
+            ]
+        },
+        "testing": {
+            "test_file": "experiments/tests/test_registry.py",
+            "coverage": [
+                "Schema version consistency",
+                "Database initialization",
+                "Schema registration",
+                "Version validation"
+            ]
+        }
+    }
+}
