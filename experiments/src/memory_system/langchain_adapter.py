@@ -9,6 +9,7 @@ import logging
 import datetime
 
 from langchain_core.memory import BaseMemory
+
 # Update the import to use pydantic directly instead of langchain_core.pydantic_v1
 from pydantic import Field, root_validator
 from experiments.src.memory_system.structured_memory_bank import StructuredMemoryBank
@@ -33,18 +34,19 @@ class CogniStructuredMemoryAdapter(BaseMemory):
     It retrieves relevant memory blocks based on input and saves
     conversation context as new memory blocks.
     """
+
     # Core component
     memory_bank: StructuredMemoryBank
 
     # Configuration for LangChain interaction
     memory_key: str = "relevant_blocks"  # Key LangChain expects for memory output
-    input_key: str = "input"            # Key in input dict holding the query
-    output_key: str = "output"          # Key in output dict holding the response
+    input_key: str = "input"  # Key in input dict holding the query
+    output_key: str = "output"  # Key in output dict holding the response
 
     # Configuration for memory operations
-    save_interaction_type: str = "interaction" # Default type for saved context
-    save_tags: List[str] = Field(default_factory=list) # Optional fixed tags
-    top_k_retrieval: int = 5 # Number of blocks to retrieve in load_memory_variables
+    save_interaction_type: str = "interaction"  # Default type for saved context
+    save_tags: List[str] = Field(default_factory=list)  # Optional fixed tags
+    top_k_retrieval: int = 5  # Number of blocks to retrieve in load_memory_variables
 
     # --- Pydantic V1 style setup for BaseMemory compatibility ---
     class Config:
@@ -54,7 +56,9 @@ class CogniStructuredMemoryAdapter(BaseMemory):
     @root_validator(pre=True)
     def check_memory_bank_provided(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         """Ensure memory_bank is provided during initialization."""
-        if 'memory_bank' not in values or not isinstance(values['memory_bank'], StructuredMemoryBank):
+        if "memory_bank" not in values or not isinstance(
+            values["memory_bank"], StructuredMemoryBank
+        ):
             raise ValueError("An instance of StructuredMemoryBank must be provided.")
         return values
 
@@ -76,21 +80,26 @@ class CogniStructuredMemoryAdapter(BaseMemory):
 
         query_text = inputs.get(self.input_key)
         if not query_text:
-            logger.warning(f"Input key '{self.input_key}' not found in inputs or is empty. Cannot query memory.")
+            logger.warning(
+                f"Input key '{self.input_key}' not found in inputs or is empty. Cannot query memory."
+            )
             # Return empty string or specific message based on desired behavior
             return {self.memory_key: "Input query not provided."}
 
         try:
             # Call the memory bank's semantic search
-            logger.info(f"Querying memory bank with text: '{query_text[:50]}...' (top_k={self.top_k_retrieval})")
+            logger.info(
+                f"Querying memory bank with text: '{query_text[:50]}...' (top_k={self.top_k_retrieval})"
+            )
             relevant_blocks = self.memory_bank.query_semantic(
-                query_text=query_text,
-                top_k=self.top_k_retrieval
+                query_text=query_text, top_k=self.top_k_retrieval
             )
 
             # Format the retrieved blocks into markdown
             formatted_markdown = self._format_blocks_to_markdown(relevant_blocks)
-            logger.info(f"Formatted {len(relevant_blocks)} blocks into markdown for key '{self.memory_key}'.")
+            logger.info(
+                f"Formatted {len(relevant_blocks)} blocks into markdown for key '{self.memory_key}'."
+            )
 
             # Return the formatted string under the correct key
             return {self.memory_key: formatted_markdown}
@@ -105,67 +114,71 @@ class CogniStructuredMemoryAdapter(BaseMemory):
 
         Extracts input and output, sanitizes them to prevent recursive memory growth,
         formats them into a new MemoryBlock, and uses the memory bank's create_memory_block method to persist it.
-        
+
         Enhanced features:
         - Sanitizes inputs/outputs to remove memory placeholders and prevent recursive memory growth
         - Extracts and adds session information when available
         - Auto-generates tags based on content and session IDs
         - Enriches metadata with model information, timestamps, and other analytics data
         """
-        logger.debug(f"Saving context for input keys: {list(inputs.keys())}, output keys: {list(outputs.keys())}")
+        logger.debug(
+            f"Saving context for input keys: {list(inputs.keys())}, output keys: {list(outputs.keys())}"
+        )
 
         input_str = inputs.get(self.input_key)
         output_str = outputs.get(self.output_key)
 
         if input_str is None:
-            logger.warning(f"Input key '{self.input_key}' not found in inputs. Cannot save context.")
+            logger.warning(
+                f"Input key '{self.input_key}' not found in inputs. Cannot save context."
+            )
             return
         if output_str is None:
-            logger.warning(f"Output key '{self.output_key}' not found in outputs. Cannot save context.")
+            logger.warning(
+                f"Output key '{self.output_key}' not found in outputs. Cannot save context."
+            )
             return
 
         # --- SANITIZATION STEP ---
         # Remove memory placeholders to prevent recursive memory storage
         if isinstance(input_str, str) and self.memory_key in input_str:
-            logger.warning(f"Sanitizing input_str: removing '{self.memory_key}' placeholder before saving.")
+            logger.warning(
+                f"Sanitizing input_str: removing '{self.memory_key}' placeholder before saving."
+            )
             input_str = input_str.replace(f"{{{self.memory_key}}}", "").strip()
 
         # Handle dictionary output from LLM chains
         if isinstance(output_str, dict):
             # Extract just the text content if available
-            if 'text' in output_str:
-                output_str = output_str['text']
+            if "text" in output_str:
+                output_str = output_str["text"]
             else:
                 # Fallback to string representation
                 output_str = str(output_str)
 
         # Format the block text using the standard template
-        block_text = (
-            f"[Interaction Record]\n"
-            f"Input: {input_str}\n"
-            f"Output: {output_str}"
-        )
+        block_text = f"[Interaction Record]\nInput: {input_str}\nOutput: {output_str}"
 
         # --- DYNAMIC TAGGING ---
         # Prepare tags (start with fixed tags, can be expanded with dynamic ones)
         tags = []
-        if hasattr(self, 'save_tags') and isinstance(self.save_tags, list):
+        if hasattr(self, "save_tags") and isinstance(self.save_tags, list):
             tags = self.save_tags.copy()
-        
+
         # Extract session ID if available in inputs
         session_id = None
-        if 'session_id' in inputs:
-            session_id = inputs['session_id']
+        if "session_id" in inputs:
+            session_id = inputs["session_id"]
             tags.append(f"session:{session_id}")
-        
+
         # Create timestamp once and reuse formatted versions
         timestamp = datetime.datetime.now()
         timestamp_str = timestamp.strftime("%Y%m%d")
         iso_timestamp = timestamp.isoformat()
-        
+
         # Add timestamp tag for time-based filtering
         tags.append(f"date:{timestamp_str}")
-        
+
         # Add interaction type tag
         tags.append(f"type:{self.save_interaction_type}")
 
@@ -177,22 +190,22 @@ class CogniStructuredMemoryAdapter(BaseMemory):
             "adapter_type": self.__class__.__name__,
             "timestamp": iso_timestamp,
         }
-        
+
         # Add model information if available
-        if 'model' in inputs:
-            metadata["model"] = inputs['model']
-        
+        if "model" in inputs:
+            metadata["model"] = inputs["model"]
+
         # Add session information if available
         if session_id:
             metadata["session_id"] = session_id
-            
+
         # Add token counts if available
-        if 'token_count' in inputs:
-            metadata["token_count"] = inputs['token_count']
-        
+        if "token_count" in inputs:
+            metadata["token_count"] = inputs["token_count"]
+
         # Add latency if available
-        if 'latency' in inputs:
-            metadata["latency_ms"] = inputs['latency']
+        if "latency" in inputs:
+            metadata["latency_ms"] = inputs["latency"]
 
         try:
             # Create a new MemoryBlock object with enhanced metadata and tags
@@ -200,7 +213,10 @@ class CogniStructuredMemoryAdapter(BaseMemory):
                 type=self.save_interaction_type,
                 text=block_text,
                 tags=tags,
-                metadata=metadata
+                metadata=metadata,
+                state="draft",
+                visibility="internal",
+                block_version=1,
                 # Let created_at, updated_at, id, schema_version be handled by defaults/bank
             )
 
@@ -209,18 +225,26 @@ class CogniStructuredMemoryAdapter(BaseMemory):
             success = self.memory_bank.create_memory_block(new_block)
 
             if success:
-                logger.info(f"Successfully saved enhanced context as memory block: {new_block.id}, with tags: {tags}")
+                logger.info(
+                    f"Successfully saved enhanced context as memory block: {new_block.id}, with tags: {tags}"
+                )
             else:
                 # create_memory_block logs errors internally, but we add one here too
-                logger.error(f"Failed to save context via memory_bank.create_memory_block for block type '{new_block.type}'")
+                logger.error(
+                    f"Failed to save context via memory_bank.create_memory_block for block type '{new_block.type}'"
+                )
 
         except Exception as e:
             logger.error(f"Error creating MemoryBlock or saving context: {e}", exc_info=True)
 
     def clear(self) -> None:
         """Clear memory - currently a no-op or raises NotImplementedError."""
-        logger.warning("CogniStructuredMemoryAdapter.clear() called, but clearing strategy is not implemented. Raising NotImplementedError.")
-        raise NotImplementedError("Clearing strategy for CogniStructuredMemoryAdapter is not defined.")
+        logger.warning(
+            "CogniStructuredMemoryAdapter.clear() called, but clearing strategy is not implemented. Raising NotImplementedError."
+        )
+        raise NotImplementedError(
+            "Clearing strategy for CogniStructuredMemoryAdapter is not defined."
+        )
 
     # --- Helper Methods (Stubs) ---
 
@@ -240,8 +264,8 @@ class CogniStructuredMemoryAdapter(BaseMemory):
 
         markdown_parts = []
         for block in blocks:
-            tags_str = ', '.join(block.tags) if block.tags else 'None'
-            created_str = block.created_at.isoformat() if block.created_at else 'Unknown'
+            tags_str = ", ".join(block.tags) if block.tags else "None"
+            created_str = block.created_at.isoformat() if block.created_at else "Unknown"
             block_md = (
                 f"## Memory Block: {block.id}\n"
                 f"**Type**: {block.type}\n"
@@ -253,4 +277,4 @@ class CogniStructuredMemoryAdapter(BaseMemory):
             markdown_parts.append(block_md)
 
         # Join all markdown parts with a double newline for separation
-        return "\n\n".join(markdown_parts) 
+        return "\n\n".join(markdown_parts)
