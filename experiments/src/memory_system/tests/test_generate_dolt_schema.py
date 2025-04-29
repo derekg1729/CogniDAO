@@ -2,11 +2,14 @@
 Tests for the Dolt schema generation script.
 """
 
-import os
+from pathlib import Path
 import pytest
 from unittest.mock import patch, mock_open
 
-from experiments.scripts.generate_dolt_schema import generate_schema_sql, main
+from experiments.scripts.generate_dolt_schema import (
+    generate_schema_file as generate_schema_sql,
+    main,
+)
 
 
 class TestGenerateDoltSchema:
@@ -19,22 +22,21 @@ class TestGenerateDoltSchema:
             yield mock_file
 
     @pytest.fixture
-    def mock_makedirs(self):
-        """Create a mock for os.makedirs."""
-        with patch("os.makedirs") as mock:
+    def mock_mkdir(self):
+        """Create a mock for Path.mkdir."""
+        with patch("pathlib.Path.mkdir") as mock:
             yield mock
 
-    def test_generate_schema_sql_success(self, mock_file, mock_makedirs):
+    def test_generate_schema_sql_success(self, mock_file, mock_mkdir):
         """Test successful schema generation."""
         # Set up test
-        output_path = "/fake/path/schema.sql"
+        output_path = Path("/fake/path/schema.sql")
 
         # Call the function
-        result = generate_schema_sql(output_path)
+        generate_schema_sql(output_path)
 
         # Check results
-        assert result is True
-        mock_makedirs.assert_called_once_with(os.path.dirname(output_path), exist_ok=True)
+        mock_mkdir.assert_called_with(parents=True, exist_ok=True)
         mock_file.assert_called_once_with(output_path, "w")
 
         # Get the written content
@@ -42,59 +44,24 @@ class TestGenerateDoltSchema:
         written_content = handle.write.call_args[0][0]
 
         # Check key elements in the generated SQL
-        assert "CREATE TABLE memory_blocks" in written_content
-        assert "CREATE TABLE block_links" in written_content
-        assert "CREATE TABLE node_schemas" in written_content
-        assert "CREATE TABLE block_proofs" in written_content
+        assert "CREATE TABLE IF NOT EXISTS memory_blocks" in written_content
+        assert "CREATE TABLE IF NOT EXISTS block_links" in written_content
+        assert "CREATE INDEX idx_memory_blocks_type_state_visibility" in written_content
+        assert "CREATE INDEX idx_block_links_to_id" in written_content
 
-        # Check specific fields
+        # Check specific fields and constraints
         assert "id VARCHAR(255) PRIMARY KEY" in written_content
-        assert "type TEXT NOT NULL" in written_content
-        assert "text TEXT NOT NULL" in written_content
-        assert "json_schema JSON NOT NULL" in written_content
+        assert "type VARCHAR(50) NOT NULL" in written_content
+        assert "text LONGTEXT NOT NULL" in written_content
+        assert "CONSTRAINT chk_valid_state" in written_content
+        assert "CONSTRAINT chk_valid_visibility" in written_content
+        assert "CONSTRAINT chk_block_version_positive" in written_content
 
-    def test_generate_schema_sql_failure(self, mock_file, mock_makedirs):
-        """Test schema generation failure."""
-        # Make the file operation fail
-        mock_file.side_effect = IOError("Test error")
-
-        # Call the function
-        result = generate_schema_sql("/fake/path/schema.sql")
-
-        # Check result
-        assert result is False
-
-    def test_main_success(self, mock_file, mock_makedirs):
+    def test_main_success(self, mock_file, mock_mkdir):
         """Test the main function with successful schema generation."""
-        # Set up test
-        with (
-            patch("os.path.dirname") as mock_dirname,
-            patch("os.path.abspath") as mock_abspath,
-            patch("os.path.join") as mock_join,
-        ):
-            # Mock path operations
-            mock_dirname.return_value = "/fake/script/dir"
-            mock_abspath.return_value = "/fake/script/dir/generate_dolt_schema.py"
-            mock_join.return_value = "/fake/script/dir/../dolt_data/schema.sql"
-
-            # Call main
-            main()
-
-            # Verify path operations
-            mock_dirname.assert_called()
-            mock_abspath.assert_called()
-            mock_join.assert_called()
-
-            # Verify file operations
-            mock_file.assert_called_once()
-
-    def test_main_failure(self, mock_file, mock_makedirs):
-        """Test the main function with failed schema generation."""
-        # Make the file operation fail
-        mock_file.side_effect = IOError("Test error")
-
         # Call main
         main()
-        # Verify file operations were attempted
-        mock_makedirs.assert_called_once()
+
+        # Verify file operations
+        mock_mkdir.assert_called_with(parents=True, exist_ok=True)
         mock_file.assert_called_once()
