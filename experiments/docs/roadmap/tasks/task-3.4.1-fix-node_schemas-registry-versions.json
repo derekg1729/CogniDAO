@@ -11,13 +11,13 @@
         "[x] Add schema versioning policy documentation",
         "[x] Fix result_format parameter in dolt_schema_manager.py SQL queries",
         "[x] Create dedicated test file for registry.py schema versioning",
-        "[ ] Update register_all_metadata_schemas() to pull version from SCHEMA_VERSIONS",
+        "[x] Update register_all_metadata_schemas() to pull version from SCHEMA_VERSIONS",
         "[x] Add node_schemas table creation to CREATE_TABLE_SQL",
         "[ ] Add schema version validation during initialization",
         "[ ] Add tests for schema version validation",
         "[ ] Create pre-commit check for schema versioning policy"
     ],
-    "current_status": "Core schema versioning infrastructure added to registry.py and test suite created. Added node_schemas table creation to initialization. Next steps: update schema registration to use version numbers and implement schema version validation.",
+    "current_status": "Core schema versioning infrastructure added to registry.py and test suite created. Added node_schemas table creation to initialization. Updated schema registration to use version numbers from SCHEMA_VERSIONS. Next steps: implement schema version validation during initialization.",
     "implementation_details": {
         "files_to_modify": [
             {
@@ -37,7 +37,7 @@
                     "Raise fatal error if block_type is missing from SCHEMA_VERSIONS",
                     "When registering a schema, insert correct version number into node_schemas"
                 ],
-                "status": "pending"
+                "status": "completed"
             },
             {
                 "file": "experiments/scripts/register_schemas.py",
@@ -54,7 +54,7 @@
                     "Validate schema versions using SCHEMA_VERSIONS during initialization",
                     "Fail if version mismatch is detected between registry and Dolt"
                 ],
-                "status": "pending"
+                "status": "in-progress"
             }
         ],
         "tests_to_add": [

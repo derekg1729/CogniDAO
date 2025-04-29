@@ -107,10 +107,15 @@ class TestDoltSchemaManager:
 
     def test_register_all_metadata_schemas(self, mock_dolt):
         """Test registering all metadata schemas."""
-        # Patch get_all_metadata_models to return our test models
-        with patch(
-            "experiments.src.memory_system.dolt_schema_manager.get_all_metadata_models"
-        ) as mock_get_models:
+        # Patch get_all_metadata_models and get_schema_version
+        with (
+            patch(
+                "experiments.src.memory_system.dolt_schema_manager.get_all_metadata_models"
+            ) as mock_get_models,
+            patch(
+                "experiments.src.memory_system.dolt_schema_manager.get_schema_version"
+            ) as mock_get_version,
+        ):
             # Create a mapping similar to what get_all_metadata_models would return
             metadata_map = {
                 "project": ProjectMetadata,
@@ -119,6 +124,14 @@ class TestDoltSchemaManager:
                 "knowledge": KnowledgeMetadata,
             }
             mock_get_models.return_value = metadata_map
+
+            # Mock version numbers
+            mock_get_version.side_effect = lambda node_type: {
+                "project": 2,
+                "task": 1,
+                "doc": 1,
+                "knowledge": 1,
+            }[node_type]
 
             # Call the function
             results = register_all_metadata_schemas(db_path="/fake/path")
@@ -129,11 +142,67 @@ class TestDoltSchemaManager:
             assert "task" in results
             assert "doc" in results
             assert "knowledge" in results
+            assert all(results.values())  # All registrations should succeed
+
+            # Verify get_schema_version was called for each type
+            assert mock_get_version.call_count == len(metadata_map)
+
+            # Verify correct version numbers were used
+            sql_calls = mock_dolt.sql.call_args_list
+            for call in sql_calls:
+                call_args = call[1]["query"]
+                if "'project'" in call_args:
+                    assert "VALUES ('project', 2, " in call_args
+                else:
+                    assert (
+                        "VALUES ('task', 1, " in call_args
+                        or "VALUES ('doc', 1, " in call_args
+                        or "VALUES ('knowledge', 1, " in call_args
+                    )
 
             # Verify Dolt methods were called for each schema
             assert mock_dolt.sql.call_count == len(metadata_map)
             assert mock_dolt.add.call_count == len(metadata_map)
             assert mock_dolt.commit.call_count == len(metadata_map)
+
+    def test_register_all_metadata_schemas_missing_version(self, mock_dolt):
+        """Test handling of missing schema version."""
+        # Patch get_all_metadata_models and get_schema_version
+        with (
+            patch(
+                "experiments.src.memory_system.dolt_schema_manager.get_all_metadata_models"
+            ) as mock_get_models,
+            patch(
+                "experiments.src.memory_system.dolt_schema_manager.get_schema_version"
+            ) as mock_get_version,
+        ):
+            # Create a mapping with a type that has no version
+            metadata_map = {
+                "project": ProjectMetadata,
+                "unknown_type": TaskMetadata,  # This type won't have a version
+            }
+            mock_get_models.return_value = metadata_map
+
+            # Mock version lookup to fail for unknown_type
+            def get_version_side_effect(node_type):
+                if node_type == "project":
+                    return 1
+                raise KeyError(f"No schema version defined for block type: {node_type}")
+
+            mock_get_version.side_effect = get_version_side_effect
+
+            # Call the function
+            results = register_all_metadata_schemas(db_path="/fake/path")
+
+            # Check the results
+            assert isinstance(results, dict)
+            assert results["project"] is True  # Should succeed
+            assert results["unknown_type"] is False  # Should fail due to missing version
+
+            # Verify Dolt methods were only called for project
+            assert mock_dolt.sql.call_count == 1
+            assert mock_dolt.add.call_count == 1
+            assert mock_dolt.commit.call_count == 1
 
     def test_get_schema(self, mock_dolt, temp_db_path):
         """Test retrieving a schema definition."""

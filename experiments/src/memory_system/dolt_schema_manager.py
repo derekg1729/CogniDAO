@@ -21,7 +21,10 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
-from experiments.src.memory_system.schemas.registry import get_all_metadata_models
+from experiments.src.memory_system.schemas.registry import (
+    get_all_metadata_models,
+    get_schema_version,
+)
 
 # Use the correct import path for doltpy v2+
 try:
@@ -108,15 +111,13 @@ def register_schema(
         return False
 
 
-def register_all_metadata_schemas(
-    db_path: str, version: int = 1, branch: str = "main"
-) -> Dict[str, bool]:
+def register_all_metadata_schemas(db_path: str, branch: str = "main") -> Dict[str, bool]:
     """
     Registers all defined metadata schemas in the node_schemas table.
+    Uses schema versions from SCHEMA_VERSIONS in registry.py.
 
     Args:
         db_path: Path to the Dolt database directory
-        version: Version number to assign to all schemas (defaults to 1)
         branch: Dolt branch to write to (defaults to 'main')
 
     Returns:
@@ -135,6 +136,14 @@ def register_all_metadata_schemas(
             continue
 
         try:
+            # Get schema version from registry
+            try:
+                version = get_schema_version(node_type)
+            except KeyError as e:
+                logger.error(f"Failed to get schema version for {node_type}: {e}")
+                results[node_type] = False
+                continue
+
             # Generate JSON schema from the model
             json_schema = model_cls.model_json_schema()
 
