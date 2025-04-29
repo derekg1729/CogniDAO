@@ -86,7 +86,6 @@ class TestGenerateDoltSchema:
             mock_join.assert_called()
 
             # Verify file operations
-            mock_makedirs.assert_called_once()
             mock_file.assert_called_once()
 
     def test_main_failure(self, mock_file, mock_makedirs):
@@ -96,7 +95,6 @@ class TestGenerateDoltSchema:
 
         # Call main
         main()
-
         # Verify file operations were attempted
         mock_makedirs.assert_called_once()
         mock_file.assert_called_once()

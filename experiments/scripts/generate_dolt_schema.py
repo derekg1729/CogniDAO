@@ -23,7 +23,8 @@ except ImportError as e:
 
 # --- Configure logging --- #
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,15 @@ FIELD_TYPE_OVERRIDES = {
 
 
 def get_sql_type(field_type: Type, field_name: str) -> str:
-    """Map Python type to SQL type."""
+    """Map Python type to SQL type.
+
+    Args:
+        field_type: The Python type to map
+        field_name: The name of the field being mapped
+
+    Returns:
+        The corresponding SQL type as a string
+    """
     # Check field-specific override first
     if field_name in FIELD_TYPE_OVERRIDES:
         return FIELD_TYPE_OVERRIDES[field_name]
@@ -84,7 +93,14 @@ def get_sql_type(field_type: Type, field_name: str) -> str:
 
 
 def format_default_value(value: Any) -> str:
-    """Format default value for SQL."""
+    """Format default value for SQL.
+
+    Args:
+        value: The default value to format
+
+    Returns:
+        The formatted default value as a string
+    """
     if value is None or value == ...:  # ... is Pydantic's Required marker
         return ""
     if isinstance(value, str):
@@ -97,8 +113,22 @@ def format_default_value(value: Any) -> str:
 
 
 def generate_table_schema(model: Type[BaseModel], table_name: str) -> str:
-    """Generate CREATE TABLE statement for a Pydantic model."""
+    """Generate CREATE TABLE statement for a Pydantic model.
+
+    Args:
+        model: The Pydantic model to generate schema for
+        table_name: The name of the table to create
+
+    Returns:
+        The CREATE TABLE statement as a string
+    """
     columns = []
+    primary_keys = []
+
+    # Special handling for block_links table
+    if table_name == "block_links":
+        columns.append("    from_id VARCHAR(255) NOT NULL")
+        primary_keys.append("from_id")
 
     for field_name, field in model.model_fields.items():
         field_type = field.annotation
@@ -126,19 +156,45 @@ def generate_table_schema(model: Type[BaseModel], table_name: str) -> str:
         else:
             columns.append(f"    {field_name} {sql_type} {null_constraint} {default}".rstrip())
 
+        # Track primary key fields for BlockLinks
+        if table_name == "block_links" and field_name in ["to_id", "relation"]:
+            primary_keys.append(field_name)
+
+    # Add constraints for MemoryBlocks
+    if table_name == "memory_blocks":
+        columns.append(
+            "    CONSTRAINT chk_valid_state CHECK (state IN ('draft', 'published', 'archived'))"
+        )
+        columns.append(
+            "    CONSTRAINT chk_valid_visibility CHECK (visibility IN ('internal', 'public', 'restricted'))"
+        )
+        columns.append("    CONSTRAINT chk_block_version_positive CHECK (block_version > 0)")
+
+    # Add composite primary key for BlockLinks
+    if table_name == "block_links" and primary_keys:
+        columns.append(f"    PRIMARY KEY ({', '.join(primary_keys)})")
+
     # Create the table statement
     columns_str = ",\n".join(columns)
     return f"CREATE TABLE IF NOT EXISTS {table_name} (\n{columns_str}\n);"
 
 
 def generate_schema_file(output_path: Path) -> None:
-    """Generate schema.sql file with table definitions."""
+    """Generate schema.sql file with table definitions.
+
+    Args:
+        output_path: The path where the schema file should be written
+    """
+    # Ensure the output directory exists
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
     schema_statements = []
 
     # Generate schema for MemoryBlock
     schema_statements.append(generate_table_schema(MemoryBlock, "memory_blocks"))
     schema_statements.append(
-        "\nCREATE INDEX idx_memory_blocks_type_state_visibility ON memory_blocks (type, state, visibility);"
+        "\nCREATE INDEX idx_memory_blocks_type_state_visibility "
+        "ON memory_blocks (type, state, visibility);"
     )
 
     # Generate schema for BlockLink
@@ -152,7 +208,7 @@ def generate_schema_file(output_path: Path) -> None:
     logger.info(f"Generated schema file: {output_path}")
 
 
-def main():
+def main() -> None:
     """Main entry point."""
     # Define output path
     output_path = Path(__file__).parent.parent / "schema.sql"
