@@ -84,11 +84,18 @@ def _format_sql_value(value: Optional[Any]) -> str:
     elif isinstance(value, str):
         return _escape_sql_string(value)
     elif isinstance(value, (list, dict)):
-        # Assume lists/dicts are intended for JSON columns
+        # Handle nested JSON structures
+        def json_serializer(obj):
+            if isinstance(obj, datetime.datetime):
+                return obj.isoformat()
+            elif hasattr(obj, "model_dump"):
+                return obj.model_dump()
+            return str(obj)
+
         try:
-            json_str = json.dumps(value)
+            json_str = json.dumps(value, default=json_serializer)
             return _escape_sql_string(json_str)
-        except TypeError as e:
+        except (TypeError, ValueError) as e:
             logger.warning(f"Could not serialize value to JSON, attempting string conversion: {e}")
             # Fallback to string conversion with escaping if JSON fails
             return _escape_sql_string(str(value))

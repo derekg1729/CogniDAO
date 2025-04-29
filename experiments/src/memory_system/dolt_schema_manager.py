@@ -76,27 +76,24 @@ def register_schema(
             logger.info(f"Switching from branch '{current_branch}' to '{branch}'")
             repo.checkout(branch)
 
+        # Convert JSON schema to string and escape single quotes
+        schema_json_str = json.dumps(json_schema).replace("'", "''")
+
+        # Use current timestamp
+        now = datetime.now().isoformat()
+
         # Prepare the INSERT SQL with ON DUPLICATE KEY UPDATE
         # This will insert a new record or update an existing one
-        insert_sql = """
+        insert_sql = f"""
         INSERT INTO node_schemas (node_type, schema_version, json_schema, created_at)
-        VALUES (?, ?, ?, ?)
+        VALUES ('{node_type}', {schema_version}, '{schema_json_str}', '{now}')
         ON DUPLICATE KEY UPDATE 
             json_schema = VALUES(json_schema),
             created_at = VALUES(created_at)
         """
 
-        # Convert JSON schema to string
-        schema_json_str = json.dumps(json_schema)
-
-        # Use current timestamp
-        now = datetime.now()
-
-        # Execute the query with parameters
-        repo.sql(
-            query=insert_sql,
-            args=[node_type, schema_version, schema_json_str, now.isoformat()],
-        )
+        # Execute the query
+        repo.sql(query=insert_sql, result_format="json")
 
         # Commit the changes
         commit_message = f"Register schema for {node_type} version {schema_version}"
@@ -166,62 +163,55 @@ def register_all_metadata_schemas(
 
 def get_schema(
     db_path: str, node_type: str, schema_version: Optional[int] = None, branch: str = "main"
-) -> Optional[Dict[str, Any]]:
+) -> Optional[Dict]:
     """
-    Retrieves a schema definition from the node_schemas Dolt table.
+    Retrieves a schema definition from the node_schemas table.
 
     Args:
         db_path: Path to the Dolt database directory
-        node_type: Type of node to retrieve schema for
-        schema_version: Specific version to retrieve (if None, gets latest)
+        node_type: The type of node to get the schema for
+        schema_version: Optional specific version to retrieve (defaults to latest)
         branch: Dolt branch to read from (defaults to 'main')
 
     Returns:
-        The JSON schema as a dict, or None if not found
+        The schema definition as a dict, or None if not found
     """
-    logger.info(f"Retrieving schema for {node_type} from Dolt at {db_path}")
-
     try:
-        # Connect to Dolt repository
         repo = Dolt(db_path)
 
-        # Prepare the query
+        # Build the query string
         if schema_version is not None:
-            # Get specific version
             query = f"""
             SELECT json_schema, schema_version, created_at
-            FROM node_schemas AS OF '{branch}'
-            WHERE node_type = ? AND schema_version = ?
-            """
-            args = [node_type, schema_version]
-        else:
-            # Get latest version
-            query = f"""
-            SELECT json_schema, schema_version, created_at
-            FROM node_schemas AS OF '{branch}'
-            WHERE node_type = ?
-            ORDER BY schema_version DESC
+            FROM node_schemas
+            WHERE node_type = '{node_type}'
+            AND schema_version = {schema_version}
+            ORDER BY created_at DESC
             LIMIT 1
             """
-            args = [node_type]
-
-        # Execute the query
-        result = repo.sql(query=query, args=args, result_format="json")
-
-        if result and result.get("rows") and len(result["rows"]) > 0:
-            row = result["rows"][0]
-
-            # Parse the JSON string back to a dict
-            schema_dict = json.loads(row["json_schema"])
-
-            # Add metadata from query
-            schema_dict["x_schema_version"] = row["schema_version"]
-            schema_dict["x_created_at"] = row["created_at"]
-
-            return schema_dict
         else:
-            logger.warning(f"No schema found for {node_type}")
+            query = f"""
+            SELECT json_schema, schema_version, created_at
+            FROM node_schemas
+            WHERE node_type = '{node_type}'
+            ORDER BY created_at DESC
+            LIMIT 1
+            """
+
+        # Execute query with result_format
+        result = repo.sql(query=query, result_format="json")
+
+        if not result or "rows" not in result or not result["rows"]:
             return None
+
+        row = result["rows"][0]
+        schema = json.loads(row["json_schema"])
+
+        # Add metadata
+        schema["x_schema_version"] = row["schema_version"]
+        schema["x_created_at"] = row["created_at"]
+
+        return schema
 
     except Exception as e:
         logger.error(f"Failed to retrieve schema: {e}", exc_info=True)
