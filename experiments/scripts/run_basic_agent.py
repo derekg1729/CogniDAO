@@ -5,7 +5,7 @@ import logging
 from datetime import datetime
 import time
 
-from experiments.src.memory_system.tools.create_memory_block_tool import (
+from experiments.src.memory_system.tools.memory_core.create_memory_block_tool import (
     create_memory_block,
     CreateMemoryBlockInput,
 )

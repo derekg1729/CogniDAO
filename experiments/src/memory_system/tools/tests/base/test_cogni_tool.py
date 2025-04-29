@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from langchain.tools import Tool as LangChainTool
 
-from experiments.src.memory_system.tools.cogni_tool import CogniTool
+from experiments.src.memory_system.tools.base.cogni_tool import CogniTool
 
 
 # Test Models

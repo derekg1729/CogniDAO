@@ -1,0 +1,47 @@
+{
+    "type": "Task",
+    "id": "tools-1.2",
+    "name": "Finalize CogniTool structure and separate agent-facing memory tools",
+    "goal": "Formalize a layered tool architecture where generic CogniTools provide a unified interface, core memory operations are internalized, and agent-facing tools align with specific memory block types and schemas.",
+    "status": "in-progress",
+    "action_items": [
+        "[x] Organize the tools into a clear folder structure: `base/`, `memory_core/`, and `agent_facing/` under `tools/`.",
+        "[x] Maintain `CogniTool` as the unified, abstract base class for all tools (memory-linked and non-memory).",
+        "[x] Create a `BaseMemoryTool` class (optional for future) that specializes CogniTool with stricter memory requirements, if helpful.",
+        "[x] Refactor `create_memory_block_tool.py` to only expose the hidden `create_memory_block` function and its `CreateMemoryBlockInput` / `CreateMemoryBlockOutput` models in `memory_core/`.",
+        "[x] **Do not** register `CreateMemoryBlock` directly as an agent-available tool. It's internal-only.",
+        "[ ] In `agent_facing/`, create high-level tools like `CreateKnowledgeBlockTool`, `CreateTaskBlockTool`, each using their corresponding specialized metadata schemas and calling `create_memory_block()` under the hood.",
+        "[ ] Each agent-facing tool must specify:",
+        "    - A clean `input_model` (Pydantic)",
+        "    - A matching `output_model` (or reuse generic success/failure outputs)",
+        "    - Whether it is `memory_linked: true`",
+        "    - Clear descriptions aligned to agent behavior",
+        "[ ] Update `tool_registry.py` to register **only** agent-facing tools and expose their schemas properly for OpenAI / MCP / LangChain compatibility.",
+        "[ ] Ensure agent-facing tools introspect input/output schemas correctly for dynamic system prompt building.",
+        "[ ] (Optional) If needed, create a `get_input_spec()` helper for agent-facing tools to reveal schema dynamically."
+    ],
+    "file_structure": {
+        "tools/": {
+            "base/": {
+                "cogni_tool.py": "Unified CogniTool base class (memory_linked or not)",
+                "__init__.py": ""
+            },
+            "memory_core/": {
+                "create_memory_block_tool.py": "Hidden core function for creating MemoryBlocks",
+                "read_memory_block_tool.py": "Hidden core function for reading MemoryBlocks",
+                "__init__.py": ""
+            },
+            "agent_facing/": {
+                "create_knowledge_block_tool.py": "Agent-facing tool: Create 'knowledge' block using memory_core",
+                "create_task_block_tool.py": "Agent-facing tool: Create 'task' block using memory_core",
+                "review_code_block_tool.py": "Agent-facing tool: Review and store 'code review' blocks",
+                "__init__.py": ""
+            },
+            "tool_registry.py": "Centralized registry loading only agent-facing tools",
+            "__init__.py": ""
+        }
+    },
+    "example_snippets": {
+        "agent_facing/create_knowledge_block_tool.py": "from tools.base.cogni_tool import CogniTool\nfrom tools.memory_core.create_memory_block_tool import create_memory_block\nfrom schemas.metadata.knowledge import KnowledgeMetadata\nfrom schemas.memory_block import MemoryBlock\nfrom pydantic import BaseModel\n\nclass CreateKnowledgeBlockInput(BaseModel):\n    title: str\n    content: str\n    source: str\n\nclass CreateKnowledgeBlockOutput(BaseModel):\n    success: bool\n    id: Optional[str]\n    error: Optional[str]\n\n\ndef create_knowledge_block(input_data: CreateKnowledgeBlockInput, memory_bank) -> CreateKnowledgeBlockOutput:\n    metadata = KnowledgeMetadata(title=input_data.title, source=input_data.source)\n    block_input = MemoryBlock(\n        type=\"knowledge\",\n        text=input_data.content,\n        metadata=metadata.model_dump(),\n        created_by=\"agent\"\n    )\n    return create_memory_block(block_input, memory_bank)\n\n\ncreate_knowledge_block_tool = CogniTool(\n    name=\"CreateKnowledgeBlock\",\n    description=\"Create a new knowledge block with title, content, and source.\",\n    input_model=CreateKnowledgeBlockInput,\n    output_model=CreateKnowledgeBlockOutput,\n    function=create_knowledge_block,\n    memory_linked=True\n)"
+    }
+}

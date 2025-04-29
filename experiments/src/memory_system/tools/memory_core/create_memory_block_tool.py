@@ -13,9 +13,9 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 import logging
 
-from ..schemas.memory_block import MemoryBlock, ConfidenceScore
-from ..structured_memory_bank import StructuredMemoryBank
-from .cogni_tool import CogniTool
+from ...schemas.memory_block import MemoryBlock, ConfidenceScore
+from ...structured_memory_bank import StructuredMemoryBank
+from ..base.cogni_tool import CogniTool
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ class CreateMemoryBlockOutput(BaseModel):
 
 def create_memory_block(
     input_data: CreateMemoryBlockInput, memory_bank: StructuredMemoryBank
-) -> CreateMemoryBlockOutput:
+) -> Dict[str, Any]:
     """
     Create a new memory block with validation and persistence.
 
@@ -71,7 +71,7 @@ def create_memory_block(
         memory_bank: StructuredMemoryBank instance for persistence
 
     Returns:
-        CreateMemoryBlockOutput with creation status
+        Dict containing creation status, ID, error message, and timestamp
     """
     try:
         # Get latest schema version for the block type
@@ -79,7 +79,7 @@ def create_memory_block(
         if schema_version is None:
             return CreateMemoryBlockOutput(
                 success=False, error=f"No schema version found for type: {input_data.type}"
-            )
+            ).model_dump()
 
         # Create the memory block
         block = MemoryBlock(
@@ -99,13 +99,17 @@ def create_memory_block(
         success = memory_bank.create_memory_block(block)
 
         if success:
-            return CreateMemoryBlockOutput(success=True, id=block.id)
+            return CreateMemoryBlockOutput(success=True, id=block.id).model_dump()
         else:
-            return CreateMemoryBlockOutput(success=False, error="Failed to persist memory block")
+            return CreateMemoryBlockOutput(
+                success=False, error="Failed to persist memory block"
+            ).model_dump()
 
     except Exception as e:
         logger.error(f"Error creating memory block: {str(e)}")
-        return CreateMemoryBlockOutput(success=False, error=f"Creation failed: {str(e)}")
+        return CreateMemoryBlockOutput(
+            success=False, error=f"Creation failed: {str(e)}"
+        ).model_dump()
 
 
 # Create the tool instance
