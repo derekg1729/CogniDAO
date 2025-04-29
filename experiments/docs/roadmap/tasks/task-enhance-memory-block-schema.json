@@ -18,14 +18,14 @@
     "action_items": [
         "[x] Add new fields to MemoryBlock model:",
         "[x]   - state: Optional[Literal['draft', 'published', 'archived']]",
-        "[ ]   - visibility: Optional[Literal['internal', 'public', 'restricted']]",
-        "[ ]   - block_version: Optional[int]",
-        "[ ] Enhance existing fields:",
-        "[ ]   - Make embedding explicitly Optional[List[float]] with vector size enforcement",
-        "[ ]   - Add max_items=20 constraint to tags list",
-        "[ ] Add validation methods:",
+        "[x]   - visibility: Optional[Literal['internal', 'public', 'restricted']]",
+        "[x]   - block_version: Optional[int]",
+        "[x] Enhance existing fields:",
+        "[x]   - Make embedding explicitly Optional[List[float]] with vector size enforcement",
+        "[x]   - Add max_items=20 constraint to tags list",
+        "[x] Add validation methods:",
         "[x]   - validate_state_transitions()",
-        "[ ]   - validate_visibility_changes()",
+        "[x]   - validate_visibility_changes()",
         "[ ] Update Dolt schema:",
         "[ ]   - Add new columns: status, visibility, block_version",
         "[ ]   - Create composite index on (type, state, visibility)",
@@ -67,5 +67,5 @@
         "Existing functionality remains unchanged",
         "All tests pass with new schema"
     ],
-    "current_status": "In progress. Completed implementation of state field with validation and tests. Next step is to implement visibility field."
+    "current_status": "In progress. Completed implementation of state, visibility, and block_version fields, along with field enhancements for embedding and tags. Successfully implemented and tested validation methods for state transitions, visibility changes, embedding size, and tags constraints. Next step is to update the Dolt schema."
 }
