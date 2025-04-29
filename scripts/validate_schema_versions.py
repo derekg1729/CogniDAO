@@ -40,7 +40,7 @@ def get_modified_metadata_files() -> list[str]:
         return [
             f
             for f in result.stdout.splitlines()
-            if f.startswith(metadata_path) and f.endswith(".py")
+            if f.startswith(metadata_path) and f.endswith(".py") and not f.endswith("__init__.py")
         ]
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to get git diff: {e}")

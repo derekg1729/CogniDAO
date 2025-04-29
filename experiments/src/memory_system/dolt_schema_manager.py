@@ -96,15 +96,23 @@ def register_schema(
         """
 
         # Execute the query
-        repo.sql(query=insert_sql, result_format="json")
+        try:
+            repo.sql(query=insert_sql)
+            logger.info(f"Successfully executed SQL for {node_type} schema registration")
+        except Exception as e:
+            logger.error(f"Failed to execute SQL for {node_type} schema registration: {e}")
+            return False
 
         # Commit the changes
-        commit_message = f"Register schema for {node_type} version {schema_version}"
-        repo.add("node_schemas")
-        repo.commit(commit_message)
-
-        logger.info(f"Successfully registered schema for {node_type} version {schema_version}")
-        return True
+        try:
+            commit_message = f"Register schema for {node_type} version {schema_version}"
+            repo.add("node_schemas")
+            repo.commit(commit_message)
+            logger.info(f"Successfully committed schema for {node_type} version {schema_version}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to commit schema for {node_type}: {e}")
+            return False
 
     except Exception as e:
         logger.error(f"Failed to register schema: {e}", exc_info=True)

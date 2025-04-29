@@ -84,26 +84,56 @@ class TestDoltSchemaManager:
         call_args, call_kwargs = mock_dolt.sql.call_args
         assert "query" in call_kwargs
         assert "INSERT INTO node_schemas" in call_kwargs["query"]
-        assert "result_format" in call_kwargs
-        assert call_kwargs["result_format"] == "json"
 
-    def test_register_schema_error(self, mock_dolt, temp_db_path):
-        """Test error handling when registering a schema."""
-        # Make the sql method raise an exception
-        mock_dolt.sql.side_effect = Exception("Database error")
+    def test_register_schema_sql_error(self, mock_dolt, temp_db_path):
+        """Test schema registration with SQL error."""
+        # Create a sample schema
+        schema = {
+            "title": "ProjectMetadata",
+            "type": "object",
+            "properties": {"status": {"type": "string"}},
+        }
 
-        # Try to register the schema
+        # Make SQL execution fail
+        mock_dolt.sql.side_effect = Exception("SQL Error")
+
+        # Register the schema
         result = register_schema(
-            db_path=temp_db_path, node_type="project", schema_version=1, json_schema={}
+            db_path=temp_db_path, node_type="project", schema_version=1, json_schema=schema
         )
 
-        # Check that the result is False
+        # Check the result
         assert result is False
 
         # Verify Dolt methods were called
         mock_dolt.sql.assert_called_once()
         mock_dolt.add.assert_not_called()
         mock_dolt.commit.assert_not_called()
+
+    def test_register_schema_commit_error(self, mock_dolt, temp_db_path):
+        """Test schema registration with commit error."""
+        # Create a sample schema
+        schema = {
+            "title": "ProjectMetadata",
+            "type": "object",
+            "properties": {"status": {"type": "string"}},
+        }
+
+        # Make commit fail
+        mock_dolt.commit.side_effect = Exception("Commit Error")
+
+        # Register the schema
+        result = register_schema(
+            db_path=temp_db_path, node_type="project", schema_version=1, json_schema=schema
+        )
+
+        # Check the result
+        assert result is False
+
+        # Verify Dolt methods were called
+        mock_dolt.sql.assert_called_once()
+        mock_dolt.add.assert_called_once_with("node_schemas")
+        mock_dolt.commit.assert_called_once()
 
     def test_register_all_metadata_schemas(self, mock_dolt):
         """Test registering all metadata schemas."""
@@ -428,7 +458,7 @@ class TestDoltSchemaManager:
         node_types = get_available_node_types()
 
         # Define the expected node types - UPDATE THIS LIST when adding new node types
-        expected_types = ["project", "task", "doc", "knowledge"]
+        expected_types = ["project", "task", "doc", "knowledge", "log"]
 
         # Verify all expected types are present
         assert set(node_types) == set(expected_types), (

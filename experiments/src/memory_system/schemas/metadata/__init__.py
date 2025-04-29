@@ -8,20 +8,24 @@ from . import project
 from . import task
 from . import doc
 from . import knowledge
+from . import log
 
 # Export all metadata types for convenience
 from .project import ProjectMetadata
 from .task import TaskMetadata
 from .doc import DocMetadata
 from .knowledge import KnowledgeMetadata
+from .log import LogMetadata
 
 __all__ = [
-    'ProjectMetadata',
-    'TaskMetadata',
-    'DocMetadata',
-    'KnowledgeMetadata',
-    'project',
-    'task',
-    'doc',
-    'knowledge',
-] 
+    "ProjectMetadata",
+    "TaskMetadata",
+    "DocMetadata",
+    "KnowledgeMetadata",
+    "LogMetadata",
+    "project",
+    "task",
+    "doc",
+    "knowledge",
+    "log",
+]
