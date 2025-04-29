@@ -70,14 +70,14 @@ def register_schema(
         # Connect to Dolt repository
         repo = Dolt(db_path)
 
-        # Check if we're on the right branch
-        current_branch = repo.branch(r=True).strip()
+        # Get current branch from the tuple returned by branch()
+        current_branch = repo.branch()[0]  # First element of the tuple is the branch name
         if current_branch != branch:
             logger.info(f"Switching from branch '{current_branch}' to '{branch}'")
             repo.checkout(branch)
 
-        # Convert JSON schema to string and escape single quotes
-        schema_json_str = json.dumps(json_schema).replace("'", "''")
+        # Convert JSON schema to string and properly escape for SQL
+        schema_json_str = json.dumps(json_schema).replace("'", "''").replace("\\", "\\\\")
 
         # Use current timestamp
         now = datetime.now().isoformat()
@@ -93,7 +93,7 @@ def register_schema(
         """
 
         # Execute the query
-        repo.sql(query=insert_sql, result_format="json")
+        repo.sql(query=insert_sql)
 
         # Commit the changes
         commit_message = f"Register schema for {node_type} version {schema_version}"

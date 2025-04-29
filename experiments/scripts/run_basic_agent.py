@@ -1,22 +1,40 @@
+import os
+import sys
+from pathlib import Path
 import logging
+from datetime import datetime
 import time
-import datetime
+
+from experiments.src.memory_system.tools.create_memory_block_tool import (
+    create_memory_block,
+    CreateMemoryBlockInput,
+)
+from langchain.tools import Tool
 from experiments.src.memory_system.langchain_adapter import CogniStructuredMemoryAdapter
 from experiments.src.memory_system.structured_memory_bank import StructuredMemoryBank
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from langchain_community.llms import OpenAI
+from langchain.agents import initialize_agent, AgentType
+
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent
+sys.path.append(str(project_root))
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
-# Initialize memory bank and adapter
+# Initialize memory bank and adapter using the experimental database paths
+dolt_db_path = os.path.join(project_root, "experiments", "dolt_data", "memory_db")
+chroma_path = os.path.join(project_root, "experiments", "dolt_data", "chroma_db")
+
 memory_bank = StructuredMemoryBank(
-    dolt_db_path="./data/memory_dolt",
-    chroma_path="./data/memory_chroma",
-    chroma_collection="cogni_test_collection"
+    dolt_db_path=dolt_db_path,  # Using experimental database path
+    chroma_path=chroma_path,  # Using experimental database path
+    chroma_collection="cogni_test_collection",
 )
 cogni_memory = CogniStructuredMemoryAdapter(memory_bank=memory_bank)
 
@@ -24,20 +42,52 @@ cogni_memory = CogniStructuredMemoryAdapter(memory_bank=memory_bank)
 model_name = "gpt-3.5-turbo-instruct"
 llm = OpenAI(temperature=0.7, model=model_name)
 
-# Define a prompt template that includes memory
+# Create the CreateMemoryBlock tool
+create_memory_block_tool = Tool(
+    name="CreateMemoryBlock",
+    func=lambda tool_input: create_memory_block(
+        input_data=CreateMemoryBlockInput.model_validate_json(tool_input), memory_bank=memory_bank
+    ),
+    description="""Create a new memory block. Input should be a JSON string with fields:
+- type: one of ["knowledge", "task", "project", "doc", "interaction"]
+- text: string content
+- state: one of ["draft", "published", "archived"] (optional, default "draft")
+- visibility: one of ["internal", "public", "restricted"] (optional, default "internal")
+- tags: list of strings (optional)
+- metadata: dictionary (optional)
+- source_file: string (optional)
+- confidence: object with score fields (optional)
+- created_by: string (optional)""",
+)
+
+# Define a prompt template that includes memory and tool usage
 prompt_template = """
-You are a helpful assistant with memory capabilities.
+You are a helpful assistant with memory capabilities and the ability to create new memory blocks.
 
 Here's what I know from memory:
 {relevant_blocks}
 
+You can create new memory blocks using the CreateMemoryBlock tool. Use it to store important information
+that might be useful later. The block types are:
+- knowledge: For facts, concepts, and information
+- task: For todo items and action items
+- project: For project definitions and goals
+- doc: For documentation and guides
+
 Based on this memory and your knowledge, please respond to:
 {input}
+
+If your response contains important information that should be remembered, create a memory block for it.
 """
 
-prompt = PromptTemplate(
-    input_variables=["input", "relevant_blocks"],
-    template=prompt_template
+prompt = PromptTemplate(input_variables=["input", "relevant_blocks"], template=prompt_template)
+
+# Initialize the agent with the tool
+agent = initialize_agent(
+    tools=[create_memory_block_tool],
+    llm=llm,
+    agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+    verbose=True,
 )
 
 # Initialize the chain with the LLM and prompt
@@ -51,42 +101,36 @@ input_data = {
     "input": "What is the core philosophy of Cogni?",
     "session_id": session_id,
     "model": model_name,
-    "token_count": {"prompt": 150, "completion": 0}  # Will be updated after response
+    "token_count": {"prompt": 150, "completion": 0},  # Will be updated after response
 }
 
 # Load memory variables explicitly first to get context for the prompt
-# The dictionary returned by load_memory_variables needs to be merged with input_data
 memory_context = cogni_memory.load_memory_variables(input_data)
 
 # Combine the original input with the loaded memory context
 full_input = {**input_data, **memory_context}
 
-logger.info(f"Invoking chain with combined input: {list(full_input.keys())}") 
-# Log keys to show memory_key is included
+logger.info(f"Invoking agent with combined input: {list(full_input.keys())}")
 
 try:
     # Record start time for latency calculation
     start_time = time.time()
-    
-    # Invoke the chain with the combined input
-    response = chain.invoke(full_input)
-    
-    # Calculate latency
-    latency_ms = int((time.time() - start_time) * 1000)
-    input_data["latency"] = latency_ms
-    
-    # Extract content from the AIMessage response
-    ai_content = response.content if hasattr(response, 'content') else str(response)
-    
-    # Update token counts (estimate for completion)
-    input_data["token_count"]["completion"] = len(ai_content.split()) * 1.3  # Rough estimate
-    
-    logger.info(f"Agent Response: {ai_content}")
-    
-    # Manually save context *after* successful invocation
-    # This ensures save_context is called, as the simple `prompt | llm` chain doesn't automatically manage it.
-    cogni_memory.save_context(input_data, {"output": ai_content})
-    logger.info(f"Manually called save_context after successful chain invocation. Session ID: {session_id}")
+
+    # Run the agent using invoke instead of run
+    response = agent.invoke(full_input)
+
+    # Calculate and log latency
+    latency = time.time() - start_time
+    logger.info(f"Agent response generated in {latency:.2f} seconds")
+
+    # Update token count in input data
+    input_data["token_count"]["completion"] = len(response["output"].split())
+
+    # Save the interaction to memory
+    cogni_memory.save_context(input_data, {"output": response["output"]})
+
+    logger.info(f"Agent response: {response['output']}")
 
 except Exception as e:
-    logger.error(f"Error invoking chain or saving context: {e}", exc_info=True) 
+    logger.error(f"Error running agent: {str(e)}")
+    raise

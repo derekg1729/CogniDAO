@@ -35,3 +35,15 @@ CREATE TABLE IF NOT EXISTS block_links (
 );
 
 CREATE INDEX idx_block_links_to_id ON block_links (to_id);
+
+CREATE TABLE IF NOT EXISTS node_schemas (
+    type VARCHAR(50) PRIMARY KEY,
+    version INT NOT NULL,
+    schema_json JSON NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    created_by VARCHAR(255) NULL,
+    CONSTRAINT chk_version_positive CHECK (version > 0)
+);
+
+CREATE INDEX idx_node_schemas_type_version ON node_schemas (type, version);

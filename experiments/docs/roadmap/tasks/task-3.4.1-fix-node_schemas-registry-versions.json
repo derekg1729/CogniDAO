@@ -1,0 +1,77 @@
+{
+    "type": "Task",
+    "status": "todo",
+    "project": "../project-CogniMemorySystem-POC.json",
+    "name": "Add Explicit Schema Versioning System",
+    "description": "Implement a consistent schema versioning system based on a centralized SCHEMA_VERSIONS dict in registry.py, ensuring new Dolt repo initializations accurately reflect true schema history.",
+    "phase": "⚙️ Phase 2: Schema and Memory Consistency",
+    "implementation_details": {
+        "files_to_modify": [
+            {
+                "file": "experiments/src/memory_system/schemas/registry.py",
+                "changes": [
+                    "Add SCHEMA_VERSIONS dict mapping block_type -> version",
+                    "Ensure SCHEMA_VERSIONS includes all registered block types",
+                    "Add helper function get_schema_version(block_type) that fails loudly if missing"
+                ]
+            },
+            {
+                "file": "experiments/src/memory_system/dolt_schema_manager.py",
+                "changes": [
+                    "Update register_all_metadata_schemas() to pull version from SCHEMA_VERSIONS",
+                    "Fail if block_type is missing from SCHEMA_VERSIONS",
+                    "When registering a schema, use correct version number in node_schemas"
+                ]
+            },
+            {
+                "file": "experiments/scripts/register_schemas.py",
+                "changes": [
+                    "Update script to use new register_all_metadata_schemas() logic",
+                    "Add sanity check printout of versions being registered"
+                ]
+            },
+            {
+                "file": "experiments/src/memory_system/initialize_dolt.py",
+                "changes": [
+                    "Add node_schemas table creation to CREATE_TABLE_SQL",
+                    "Add schema version validation during initialization",
+                    "Add check for existing schemas before initialization"
+                ]
+            }
+        ],
+        "tests_to_add": [
+            "Test that initialize_dolt fails if SCHEMA_VERSIONS is incomplete",
+            "Test that schema registration inserts correct version into Dolt node_schemas",
+            "Test manual bump workflow: update model, update SCHEMA_VERSIONS, re-register",
+            "Test node_schemas table creation during initialization",
+            "Test schema version validation during initialization",
+            "Test schema registration during initialization",
+            "Test error handling for missing versions"
+        ],
+        "initialization_flow": [
+            "Create node_schemas table if not exists",
+            "Validate SCHEMA_VERSIONS against registered types",
+            "Register schemas with correct versions",
+            "Verify schema registration success"
+        ],
+        "error_handling": [
+            "Handle missing SCHEMA_VERSIONS entries",
+            "Handle version conflicts during initialization",
+            "Handle schema registration failures"
+        ]
+    },
+    "success_criteria": [
+        "New Dolt repos reflect correct schema versions",
+        "Version mismatches are caught at initialization time",
+        "No accidental overwrite of schemas without explicit version bump",
+        "All tests pass"
+    ],
+    "risks": [
+        "If SCHEMA_VERSIONS is not manually maintained, drift could occur",
+        "Older memory blocks without version tags could cause confusion during queries/migrations"
+    ],
+    "mitigation_strategies": [
+        "Add docstring and comments inside registry.py making SCHEMA_VERSIONS maintenance policy clear",
+        "Eventually write migration scripts that can upgrade unversioned memory blocks if needed"
+    ]
+}
