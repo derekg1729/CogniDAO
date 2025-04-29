@@ -1,13 +1,13 @@
 {
   "type": "Task",
-  "status": "delayed",
+  "status": "in-progress",
   "project": "CogniMemorySystem-POC",
   "id": "4.7",
   "name": "Implement Dynamic Dolt Table Schema Generator from Pydantic Models",
   "description": "Replace the static SQL schema generation (generate_dolt_schema.py) with a dynamic generator that introspects Pydantic models (MemoryBlock, BlockLink) and outputs accurate Dolt CREATE TABLE statements.",
   "phase": "🧠 Phase 4: Full Structured Memory + LlamaMemory Integration",
   "implementation_details": {
-    "target_file": "experiments/scripts/generate_dolt_schema_dynamic.py",
+    "target_file": "experiments/scripts/generate_dolt_schema.py",
     "input_models": [
       "MemoryBlock (experiments/src/memory_system/schemas/memory_block.py)",
       "BlockLink (experiments/src/memory_system/schemas/block_link.py)"
@@ -31,15 +31,19 @@
     ]
   },
   "action_items": [
-    "[ ] Create helper function to map basic Pydantic field types to SQL types.",
-    "[ ] Write generator to introspect MemoryBlock and BlockLink field metadata.",
-    "[ ] Output correct CREATE TABLE syntax for Dolt/MySQL.",
-    "[ ] Handle optional vs required fields (NULL/NOT NULL).",
-    "[ ] Handle enum/literal validation via SQL CHECK constraints if possible.",
-    "[ ] Generate new schema.sql file programmatically.",
-    "[ ] Validate generated schema file against current needs.",
+    "[x] Create helper function to map basic Pydantic field types to SQL types.",
+    "[x] Write generator to introspect MemoryBlock and BlockLink field metadata.",
+    "[x] Output correct CREATE TABLE syntax for Dolt/MySQL.",
+    "[x] Handle optional vs required fields (NULL/NOT NULL).",
+    "[x] Handle enum/literal validation via SQL CHECK constraints if possible.",
+    "[x] Generate new schema.sql file programmatically.",
+    "[x] Validate generated schema file against current needs.",
     "[ ] Update documentation to reference dynamic schema generation.",
-    "[ ] Archive old static generate_dolt_schema.py after successful replacement."
+    "[ ] Archive old static generate_dolt_schema.py after successful replacement.",
+    "[ ] Add support for complex nested types (e.g., ConfidenceScore).",
+    "[ ] Improve nullability inference for Optional fields.",
+    "[ ] Add type-specific warnings for fallback types.",
+    "[ ] Add support for ALTER TABLE generation."
   ],
   "test_criteria": [
     "Generated CREATE TABLE statements accurately reflect current Pydantic model fields and types.",
@@ -56,5 +60,5 @@
     "Migration to dynamic schema generation completes without data loss.",
     "Project achieves fully programmatic schema lifecycle management."
   ],
-  "current_status": "Task created and queued for Phase 4 execution after MemoryBlock, BlockLink, and indexing structures are stabilized."
+  "current_status": "Core functionality implemented and working. Schema generation now handles basic types, enums, and constraints correctly. Next steps: 1) Improve handling of complex nested types, 2) Enhance nullability inference, 3) Add type-specific warnings, 4) Add ALTER TABLE support. Documentation updates pending."
 }
