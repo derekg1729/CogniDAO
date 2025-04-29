@@ -1,0 +1,57 @@
+{
+    "type": "Task",
+    "status": "todo",
+    "project": "../project-CogniMemorySystem-POC.json",
+    "name": "Test Optimization: Tag Search Performance in StructuredMemoryBank",
+    "description": "Improve performance of tag-based block retrieval by optimizing the current JSON_CONTAINS-based implementation in Dolt.",
+    "phase": "⚙️ Phase 3: Agent + Tool Wiring (Structured Memory)",
+    "implementation_details": {
+        "target_files": [
+            "experiments/src/memory_system/structured_memory_bank.py",
+            "experiments/src/memory_system/dolt_reader.py"
+        ],
+        "test_file": "experiments/src/memory_system/tests/test_structured_memory_bank.py",
+        "notes": "Current implementation uses inefficient JSON_CONTAINS queries for tag searches. Need to optimize for better performance.",
+        "dependencies": [
+            "Completion of task-3.4-atomic-structuredmemory-operations.json",
+            "Completion of project-SecureDoltWriteMigration.json"
+        ]
+    },
+    "action_items": [
+        "[ ] Add performance measurement to test_get_blocks_by_tags:",
+        "[ ]   Add timing measurements using time.time()",
+        "[ ]   Run test multiple times to get average duration",
+        "[ ]   Document baseline metrics in test file",
+        "[ ] Analyze current implementation:",
+        "[ ]   Review Dolt query patterns in read_memory_blocks_by_tags",
+        "[ ]   Profile JSON_CONTAINS usage and identify bottlenecks",
+        "[ ]   Document findings in implementation_details.notes",
+        "[ ] Design optimization strategy:",
+        "[ ]   Evaluate denormalizing tags into separate table",
+        "[ ]   Consider Dolt's native indexing capabilities",
+        "[ ]   Design new schema if needed",
+        "[ ] Implement optimization:",
+        "[ ]   Create new block_tags table if needed",
+        "[ ]   Update queries to use optimized approach",
+        "[ ]   Maintain backward compatibility",
+        "[ ] Test and measure:",
+        "[ ]   Run performance tests",
+        "[ ]   Compare with baseline",
+        "[ ]   Document improvements"
+    ],
+    "test_criteria": [
+        "[ ] Test_get_blocks_by_tags completes in under 1 second (current baseline: ~5 seconds)",
+        "[ ] All existing test cases pass with optimized implementation",
+        "[ ] No regression in functionality",
+        "[ ] Atomic operations maintained",
+        "[ ] Data consistency preserved"
+    ],
+    "success_criteria": [
+        "[ ] Tag-based block retrieval is significantly faster (target: 5x improvement)",
+        "[ ] All existing functionality works with optimized implementation",
+        "[ ] No data loss or corruption during migration",
+        "[ ] Tests demonstrate improved performance",
+        "[ ] Documentation updated to reflect new implementation"
+    ],
+    "current_status": "Task not started. Current implementation uses inefficient JSON_CONTAINS queries for tag searches in Dolt, causing slow performance in test_get_blocks_by_tags. Need to optimize for better performance while maintaining atomic operations and data consistency."
+}

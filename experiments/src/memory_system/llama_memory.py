@@ -339,6 +339,63 @@ class LlamaMemory:
             logging.error(f"Failed to get backlinks for block ID {target_block_id}: {e}", exc_info=True)
             return []
 
+    def delete_block(self, block_id: str) -> None:
+        """
+        Deletes a memory block from the LlamaIndex index.
+        
+        Args:
+            block_id: The ID of the block to delete.
+            
+        Raises:
+            KeyError: If the block with the given ID is not found in the index.
+            Exception: If there is an error during deletion.
+        """
+        if not self.is_ready():
+            logging.error("LlamaMemory is not ready. Cannot delete block.")
+            raise RuntimeError("LlamaMemory is not ready")
+            
+        logging.info(f"Deleting block from LlamaIndex (ID: {block_id}).")
+        
+        try:
+            # Delete the node from the index
+            self.index.delete_nodes([block_id])
+            
+            # Persist changes to disk to ensure they are saved
+            self.index.storage_context.persist(persist_dir=self.chroma_path)
+            
+            # Also handle graph relationships if needed
+            graph_changed = False
+            try:
+                # Remove all relationships where this node is the subject
+                triplets = self.graph_store.get_triplets_by_subj(block_id)
+                for triplet in triplets:
+                    self.graph_store.delete_triplet(subj=block_id, rel=triplet.rel, obj=triplet.obj)
+                    graph_changed = True
+                
+                # Remove all relationships where this node is the object
+                triplets = self.graph_store.get_triplets_by_obj(block_id)
+                for triplet in triplets:
+                    self.graph_store.delete_triplet(subj=triplet.subj, rel=triplet.rel, obj=block_id)
+                    graph_changed = True
+                    
+                # Persist graph changes if any were made
+                if graph_changed:
+                    self._persist_graph_store()
+                    
+            except Exception as graph_e:
+                logging.warning(f"Error cleaning up graph relationships for block {block_id}: {graph_e}")
+                # Continue with deletion even if graph cleanup fails
+            
+            logging.info(f"Successfully deleted block {block_id} from LlamaIndex.")
+            
+        except KeyError:
+            # Re-raise to allow caller to handle this specific case
+            logging.warning(f"Block {block_id} not found in LlamaIndex.")
+            raise
+        except Exception as e:
+            logging.error(f"Failed to delete block {block_id} from LlamaIndex: {e}", exc_info=True)
+            raise
+
 
 if __name__ == "__main__":
     print("Attempting to initialize LlamaMemory...")

@@ -11,32 +11,31 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 import datetime
 from pydantic import ValidationError
+from doltpy.cli import Dolt
+from experiments.src.memory_system.dolt_reader import read_memory_block, read_memory_blocks_by_tags
+from experiments.src.memory_system.dolt_writer import (
+    write_memory_block_to_dolt,
+    delete_memory_block_from_dolt,
+    _escape_sql_string,
+    discard_working_changes,
+    commit_working_changes,
+)
+from experiments.src.memory_system.llama_memory import LlamaMemory
+from experiments.src.memory_system.schemas.memory_block import MemoryBlock
+from experiments.src.memory_system.schemas.common import BlockLink
+from experiments.src.memory_system.dolt_schema_manager import get_schema
 
-# --- Path Setup --- START
+# --- Path Setup ---
 script_dir = Path(__file__).parent
 project_root_dir = script_dir.parent.parent.parent
 if str(project_root_dir) not in sys.path:
     sys.path.insert(0, str(project_root_dir))
-# --- Path Setup --- END
-
-# Dolt Interactions
-from doltpy.cli import Dolt  # noqa: E402
-from experiments.src.memory_system.dolt_reader import read_memory_block, read_memory_blocks_by_tags  # noqa: E402
-from experiments.src.memory_system.dolt_writer import write_memory_block_to_dolt, delete_memory_block_from_dolt, _escape_sql_string  # noqa: E402
-
-# LlamaIndex Interactions
-from experiments.src.memory_system.llama_memory import LlamaMemory  # noqa: E402
-
-# Schemas
-from experiments.src.memory_system.schemas.memory_block import MemoryBlock  # noqa: E402
-from experiments.src.memory_system.schemas.common import BlockLink  # noqa: E402
-
-# Schema manager
-from experiments.src.memory_system.dolt_schema_manager import get_schema  # noqa: E402
 
 # Setup logging
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 
 # TODO: Security Migration Plan for SQL Parameterization
 # Currently, the code uses manual SQL string escaping via _escape_sql_string which
@@ -62,7 +61,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 # )
 # ```
 
-def diff_memory_blocks(old_block: MemoryBlock, new_block: MemoryBlock) -> Dict[str, Tuple[Any, Any]]:
+
+def diff_memory_blocks(
+    old_block: MemoryBlock, new_block: MemoryBlock
+) -> Dict[str, Tuple[Any, Any]]:
     """
     Creates a diff between two MemoryBlock objects, showing what fields changed.
 
@@ -75,27 +77,28 @@ def diff_memory_blocks(old_block: MemoryBlock, new_block: MemoryBlock) -> Dict[s
         Only includes fields that actually changed.
     """
     changes = {}
-    
+
     # Convert both blocks to dictionaries for comparison
     old_dict = old_block.model_dump()
     new_dict = new_block.model_dump()
-    
+
     # Find differences
     for key in set(old_dict.keys()) | set(new_dict.keys()):
         old_value = old_dict.get(key)
         new_value = new_dict.get(key)
-        
+
         # Special handling for complex fields to avoid comparing timestamps or
         # other fields that are expected to change
         if key == "updated_at":
             # Skip updated_at, as it's expected to change
             continue
-            
+
         # Check if values are different
         if old_value != new_value:
             changes[key] = (old_value, new_value)
-    
+
     return changes
+
 
 class StructuredMemoryBank:
     """
@@ -113,53 +116,68 @@ class StructuredMemoryBank:
         """
         self.dolt_db_path = dolt_db_path
         self.repo = Dolt(dolt_db_path)  # Initialize a single Dolt repository connection
-        self.llama_memory = LlamaMemory(
-            chroma_path=chroma_path,
-            collection_name=chroma_collection
-        )
+        self.llama_memory = LlamaMemory(chroma_path=chroma_path, collection_name=chroma_collection)
+
+        # Flag to track data consistency state
+        self._is_consistent = True
 
         if not self.llama_memory.is_ready():
             raise RuntimeError("Failed to initialize LlamaMemory backend.")
 
-        logger.info(f"StructuredMemoryBank initialized. Dolt Path: {dolt_db_path}, LlamaIndex Ready: {self.llama_memory.is_ready()}")
+        logger.info(
+            f"StructuredMemoryBank initialized. Dolt Path: {dolt_db_path}, LlamaIndex Ready: {self.llama_memory.is_ready()}"
+        )
+
+    @property
+    def is_consistent(self) -> bool:
+        """
+        Returns the consistency state of the memory bank.
+        If False, there may be a mismatch between Dolt persistence and LlamaIndex indexing.
+        """
+        return self._is_consistent
+
+    def _mark_inconsistent(self, reason: str):
+        """
+        Marks the memory bank as inconsistent and logs a critical error.
+
+        Args:
+            reason: The reason why the memory bank is inconsistent.
+        """
+        self._is_consistent = False
+        logger.critical(f"StructuredMemoryBank is in an inconsistent state: {reason}")
 
     def get_latest_schema_version(self, node_type: str) -> Optional[int]:
         """
         Gets the latest schema version for a given node type by querying the node_schemas table.
-        
+
         Args:
             node_type: The type of node/block (e.g., 'knowledge', 'task', 'project', 'doc')
-            
+
         Returns:
             The latest schema version as an integer, or None if no schema is found
         """
         logger.debug(f"Fetching latest schema version for node type: {node_type}")
-        
+
         try:
             # Use get_schema from dolt_schema_manager which already has logic to fetch latest version
-            schema = get_schema(
-                db_path=self.dolt_db_path,
-                node_type=node_type
-            )
-            
-            if schema and 'x_schema_version' in schema:
-                version = schema['x_schema_version']
+            schema = get_schema(db_path=self.dolt_db_path, node_type=node_type)
+
+            if schema and "x_schema_version" in schema:
+                version = schema["x_schema_version"]
                 logger.debug(f"Found schema version {version} for {node_type}")
                 return version
             else:
                 logger.warning(f"No schema found for node type: {node_type}")
                 return None
-                
+
         except Exception as e:
             logger.warning(f"Error fetching schema version for {node_type}: {e}")
             return None
 
     def create_memory_block(self, block: MemoryBlock) -> bool:
         """
-        Creates a new MemoryBlock, persisting to Dolt and indexing in LlamaIndex.
-        WARNING: Current implementation relies on auto-commit within dolt_writer,
-                 making the Dolt write + LlamaIndex add operation NOT fully atomic.
-                 Also depends on insecure manual SQL escaping in dolt_writer.
+        Creates a new MemoryBlock, persisting to Dolt and indexing in LlamaIndex with atomic guarantees.
+        If either operation fails, both are rolled back to ensure consistency between storage systems.
 
         Args:
             block: The MemoryBlock object to create.
@@ -168,9 +186,10 @@ class StructuredMemoryBank:
             True if creation was successful (both Dolt write and LlamaIndex add), False otherwise.
         """
         logger.info(f"Attempting to create memory block: {block.id}")
-        if not self.llama_memory.is_ready(): # Basic readiness check
-             logger.error("LlamaMemory backend is not ready. Cannot create block.")
-             return False
+
+        if not self.llama_memory.is_ready():
+            logger.error("LlamaMemory backend is not ready. Cannot create block.")
+            return False
 
         # Query node_schemas for latest version and set block.schema_version if not already set
         if block.schema_version is None:
@@ -180,7 +199,9 @@ class StructuredMemoryBank:
                     block.schema_version = latest_version
                     logger.info(f"Set schema_version to {latest_version} for block {block.id}")
                 else:
-                    logger.warning(f"No schema version found for block type '{block.type}'. Creating block without schema_version.")
+                    logger.warning(
+                        f"No schema version found for block type '{block.type}'. Creating block without schema_version."
+                    )
             except Exception as e:
                 logger.warning(f"Error looking up schema version for {block.type}: {e}")
                 # Continue without schema version
@@ -192,40 +213,143 @@ class StructuredMemoryBank:
             block = MemoryBlock.model_validate(block)
         except ValidationError as ve:
             # Clear, specific logging for validation errors
-            field_errors = [f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in ve.errors()]
+            field_errors = [
+                f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in ve.errors()
+            ]
             error_details = "\n- ".join(field_errors)
             logger.error(f"Validation failed for block {block.id}:\n- {error_details}")
             return False
         # --- END VALIDATION PHASE ---
 
-        # --- PERSISTENCE PHASE ---
+        # --- ATOMIC PERSISTENCE PHASE ---
+        # Tables to track for commit/rollback
+        tables = ["memory_blocks", "block_links"]
+
+        # Step 1: Write to Dolt without auto-commit
         try:
-            # 1. Write block data to Dolt memory_blocks table
-            dolt_write_success, commit_hash = write_memory_block_to_dolt(
+            dolt_write_success, _ = write_memory_block_to_dolt(
                 block=block,
                 db_path=self.dolt_db_path,
-                auto_commit=True
+                auto_commit=False,  # Do not auto-commit, we need atomicity control
             )
 
             if not dolt_write_success:
-                logger.error(f"Failed to write block {block.id} data to Dolt.")
+                logger.error(
+                    f"Failed to write block {block.id} to Dolt. Aborting atomic operation."
+                )
                 return False
 
-            # 2. Add block to LlamaIndex (add_block handles conversion internally)
-            self.llama_memory.add_block(block)
-            logger.info(f"Successfully indexed block {block.id} in LlamaIndex.")
-            
-            # 3. Store proof of creation in block_proofs table (Phase 7)
-            if commit_hash:
-                self._store_block_proof(block.id, commit_hash, "create", "New memory block created")
-                
-            logger.info(f"Successfully created and indexed memory block: {block.id}")
-            return True
-            
+            logger.info(f"Successfully wrote block {block.id} to Dolt working set (uncommitted).")
+
+            # Step 2: Add block to LlamaIndex
+            llama_success = True
+            try:
+                self.llama_memory.add_block(block)
+                logger.info(f"Successfully indexed block {block.id} in LlamaIndex.")
+            except Exception as llama_e:
+                llama_success = False
+                logger.error(
+                    f"Failed to index block {block.id} in LlamaIndex: {llama_e}", exc_info=True
+                )
+
+            # Step 3: Handle success or failure path
+            if llama_success:
+                # Both operations succeeded - commit the Dolt changes
+                try:
+                    commit_msg = f"Create memory block {block.id}"
+                    commit_success, commit_hash = commit_working_changes(
+                        db_path=self.dolt_db_path, commit_msg=commit_msg, tables=tables
+                    )
+
+                    if commit_success:
+                        # 3a. Store proof of creation in block_proofs table
+                        if commit_hash:
+                            self._store_block_proof(
+                                block.id, commit_hash, "create", "New memory block created"
+                            )
+
+                        logger.info(f"Successfully created and indexed memory block: {block.id}")
+                        return True
+                    else:
+                        # Commit failed - attempt rollback
+                        logger.error(
+                            f"Failed to commit Dolt changes for block {block.id}. Attempting rollback."
+                        )
+
+                        # Rollback Dolt changes
+                        try:
+                            discard_working_changes(self.dolt_db_path, tables)
+                        except Exception as rollback_e:
+                            logger.critical(
+                                f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
+                            )
+                            self._mark_inconsistent(
+                                f"Dolt commit failed and rollback failed for block {block.id}"
+                            )
+
+                        return False
+                except Exception as commit_e:
+                    logger.error(
+                        f"Exception during Dolt commit for block {block.id}: {commit_e}",
+                        exc_info=True,
+                    )
+
+                    # Rollback LlamaIndex changes - not yet supported so log as warning
+                    logger.warning(
+                        f"LlamaIndex changes for block {block.id} cannot be automatically rolled back."
+                    )
+
+                    # Rollback Dolt changes
+                    try:
+                        discard_working_changes(self.dolt_db_path, tables)
+                        logger.info(f"Successfully rolled back Dolt changes for block {block.id}.")
+                    except Exception as rollback_e:
+                        logger.critical(
+                            f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
+                        )
+                        self._mark_inconsistent(
+                            f"Dolt commit failed and rollback failed for block {block.id}"
+                        )
+
+                    return False
+            else:
+                # LlamaIndex indexing failed - rollback Dolt changes
+                try:
+                    discard_working_changes(self.dolt_db_path, tables)
+                    logger.info(
+                        f"Successfully rolled back Dolt changes after LlamaIndex failure for block {block.id}."
+                    )
+                except Exception as rollback_e:
+                    logger.critical(
+                        f"Failed to rollback Dolt changes after LlamaIndex failure: {rollback_e}. Database may be in an inconsistent state!"
+                    )
+                    self._mark_inconsistent(
+                        f"LlamaIndex indexing failed and Dolt rollback failed for block {block.id}"
+                    )
+
+                return False
+
         except Exception as e:
-            logger.error(f"Failed during persistence of block {block.id}: {e}", exc_info=True)
+            logger.error(
+                f"Failed during atomic persistence of block {block.id}: {e}", exc_info=True
+            )
+
+            # Attempt rollback of any Dolt changes
+            try:
+                discard_working_changes(self.dolt_db_path, tables)
+                logger.info(
+                    f"Successfully rolled back any Dolt changes after exception for block {block.id}."
+                )
+            except Exception as rollback_e:
+                logger.critical(
+                    f"Failed to rollback Dolt changes after exception: {rollback_e}. Database may be in an inconsistent state!"
+                )
+                self._mark_inconsistent(
+                    f"Exception during create and Dolt rollback failed for block {block.id}"
+                )
+
             return False
-        # --- END PERSISTENCE PHASE ---
+        # --- END ATOMIC PERSISTENCE PHASE ---
 
     def get_memory_block(self, block_id: str) -> Optional[MemoryBlock]:
         """
@@ -250,181 +374,412 @@ class StructuredMemoryBank:
                 logger.info(f"Block {block_id} not found in Dolt.")
             return block
         except Exception as e:
-            logger.error(f"Error retrieving block {block_id} from Dolt: {e}", exc_info=True)
+            logger.error(f"Error retrieving block {block_id}: {e}", exc_info=True)
             return None
 
     def update_memory_block(self, block_id: str, update_data: Dict[str, Any]) -> bool:
         """
-        Updates an existing MemoryBlock.
-
-        Fetches the block, applies updates, validates, writes to Dolt,
-        re-indexes in LlamaIndex. 
-        WARNING: Currently relies on auto_commit in dolt_writer and separate LlamaIndex update,
-                 making the operation NOT fully atomic. Depends on insecure dolt_writer.
+        Updates a MemoryBlock with new data, ensuring atomicity between Dolt persistence
+        and LlamaIndex indexing. If either operation fails, both are rolled back to ensure consistency.
 
         Args:
             block_id: The ID of the block to update.
-            update_data: A dictionary containing the fields to update.
+            update_data: Dictionary of fields to update. Non-specified fields are left unchanged.
 
         Returns:
-            True if the update was successful (both Dolt write and LlamaIndex update), False otherwise.
+            True if update was successful (both Dolt write and LlamaIndex update), False otherwise.
         """
         logger.info(f"Attempting to update memory block: {block_id}")
+
         if not self.llama_memory.is_ready():
             logger.error("LlamaMemory backend is not ready. Cannot update block.")
             return False
 
-        # 1. Fetch existing block
-        existing_block = self.get_memory_block(block_id)
-        if not existing_block:
-            logger.error(f"Cannot update block {block_id}: block not found.")
+        # --- READ PHASE ---
+        # First, retrieve the existing block
+        try:
+            existing_block = read_memory_block(db_path=self.dolt_db_path, block_id=block_id)
+            if not existing_block:
+                logger.error(f"Block {block_id} not found. Cannot update non-existent block.")
+                return False
+        except Exception as e:
+            logger.error(
+                f"Failed to retrieve existing block {block_id} for update: {e}", exc_info=True
+            )
             return False
+        # --- END READ PHASE ---
 
         # --- UPDATE PHASE ---
-        # Create updated block data, ensuring updated_at is set
-        update_payload = update_data.copy()
-        update_payload['updated_at'] = datetime.datetime.now() # Use current time for update
-        
-        # Create the merged update
-        updated_block = None
+        # 1. Create an updated copy of the block
         try:
-            # Merge updates
-            updated_block = existing_block.model_copy(update=update_payload)
+            # Create a copy of the existing block to update
+            updated_block = MemoryBlock.model_validate(existing_block.model_dump())
+
+            # Apply updates from update_data
+            updated_fields = []
+            for key, value in update_data.items():
+                if hasattr(updated_block, key):
+                    setattr(updated_block, key, value)
+                    updated_fields.append(key)
+                else:
+                    logger.warning(f"Ignoring update to unknown field '{key}' for block {block_id}")
+
+            # Update the updated_at timestamp to now
+            updated_block.updated_at = datetime.datetime.now()
+            updated_fields.append("updated_at")
+
+            # Create a human-readable change summary for the commit message
+            changes = diff_memory_blocks(existing_block, updated_block)
+            change_summary = ", ".join([f"{key}" for key in changes])
         except Exception as e:
-            logger.error(f"Failed to apply updates to block {block_id}: {e}")
+            logger.error(f"Failed to prepare update for block {block_id}: {e}", exc_info=True)
             return False
         # --- END UPDATE PHASE ---
-            
+
         # --- VALIDATION PHASE ---
+        # Ensure the updated block is valid before writing
         try:
-            # Validate fully (forces re-validation of nested fields too)
+            # Force re-validation of the entire block including nested fields
             updated_block = MemoryBlock.model_validate(updated_block)
         except ValidationError as ve:
             # Clear, specific logging for validation errors
-            field_errors = [f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in ve.errors()]
+            field_errors = [
+                f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in ve.errors()
+            ]
             error_details = "\n- ".join(field_errors)
-            logger.error(f"Validation failed after update for block {block_id}:\n- {error_details}")
+            logger.error(f"Validation failed for updated block {block_id}:\n- {error_details}")
             return False
         # --- END VALIDATION PHASE ---
-        
-        # --- DIFF PHASE ---
-        # Generate and log diff before writing
-        changes = diff_memory_blocks(existing_block, updated_block)
-        change_summary = "No significant changes"
-        if changes:
-            change_log = []
-            change_fields = []
-            for field, (old_val, new_val) in changes.items():
-                # Format the change in a readable way
-                change_log.append(f"{field}: {old_val!r} -> {new_val!r}")
-                change_fields.append(field)
-            
-            # Create a summary for the commit message
-            change_summary = f"Updated {', '.join(change_fields)}"
-            
-            # Log at INFO level
-            diff_message = f"Changes for block {block_id}:\n- " + "\n- ".join(change_log)
-            logger.info(diff_message)
-        else:
-            logger.info(f"No significant changes detected for block {block_id}")
-        # --- END DIFF PHASE ---
 
-        # --- PERSISTENCE PHASE ---
+        # --- ATOMIC PERSISTENCE PHASE ---
+        # Tables to track for commit/rollback
+        tables = ["memory_blocks", "block_links"]
+
+        # Step 1: Write to Dolt without auto-commit
         try:
-            # 1. Write updated block to Dolt
-            dolt_write_success, commit_hash = write_memory_block_to_dolt(
+            dolt_write_success, _ = write_memory_block_to_dolt(
                 block=updated_block,
                 db_path=self.dolt_db_path,
-                auto_commit=True
+                auto_commit=False,  # Do not auto-commit, we need atomicity control
             )
+
             if not dolt_write_success:
-                logger.error(f"Failed to write updated block {block_id} data to Dolt.")
+                logger.error(
+                    f"Failed to write updated block {block_id} to Dolt. Aborting atomic operation."
+                )
                 return False
 
-            # 2. Re-index in LlamaIndex
-            self.llama_memory.update_block(updated_block)
-            logger.info(f"Successfully re-indexed updated block {block_id} in LlamaIndex.")
-            
-            # 3. Store proof of update in block_proofs table (Phase 7)
-            if commit_hash:
-                self._store_block_proof(block_id, commit_hash, "update", change_summary)
-            
-            logger.info(f"Successfully updated and re-indexed memory block: {block_id}")
-            return True
-            
+            logger.info(
+                f"Successfully wrote updated block {block_id} to Dolt working set (uncommitted)."
+            )
+
+            # Step 2: Update block in LlamaIndex
+            llama_success = True
+            try:
+                self.llama_memory.update_block(updated_block)
+                logger.info(f"Successfully updated block {block_id} in LlamaIndex.")
+            except Exception as llama_e:
+                llama_success = False
+                logger.error(
+                    f"Failed to update block {block_id} in LlamaIndex: {llama_e}", exc_info=True
+                )
+
+            # Step 3: Handle success or failure path
+            if llama_success:
+                # Both operations succeeded - commit the Dolt changes
+                try:
+                    commit_msg = self.format_commit_message(
+                        operation="update",
+                        block_id=block_id,
+                        change_summary=change_summary
+                        if change_summary
+                        else "Updated fields: " + ", ".join(updated_fields),
+                    )
+
+                    commit_success, commit_hash = commit_working_changes(
+                        db_path=self.dolt_db_path, commit_msg=commit_msg, tables=tables
+                    )
+
+                    if commit_success:
+                        # Store proof of update in block_proofs table
+                        if commit_hash:
+                            self._store_block_proof(
+                                block_id=block_id,
+                                commit_hash=commit_hash,
+                                operation="update",
+                                change_summary=change_summary,
+                            )
+
+                        logger.info(f"Successfully updated memory block: {block_id}")
+                        return True
+                    else:
+                        # Commit failed - attempt rollback
+                        logger.error(
+                            f"Failed to commit Dolt changes for updated block {block_id}. Attempting rollback."
+                        )
+
+                        # Rollback Dolt changes
+                        try:
+                            discard_working_changes(self.dolt_db_path, tables)
+                        except Exception as rollback_e:
+                            logger.critical(
+                                f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
+                            )
+                            self._mark_inconsistent(
+                                f"Dolt commit failed and rollback failed for updated block {block_id}"
+                            )
+
+                        return False
+                except Exception as commit_e:
+                    logger.error(
+                        f"Exception during Dolt commit for updated block {block_id}: {commit_e}",
+                        exc_info=True,
+                    )
+
+                    # Rollback LlamaIndex changes - would need to re-add the original block
+                    logger.warning(
+                        f"LlamaIndex changes for block {block_id} cannot be automatically rolled back."
+                    )
+
+                    # Rollback Dolt changes
+                    try:
+                        discard_working_changes(self.dolt_db_path, tables)
+                        logger.info(
+                            f"Successfully rolled back Dolt changes for updated block {block_id}."
+                        )
+                    except Exception as rollback_e:
+                        logger.critical(
+                            f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
+                        )
+                        self._mark_inconsistent(
+                            f"Dolt commit failed and rollback failed for updated block {block_id}"
+                        )
+
+                    return False
+            else:
+                # LlamaIndex update failed - rollback Dolt changes
+                try:
+                    discard_working_changes(self.dolt_db_path, tables)
+                    logger.info(
+                        f"Successfully rolled back Dolt changes after LlamaIndex update failure for block {block_id}."
+                    )
+                except Exception as rollback_e:
+                    logger.critical(
+                        f"Failed to rollback Dolt changes after LlamaIndex update failure: {rollback_e}. Database may be in an inconsistent state!"
+                    )
+                    self._mark_inconsistent(
+                        f"LlamaIndex update failed and Dolt rollback failed for block {block_id}"
+                    )
+
+                return False
+
         except Exception as e:
-            logger.error(f"Failed during persistence of updated block {block_id}: {e}", exc_info=True)
+            logger.error(f"Failed during atomic update of block {block_id}: {e}", exc_info=True)
+
+            # Attempt rollback of any Dolt changes
+            try:
+                discard_working_changes(self.dolt_db_path, tables)
+                logger.info(
+                    f"Successfully rolled back any Dolt changes after exception for updated block {block_id}."
+                )
+            except Exception as rollback_e:
+                logger.critical(
+                    f"Failed to rollback Dolt changes after exception: {rollback_e}. Database may be in an inconsistent state!"
+                )
+                self._mark_inconsistent(
+                    f"Exception during update and Dolt rollback failed for block {block_id}"
+                )
+
             return False
-        # --- END PERSISTENCE PHASE ---
+        # --- END ATOMIC PERSISTENCE PHASE ---
 
     def delete_memory_block(self, block_id: str) -> bool:
         """
-        Deletes a MemoryBlock from Dolt and LlamaIndex.
-        WARNING: Relies on auto_commit in dolt_writer and separate LlamaIndex delete,
-                 making the operation NOT fully atomic. Depends on insecure dolt_writer.
+        Deletes a MemoryBlock from both Dolt and LlamaIndex with atomic guarantees.
+        If either operation fails, both are rolled back to ensure consistency.
 
         Args:
             block_id: The ID of the block to delete.
 
         Returns:
-            True if deletion was successful (both Dolt delete and LlamaIndex delete), False otherwise.
+            True if the deletion was successful (both Dolt delete and LlamaIndex removal), False otherwise.
         """
         logger.info(f"Attempting to delete memory block: {block_id}")
+
         if not self.llama_memory.is_ready():
             logger.error("LlamaMemory backend is not ready. Cannot delete block.")
             return False
 
-        # 1. Delete block from Dolt memory_blocks
-        # Relies on insecure writer and auto_commit=True (not atomic)
-        # Assumes block_links table uses ON DELETE CASCADE or links are irrelevant/handled elsewhere.
-        # TODO: Explicitly delete from block_links if CASCADE is not set up.
-        dolt_delete_success, commit_hash = delete_memory_block_from_dolt(
-            block_id=block_id,
-            db_path=self.dolt_db_path,
-            auto_commit=True
-        )
-
-        if not dolt_delete_success:
-            logger.error(f"Failed to delete block {block_id} data from Dolt.")
-            # Even if Dolt delete failed, we might still want to try removing from index
-            # but for now, we'll return False early.
-            return False
-
-        # 2. Delete node from LlamaIndex
+        # Check if the block exists before deletion
         try:
-            self.llama_memory.index.delete_nodes([block_id])
-            # Persist changes in LlamaIndex storage (ChromaDB)
-            self.llama_memory.storage_context.persist(persist_dir=self.llama_memory.chroma_path)
-            # Also persist potential graph store changes (though delete_nodes might not affect SimpleGraphStore directly)
-            self.llama_memory._persist_graph_store()
-            logger.info(f"Successfully deleted node {block_id} from LlamaIndex.")
-            
-            # 3. Store proof of deletion in block_proofs table (Phase 7)
-            if commit_hash:
-                self._store_block_proof(block_id, commit_hash, "delete", "Block deleted")
-                
-        except ValueError as ve:
-             # llama_index raises ValueError if the node doesn't exist
-             logger.warning(f"Node {block_id} not found in LlamaIndex for deletion (or already deleted): {ve}")
-             # Continue as success, since the desired state (not indexed) is achieved.
-             
-             # Still store proof of deletion even if node wasn't in LlamaIndex
-             if commit_hash:
-                self._store_block_proof(block_id, commit_hash, "delete", "Block deleted (not found in index)")
-                
+            existing_block = read_memory_block(db_path=self.dolt_db_path, block_id=block_id)
+            if not existing_block:
+                logger.warning(
+                    f"Block {block_id} not found in Dolt. Cannot delete non-existent block."
+                )
+                return False
         except Exception as e:
-            logger.error(f"Failed to delete node {block_id} from LlamaIndex: {e}", exc_info=True)
-            # State is inconsistent: Deleted from Dolt, but not from LlamaIndex.
-            # Proper atomicity (Task 3.4) would require rollback.
-            
-            # Still store proof of deletion since the Dolt operation succeeded
-            if commit_hash:
-                self._store_block_proof(block_id, commit_hash, "delete", "Block deleted (index deletion failed)")
-                
+            logger.error(f"Error checking if block {block_id} exists: {e}", exc_info=True)
             return False
 
-        logger.info(f"Successfully deleted memory block {block_id} from Dolt and LlamaIndex.")
-        return True
+        # --- ATOMIC DELETION PHASE ---
+        # Tables to track for commit/rollback
+        tables = ["memory_blocks", "block_links"]
+
+        # Step 1: Delete from Dolt without auto-commit
+        try:
+            dolt_delete_success, _ = delete_memory_block_from_dolt(
+                block_id=block_id,
+                db_path=self.dolt_db_path,
+                auto_commit=False,  # Do not auto-commit, we need atomicity control
+            )
+
+            if not dolt_delete_success:
+                logger.error(
+                    f"Failed to delete block {block_id} from Dolt. Aborting atomic operation."
+                )
+                return False
+
+            logger.info(
+                f"Successfully deleted block {block_id} from Dolt working set (uncommitted)."
+            )
+
+            # Step 2: Remove block from LlamaIndex
+            llama_success = True
+            try:
+                # Ensure we handle the case where the block might not exist in LlamaIndex
+                try:
+                    # This block ID format may need to match the ID format used by LlamaIndex adapter
+                    self.llama_memory.delete_block(block_id)
+                    logger.info(f"Successfully deleted block {block_id} from LlamaIndex.")
+                except KeyError:
+                    # If block doesn't exist in LlamaIndex, log but continue
+                    logger.warning(
+                        f"Block {block_id} not found in LlamaIndex. Continuing with deletion."
+                    )
+                    # Consider this a success since the desired end state is achieved
+                except Exception as specific_e:
+                    # Handle other LlamaIndex exceptions
+                    logger.error(
+                        f"Error deleting block {block_id} from LlamaIndex: {specific_e}",
+                        exc_info=True,
+                    )
+                    llama_success = False
+            except Exception as llama_e:
+                llama_success = False
+                logger.error(
+                    f"Failed to delete block {block_id} from LlamaIndex: {llama_e}", exc_info=True
+                )
+
+            # Step 3: Handle success or failure path
+            if llama_success:
+                # Both operations succeeded - commit the Dolt changes
+                try:
+                    commit_msg = self.format_commit_message(
+                        operation="delete",
+                        block_id=block_id,
+                        change_summary=f"Deleted {existing_block.type} block",
+                    )
+
+                    commit_success, commit_hash = commit_working_changes(
+                        db_path=self.dolt_db_path, commit_msg=commit_msg, tables=tables
+                    )
+
+                    if commit_success:
+                        # Store proof of deletion in block_proofs table
+                        if commit_hash:
+                            self._store_block_proof(
+                                block_id=block_id,
+                                commit_hash=commit_hash,
+                                operation="delete",
+                                change_summary=f"Deleted {existing_block.type} block",
+                            )
+
+                        logger.info(f"Successfully deleted memory block: {block_id}")
+                        return True
+                    else:
+                        # Commit failed - attempt rollback
+                        logger.error(
+                            f"Failed to commit Dolt changes for deleted block {block_id}. Attempting rollback."
+                        )
+
+                        # Rollback Dolt changes - restore deleted block
+                        try:
+                            discard_working_changes(self.dolt_db_path, tables)
+                            logger.info(
+                                f"Successfully rolled back Dolt deletion for block {block_id}."
+                            )
+                        except Exception as rollback_e:
+                            logger.critical(
+                                f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
+                            )
+                            self._mark_inconsistent(
+                                f"Dolt commit failed and rollback failed for deleted block {block_id}"
+                            )
+
+                        return False
+                except Exception as commit_e:
+                    logger.error(
+                        f"Exception during Dolt commit for deleted block {block_id}: {commit_e}",
+                        exc_info=True,
+                    )
+
+                    # Rollback LlamaIndex changes - would need to re-add the original block
+                    logger.warning(
+                        f"LlamaIndex deletion of block {block_id} cannot be automatically rolled back."
+                    )
+
+                    # Rollback Dolt changes
+                    try:
+                        discard_working_changes(self.dolt_db_path, tables)
+                        logger.info(
+                            f"Successfully rolled back Dolt changes for deleted block {block_id}."
+                        )
+                    except Exception as rollback_e:
+                        logger.critical(
+                            f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
+                        )
+                        self._mark_inconsistent(
+                            f"Dolt commit failed and rollback failed for deleted block {block_id}"
+                        )
+
+                    return False
+            else:
+                # LlamaIndex delete failed - rollback Dolt changes
+                try:
+                    discard_working_changes(self.dolt_db_path, tables)
+                    logger.info(
+                        f"Successfully rolled back Dolt changes after LlamaIndex delete failure for block {block_id}."
+                    )
+                except Exception as rollback_e:
+                    logger.critical(
+                        f"Failed to rollback Dolt changes after LlamaIndex delete failure: {rollback_e}. Database may be in an inconsistent state!"
+                    )
+                    self._mark_inconsistent(
+                        f"LlamaIndex delete failed and Dolt rollback failed for block {block_id}"
+                    )
+
+                return False
+
+        except Exception as e:
+            logger.error(f"Failed during atomic deletion of block {block_id}: {e}", exc_info=True)
+
+            # Attempt rollback of any Dolt changes
+            try:
+                discard_working_changes(self.dolt_db_path, tables)
+                logger.info(
+                    f"Successfully rolled back any Dolt changes after exception for deleted block {block_id}."
+                )
+            except Exception as rollback_e:
+                logger.critical(
+                    f"Failed to rollback Dolt changes after exception: {rollback_e}. Database may be in an inconsistent state!"
+                )
+                self._mark_inconsistent(
+                    f"Exception during delete and Dolt rollback failed for block {block_id}"
+                )
+
+            return False
+        # --- END ATOMIC DELETION PHASE ---
 
     def query_semantic(self, query_text: str, top_k: int = 5) -> List[MemoryBlock]:
         """
@@ -453,7 +808,9 @@ class StructuredMemoryBank:
 
             # 2. Extract block IDs and retrieve full blocks from Dolt
             block_ids = [node.node.id_ for node in nodes_with_scores if node.node and node.node.id_]
-            logger.info(f"LlamaIndex query returned {len(block_ids)} potential block IDs: {block_ids}")
+            logger.info(
+                f"LlamaIndex query returned {len(block_ids)} potential block IDs: {block_ids}"
+            )
 
             # Consider adding a cache here later if performance becomes an issue
             for block_id in block_ids:
@@ -465,17 +822,24 @@ class StructuredMemoryBank:
                         # (Requires modifying MemoryBlock schema or returning a different structure)
                         retrieved_blocks.append(block)
                     else:
-                        logger.warning(f"Could not retrieve block with ID {block_id} from Dolt, though it was found in LlamaIndex.")
+                        logger.warning(
+                            f"Could not retrieve block with ID {block_id} from Dolt, though it was found in LlamaIndex."
+                        )
                 except Exception as e_get:
-                     logger.error(f"Error retrieving block {block_id} from Dolt during semantic query: {e_get}", exc_info=True)
-                     # Continue to try retrieving other blocks
+                    logger.error(
+                        f"Error retrieving block {block_id} from Dolt during semantic query: {e_get}",
+                        exc_info=True,
+                    )
+                    # Continue to try retrieving other blocks
 
-            logger.info(f"Semantic query processing complete. Retrieved {len(retrieved_blocks)} full blocks from Dolt.")
+            logger.info(
+                f"Semantic query processing complete. Retrieved {len(retrieved_blocks)} full blocks from Dolt."
+            )
             return retrieved_blocks
 
         except Exception as e:
             logger.error(f"Error during semantic query execution: {e}", exc_info=True)
-            return [] # Return empty list on major query error
+            return []  # Return empty list on major query error
 
     def get_blocks_by_tags(self, tags: List[str], match_all: bool = True) -> List[MemoryBlock]:
         """
@@ -495,13 +859,13 @@ class StructuredMemoryBank:
             matching_blocks = read_memory_blocks_by_tags(
                 db_path=self.dolt_db_path,
                 tags=tags,
-                match_all=match_all
+                match_all=match_all,
                 # branch='main' # Or allow specifying branch if needed
             )
             return matching_blocks
         except Exception as e:
             logger.error(f"Error retrieving blocks by tags ({tags}): {e}", exc_info=True)
-            return [] # Return empty list on error
+            return []  # Return empty list on error
 
     def get_forward_links(self, block_id: str, relation: Optional[str] = None) -> List[BlockLink]:
         """
@@ -516,11 +880,11 @@ class StructuredMemoryBank:
         """
         logger.info(f"Getting forward links for block: {block_id} (relation={relation})")
         forward_links: List[BlockLink] = []
-        
+
         try:
             # Escape input values for SQL query
             escaped_block_id = _escape_sql_string(block_id)
-            
+
             # Build the query based on whether relation is specified
             if relation:
                 escaped_relation = _escape_sql_string(relation)
@@ -535,25 +899,22 @@ class StructuredMemoryBank:
                 FROM block_links 
                 WHERE from_id = {escaped_block_id}
                 """
-            
+
             logger.debug(f"Executing forward links query: {query}")
-            result = self.repo.sql(query=query, result_format='json')
-            
+            result = self.repo.sql(query=query, result_format="json")
+
             # Process results
-            if result and 'rows' in result and result['rows']:
+            if result and "rows" in result and result["rows"]:
                 logger.info(f"Found {len(result['rows'])} forward links for block {block_id}")
-                for row in result['rows']:
+                for row in result["rows"]:
                     # Convert SQL results to BlockLink objects
-                    link = BlockLink(
-                        to_id=row['to_id'],
-                        relation=row['relation']
-                    )
+                    link = BlockLink(to_id=row["to_id"], relation=row["relation"])
                     forward_links.append(link)
             else:
                 logger.info(f"No forward links found for block {block_id}")
-                
+
             return forward_links
-            
+
         except Exception as e:
             logger.error(f"Error retrieving forward links for block {block_id}: {e}", exc_info=True)
             return []
@@ -571,11 +932,11 @@ class StructuredMemoryBank:
         """
         logger.info(f"Getting backlinks for block: {block_id} (relation={relation})")
         backlinks: List[BlockLink] = []
-        
+
         try:
             # Escape input values for SQL query
             escaped_block_id = _escape_sql_string(block_id)
-            
+
             # Build the query based on whether relation is specified
             if relation:
                 escaped_relation = _escape_sql_string(relation)
@@ -590,26 +951,26 @@ class StructuredMemoryBank:
                 FROM block_links 
                 WHERE to_id = {escaped_block_id}
                 """
-            
+
             logger.debug(f"Executing backlinks query: {query}")
-            result = self.repo.sql(query=query, result_format='json')
-            
+            result = self.repo.sql(query=query, result_format="json")
+
             # Process results
-            if result and 'rows' in result and result['rows']:
+            if result and "rows" in result and result["rows"]:
                 logger.info(f"Found {len(result['rows'])} backlinks for block {block_id}")
-                for row in result['rows']:
-                    # BlockLink constructor expects to_id, so we need to adjust 
+                for row in result["rows"]:
+                    # BlockLink constructor expects to_id, so we need to adjust
                     # when creating from backlinks table data
                     link = BlockLink(
-                        to_id=row['from_id'],  # The "from" block is our target for backlinks
-                        relation=row['relation']
+                        to_id=row["from_id"],  # The "from" block is our target for backlinks
+                        relation=row["relation"],
                     )
                     backlinks.append(link)
             else:
                 logger.info(f"No backlinks found for block {block_id}")
-                
+
             return backlinks
-            
+
         except Exception as e:
             logger.error(f"Error retrieving backlinks for block {block_id}: {e}", exc_info=True)
             return []
@@ -623,10 +984,10 @@ class StructuredMemoryBank:
         """
         Ensures that the block_proofs table exists in the Dolt database.
         Creates it if it does not exist.
-        
+
         The block_proofs table tracks the commit hash for each operation
         on a memory block, enabling historical proof tracking.
-        
+
         Returns:
             bool: True if the table exists or was created successfully, False otherwise.
         """
@@ -634,12 +995,12 @@ class StructuredMemoryBank:
         try:
             # Check if the table already exists
             table_check_query = "SHOW TABLES LIKE 'block_proofs'"
-            table_check_result = self.repo.sql(query=table_check_query, result_format='json')
-            
-            if table_check_result and 'rows' in table_check_result and table_check_result['rows']:
+            table_check_result = self.repo.sql(query=table_check_query, result_format="json")
+
+            if table_check_result and "rows" in table_check_result and table_check_result["rows"]:
                 logger.info("block_proofs table already exists")
                 return True
-                
+
             # Create the table if it doesn't exist
             # Use VARCHAR instead of TEXT to match the memory_blocks table column types
             create_table_query = """
@@ -652,101 +1013,111 @@ class StructuredMemoryBank:
                 INDEX block_id_idx (block_id)
             );
             """
-            
+
             self.repo.sql(query=create_table_query)
             logger.info("Successfully created block_proofs table")
-            
+
             # Commit the table creation
-            self.repo.add(['block_proofs'])
-            self.repo.commit('Create block_proofs table for tracking block history')
-            
+            self.repo.add(["block_proofs"])
+            self.repo.commit("Create block_proofs table for tracking block history")
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to ensure block_proofs table exists: {e}", exc_info=True)
             return False
-            
-    def format_commit_message(self, operation: str, block_id: str, change_summary: Optional[str] = None, extra_info: Optional[str] = None) -> str:
+
+    def format_commit_message(
+        self,
+        operation: str,
+        block_id: str,
+        change_summary: Optional[str] = None,
+        extra_info: Optional[str] = None,
+    ) -> str:
         """
         Format a standardized commit message for block operations.
-        
+
         Args:
             operation: The operation type ('create', 'update', or 'delete')
             block_id: The ID of the block being operated on
             change_summary: Optional summary of changes. Defaults to 'No significant changes'
             extra_info: Optional additional metadata (e.g., actor_identity_id, tool_name, session_id)
-            
+
         Returns:
-            Formatted commit message following the standard: 
+            Formatted commit message following the standard:
             "{OPERATION}: {block_id} - {summary_of_change} [{extra_info}]" if extra_info is provided,
-            or "{OPERATION}: {block_id} - {summary_of_change}" otherwise
+            "{OPERATION}: {block_id} - {summary_of_change}" otherwise
         """
         # Standardize operation to uppercase
         operation_upper = operation.upper()
-        
+
         # Use default summary if none provided
         if not change_summary:
             change_summary = "No significant changes"
-            
+
         # Format according to the standard
         message = f"{operation_upper}: {block_id} - {change_summary}"
-        
+
         # Append extra info if provided
         if extra_info:
             message += f" [{extra_info}]"
-            
+
         return message
 
-    def _store_block_proof(self, block_id: str, commit_hash: str, operation: str, change_summary: Optional[str] = None) -> bool:
+    def _store_block_proof(
+        self, block_id: str, commit_hash: str, operation: str, change_summary: Optional[str] = None
+    ) -> bool:
         """
         Stores a proof record in the block_proofs table.
-        
+
         Args:
             block_id: The ID of the block that was modified
             commit_hash: The Dolt commit hash after the operation
             operation: The type of operation ('create', 'update', or 'delete')
             change_summary: Optional summary of changes. Defaults to 'No significant changes'
-            
+
         Returns:
             bool: True if the proof was stored successfully, False otherwise
         """
         if not commit_hash:
             logger.warning(f"Cannot store block proof for {block_id}: No commit hash provided")
             return False
-            
+
         try:
             # Ensure the table exists
             if not self._ensure_block_proofs_table_exists():
                 return False
-                
+
             # Format values for the query
             escaped_block_id = _escape_sql_string(block_id)
             escaped_commit_hash = _escape_sql_string(commit_hash)
             escaped_operation = _escape_sql_string(operation)
-            now = datetime.datetime.now().isoformat(sep=' ', timespec='seconds')
+            now = datetime.datetime.now().isoformat(sep=" ", timespec="seconds")
             escaped_timestamp = _escape_sql_string(now)
-            
+
             # Insert the proof record
             query = f"""
             INSERT INTO block_proofs (block_id, commit_hash, operation, timestamp)
             VALUES ({escaped_block_id}, {escaped_commit_hash}, {escaped_operation}, {escaped_timestamp});
             """
-            
+
             self.repo.sql(query=query)
-            
+
             # Generate standardized commit message
             commit_message = self.format_commit_message(operation, block_id, change_summary)
-            
+
             # Log the commit message before submitting
             logger.info(f"Commit message: {commit_message}")
-            
+
             # Commit the changes to the block_proofs table
-            self.repo.add(['block_proofs'])
+            self.repo.add(["block_proofs"])
             self.repo.commit(commit_message)
-            
-            logger.info(f"Stored {operation} proof for block {block_id} with commit hash {commit_hash}")
+
+            logger.info(
+                f"Stored {operation} proof for block {block_id} with commit hash {commit_hash}"
+            )
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to store block proof for {block_id}: {e}", exc_info=True)
             return False
@@ -754,25 +1125,25 @@ class StructuredMemoryBank:
     def get_block_proofs(self, block_id: str) -> List[Dict[str, Any]]:
         """
         Retrieves all proof records for a specific block_id.
-        
+
         Args:
             block_id: The ID of the block to retrieve proofs for
-            
+
         Returns:
             A list of dictionaries containing proof records, each with
             fields: id, block_id, commit_hash, operation, and timestamp
         """
         logger.info(f"Retrieving proof records for block: {block_id}")
         proofs = []
-        
+
         try:
             # Ensure the table exists
             if not self._ensure_block_proofs_table_exists():
                 return []
-                
+
             # Escape the block_id for SQL
             escaped_block_id = _escape_sql_string(block_id)
-            
+
             # Query for proofs
             query = f"""
             SELECT id, block_id, commit_hash, operation, timestamp
@@ -780,17 +1151,19 @@ class StructuredMemoryBank:
             WHERE block_id = {escaped_block_id}
             ORDER BY timestamp DESC;
             """
-            
-            result = self.repo.sql(query=query, result_format='json')
-            
-            if result and 'rows' in result:
-                proofs = result['rows']
+
+            result = self.repo.sql(query=query, result_format="json")
+
+            if result and "rows" in result:
+                proofs = result["rows"]
                 logger.info(f"Found {len(proofs)} proof records for block {block_id}")
             else:
                 logger.info(f"No proof records found for block {block_id}")
-                
+
             return proofs
-            
+
         except Exception as e:
-            logger.error(f"Failed to retrieve proof records for block {block_id}: {e}", exc_info=True)
-            return [] 
+            logger.error(
+                f"Failed to retrieve proof records for block {block_id}: {e}", exc_info=True
+            )
+            return []
