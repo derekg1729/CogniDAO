@@ -118,10 +118,9 @@ def test_table_creation(temp_dir, mock_subprocess):
     ]
     assert len(sql_calls) == 1, "Expected exactly one SQL command call"
 
-    # Check that the SQL contains both table creation statements
-    sql_command = sql_calls[0][0][0][3]  # Get the SQL string (index 3 for SQL argument)
-    assert "CREATE TABLE IF NOT EXISTS memory_blocks" in sql_command
-    assert "CREATE TABLE IF NOT EXISTS node_schemas" in sql_command
+    # Check that the SQL file was used
+    assert "--file" in sql_calls[0][0][0], "SQL file was not used to create tables"
+    assert "create_tables.sql" in sql_calls[0][0][0], "SQL file was not used to create tables"
     assert result is True
 
 

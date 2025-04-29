@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Test suite for registry.py functionality.
 
@@ -5,24 +6,34 @@ This module tests the schema versioning, metadata registration, and validation
 functionality provided by the registry module.
 """
 
+# Standard library imports
+import sys
+import tempfile
 import shutil
 import subprocess
-import tempfile
+from pathlib import Path
+from unittest.mock import patch
 
+# Third-party imports
 import pytest
 from pydantic import BaseModel
 
-from memory_system.schemas.registry import (
+# Add project root to path before local imports
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+# Local imports
+from src.memory_system.schemas.registry import (  # noqa: E402
     SCHEMA_VERSIONS,
     get_schema_version,
     register_metadata,
-    get_metadata_model,
     get_all_metadata_models,
     validate_metadata,
     get_available_node_types,
     _metadata_registry,
 )
-from memory_system.initialize_dolt import initialize_dolt_db, validate_schema_versions
+from src.memory_system.initialize_dolt import initialize_dolt_db, validate_schema_versions  # noqa: E402
+from scripts.validate_schema_versions import get_modified_metadata_files  # noqa: E402
 
 
 class MockMetadataModel(BaseModel):
@@ -83,17 +94,15 @@ def test_get_schema_version():
         get_schema_version("invalid_type")
 
 
-def test_metadata_registration():
+def test_metadata_model_registration():
     """Test metadata model registration and retrieval."""
     # Register a test model
     register_metadata("test_type", MockMetadataModel)
 
     # Verify registration
-    retrieved_model = get_metadata_model("test_type")
-    assert retrieved_model == MockMetadataModel
-
-    # Verify unregistered type returns None
-    assert get_metadata_model("unregistered_type") is None
+    models = get_all_metadata_models()
+    assert "test_type" in models
+    assert models["test_type"] == MockMetadataModel
 
 
 def test_get_all_metadata_models():
@@ -212,9 +221,7 @@ def test_schema_version_missing_type(temp_dolt_db):
         SCHEMA_VERSIONS.update({"other_type": 1})
 
         # Mock get_all_metadata_models to return only our test model
-        from unittest.mock import patch
-
-        with patch("memory_system.initialize_dolt.get_all_metadata_models") as mock_get_models:
+        with patch("src.memory_system.initialize_dolt.get_all_metadata_models") as mock_get_models:
             mock_get_models.return_value = {"test_missing_type": MockMetadataModel}
 
             # Validation should fail because test_missing_type is not in SCHEMA_VERSIONS
@@ -228,3 +235,19 @@ def test_schema_version_missing_type(temp_dolt_db):
         SCHEMA_VERSIONS.update(original_versions)
         _metadata_registry.clear()
         _metadata_registry.update(original_registry)
+
+
+def test_future_path_structure_does_not_trigger_hook():
+    """Ensure that files outside expected path do not trigger validation (and warn us)."""
+    with patch("subprocess.run") as mock_run:
+        # Simulate a new future path structure
+        mock_run.return_value.stdout = """
+infra_core/src/memory_system/schemas/metadata/task.py
+"""
+
+        result = get_modified_metadata_files()
+
+        # Should be empty since it doesn't match hardcoded "experiments/..."
+        assert result == [], (
+            "Future path structure was incorrectly matched. This test will fail when code is moved to infra_core, reminding us to update file paths."
+        )

@@ -195,28 +195,35 @@ def initialize_dolt_db(db_path_str: str) -> bool:
         logger.error(f"Path exists but is not a directory: {db_path}")
         return False
 
-    # 2. Validate schema versions before proceeding
+    # 2. Initialize Dolt repo if not already initialized
+    if not (db_path / ".dolt").exists():
+        if not run_command(["dolt", "init"], str(db_path), "Initializing Dolt repository"):
+            return False
+        logger.info("Dolt repository initialized.")
+    else:
+        logger.info("Dolt repository already initialized.")
+
+    # 3. Create tables using SQL
+    try:
+        with open(db_path / "create_tables.sql", "w") as f:
+            f.write(CREATE_TABLE_SQL)
+        if not run_command(
+            ["dolt", "sql", "--file", "create_tables.sql"],
+            str(db_path),
+            "Creating tables",
+        ):
+            return False
+        os.unlink(db_path / "create_tables.sql")  # Clean up SQL file
+        logger.info("Tables created successfully.")
+    except Exception as e:
+        logger.error(f"Failed to create tables: {e}")
+        return False
+
+    # 4. Validate schema versions after tables are created
     if not validate_schema_versions(db_path):
         logger.error("Schema version validation failed")
         return False
 
-    # 3. Initialize Dolt if .dolt directory doesn't exist
-    dolt_dir_path = db_path / ".dolt"
-    if not dolt_dir_path.exists():
-        if not run_command(["dolt", "init"], cwd=str(db_path), description="Dolt init"):
-            return False
-    else:
-        logger.info(f"Dolt repository already initialized in {db_path}")
-
-    # 4. Create memory_blocks table if it doesn't exist
-    if not run_command(
-        ["dolt", "sql", "-q", CREATE_TABLE_SQL],
-        cwd=str(db_path),
-        description="Create memory_blocks table",
-    ):
-        return False
-
-    logger.info(f"Dolt database at {db_path} is ready.")
     return True
 
 

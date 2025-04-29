@@ -3,4 +3,13 @@ repos:
     rev: v0.3.3
     hooks:
       - id: ruff
-        args: [--fix] 
+        args: [--fix]
+  - repo: local
+    hooks:
+      - id: validate-schema-versions
+        name: Validate Schema Versions
+        entry: python scripts/validate_schema_versions.py
+        language: python
+        types: [python]
+        pass_filenames: false
+        additional_dependencies: ['pydantic>=2.0.0'] 
