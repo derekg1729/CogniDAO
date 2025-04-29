@@ -13,8 +13,7 @@ from pathlib import Path
 
 # --- Configure logging --- #
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,15 @@ CREATE TABLE IF NOT EXISTS memory_blocks (
     updated_at DATETIME(6),
     embedding LONGTEXT
 );
+
+CREATE TABLE IF NOT EXISTS node_schemas (
+    node_type VARCHAR(255) NOT NULL,
+    schema_version INT NOT NULL,
+    json_schema JSON NOT NULL,
+    created_at VARCHAR(255) NOT NULL
+);
 """
+
 
 def run_command(command: list[str], cwd: str, description: str) -> bool:
     """Runs a subprocess command, logs output, and handles errors."""
@@ -46,15 +53,17 @@ def run_command(command: list[str], cwd: str, description: str) -> bool:
         result = subprocess.run(
             command,
             cwd=cwd,
-            check=True,        # Raise exception on non-zero exit code
-            capture_output=True, # Capture stdout/stderr
-            text=True          # Decode stdout/stderr as text
+            check=True,  # Raise exception on non-zero exit code
+            capture_output=True,  # Capture stdout/stderr
+            text=True,  # Decode stdout/stderr as text
         )
         logger.debug(f"{description} output:\n{result.stdout}")
         logger.info(f"{description} successful.")
         return True
     except FileNotFoundError:
-        logger.error(f"Command '{command[0]}' not found. Ensure Dolt CLI (or required tool) is installed and in PATH.")
+        logger.error(
+            f"Command '{command[0]}' not found. Ensure Dolt CLI (or required tool) is installed and in PATH."
+        )
         return False
     except subprocess.CalledProcessError as e:
         logger.error(f"{description} failed with exit code {e.returncode}")
@@ -64,6 +73,7 @@ def run_command(command: list[str], cwd: str, description: str) -> bool:
     except Exception as e:
         logger.error(f"An unexpected error occurred during '{description}': {e}")
         return False
+
 
 def initialize_dolt_db(db_path_str: str) -> bool:
     """
@@ -75,7 +85,7 @@ def initialize_dolt_db(db_path_str: str) -> bool:
     Returns:
         True if initialization is successful or already done, False otherwise.
     """
-    db_path = Path(db_path_str).resolve() # Ensure absolute path
+    db_path = Path(db_path_str).resolve()  # Ensure absolute path
 
     # 1. Create directory if it doesn't exist
     if not db_path.exists():
@@ -92,13 +102,17 @@ def initialize_dolt_db(db_path_str: str) -> bool:
     # 2. Initialize Dolt if .dolt directory doesn't exist
     dolt_dir_path = db_path / ".dolt"
     if not dolt_dir_path.exists():
-        if not run_command(['dolt', 'init'], cwd=str(db_path), description="Dolt init"):
+        if not run_command(["dolt", "init"], cwd=str(db_path), description="Dolt init"):
             return False
     else:
         logger.info(f"Dolt repository already initialized in {db_path}")
 
     # 3. Create memory_blocks table if it doesn't exist
-    if not run_command(['dolt', 'sql', '-q', CREATE_TABLE_SQL], cwd=str(db_path), description="Create memory_blocks table"):
+    if not run_command(
+        ["dolt", "sql", "-q", CREATE_TABLE_SQL],
+        cwd=str(db_path),
+        description="Create memory_blocks table",
+    ):
         return False
 
     logger.info(f"Dolt database at {db_path} is ready.")
@@ -110,12 +124,9 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Initialize a Dolt database and create the 'memory_blocks' table."
     )
-    parser.add_argument(
-        "db_path",
-        type=str,
-        help="Path to the target Dolt database directory."
-    )
+    parser.add_argument("db_path", type=str, help="Path to the target Dolt database directory.")
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     args = parse_args()

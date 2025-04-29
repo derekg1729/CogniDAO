@@ -17,6 +17,10 @@ from src.memory_system.schemas.registry import (
     get_available_node_types,
     _metadata_registry,
 )
+from src.memory_system.initialize_dolt import initialize_dolt_db
+import tempfile
+import shutil
+import subprocess
 
 
 class MockMetadataModel(BaseModel):
@@ -38,6 +42,20 @@ def reset_registry():
     # Restore original registry state
     _metadata_registry.clear()
     _metadata_registry.update(original_registry)
+
+
+@pytest.fixture
+def temp_dolt_db():
+    """Create a temporary Dolt database for testing."""
+    # Create temp directory
+    temp_dir = tempfile.mkdtemp()
+    try:
+        # Initialize Dolt database
+        initialize_dolt_db(temp_dir)
+        yield temp_dir
+    finally:
+        # Cleanup
+        shutil.rmtree(temp_dir)
 
 
 def test_schema_versions_initialization():
@@ -118,3 +136,28 @@ def test_get_available_node_types():
     assert "test_type" in types
     # Verify all types are strings
     assert all(isinstance(t, str) for t in types)
+
+
+def test_node_schemas_table_creation(temp_dolt_db):
+    """Test that node_schemas table is created during initialization."""
+    # Check if node_schemas table exists
+    result = subprocess.run(
+        ["dolt", "sql", "-q", 'SHOW TABLES LIKE "node_schemas"'],
+        cwd=temp_dolt_db,
+        capture_output=True,
+        text=True,
+    )
+    assert "node_schemas" in result.stdout
+
+    # Check table structure
+    result = subprocess.run(
+        ["dolt", "sql", "-q", "DESCRIBE node_schemas"],
+        cwd=temp_dolt_db,
+        capture_output=True,
+        text=True,
+    )
+    output = result.stdout.lower()
+    assert "node_type" in output
+    assert "schema_version" in output
+    assert "json_schema" in output
+    assert "created_at" in output
