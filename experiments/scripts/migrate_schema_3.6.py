@@ -31,7 +31,7 @@ MEMORY_BLOCKS_ALTERS = [
     "ALTER TABLE memory_blocks ADD CONSTRAINT chk_state CHECK (state IN ('draft', 'published', 'archived'))",
     "ALTER TABLE memory_blocks ADD CONSTRAINT chk_visibility CHECK (visibility IN ('internal', 'public', 'restricted'))",
     # Create composite index
-    "CREATE INDEX idx_memory_blocks_type_state_visibility ON memory_blocks (type, state, visibility)",
+    "CREATE INDEX idx_memory_blocks_type_state_visibility ON memory_blocks (type(50), state(50), visibility(50))",
 ]
 
 BLOCK_LINKS_ALTERS = [
@@ -47,58 +47,89 @@ BLOCK_LINKS_ALTERS = [
 ]
 
 
-def run_command(command: list[str], cwd: str, description: str) -> bool:
-    """Runs a subprocess command, logs output, and handles errors."""
-    logger.info(f"{description} in {cwd}...")
+def check_column_exists(db_path: Path, table: str, column: str) -> bool:
+    """Check if a column exists in a table."""
     try:
-        result = subprocess.run(command, cwd=cwd, check=True, capture_output=True, text=True)
-        logger.debug(f"{description} output:\n{result.stdout}")
-        logger.info(f"{description} successful.")
+        result = subprocess.run(
+            ["dolt", "sql", "-q", f"SELECT {column} FROM {table} LIMIT 1"],
+            cwd=str(db_path),
+            capture_output=True,
+            text=True,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def check_index_exists(db_path: Path, table: str, index: str) -> bool:
+    """Check if an index exists on a table."""
+    try:
+        result = subprocess.run(
+            ["dolt", "sql", "-q", f"SHOW INDEX FROM {table} WHERE Key_name = '{index}'"],
+            cwd=str(db_path),
+            capture_output=True,
+            text=True,
+        )
+        return result.returncode == 0 and result.stdout.strip()
+    except Exception:
+        return False
+
+
+def run_sql(db_path: Path, sql: str, description: str) -> bool:
+    """Run a SQL command and handle errors."""
+    logger.info(f"Executing {description} in {db_path}...")
+    try:
+        subprocess.run(
+            ["dolt", "sql", "-q", sql], cwd=str(db_path), check=True, capture_output=True, text=True
+        )
+        logger.info(f"Executing {description} successful.")
         return True
     except subprocess.CalledProcessError as e:
-        logger.error(f"{description} failed with exit code {e.returncode}")
+        if "already exists" in e.stderr:
+            logger.info(f"{description} already exists, skipping.")
+            return True
+        logger.error(f"Executing {description} failed with exit code {e.returncode}")
         logger.error(f"Command: {' '.join(e.cmd)}")
         logger.error(f"Stderr:\n{e.stderr}")
         return False
-    except Exception as e:
-        logger.error(f"An unexpected error occurred during '{description}': {e}")
-        return False
 
 
-def migrate_schema(db_path: str) -> bool:
-    """
-    Execute the schema migration for Task 3.6.
+def migrate_schema(db_path: Path) -> bool:
+    """Run the migration SQL statements."""
+    logger.info(f"Starting schema migration for Task 3.6 at: {db_path}")
 
-    Args:
-        db_path: Path to the Dolt database directory
+    # Add new columns if they don't exist
+    columns_to_add = [
+        ("state", "VARCHAR(50) DEFAULT 'draft'"),
+        ("visibility", "VARCHAR(50) DEFAULT 'internal'"),
+        ("block_version", "INT DEFAULT 1"),
+    ]
 
-    Returns:
-        True if migration was successful, False otherwise
-    """
-    db_path = Path(db_path).resolve()
+    for column, definition in columns_to_add:
+        if not check_column_exists(db_path, "memory_blocks", column):
+            sql = f"ALTER TABLE memory_blocks ADD COLUMN {column} {definition}"
+            if not run_sql(db_path, sql, f"Adding column {column}"):
+                return False
 
-    # 1. Apply memory_blocks table changes
-    for sql in MEMORY_BLOCKS_ALTERS:
-        if not run_command(
-            ["dolt", "sql", "-q", sql], str(db_path), f"Executing memory_blocks ALTER: {sql}"
-        ):
+    # Add constraints if they don't exist
+    constraints = [
+        ("chk_state", "state IN ('draft', 'published', 'archived')"),
+        ("chk_visibility", "visibility IN ('internal', 'public', 'restricted')"),
+    ]
+
+    for constraint, check in constraints:
+        sql = f"ALTER TABLE memory_blocks ADD CONSTRAINT {constraint} CHECK ({check})"
+        if not run_sql(db_path, sql, f"Adding constraint {constraint}"):
             return False
 
-    # 2. Apply block_links table changes
-    for sql in BLOCK_LINKS_ALTERS:
-        if not run_command(
-            ["dolt", "sql", "-q", sql], str(db_path), f"Executing block_links ALTER: {sql}"
-        ):
+    # Create index if it doesn't exist
+    index_name = "idx_memory_blocks_type_state_visibility"
+    if not check_index_exists(db_path, "memory_blocks", index_name):
+        sql = f"CREATE INDEX {index_name} ON memory_blocks (type(50), state(50), visibility(50))"
+        if not run_sql(db_path, sql, f"Creating index {index_name}"):
             return False
 
-    # 3. Commit the changes
-    commit_message = "Task 3.6: Schema updates for MemoryBlock and BlockLink"
-    if not run_command(
-        ["dolt", "commit", "-m", commit_message], str(db_path), "Committing schema changes"
-    ):
-        return False
-
-    logger.info("Schema migration completed successfully.")
+    logger.info("Migration completed successfully.")
     return True
 
 
@@ -115,7 +146,7 @@ if __name__ == "__main__":
     args = parse_args()
     logger.info(f"Starting schema migration for Task 3.6 at: {args.db_path}")
 
-    if migrate_schema(args.db_path):
+    if migrate_schema(Path(args.db_path)):
         logger.info("Migration completed successfully.")
         sys.exit(0)
     else:

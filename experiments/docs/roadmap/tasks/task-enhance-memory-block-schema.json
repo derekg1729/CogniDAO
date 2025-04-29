@@ -36,10 +36,10 @@
         "[x]   - Add support for custom type mappings",
         "[x]   - Add support for custom constraints",
         "[x]   - Add support for composite indexes",
-        "[ ] Update Dolt schema:",
-        "[ ]   - Run schema generation script to create updated schema.sql",
-        "[ ]   - Add new columns: status, visibility, block_version",
-        "[ ]   - Create composite index on (type, state, visibility)",
+        "[x] Update Dolt schema:",
+        "[x]   - Run schema generation script to create updated schema.sql",
+        "[x]   - Add new columns: status, visibility, block_version",
+        "[x]   - Create composite index on (type, state, visibility)",
         "[ ] Update BlockLink model to support graph scaling:",
         "[ ]   - Add priority: Optional[int] (default 0)",
         "[ ]   - Add link_metadata: Optional[Dict[str, Any]]",
@@ -91,5 +91,5 @@
         "Schema generation script handles custom constraints correctly",
         "Schema generation script handles composite indexes correctly"
     ],
-    "current_status": "In progress. Completed implementation of state, visibility, and block_version fields, along with field enhancements for embedding and tags. Successfully implemented and tested validation methods for state transitions, visibility changes, embedding size, and tags constraints. Successfully updated CogniStructuredMemoryAdapter.save_context to initialize new blocks with default values (state='draft', visibility='internal', block_version=1). Implemented schema generation automation with support for custom type mappings, constraints, and composite indexes. Next steps: 1) Run schema generation script to create updated schema.sql, 2) Update Dolt schema with new columns and indexes. Note: Task 4.5 (OCC Retry Strategy) should be completed before finalizing Dolt schema updates to ensure robust concurrent operations."
+    "current_status": "In progress. Completed implementation of state, visibility, and block_version fields, along with field enhancements for embedding and tags. Successfully implemented and tested validation methods for state transitions, visibility changes, embedding size, and tags constraints. Successfully updated CogniStructuredMemoryAdapter.save_context to initialize new blocks with default values (state='draft', visibility='internal', block_version=1). Implemented schema generation automation with support for custom type mappings, constraints, and composite indexes. Successfully ran migration script to update Dolt schema with new columns and indexes. Next steps: 1) Update BlockLink model with new fields, 2) Create migration script for block_links table, 3) Add validation logic for state/visibility transitions. Note: Task 4.5 (OCC Retry Strategy) should be completed before finalizing Dolt schema updates to ensure robust concurrent operations."
 }
