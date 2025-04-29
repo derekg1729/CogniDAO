@@ -93,7 +93,7 @@ def register_schema(
         """
 
         # Execute the query
-        repo.sql(query=insert_sql)
+        repo.sql(query=insert_sql, result_format="json")
 
         # Commit the changes
         commit_message = f"Register schema for {node_type} version {schema_version}"
