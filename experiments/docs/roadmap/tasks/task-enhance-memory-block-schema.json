@@ -12,7 +12,8 @@
         "dolt_table": "memory_blocks",
         "dependencies": [
             "task-2.8-define-schemas.json",
-            "task-3.1-implement-structuredmemorybank.json"
+            "task-3.1-implement-structuredmemorybank.json",
+            "task-4.5-implement-occ-retry-strategy.json"
         ]
     },
     "action_items": [
@@ -26,6 +27,10 @@
         "[x] Add validation methods:",
         "[x]   - validate_state_transitions()",
         "[x]   - validate_visibility_changes()",
+        "[ ] Update CogniStructuredMemoryAdapter.save_context:",
+        "[ ]   - Initialize new MemoryBlocks with state='draft'",
+        "[ ]   - Initialize new MemoryBlocks with visibility='internal'",
+        "[ ]   - Initialize new MemoryBlocks with block_version=1",
         "[ ] Update Dolt schema:",
         "[ ]   - Add new columns: status, visibility, block_version",
         "[ ]   - Create composite index on (type, state, visibility)",
@@ -54,7 +59,10 @@
         "Tests validating canonical relation types (e.g., only 'related_to', 'subtask_of', etc.)",
         "Performance tests for new composite index show improvement",
         "Migration tests verify existing blocks are updated correctly",
-        "All existing functionality remains unchanged"
+        "All existing functionality remains unchanged",
+        "Tests verify MemoryBlock created via save_context has state=='draft'",
+        "Tests verify MemoryBlock created via save_context has visibility=='internal'",
+        "Tests verify MemoryBlock created via save_context has block_version==1"
     ],
     "success_criteria": [
         "All new fields are properly integrated into the MemoryBlock model",
@@ -65,7 +73,9 @@
         "Relation types in block_links are fully validated against canonical list",
         "Graph traversal queries perform efficiently with large numbers of links",
         "Existing functionality remains unchanged",
-        "All tests pass with new schema"
+        "All tests pass with new schema",
+        "All MemoryBlocks saved via save_context have default state, visibility, and block_version populated correctly",
+        "Tests verifying the default fields pass consistently"
     ],
-    "current_status": "In progress. Completed implementation of state, visibility, and block_version fields, along with field enhancements for embedding and tags. Successfully implemented and tested validation methods for state transitions, visibility changes, embedding size, and tags constraints. Next step is to update the Dolt schema."
+    "current_status": "In progress. Completed implementation of state, visibility, and block_version fields, along with field enhancements for embedding and tags. Successfully implemented and tested validation methods for state transitions, visibility changes, embedding size, and tags constraints. Next steps: 1) Update CogniStructuredMemoryAdapter.save_context to initialize new blocks with default values, 2) Update the Dolt schema. Note: Task 4.5 (OCC Retry Strategy) should be completed before finalizing Dolt schema updates to ensure robust concurrent operations."
 }

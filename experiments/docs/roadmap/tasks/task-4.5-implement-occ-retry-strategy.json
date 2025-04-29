@@ -1,0 +1,52 @@
+{
+    "type": "Task",
+    "status": "todo",
+    "id": "4.5",
+    "project": "../project-compliance-hardening-phase1.json",
+    "title": "Implement OCC Retry Strategy for MemoryBlock Updates and Deletions",
+    "goal": "Add clean, bounded retries with exponential backoff to StructuredMemoryBank operations when serialization failures occur, ensuring robust OCC support without heavy locking.",
+    "implementation_details": {
+        "target_file": "experiments/src/memory_system/structured_memory_bank.py",
+        "affected_methods": [
+            "update_memory_block",
+            "delete_memory_block"
+        ],
+        "retry_policy": {
+            "max_retries": 5,
+            "initial_backoff_seconds": 0.5,
+            "backoff_multiplier": 2.0,
+            "max_backoff_seconds": 8.0,
+            "jitter": true
+        },
+        "error_patterns_to_retry": [
+            "serialization failure",
+            "transaction conflict"
+        ],
+        "retry_mechanism": "Python decorator or wrapped retry loop",
+        "notes": "Prefect retries can additionally catch upstream failures at agent task level. StructuredMemoryBank should handle first retries internally."
+    },
+    "success_criteria": [
+        "MemoryBlock updates and deletions retry automatically on serialization failure.",
+        "No retries on validation errors, Dolt connection errors, or logical application failures.",
+        "Retry delay follows exponential backoff with jitter.",
+        "Max retries is bounded (5 retries).",
+        "If retries exhausted, operation cleanly fails and escalates to Prefect or error handling flow."
+    ],
+    "test_criteria": [
+        "Unit tests verify retry behavior on serialization failures",
+        "Unit tests verify no retries on validation errors",
+        "Unit tests verify exponential backoff timing with jitter",
+        "Unit tests verify max retry limit enforcement",
+        "Integration tests verify retry behavior in concurrent scenarios",
+        "Integration tests verify proper error escalation after retry exhaustion"
+    ],
+    "action_items": [
+        "[ ] Create retry decorator with exponential backoff",
+        "[ ] Implement retry logic in update_memory_block",
+        "[ ] Implement retry logic in delete_memory_block",
+        "[ ] Add unit tests for retry behavior",
+        "[ ] Add integration tests for concurrent scenarios",
+        "[ ] Document retry behavior in method docstrings"
+    ],
+    "current_status": "Not started. This task will implement robust retry logic for concurrent operations on MemoryBlocks, ensuring data consistency without heavy locking."
+}
