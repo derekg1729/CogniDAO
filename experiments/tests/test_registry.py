@@ -5,9 +5,14 @@ This module tests the schema versioning, metadata registration, and validation
 functionality provided by the registry module.
 """
 
+import shutil
+import subprocess
+import tempfile
+
 import pytest
 from pydantic import BaseModel
-from src.memory_system.schemas.registry import (
+
+from memory_system.schemas.registry import (
     SCHEMA_VERSIONS,
     get_schema_version,
     register_metadata,
@@ -17,10 +22,7 @@ from src.memory_system.schemas.registry import (
     get_available_node_types,
     _metadata_registry,
 )
-from src.memory_system.initialize_dolt import initialize_dolt_db
-import tempfile
-import shutil
-import subprocess
+from memory_system.initialize_dolt import initialize_dolt_db, validate_schema_versions
 
 
 class MockMetadataModel(BaseModel):
@@ -50,6 +52,9 @@ def temp_dolt_db():
     # Create temp directory
     temp_dir = tempfile.mkdtemp()
     try:
+        # Initialize Dolt repository
+        subprocess.run(["dolt", "init"], cwd=temp_dir, check=True)
+
         # Initialize Dolt database
         initialize_dolt_db(temp_dir)
         yield temp_dir
@@ -161,3 +166,65 @@ def test_node_schemas_table_creation(temp_dolt_db):
     assert "schema_version" in output
     assert "json_schema" in output
     assert "created_at" in output
+
+
+def test_schema_version_validation(temp_dolt_db):
+    """Test that schema version validation works correctly."""
+    # Test with a clean database (should pass)
+    assert validate_schema_versions(temp_dolt_db)
+
+    # Add a schema with a mismatched version
+    subprocess.run(
+        [
+            "dolt",
+            "sql",
+            "-q",
+            """INSERT INTO node_schemas (node_type, schema_version, json_schema, created_at)
+               VALUES ('memory_block', 999, '{"type": "object"}', CURRENT_TIMESTAMP())""",
+        ],
+        cwd=str(temp_dolt_db),
+        check=True,
+    )
+
+    # Validation should fail due to version mismatch
+    assert not validate_schema_versions(temp_dolt_db)
+
+
+def test_schema_version_missing_type(temp_dolt_db):
+    """Test validation when a registered type is missing from SCHEMA_VERSIONS."""
+    # Store original SCHEMA_VERSIONS and registry state
+    original_versions = SCHEMA_VERSIONS.copy()
+    original_registry = _metadata_registry.copy()
+
+    try:
+        # Clear both registries to start fresh
+        SCHEMA_VERSIONS.clear()
+        _metadata_registry.clear()
+
+        # Add a test model to the registry
+        register_metadata("test_missing_type", MockMetadataModel)
+
+        # Verify the model is registered
+        registered_models = get_all_metadata_models()
+        assert "test_missing_type" in registered_models
+
+        # Add an unrelated type to SCHEMA_VERSIONS
+        SCHEMA_VERSIONS.update({"other_type": 1})
+
+        # Mock get_all_metadata_models to return only our test model
+        from unittest.mock import patch
+
+        with patch("memory_system.initialize_dolt.get_all_metadata_models") as mock_get_models:
+            mock_get_models.return_value = {"test_missing_type": MockMetadataModel}
+
+            # Validation should fail because test_missing_type is not in SCHEMA_VERSIONS
+            result = validate_schema_versions(temp_dolt_db)
+            assert not result, (
+                "Validation should fail when a registered type is missing from SCHEMA_VERSIONS"
+            )
+    finally:
+        # Restore original state
+        SCHEMA_VERSIONS.clear()
+        SCHEMA_VERSIONS.update(original_versions)
+        _metadata_registry.clear()
+        _metadata_registry.update(original_registry)

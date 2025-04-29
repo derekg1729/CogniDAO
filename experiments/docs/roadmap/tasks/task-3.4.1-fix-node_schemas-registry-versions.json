@@ -13,11 +13,11 @@
         "[x] Create dedicated test file for registry.py schema versioning",
         "[x] Update register_all_metadata_schemas() to pull version from SCHEMA_VERSIONS",
         "[x] Add node_schemas table creation to CREATE_TABLE_SQL",
-        "[ ] Add schema version validation during initialization",
-        "[ ] Add tests for schema version validation",
+        "[x] Add schema version validation during initialization",
+        "[x] Add tests for schema version validation",
         "[ ] Create pre-commit check for schema versioning policy"
     ],
-    "current_status": "Core schema versioning infrastructure added to registry.py and test suite created. Added node_schemas table creation to initialization. Updated schema registration to use version numbers from SCHEMA_VERSIONS. Next steps: implement schema version validation during initialization.",
+    "current_status": "Core schema versioning infrastructure added to registry.py and test suite created. Added node_schemas table creation to initialization. Updated schema registration to use version numbers from SCHEMA_VERSIONS. Test initialization improved with proper Dolt database setup in temporary directory. Next steps: implement pre-commit check for schema versioning policy.",
     "implementation_details": {
         "files_to_modify": [
             {

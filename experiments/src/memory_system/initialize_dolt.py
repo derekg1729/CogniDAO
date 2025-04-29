@@ -10,6 +10,10 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from experiments.src.memory_system.schemas.registry import (
+    get_all_metadata_models,
+    SCHEMA_VERSIONS,
+)
 
 # --- Configure logging --- #
 logging.basicConfig(
@@ -75,6 +79,98 @@ def run_command(command: list[str], cwd: str, description: str) -> bool:
         return False
 
 
+def validate_schema_versions(db_path: Path) -> bool:
+    """
+    Validates that all registered block types have schema versions defined
+    and match what's in the database (if any).
+
+    Args:
+        db_path: Path to the Dolt database directory
+
+    Returns:
+        True if validation passes, False otherwise
+    """
+    validation_errors = []
+
+    # Get all registered metadata models
+    metadata_models = get_all_metadata_models()
+    logger.debug(f"Registered metadata models: {list(metadata_models.keys())}")
+    logger.debug(f"SCHEMA_VERSIONS: {SCHEMA_VERSIONS}")
+
+    # Check that all registered types have version entries
+    for block_type in metadata_models:
+        logger.debug(f"Checking schema version for block type: {block_type}")
+        if block_type not in SCHEMA_VERSIONS:
+            error_msg = f"Block type '{block_type}' is registered but has no schema version defined in SCHEMA_VERSIONS"
+            logger.debug(f"Found error: {error_msg}")
+            validation_errors.append(error_msg)
+            continue
+
+    # If we already have errors, log them and return False
+    if validation_errors:
+        logger.error("Schema version validation failed:")
+        for error in validation_errors:
+            logger.error(f"  - {error}")
+        return False
+
+    # Check if node_schemas table exists
+    try:
+        result = subprocess.run(
+            ["dolt", "sql", "-q", "SHOW TABLES LIKE 'node_schemas'"],
+            cwd=str(db_path),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        if "node_schemas" not in result.stdout:
+            # Table doesn't exist yet, which is fine
+            return True
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to check if node_schemas table exists: {e}")
+        return False
+
+    # Check database for existing schemas and validate versions
+    try:
+        result = subprocess.run(
+            ["dolt", "sql", "-q", "SELECT node_type, schema_version FROM node_schemas"],
+            cwd=str(db_path),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        # Parse the output to get existing schemas
+        # Skip header row and empty lines
+        lines = [line.strip() for line in result.stdout.split("\n") if line.strip()]
+        if len(lines) > 1:  # If we have any schemas in the database
+            for line in lines[1:]:  # Skip header
+                node_type, version = line.split("\t")
+                if node_type in SCHEMA_VERSIONS:
+                    db_version = int(version)
+                    code_version = SCHEMA_VERSIONS[node_type]
+                    if db_version != code_version:
+                        validation_errors.append(
+                            f"Schema version mismatch for '{node_type}': "
+                            f"database has version {db_version}, code has version {code_version}"
+                        )
+
+            # If we found any mismatches, log them and return False
+            if validation_errors:
+                logger.error("Schema version validation failed:")
+                for error in validation_errors:
+                    logger.error(f"  - {error}")
+                return False
+
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to check schema versions in database: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error during schema version validation: {e}")
+        return False
+
+    return True
+
+
 def initialize_dolt_db(db_path_str: str) -> bool:
     """
     Initializes Dolt repo and creates memory_blocks table if they don't exist.
@@ -99,7 +195,12 @@ def initialize_dolt_db(db_path_str: str) -> bool:
         logger.error(f"Path exists but is not a directory: {db_path}")
         return False
 
-    # 2. Initialize Dolt if .dolt directory doesn't exist
+    # 2. Validate schema versions before proceeding
+    if not validate_schema_versions(db_path):
+        logger.error("Schema version validation failed")
+        return False
+
+    # 3. Initialize Dolt if .dolt directory doesn't exist
     dolt_dir_path = db_path / ".dolt"
     if not dolt_dir_path.exists():
         if not run_command(["dolt", "init"], cwd=str(db_path), description="Dolt init"):
@@ -107,7 +208,7 @@ def initialize_dolt_db(db_path_str: str) -> bool:
     else:
         logger.info(f"Dolt repository already initialized in {db_path}")
 
-    # 3. Create memory_blocks table if it doesn't exist
+    # 4. Create memory_blocks table if it doesn't exist
     if not run_command(
         ["dolt", "sql", "-q", CREATE_TABLE_SQL],
         cwd=str(db_path),
