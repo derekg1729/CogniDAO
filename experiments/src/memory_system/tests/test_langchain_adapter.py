@@ -14,18 +14,21 @@ from experiments.src.memory_system.schemas.memory_block import MemoryBlock
 
 # --- Fixtures ---
 
+
 @pytest.fixture
 def mock_memory_bank():
     """Provides a MagicMock instance of StructuredMemoryBank."""
     mock_bank = MagicMock(spec=StructuredMemoryBank)
-    mock_bank.query_semantic = MagicMock(return_value=[]) # Default: return empty list
-    mock_bank.create_memory_block = MagicMock(return_value=True) # Default: simulate success
+    mock_bank.query_semantic = MagicMock(return_value=[])  # Default: return empty list
+    mock_bank.create_memory_block = MagicMock(return_value=True)  # Default: simulate success
     return mock_bank
 
+
 @pytest.fixture
-def adapter(mock_memory_bank): # Depends on the mock_memory_bank fixture
+def adapter(mock_memory_bank):  # Depends on the mock_memory_bank fixture
     """Provides an instance of CogniStructuredMemoryAdapter with a mocked bank."""
     return CogniStructuredMemoryAdapter(memory_bank=mock_memory_bank)
+
 
 @pytest.fixture
 def sample_memory_blocks():
@@ -37,18 +40,20 @@ def sample_memory_blocks():
             type="knowledge",
             text="This is the first block.",
             tags=["test", "first"],
-            created_at=now
+            created_at=now,
         ),
         MemoryBlock(
             id=str(uuid.uuid4()),
             type="interaction",
             text="User said hello.",
             tags=["test", "greeting"],
-            created_at=now
-        )
+            created_at=now,
+        ),
     ]
 
+
 # --- Tests ---
+
 
 def test_load_memory_variables_success(adapter, mock_memory_bank, sample_memory_blocks):
     """Test load_memory_variables calls query_semantic and formats output correctly."""
@@ -56,20 +61,22 @@ def test_load_memory_variables_success(adapter, mock_memory_bank, sample_memory_
     input_query = "Tell me about tests"
     mock_memory_bank.query_semantic.return_value = sample_memory_blocks
     expected_key = adapter.memory_key
-    expected_markdown = adapter._format_blocks_to_markdown(sample_memory_blocks) # Use helper to get expected format
+    expected_markdown = adapter._format_blocks_to_markdown(
+        sample_memory_blocks
+    )  # Use helper to get expected format
 
     # Act
     result = adapter.load_memory_variables({adapter.input_key: input_query})
 
     # Assert
     mock_memory_bank.query_semantic.assert_called_once_with(
-        query_text=input_query,
-        top_k=adapter.top_k_retrieval
+        query_text=input_query, top_k=adapter.top_k_retrieval
     )
     assert result == {expected_key: expected_markdown}
-    assert "Memory Block:" in result[expected_key] # Check for basic formatting
-    assert sample_memory_blocks[0].id in result[expected_key]
-    assert sample_memory_blocks[1].id in result[expected_key]
+    assert "### Memory Block" in result[expected_key]  # Check for basic formatting
+    assert "Content:" in result[expected_key]  # Check for content section
+    assert "---" in result[expected_key]  # Check for block separator
+
 
 def test_load_memory_variables_no_input(adapter, mock_memory_bank):
     """Test load_memory_variables handles missing input key."""
@@ -80,22 +87,19 @@ def test_load_memory_variables_no_input(adapter, mock_memory_bank):
     mock_memory_bank.query_semantic.assert_not_called()
     assert result == {adapter.memory_key: "Input query not provided."}
 
+
 def test_save_context_success(adapter, mock_memory_bank):
     """Test save_context creates a correctly formatted block and calls create_memory_block."""
     # Arrange
     input_text = "What is the weather?"
     output_text = "It is sunny."
     fixed_tags = ["session123"]
-    adapter.save_tags = fixed_tags # Set specific tags for this test
+    adapter.save_tags = fixed_tags  # Set specific tags for this test
 
     inputs = {adapter.input_key: input_text}
     outputs = {adapter.output_key: output_text}
 
-    expected_block_text = (
-        f"[Interaction Record]\n"
-        f"Input: {input_text}\n"
-        f"Output: {output_text}"
-    )
+    expected_block_text = f"[Interaction Record]\nInput: {input_text}\nOutput: {output_text}"
 
     # Act
     adapter.save_context(inputs, outputs)
@@ -112,6 +116,7 @@ def test_save_context_success(adapter, mock_memory_bank):
     assert "session123" in saved_block.tags
     assert saved_block.metadata["input_key"] == adapter.input_key
     assert saved_block.metadata["output_key"] == adapter.output_key
+
 
 def test_save_context_missing_input_output(adapter, mock_memory_bank):
     """Test save_context handles missing input or output keys gracefully."""
@@ -133,16 +138,15 @@ def test_save_context_missing_input_output(adapter, mock_memory_bank):
     adapter.save_context(inputs_missing, outputs_missing)
     mock_memory_bank.create_memory_block.assert_not_called()
 
+
 # --- New Tests for Enhanced save_context ---
+
 
 def test_save_context_session_id_tag(adapter, mock_memory_bank):
     """Test that session_id from inputs gets added as a tag."""
     # Arrange
     session_id = "test_session_12345"
-    inputs = {
-        adapter.input_key: "Hello",
-        "session_id": session_id
-    }
+    inputs = {adapter.input_key: "Hello", "session_id": session_id}
     outputs = {adapter.output_key: "Hi there"}
 
     # Act
@@ -156,14 +160,12 @@ def test_save_context_session_id_tag(adapter, mock_memory_bank):
     assert f"type:{adapter.save_interaction_type}" in saved_block.tags
     assert session_id == saved_block.metadata["session_id"]
 
+
 def test_save_context_model_metadata(adapter, mock_memory_bank):
     """Test that model information is saved in metadata."""
     # Arrange
     model_name = "gpt-4"
-    inputs = {
-        adapter.input_key: "Hello",
-        "model": model_name
-    }
+    inputs = {adapter.input_key: "Hello", "model": model_name}
     outputs = {adapter.output_key: "Hi there"}
 
     # Act
@@ -175,16 +177,13 @@ def test_save_context_model_metadata(adapter, mock_memory_bank):
     assert saved_block.metadata["model"] == model_name
     assert "timestamp" in saved_block.metadata
 
+
 def test_save_context_token_count_and_latency(adapter, mock_memory_bank):
     """Test that token counts and latency are saved in metadata."""
     # Arrange
     token_count = {"prompt": 150, "completion": 50}
     latency_ms = 500
-    inputs = {
-        adapter.input_key: "Hello",
-        "token_count": token_count,
-        "latency": latency_ms
-    }
+    inputs = {adapter.input_key: "Hello", "token_count": token_count, "latency": latency_ms}
     outputs = {adapter.output_key: "Hi there"}
 
     # Act
@@ -195,6 +194,7 @@ def test_save_context_token_count_and_latency(adapter, mock_memory_bank):
     saved_block = mock_memory_bank.create_memory_block.call_args[0][0]
     assert saved_block.metadata["token_count"] == token_count
     assert saved_block.metadata["latency_ms"] == latency_ms
+
 
 def test_save_context_sanitization(adapter, mock_memory_bank):
     """Test that input is sanitized to remove memory placeholders."""
@@ -216,11 +216,12 @@ def test_save_context_sanitization(adapter, mock_memory_bank):
     assert f"Input: {expected_sanitized}" in saved_block.text
     assert "Python is a programming language" in saved_block.text
 
+
 def test_save_context_dict_output(adapter, mock_memory_bank):
     """Test that dictionary outputs are handled correctly."""
     # Arrange
     inputs = {adapter.input_key: "Hello"}
-    dict_output = {"text": "This is the main text", "confidence": 0.95}
+    dict_output = {"output": "This is the main text", "metadata": {"confidence": 0.95}}
     outputs = {adapter.output_key: dict_output}
 
     # Act
@@ -230,12 +231,14 @@ def test_save_context_dict_output(adapter, mock_memory_bank):
     mock_memory_bank.create_memory_block.assert_called_once()
     saved_block = mock_memory_bank.create_memory_block.call_args[0][0]
     assert "Output: This is the main text" in saved_block.text
+    assert saved_block.metadata.get("confidence") == 0.95
+
 
 def test_save_context_dict_output_no_text_key(adapter, mock_memory_bank):
     """Test that dictionary outputs without a 'text' key are converted to strings."""
     # Arrange
     inputs = {adapter.input_key: "Hello"}
-    dict_output = {"confidence": 0.95, "choices": ["A", "B"]}
+    dict_output = {"output": {"choices": ["A", "B"]}, "metadata": {"confidence": 0.95}}
     outputs = {adapter.output_key: dict_output}
 
     # Act
@@ -245,9 +248,9 @@ def test_save_context_dict_output_no_text_key(adapter, mock_memory_bank):
     mock_memory_bank.create_memory_block.assert_called_once()
     saved_block = mock_memory_bank.create_memory_block.call_args[0][0]
     assert "Output: " in saved_block.text
-    # Check if the string representation of the dict is in the output
-    assert "confidence" in saved_block.text
     assert "choices" in saved_block.text
+    assert saved_block.metadata.get("confidence") == 0.95
+
 
 def test_save_context_all_features_combined(adapter, mock_memory_bank):
     """Test all enhanced features together in one save operation."""
@@ -256,15 +259,20 @@ def test_save_context_all_features_combined(adapter, mock_memory_bank):
     model_name = "gpt-3.5-turbo"
     token_count = {"prompt": 200, "completion": 75}
     latency_ms = 650
-    
+
     inputs = {
         adapter.input_key: f"Using {{{adapter.memory_key}}}, answer: What is ML?",
         "session_id": session_id,
         "model": model_name,
         "token_count": token_count,
-        "latency": latency_ms
+        "latency": latency_ms,
     }
-    outputs = {adapter.output_key: {"text": "Machine Learning is...", "other_info": "additional details"}}
+    outputs = {
+        adapter.output_key: {
+            "output": "Machine Learning is...",
+            "metadata": {"confidence": 0.95, "other_info": "additional details"},
+        }
+    }
 
     # Act
     adapter.save_context(inputs, outputs)
@@ -272,24 +280,26 @@ def test_save_context_all_features_combined(adapter, mock_memory_bank):
     # Assert
     mock_memory_bank.create_memory_block.assert_called_once()
     saved_block = mock_memory_bank.create_memory_block.call_args[0][0]
-    
+
     # Check sanitization
     assert "Input: Using , answer: What is ML?" in saved_block.text
-    
+
     # Check output handling
     assert "Output: Machine Learning is..." in saved_block.text
-    
+
     # Check tags
     assert f"session:{session_id}" in saved_block.tags
     assert "date:" in saved_block.tags[1]
     assert f"type:{adapter.save_interaction_type}" in saved_block.tags
-    
+
     # Check metadata
     assert saved_block.metadata["model"] == model_name
     assert saved_block.metadata["session_id"] == session_id
     assert saved_block.metadata["token_count"] == token_count
     assert saved_block.metadata["latency_ms"] == latency_ms
+    assert saved_block.metadata["confidence"] == 0.95
     assert "timestamp" in saved_block.metadata
+
 
 # TODO: Add tests for error handling in load/save
 # TODO: Add tests for clear() method behavior (raising NotImplementedError)

@@ -10,15 +10,22 @@
         "[x] Create a `BaseMemoryTool` class (optional for future) that specializes CogniTool with stricter memory requirements, if helpful.",
         "[x] Refactor `create_memory_block_tool.py` to only expose the hidden `create_memory_block` function and its `CreateMemoryBlockInput` / `CreateMemoryBlockOutput` models in `memory_core/`.",
         "[x] **Do not** register `CreateMemoryBlock` directly as an agent-available tool. It's internal-only.",
-        "[ ] In `agent_facing/`, create high-level tools like `CreateKnowledgeBlockTool`, `CreateTaskBlockTool`, each using their corresponding specialized metadata schemas and calling `create_memory_block()` under the hood.",
-        "[ ] Each agent-facing tool must specify:",
+        "[x] In `agent_facing/`, create high-level tools like `CreateKnowledgeBlockTool`, `CreateTaskBlockTool`, each using their corresponding specialized metadata schemas and calling `create_memory_block()` under the hood.",
+        "[x] Each agent-facing tool must specify:",
         "    - A clean `input_model` (Pydantic)",
         "    - A matching `output_model` (or reuse generic success/failure outputs)",
         "    - Whether it is `memory_linked: true`",
         "    - Clear descriptions aligned to agent behavior",
-        "[ ] Update `tool_registry.py` to register **only** agent-facing tools and expose their schemas properly for OpenAI / MCP / LangChain compatibility.",
-        "[ ] Ensure agent-facing tools introspect input/output schemas correctly for dynamic system prompt building.",
-        "[ ] (Optional) If needed, create a `get_input_spec()` helper for agent-facing tools to reveal schema dynamically."
+        "[x] Update `tool_registry.py` to register **only** agent-facing tools and expose their schemas properly for OpenAI / MCP / LangChain compatibility.",
+        "[x] Ensure agent-facing tools introspect input/output schemas correctly for dynamic system prompt building.",
+        "[x] (Optional) If needed, create a `get_input_spec()` helper for agent-facing tools to reveal schema dynamically.",
+        "[x] Create `LogInteractionBlockTool` in `agent_facing/` to handle interaction logging:",
+        "    - Implement `LogInteractionBlockInput` model with fields for input/output text, session ID, model info, token counts, latency",
+        "    - Implement `LogInteractionBlockOutput` model with success/error handling",
+        "    - Create the tool function that formats the interaction and calls `create_memory_block()`",
+        "    - Add comprehensive tests for the new tool",
+        "[x] Update `CogniStructuredMemoryAdapter.save_context()` to use the new `LogInteractionBlockTool` instead of direct memory block creation",
+        "[x] Add tests to verify the adapter correctly uses the new tool"
     ],
     "file_structure": {
         "tools/": {
@@ -35,6 +42,7 @@
                 "create_knowledge_block_tool.py": "Agent-facing tool: Create 'knowledge' block using memory_core",
                 "create_task_block_tool.py": "Agent-facing tool: Create 'task' block using memory_core",
                 "review_code_block_tool.py": "Agent-facing tool: Review and store 'code review' blocks",
+                "log_interaction_block_tool.py": "Agent-facing tool: Log interactions as memory blocks",
                 "__init__.py": ""
             },
             "tool_registry.py": "Centralized registry loading only agent-facing tools",
@@ -42,6 +50,7 @@
         }
     },
     "example_snippets": {
-        "agent_facing/create_knowledge_block_tool.py": "from tools.base.cogni_tool import CogniTool\nfrom tools.memory_core.create_memory_block_tool import create_memory_block\nfrom schemas.metadata.knowledge import KnowledgeMetadata\nfrom schemas.memory_block import MemoryBlock\nfrom pydantic import BaseModel\n\nclass CreateKnowledgeBlockInput(BaseModel):\n    title: str\n    content: str\n    source: str\n\nclass CreateKnowledgeBlockOutput(BaseModel):\n    success: bool\n    id: Optional[str]\n    error: Optional[str]\n\n\ndef create_knowledge_block(input_data: CreateKnowledgeBlockInput, memory_bank) -> CreateKnowledgeBlockOutput:\n    metadata = KnowledgeMetadata(title=input_data.title, source=input_data.source)\n    block_input = MemoryBlock(\n        type=\"knowledge\",\n        text=input_data.content,\n        metadata=metadata.model_dump(),\n        created_by=\"agent\"\n    )\n    return create_memory_block(block_input, memory_bank)\n\n\ncreate_knowledge_block_tool = CogniTool(\n    name=\"CreateKnowledgeBlock\",\n    description=\"Create a new knowledge block with title, content, and source.\",\n    input_model=CreateKnowledgeBlockInput,\n    output_model=CreateKnowledgeBlockOutput,\n    function=create_knowledge_block,\n    memory_linked=True\n)"
+        "agent_facing/create_knowledge_block_tool.py": "from tools.base.cogni_tool import CogniTool\nfrom tools.memory_core.create_memory_block_tool import create_memory_block\nfrom schemas.metadata.knowledge import KnowledgeMetadata\nfrom schemas.memory_block import MemoryBlock\nfrom pydantic import BaseModel\n\nclass CreateKnowledgeBlockInput(BaseModel):\n    title: str\n    content: str\n    source: str\n\nclass CreateKnowledgeBlockOutput(BaseModel):\n    success: bool\n    id: Optional[str]\n    error: Optional[str]\n\n\ndef create_knowledge_block(input_data: CreateKnowledgeBlockInput, memory_bank) -> CreateKnowledgeBlockOutput:\n    metadata = KnowledgeMetadata(title=input_data.title, source=input_data.source)\n    block_input = MemoryBlock(\n        type=\"knowledge\",\n        text=input_data.content,\n        metadata=metadata.model_dump(),\n        created_by=\"agent\"\n    )\n    return create_memory_block(block_input, memory_bank)\n\n\ncreate_knowledge_block_tool = CogniTool(\n    name=\"CreateKnowledgeBlock\",\n    description=\"Create a new knowledge block with title, content, and source.\",\n    input_model=CreateKnowledgeBlockInput,\n    output_model=CreateKnowledgeBlockOutput,\n    function=create_knowledge_block,\n    memory_linked=True\n)",
+        "agent_facing/log_interaction_block_tool.py": "from tools.base.cogni_tool import CogniTool\nfrom tools.memory_core.create_memory_block_tool import create_memory_block\nfrom schemas.memory_block import MemoryBlock\nfrom pydantic import BaseModel\n\nclass LogInteractionBlockInput(BaseModel):\n    input_text: str\n    output_text: str\n    session_id: Optional[str] = None\n    model: Optional[str] = None\n    token_count: Optional[Dict[str, int]] = None\n    latency_ms: Optional[float] = None\n    tags: Optional[list[str]] = None\n\nclass LogInteractionBlockOutput(BaseModel):\n    success: bool\n    id: Optional[str]\n    error: Optional[str]\n    timestamp: datetime\n\n\ndef log_interaction_block(input_data: LogInteractionBlockInput, memory_bank) -> LogInteractionBlockOutput:\n    # Format block text\n    block_text = f\"[Interaction Record]\\nInput: {input_data.input_text}\\nOutput: {input_data.output_text}\"\n    \n    # Prepare tags and metadata\n    tags = input_data.tags or []\n    if input_data.session_id:\n        tags.append(f\"session:{input_data.session_id}\")\n    tags.append(f\"date:{datetime.now().strftime('%Y%m%d')}\")\n    tags.append(\"type:interaction\")\n    \n    metadata = {\n        \"timestamp\": datetime.now().isoformat(),\n        \"adapter_type\": \"LogInteractionBlockTool\"\n    }\n    if input_data.model:\n        metadata[\"model\"] = input_data.model\n    if input_data.token_count:\n        metadata[\"token_count\"] = input_data.token_count\n    if input_data.latency_ms:\n        metadata[\"latency_ms\"] = input_data.latency_ms\n    if input_data.session_id:\n        metadata[\"session_id\"] = input_data.session_id\n    \n    # Create and save block\n    block = MemoryBlock(\n        type=\"interaction\",\n        text=block_text,\n        tags=tags,\n        metadata=metadata,\n        state=\"draft\",\n        visibility=\"internal\",\n        block_version=1\n    )\n    return create_memory_block(block, memory_bank)\n\n\nlog_interaction_block_tool = CogniTool(\n    name=\"LogInteractionBlock\",\n    description=\"Logs an interaction as a memory block with enhanced metadata and tagging\",\n    input_model=LogInteractionBlockInput,\n    output_model=LogInteractionBlockOutput,\n    function=log_interaction_block,\n    memory_linked=True\n)"
     }
 }
