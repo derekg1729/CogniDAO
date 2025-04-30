@@ -66,6 +66,7 @@ def test_tool_schema(test_tool):
 def test_direct_invocation(test_tool):
     """Test direct tool invocation with kwargs."""
     result = test_tool(text="Hello")
+    assert isinstance(result, TestOutput)
     assert result.result == "Processed: Hello"
     assert result.success is True
 
@@ -74,10 +75,10 @@ def test_invalid_input(test_tool):
     """Test tool with invalid input."""
     # Test with an unexpected field
     result = test_tool(invalid_field="test")
-    assert isinstance(result, dict)  # Expect a dict for validation errors
+    assert isinstance(result, dict)
     assert result["success"] is False
     assert result["error"] == "Validation error"
-    assert "details" in result  # Check if details are included
+    assert "details" in result
 
 
 def test_langchain_conversion(test_tool):
@@ -111,7 +112,7 @@ def test_mcp_route(test_tool):
 
 
 def test_pydantic_model_conversion(test_tool):
-    """Test automatic conversion of Pydantic models to dicts."""
+    """Test that the tool returns the correct Pydantic model instance."""
     result = test_tool(text="Hello")
     assert isinstance(result, TestOutput)
     assert result.result == "Processed: Hello"
@@ -119,17 +120,17 @@ def test_pydantic_model_conversion(test_tool):
 
 
 def test_error_handling(test_tool):
-    """Test error handling in the tool wrapper."""
+    """Test error handling in the tool wrapper for validation errors."""
     # Test with missing required field ('text')
     result = test_tool()
-    assert isinstance(result, dict)  # Expect a dict for validation errors
+    assert isinstance(result, dict)  # Expect dict for validation errors
     assert result["success"] is False
     assert result["error"] == "Validation error"
     assert "details" in result
 
     # Test with wrong type for 'text'
     result = test_tool(text=123)  # Should be string
-    assert isinstance(result, dict)  # Expect a dict for validation errors
+    assert isinstance(result, dict)  # Expect dict for validation errors
     assert result["success"] is False
     assert result["error"] == "Validation error"
     assert "details" in result

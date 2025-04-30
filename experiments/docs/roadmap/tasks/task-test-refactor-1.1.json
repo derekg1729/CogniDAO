@@ -1,0 +1,22 @@
+{
+    "type": "Task",
+    "status": "todo",
+    "id": "test-refactor-1.1",
+    "name": "Refactor LangChain-Cogni integration tests",
+    "goal": "Split integration test (`test_langchain_chain_with_memory_creates_block`) into narrower units to isolate LangChain prompt logic, memory adapter logging, and semantic retrieval correctness. Improve test isolation and assertion granularity based on review feedback.",
+    "project": "unknown",
+    "priority": "medium",
+    "tags": [
+        "testing",
+        "integration",
+        "memory",
+        "langchain"
+    ],
+    "steps": [
+        "[ ] Extract a unit test that mocks `CogniStructuredMemoryAdapter` and verifies prompt input/output processing by the LangChain chain.",
+        "[ ] Add a test that explicitly verifies memory block creation (`type='log'`, correct metadata, tags) based on specific inputs to the `CogniStructuredMemoryAdapter.save_context` method (potentially mocking the underlying `log_interaction_block_tool`).",
+        "[ ] Create a semantic retrieval test using a pre-populated `StructuredMemoryBank` (mocked or temporary) with known blocks and verify `query_semantic` returns the expected blocks in the correct order based on semantic similarity.",
+        "[ ] Evaluate switching from file-system Dolt/Chroma backends to mocked/in-memory versions for most tests in `test_langchain_chain_integration.py`, retaining only one minimal end-to-end test if necessary."
+    ],
+    "notes": "Task created based on review of `test_langchain_chain_with_memory_creates_block`. Pending implementation. Reasoning: The test is functional and validates the end-to-end chain execution, which is valuable as a smoke test during active iteration. The underlying architectural issues (scope, isolation, correctness granularity) are valid but non-blocking right now. Refactoring should wait until the memory adapter and LangChain interfaces stabilize."
+}

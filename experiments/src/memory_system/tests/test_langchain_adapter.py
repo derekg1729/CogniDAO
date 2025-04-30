@@ -97,18 +97,15 @@ def test_load_memory_variables_no_input(adapter, mock_memory_bank):
 
 @patch("experiments.src.memory_system.langchain_adapter.log_interaction_block_tool")
 def test_save_context_success(mock_log_tool, adapter, mock_memory_bank):
-    """Test save_context creates a correctly formatted block and calls log_interaction_block_tool."""
+    """Test save_context calls log_interaction_block_tool correctly."""
     # Arrange
     mock_log_tool.return_value = MagicMock(success=True, id="mock_block_id")
     input_text = "What is the weather?"
     output_text = "It is sunny."
     fixed_tags = ["session123"]
-    adapter.save_tags = fixed_tags  # Set specific tags for this test
-
+    adapter.save_tags = fixed_tags
     inputs = {adapter.input_key: input_text}
     outputs = {adapter.output_key: output_text}
-
-    # expected_block_text = f"[Interaction Record]\nInput: {input_text}\nOutput: {output_text}" # This text is generated inside the tool now, not checked here directly
 
     # Act
     adapter.save_context(inputs, outputs)
@@ -116,7 +113,6 @@ def test_save_context_success(mock_log_tool, adapter, mock_memory_bank):
     # Assert
     mock_log_tool.assert_called_once()
     call_args, call_kwargs = mock_log_tool.call_args
-
     assert call_kwargs["memory_bank"] == mock_memory_bank
     assert call_kwargs["input_text"] == input_text
     assert call_kwargs["output_text"] == output_text
@@ -152,7 +148,7 @@ def test_save_context_missing_input_output(adapter, mock_memory_bank):
 
 @patch("experiments.src.memory_system.langchain_adapter.log_interaction_block_tool")
 def test_save_context_session_id_tag(mock_log_tool, adapter, mock_memory_bank):
-    """Test that session_id from inputs gets added as a tag via the tool."""
+    """Test session_id from inputs is passed to the tool."""
     # Arrange
     mock_log_tool.return_value = MagicMock(success=True, id="mock_block_id")
     session_id = "test_session_12345"
@@ -165,15 +161,13 @@ def test_save_context_session_id_tag(mock_log_tool, adapter, mock_memory_bank):
     # Assert
     mock_log_tool.assert_called_once()
     call_args, call_kwargs = mock_log_tool.call_args
-
     assert call_kwargs["memory_bank"] == mock_memory_bank
     assert call_kwargs["session_id"] == session_id
-    assert "session_id" in call_kwargs
 
 
 @patch("experiments.src.memory_system.langchain_adapter.log_interaction_block_tool")
 def test_save_context_model_metadata(mock_log_tool, adapter, mock_memory_bank):
-    """Test that model information is saved in metadata via the tool."""
+    """Test model info is passed to the tool."""
     # Arrange
     mock_log_tool.return_value = MagicMock(success=True, id="mock_block_id")
     model_name = "gpt-4"
@@ -186,16 +180,14 @@ def test_save_context_model_metadata(mock_log_tool, adapter, mock_memory_bank):
     # Assert
     mock_log_tool.assert_called_once()
     call_args, call_kwargs = mock_log_tool.call_args
-
     assert call_kwargs["memory_bank"] == mock_memory_bank
     assert call_kwargs["model"] == model_name
-    assert "model" in call_kwargs
     assert "timestamp" in call_kwargs["metadata"]
 
 
 @patch("experiments.src.memory_system.langchain_adapter.log_interaction_block_tool")
 def test_save_context_token_count_and_latency(mock_log_tool, adapter, mock_memory_bank):
-    """Test that token counts and latency are saved in metadata via the tool."""
+    """Test token counts and latency are passed to the tool correctly."""
     # Arrange
     mock_log_tool.return_value = MagicMock(success=True, id="mock_block_id")
     token_count = {"prompt": 150, "completion": 50}
@@ -209,12 +201,9 @@ def test_save_context_token_count_and_latency(mock_log_tool, adapter, mock_memor
     # Assert
     mock_log_tool.assert_called_once()
     call_args, call_kwargs = mock_log_tool.call_args
-
     assert call_kwargs["memory_bank"] == mock_memory_bank
     assert call_kwargs["token_count"] == token_count
     assert call_kwargs["latency_ms"] == latency_ms
-    assert "token_count" in call_kwargs
-    assert "latency_ms" in call_kwargs
 
 
 def test_save_context_sanitization(adapter, mock_memory_bank):
@@ -275,7 +264,7 @@ def test_save_context_dict_output_no_text_key(adapter, mock_memory_bank):
 
 @patch("experiments.src.memory_system.langchain_adapter.log_interaction_block_tool")
 def test_save_context_all_features_combined(mock_log_tool, adapter, mock_memory_bank):
-    """Test save_context with all optional features present."""
+    """Test save_context passes all features combined to the tool."""
     # Arrange
     mock_log_tool.return_value = MagicMock(success=True, id="mock_block_id")
     session_id = "combined_session_007"
@@ -284,7 +273,6 @@ def test_save_context_all_features_combined(mock_log_tool, adapter, mock_memory_
     latency_ms = 123.4
     fixed_tags = ["project_x"]
     adapter.save_tags = fixed_tags
-
     inputs = {
         adapter.input_key: "Complex input?",
         "session_id": session_id,
@@ -300,7 +288,6 @@ def test_save_context_all_features_combined(mock_log_tool, adapter, mock_memory_
     # Assert
     mock_log_tool.assert_called_once()
     call_args, call_kwargs = mock_log_tool.call_args
-
     assert call_kwargs["memory_bank"] == mock_memory_bank
     assert call_kwargs["input_text"] == inputs[adapter.input_key]
     assert call_kwargs["output_text"] == outputs[adapter.output_key]

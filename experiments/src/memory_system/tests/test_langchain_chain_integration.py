@@ -26,6 +26,9 @@ from experiments.src.memory_system.langchain_adapter import CogniStructuredMemor
 from experiments.src.memory_system.structured_memory_bank import StructuredMemoryBank
 from experiments.src.memory_system.initialize_dolt import initialize_dolt_db
 
+# Add import for schema registration
+from experiments.src.memory_system.dolt_schema_manager import register_all_metadata_schemas
+
 
 @pytest.fixture
 def temp_dirs():
@@ -56,6 +59,12 @@ def temp_dirs():
 def memory_bank(temp_dirs):
     """Create a StructuredMemoryBank instance with temporary directories."""
     dolt_dir, chroma_dir = temp_dirs
+
+    # Register schemas *after* initializing Dolt DB in temp_dirs
+    registration_results = register_all_metadata_schemas(db_path=dolt_dir)
+    if not all(registration_results.values()):
+        pytest.fail(f"Failed to register one or more schemas: {registration_results}")
+
     return StructuredMemoryBank(
         dolt_db_path=dolt_dir, chroma_path=chroma_dir, chroma_collection="test_collection"
     )
@@ -122,16 +131,14 @@ def test_langchain_chain_with_memory_creates_block(cogni_memory, fake_llm):
     block = memory_blocks[0]
 
     # Verify block properties
-    assert block.type == "interaction", f"Expected block type 'interaction', got '{block.type}'"
+    assert block.type == "log", f"Expected block type 'log', got '{block.type}'"
     assert "capital of France" in block.text, "Input text not found in memory block"
     assert "This is a test response" in block.text, "Output text not found in memory block"
-    assert "type:interaction" in block.tags, "Missing 'type:interaction' tag"
+    assert "type:log" in block.tags, "Missing 'type:log' tag"
     assert any(tag.startswith("date:") for tag in block.tags), "Missing date tag"
     assert "timestamp" in block.metadata, "Missing timestamp in metadata"
-    assert "adapter_type" in block.metadata, "Missing adapter_type in metadata"
-    assert block.metadata["adapter_type"] == "LogInteractionBlockTool", (
-        "Incorrect adapter_type in metadata"
-    )
+    assert "tool" in block.metadata, "Missing tool name in metadata"
+    assert block.metadata["tool"] == "LogInteractionBlockTool", "Incorrect tool name in metadata"
 
     # Verify additional metadata
     assert block.metadata["model"] == "fake-llm", "Model name not saved in metadata"

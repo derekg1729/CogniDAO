@@ -15,7 +15,6 @@ from ...tools.memory_core.create_memory_block_tool import (
     create_memory_block,
     CreateMemoryBlockInput,
 )
-
 from memory_system.schemas.metadata.log import LogMetadata
 
 # Setup logging

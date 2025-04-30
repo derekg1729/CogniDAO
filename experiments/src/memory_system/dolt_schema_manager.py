@@ -222,7 +222,7 @@ def get_schema(
             return None
 
         row = result["rows"][0]
-        schema = json.loads(row["json_schema"])
+        schema = row["json_schema"]
 
         # Add metadata
         schema["x_schema_version"] = row["schema_version"]

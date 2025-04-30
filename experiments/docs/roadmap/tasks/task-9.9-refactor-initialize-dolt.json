@@ -1,0 +1,24 @@
+{
+    "type": "Instruction",
+    "status": "todo",
+    "id": "fix-memory-system-tests-post-debug",
+    "name": "Fix Memory System Test Failures After Debugging",
+    "goal": "Apply the essential code changes identified during debugging to resolve test failures in the memory system, ensuring correctness without modifying generated files like schema.sql.",
+    "steps": [
+        "[ ] (Reset) Ensure workspace is clean (`git reset --hard HEAD`, `git clean -fdx`) before applying changes.",
+        "[x] Fix `CogniTool` Error Handling (`experiments/src/memory_system/tools/base/cogni_tool.py`): Modify `_create_wrapper` to return dict `{'error': ..., 'success': False}` on input `ValidationError`.",
+        "[ ] Update `CogniTool` Tests (`experiments/src/memory_system/tools/tests/test_cogni_tool.py`): Align assertions with Pydantic model attribute access and dictionary error format.",
+        "[ ] Fix `LogInteractionBlockTool` Import (`experiments/src/memory_system/tools/agent_facing/log_interaction_block_tool.py`): Use absolute import `from memory_system.schemas.metadata.log import LogMetadata`.",
+        "[ ] Add Default `links` (`experiments/src/memory_system/tools/agent_facing/log_interaction_block_tool.py`): Add `links=[]` to `CreateMemoryBlockInput` instantiation.",
+        "[ ] Update Langchain Adapter Test Mocking (`experiments/src/memory_system/tests/test_langchain_adapter.py`): Use `@patch` for `log_interaction_block_tool` in `save_context` tests and update assertions.",
+        "[x] Fix Dolt JSON String Reading (`experiments/src/memory_system/dolt_schema_manager.py`): Remove `json.loads()` in `get_schema` for `row['json_schema']`, treat as dict.",
+        "[ ] Fix Dolt Writer NULL Coercion (`experiments/src/memory_system/dolt_writer.py`): Remove `if x else NULL` checks for `tags` and `metadata` formatting.",
+        "[ ] Fix Pydantic JSON Parsing (`experiments/src/memory_system/schemas/memory_block.py`): Add `@field_validator(..., mode='before')` to parse JSON strings for `tags`, `metadata`, `links`.",
+        "[x] Add `session_id` Field (`experiments/src/memory_system/schemas/metadata/log.py`): Add `session_id: Optional[str]` to `LogMetadata` model.",
+        "[ ] Fix LangChain Integration Test (`experiments/src/memory_system/tests/test_langchain_chain_integration.py`):",
+        "    - [x] Ensure schemas registered in test setup fixture (`memory_bank`)",
+        "    - [x] Update `test_langchain_chain_with_memory_creates_block` assertions (e.g., for `type='log'`, correct metadata keys)",
+        "[x] (Verify) Run `ruff check . --fix` and `pytest experiments/src/memory_system` to confirm all tests pass."
+    ],
+    "notes": "This task applies fixes identified after extensive debugging. The root cause of schema mismatches (like NOT NULL constraints) should be addressed by ensuring `schema.sql` is generated correctly, not by modifying it manually or altering `initialize_dolt.py` further."
+}

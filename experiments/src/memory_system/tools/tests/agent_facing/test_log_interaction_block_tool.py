@@ -121,10 +121,11 @@ def test_log_interaction_block_tool_invalid_input(mock_memory_bank):
         memory_bank=mock_memory_bank,
     )
 
-    assert isinstance(result, LogInteractionBlockOutput)
-    assert result.success is False
-    assert result.error is not None
-    assert "Validation error" in result.error
+    # Expect dict for input validation error
+    assert isinstance(result, dict)
+    assert result["success"] is False
+    assert result["error"] == "Validation error"
+    assert "details" in result
 
 
 def test_log_interaction_block_unregistered_type(mock_memory_bank, sample_input):

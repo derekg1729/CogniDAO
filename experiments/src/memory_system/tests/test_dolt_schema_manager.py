@@ -249,7 +249,7 @@ class TestDoltSchemaManager:
         mock_dolt.sql.return_value = {
             "rows": [
                 {
-                    "json_schema": json.dumps(schema),
+                    "json_schema": schema,
                     "schema_version": 1,
                     "created_at": "2024-01-01T00:00:00Z",
                 }
@@ -281,7 +281,7 @@ class TestDoltSchemaManager:
         mock_dolt.sql.return_value = {
             "rows": [
                 {
-                    "json_schema": json.dumps(schema),
+                    "json_schema": schema,
                     "schema_version": 2,
                     "created_at": "2024-01-01T00:00:00Z",
                 }

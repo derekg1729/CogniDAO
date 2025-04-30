@@ -176,7 +176,9 @@ def test_create_memory_block_tool_invalid_input(mock_memory_bank):
 
     result = tool(type="knowledge", memory_bank=mock_memory_bank)  # Missing required 'text' field
 
-    assert isinstance(result, CreateMemoryBlockOutput)
-    assert result.success is False
-    assert result.error is not None
-    assert "Validation error" in result.error
+    # Check that the result is a dictionary indicating validation error
+    assert isinstance(result, dict)
+    assert result.get("success") is False
+    assert "error" in result
+    assert "Validation error" in result["error"]
+    assert "details" in result

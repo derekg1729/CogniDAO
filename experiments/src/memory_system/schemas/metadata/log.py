@@ -30,6 +30,7 @@ class LogMetadata(BaseModel):
     parent_block: Optional[str] = Field(
         default=None, description="ID of the parent MemoryBlock (usually a task or interaction)"
     )
+    session_id: Optional[str] = Field(None, description="Optional session ID for tracking")
 
     model_config = {
         "json_schema_extra": {
