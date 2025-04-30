@@ -5,6 +5,7 @@ Tests for the CreateMemoryBlock tool.
 import pytest
 from datetime import datetime
 from unittest.mock import MagicMock
+from pydantic import ValidationError
 
 from experiments.src.memory_system.tools.memory_core.create_memory_block_tool import (
     CreateMemoryBlockInput,
@@ -55,33 +56,50 @@ def test_create_memory_block_success(mock_memory_bank, sample_input):
     mock_memory_bank.create_memory_block.assert_called_once()
 
 
-def test_create_memory_block_schema_not_found(mock_memory_bank):
-    """Test memory block creation with an invalid type that doesn't exist in schema registry."""
-    # Create input with an invalid type
-    input_data = CreateMemoryBlockInput(
-        type="invalid_type",  # This type doesn't exist in the schema registry
-        text="Test memory block content",
-        state="draft",
-        visibility="internal",
-        tags=["test"],
-        metadata={"key": "value"},
-        created_by="test_agent",
-    )
+def test_create_memory_block_invalid_type(mock_memory_bank):
+    """Test memory block creation fails with ValidationError for invalid type."""
+    # Expect a ValidationError when creating input with an invalid type
+    with pytest.raises(ValidationError) as excinfo:
+        CreateMemoryBlockInput(
+            type="invalid_type",  # This type is not registered
+            text="Test memory block content",
+            state="draft",
+            visibility="internal",
+            tags=["test"],
+            metadata={"key": "value"},
+            created_by="test_agent",
+        )
 
-    # Configure mock to return None for unknown type
+    # Check the error message
+    assert "Invalid block type 'invalid_type'" in str(excinfo.value)
+
+    # Verify that the memory bank methods were not called
+    mock_memory_bank.get_latest_schema_version.assert_not_called()
+    mock_memory_bank.create_memory_block.assert_not_called()
+
+
+def test_create_memory_block_schema_lookup_fails(mock_memory_bank):
+    """Test memory block creation when schema version lookup fails for a registered type."""
+    # Configure mock to fail schema lookup even for a valid type
     mock_memory_bank.get_latest_schema_version.return_value = None
 
-    # Try to create the block
-    result = create_memory_block(input_data, mock_memory_bank)
+    # Use a valid type, but expect the lookup to fail
+    input_data = CreateMemoryBlockInput(type="knowledge", text="Test knowledge block")
 
-    # Verify the result
+    # Call the tool
+    result = create_memory_block(input_data=input_data, memory_bank=mock_memory_bank)
+
+    # Verify result
     assert isinstance(result, CreateMemoryBlockOutput)
     assert result.success is False
     assert result.id is None
-    assert "No schema version found for type: invalid_type" in result.error
+    # Assert the new defensive error message
+    assert (
+        "Schema definition missing or lookup failed for registered type: knowledge" in result.error
+    )
 
     # Verify the mock was called correctly
-    mock_memory_bank.get_latest_schema_version.assert_called_once_with("invalid_type")
+    mock_memory_bank.get_latest_schema_version.assert_called_once_with("knowledge")
     mock_memory_bank.create_memory_block.assert_not_called()
 
 

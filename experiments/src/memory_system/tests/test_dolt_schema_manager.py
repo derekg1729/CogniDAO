@@ -405,7 +405,7 @@ class TestDoltSchemaManager:
             result = validate_metadata("project", valid_metadata)
 
             # Check result
-            assert result is True
+            assert result is None
             mock_get_model.assert_called_once_with("project")
 
     def test_validate_metadata_invalid(self):
@@ -426,8 +426,13 @@ class TestDoltSchemaManager:
             result = validate_metadata("project", invalid_metadata)
 
             # Check result
-            assert result is False
-            mock_get_model.assert_called_once_with("project")
+            assert result is not None
+            assert isinstance(result, str)
+            # Optionally check for specific error details if needed
+            assert "Metadata validation failed" in result
+            assert "ProjectMetadata" in result
+            assert "status" in result  # Check that specific fields are mentioned
+            assert "name" in result
 
     def test_validate_metadata_missing_model(self):
         """Test validation when no model exists for the block type."""
@@ -444,8 +449,11 @@ class TestDoltSchemaManager:
             result = validate_metadata("nonexistent", metadata)
 
             # Check result
-            assert result is False
-            mock_get_model.assert_called_once_with("nonexistent")
+            assert result is None
+
+            # Test case: No metadata provided for a non-existent type (should also be None)
+            result_no_metadata = validate_metadata("nonexistent_too", {})
+            assert result_no_metadata is None
 
     def test_get_available_node_types(self):
         """

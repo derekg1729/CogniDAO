@@ -8,12 +8,14 @@ This tool handles the creation of new memory blocks, including:
 - Indexing in LlamaMemory
 """
 
-from typing import Optional, Dict, Any, Literal
+from typing import Optional, Dict, Any, Literal, List
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError, field_validator
 import logging
 
 from ...schemas.memory_block import MemoryBlock, ConfidenceScore
+from ...schemas.common import BlockLink
+from ...schemas.registry import validate_metadata, get_available_node_types
 from ...structured_memory_bank import StructuredMemoryBank
 from ..base.cogni_tool import CogniTool
 
@@ -45,8 +47,20 @@ class CreateMemoryBlockInput(BaseModel):
         None, description="Optional confidence scores for the block"
     )
     created_by: Optional[str] = Field(
-        None, description="Optional identifier for creator (agent name or user ID)"
+        "agent",  # Default created_by to 'agent'
+        description="Optional identifier for creator (agent name or user ID)",
     )
+    links: Optional[List[BlockLink]] = Field(
+        default_factory=list, description="Optional list of links to other blocks"
+    )
+
+    @field_validator("type")
+    def check_type_is_registered(cls, v):
+        """Validate that the provided block type is registered in the schema registry."""
+        registered_types = get_available_node_types()
+        if v not in registered_types:
+            raise ValueError(f"Invalid block type '{v}'. Must be one of: {registered_types}")
+        return v
 
 
 class CreateMemoryBlockOutput(BaseModel):
@@ -56,7 +70,7 @@ class CreateMemoryBlockOutput(BaseModel):
     id: Optional[str] = Field(None, description="ID of the created block if successful")
     error: Optional[str] = Field(None, description="Error message if creation failed")
     timestamp: datetime = Field(
-        default_factory=datetime.now, description="Timestamp of the creation attempt"
+        ..., description="Timestamp of the block creation (from block.created_at)"
     )
 
 
@@ -73,12 +87,32 @@ def create_memory_block(
     Returns:
         CreateMemoryBlockOutput containing creation status, ID, error message, and timestamp
     """
+    # Capture timestamp for potential error reporting
+    now = datetime.now()
+
     try:
+        # Metadata validation now returns error string or None
+        metadata_error = validate_metadata(input_data.type, input_data.metadata)
+        if metadata_error:
+            return CreateMemoryBlockOutput(
+                success=False,
+                error=metadata_error,  # Use the detailed error from validate_metadata
+                timestamp=now,  # Use consistent timestamp for failed attempt
+            )
+
         # Get latest schema version for the block type
         schema_version = memory_bank.get_latest_schema_version(input_data.type)
         if schema_version is None:
+            # This case should ideally be prevented by the input validator for 'type',
+            # but handle defensively.
+            error_msg = (
+                f"Schema definition missing or lookup failed for registered type: {input_data.type}"
+            )
+            logger.error(error_msg)  # Log this potentially inconsistent state
             return CreateMemoryBlockOutput(
-                success=False, error=f"No schema version found for type: {input_data.type}"
+                success=False,
+                error=error_msg,
+                timestamp=now,  # Use consistent timestamp
             )
 
         # Create the memory block
@@ -91,7 +125,8 @@ def create_memory_block(
             metadata=input_data.metadata,
             source_file=input_data.source_file,
             confidence=input_data.confidence,
-            created_by=input_data.created_by,
+            links=input_data.links,
+            created_by=input_data.created_by,  # Default is now handled by input model
             schema_version=schema_version,
         )
 
@@ -99,16 +134,32 @@ def create_memory_block(
         success = memory_bank.create_memory_block(block)
 
         if success:
-            return CreateMemoryBlockOutput(success=True, id=block.id, timestamp=datetime.now())
+            # Return block.created_at for consistency
+            return CreateMemoryBlockOutput(success=True, id=block.id, timestamp=block.created_at)
         else:
+            # Persistence failure should be logged by memory_bank.create_memory_block
             return CreateMemoryBlockOutput(
-                success=False, error="Failed to persist memory block", timestamp=datetime.now()
+                success=False, error="Failed to persist memory block", timestamp=now
             )
 
-    except Exception as e:
-        logger.error(f"Error creating memory block: {str(e)}")
+    except ValidationError as ve:
+        # Catch potential Pydantic validation errors during input parsing or MemoryBlock creation
+        error_details = str(ve)
+        logger.error(
+            f"Pydantic validation error during memory block creation process: {error_details}"
+        )
         return CreateMemoryBlockOutput(
-            success=False, error=f"Creation failed: {str(e)}", timestamp=datetime.now()
+            success=False,
+            error=f"Input or internal validation failed: {error_details}",
+            timestamp=now,
+        )
+    except Exception as e:
+        # Catch unexpected errors
+        logger.exception(
+            f"Unexpected error creating memory block: {str(e)}"
+        )  # Use logger.exception for stack trace
+        return CreateMemoryBlockOutput(
+            success=False, error=f"Unexpected creation failed: {str(e)}", timestamp=now
         )
 
 

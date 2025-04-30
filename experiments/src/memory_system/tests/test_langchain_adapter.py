@@ -13,11 +13,11 @@ from experiments.src.memory_system.tools.memory_core.create_memory_block_tool im
 from experiments.src.memory_system.tools.agent_facing.log_interaction_block_tool import (
     log_interaction_block_tool,
 )
+from experiments.src.memory_system.structured_memory_bank import StructuredMemoryBank
+from experiments.src.memory_system.schemas.memory_block import MemoryBlock
 
 # Assuming path setup allows importing these:
 from experiments.src.memory_system.langchain_adapter import CogniStructuredMemoryAdapter
-from experiments.src.memory_system.structured_memory_bank import StructuredMemoryBank
-from experiments.src.memory_system.schemas.memory_block import MemoryBlock
 
 # --- Fixtures ---
 
@@ -309,23 +309,44 @@ def test_save_context_all_features_combined(mock_log_tool, adapter, mock_memory_
 def test_create_memory_block_tool(mock_memory_bank):
     """Test that create_memory_block_tool works correctly."""
     # Arrange
+    # Define valid LogMetadata
+    valid_log_metadata = {
+        "timestamp": datetime.now(),
+        "agent": "test_agent",
+        # Add other required or optional fields if necessary based on LogMetadata definition
+    }
     input_data = CreateMemoryBlockInput(
         type="log",
         text="Test text",
         tags=["test"],
-        metadata={"test": "metadata"},
+        # Use valid metadata for the 'log' type
+        metadata=valid_log_metadata,
         state="draft",
         visibility="internal",
-        created_by="test",
+        created_by="test",  # This will be overridden by the default 'agent' unless None
     )
 
-    # Act
-    result = create_memory_block(input_data, mock_memory_bank)
+    # Configure mock for validate_metadata (assuming registry is separate)
+    with patch(
+        "experiments.src.memory_system.tools.memory_core.create_memory_block_tool.validate_metadata"
+    ) as mock_validate:
+        mock_validate.return_value = None  # Simulate successful validation
 
-    # Assert
-    assert result.success
-    assert result.id is not None
-    assert not result.error
+        # Mock schema version lookup
+        mock_memory_bank.get_latest_schema_version.return_value = 1
+        # Mock successful persistence
+        mock_memory_bank.create_memory_block.return_value = True
+
+        # Act
+        result = create_memory_block(input_data, mock_memory_bank)
+
+        # Assert
+        assert result.success
+        assert result.id is not None
+        assert result.error is None
+        mock_validate.assert_called_once_with("log", valid_log_metadata)
+        mock_memory_bank.get_latest_schema_version.assert_called_once_with("log")
+        mock_memory_bank.create_memory_block.assert_called_once()
 
 
 def test_log_interaction_block_tool(mock_memory_bank):

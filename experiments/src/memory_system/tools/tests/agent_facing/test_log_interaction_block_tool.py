@@ -138,6 +138,6 @@ def test_log_interaction_block_unregistered_type(mock_memory_bank, sample_input)
     assert isinstance(result, LogInteractionBlockOutput)
     assert result.success is False
     assert result.id is None
-    assert "No schema version found for type: log" in result.error
+    assert "Schema definition missing or lookup failed for registered type: log" in result.error
     mock_memory_bank.get_latest_schema_version.assert_called_once_with("log")
     mock_memory_bank.create_memory_block.assert_not_called()

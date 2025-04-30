@@ -84,4 +84,7 @@ class TestCreateMemoryBlockTool:
         assert isinstance(result, CreateMemoryBlockOutput)
         assert result.success is False
         assert result.id is None
-        assert "No schema version found for type: knowledge" in result.error
+        assert (
+            "Schema definition missing or lookup failed for registered type: knowledge"
+            in result.error
+        )

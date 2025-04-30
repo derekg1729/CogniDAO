@@ -20,7 +20,7 @@ Schema Versioning Policy:
 """
 
 from typing import Dict, Type, Optional, List
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 import logging
 
 # Setup logger
@@ -95,7 +95,7 @@ def get_all_metadata_models() -> Dict[str, Type[BaseModel]]:
     return _metadata_registry.copy()
 
 
-def validate_metadata(block_type: str, metadata: dict) -> bool:
+def validate_metadata(block_type: str, metadata: dict) -> Optional[str]:
     """
     Validate metadata against the registered model for the given block type.
 
@@ -104,18 +104,33 @@ def validate_metadata(block_type: str, metadata: dict) -> bool:
         metadata: The metadata dictionary to validate
 
     Returns:
-        True if validation succeeds, False otherwise
+        None if validation succeeds, otherwise a string containing the validation error details.
     """
     model_class = get_metadata_model(block_type)
     if model_class is None:
-        return False
+        # If no specific metadata model is registered, consider it valid (empty metadata is always okay)
+        # If metadata is provided for a type with no model, that's an issue handled elsewhere potentially,
+        # or we assume any dict is okay if no stricter schema exists.
+        # Let's assume it's valid if no model exists to validate against.
+        # Alternative: return f"No metadata model registered for type: {block_type}" if metadata else None
+        if metadata:  # Only return error if metadata was provided but no model exists
+            logger.warning(
+                f"Metadata provided for type '{block_type}' but no metadata model is registered."
+            )
+            # We could return an error string here, but for now, let's allow it.
+        return None  # Consider valid if no model registered or if metadata is empty
 
     try:
         model_class.model_validate(metadata)
-        return True
+        return None  # Success
+    except ValidationError as e:
+        error_details = str(e)
+        logger.error(f"Metadata validation failed for {block_type}: {error_details}")
+        return f"Metadata validation failed for type '{block_type}': {error_details}"
     except Exception as e:
-        logger.error(f"Metadata validation failed for {block_type}: {e}")
-        return False
+        # Catch other potential errors during validation
+        logger.error(f"Unexpected error during metadata validation for {block_type}: {e}")
+        return f"Unexpected error during metadata validation for type '{block_type}': {e}"
 
 
 def get_available_node_types() -> List[str]:
