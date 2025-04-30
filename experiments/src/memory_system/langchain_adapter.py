@@ -45,7 +45,7 @@ class CogniStructuredMemoryAdapter(BaseMemory):
     output_key: str = "output"  # Key in output dict holding the response
 
     # Configuration for memory operations
-    save_interaction_type: str = "interaction"  # Default type for saved context
+    save_interaction_type: str = "log"  # Default type for saved context
     save_tags: List[str] = Field(default_factory=list)  # Optional fixed tags
     top_k_retrieval: int = 5  # Number of blocks to retrieve in load_memory_variables
 
@@ -99,16 +99,18 @@ class CogniStructuredMemoryAdapter(BaseMemory):
         )
 
         input_str = inputs.get(self.input_key)
-        output_data = outputs.get(self.output_key)
+
+        # Try both 'output' and 'text' keys for output
+        output_str = outputs.get(self.output_key) or outputs.get("text")
 
         if input_str is None:
             logger.warning(
                 f"Input key '{self.input_key}' not found in inputs. Cannot save context."
             )
             return
-        if output_data is None:
+        if output_str is None:
             logger.warning(
-                f"Output key '{self.output_key}' not found in outputs. Cannot save context."
+                f"Neither '{self.output_key}' nor 'text' key found in outputs. Cannot save context."
             )
             return
 
@@ -120,32 +122,6 @@ class CogniStructuredMemoryAdapter(BaseMemory):
             )
             input_str = input_str.replace(f"{{{self.memory_key}}}", "").strip()
 
-        # Extract output text and metadata from the new dictionary format
-        output_str = None
-        output_metadata = {}
-
-        if isinstance(output_data, dict):
-            if "output" in output_data:
-                if isinstance(output_data["output"], dict):
-                    # Handle nested dictionary output
-                    if "text" in output_data["output"]:
-                        output_str = output_data["output"]["text"]
-                    else:
-                        # Convert the entire output dictionary to string
-                        output_str = str(output_data["output"])
-                else:
-                    # Handle direct string output
-                    output_str = str(output_data["output"])
-
-                # Extract metadata if present
-                if "metadata" in output_data:
-                    output_metadata = output_data["metadata"]
-            else:
-                # Fallback to string representation if not in expected format
-                output_str = str(output_data)
-        else:
-            output_str = str(output_data)
-
         try:
             # Prepare input for the tool
             tool_input = {
@@ -155,48 +131,42 @@ class CogniStructuredMemoryAdapter(BaseMemory):
                 "model": inputs.get("model"),
                 "token_count": inputs.get("token_count"),
                 "latency_ms": inputs.get("latency"),
-                "tags": self.save_tags.copy(),
+                "tags": ["type:log", f"date:{datetime.now().strftime('%Y-%m-%d')}"]
+                + self.save_tags,
+                "metadata": {
+                    "adapter_type": "CogniStructuredMemoryAdapter",
+                    "timestamp": datetime.now().isoformat(),
+                    "input_key": self.input_key,
+                    "output_key": self.output_key,
+                },
             }
 
-            # Add adapter-specific metadata
-            metadata = {
-                "input_key": self.input_key,
-                "output_key": self.output_key,
-                "adapter_type": self.__class__.__name__,
-                "timestamp": datetime.now().isoformat(),
-            }
+            # If output_str is a dict, try to extract text and metadata
+            if isinstance(output_str, dict):
+                # Try to get text from various possible keys
+                text_keys = ["output", "text", "content"]
+                for key in text_keys:
+                    if key in output_str:
+                        output_str = output_str[key]
+                        break
 
-            # Add model information if available
-            if "model" in inputs:
-                metadata["model"] = inputs["model"]
+                # If still a dict, convert to string
+                if isinstance(output_str, dict):
+                    output_str = str(output_str)
 
-            # Add session information if available
-            if "session_id" in inputs:
-                metadata["session_id"] = inputs["session_id"]
+                # Extract metadata if present
+                if "metadata" in outputs[self.output_key]:
+                    tool_input["metadata"].update(outputs[self.output_key]["metadata"])
 
-            # Add token counts if available
-            if "token_count" in inputs:
-                metadata["token_count"] = inputs["token_count"]
+            # Update tool input with final output text
+            tool_input["output_text"] = output_str
 
-            # Add latency if available
-            if "latency" in inputs:
-                metadata["latency_ms"] = inputs["latency"]
-
-            # Add output metadata
-            metadata.update(output_metadata)
-
-            # Use the LogInteractionBlockTool
-            result = log_interaction_block_tool(
-                **tool_input, memory_bank=self.memory_bank, metadata=metadata
-            )
-
-            if result["success"]:
-                logger.info(f"Successfully saved context as memory block: {result['id']}")
+            # Use the tool to create the memory block
+            result = log_interaction_block_tool(memory_bank=self.memory_bank, **tool_input)
+            if not result.success:
+                logger.error(f"Failed to create memory block: {result.error}")
             else:
-                logger.error(
-                    f"Failed to save context via LogInteractionBlockTool: {result.get('error', 'Unknown error')}"
-                )
-
+                logger.info(f"Successfully saved context as memory block: {result.id}")
         except Exception as e:
             logger.error(f"Error saving context: {e}", exc_info=True)
 

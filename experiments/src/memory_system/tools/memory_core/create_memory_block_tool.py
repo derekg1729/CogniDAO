@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 class CreateMemoryBlockInput(BaseModel):
     """Input model for creating a new memory block."""
 
-    type: Literal["knowledge", "task", "project", "doc", "interaction"] = Field(
-        ..., description="Type of memory block to create"
+    type: str = Field(
+        ..., description="Type of memory block to create (must be registered in schema registry)"
     )
     text: str = Field(..., description="Primary content of the memory block")
     state: Optional[Literal["draft", "published", "archived"]] = Field(
@@ -62,7 +62,7 @@ class CreateMemoryBlockOutput(BaseModel):
 
 def create_memory_block(
     input_data: CreateMemoryBlockInput, memory_bank: StructuredMemoryBank
-) -> Dict[str, Any]:
+) -> CreateMemoryBlockOutput:
     """
     Create a new memory block with validation and persistence.
 
@@ -71,7 +71,7 @@ def create_memory_block(
         memory_bank: StructuredMemoryBank instance for persistence
 
     Returns:
-        Dict containing creation status, ID, error message, and timestamp
+        CreateMemoryBlockOutput containing creation status, ID, error message, and timestamp
     """
     try:
         # Get latest schema version for the block type
@@ -79,7 +79,7 @@ def create_memory_block(
         if schema_version is None:
             return CreateMemoryBlockOutput(
                 success=False, error=f"No schema version found for type: {input_data.type}"
-            ).model_dump()
+            )
 
         # Create the memory block
         block = MemoryBlock(
@@ -99,17 +99,17 @@ def create_memory_block(
         success = memory_bank.create_memory_block(block)
 
         if success:
-            return CreateMemoryBlockOutput(success=True, id=block.id).model_dump()
+            return CreateMemoryBlockOutput(success=True, id=block.id, timestamp=datetime.now())
         else:
             return CreateMemoryBlockOutput(
-                success=False, error="Failed to persist memory block"
-            ).model_dump()
+                success=False, error="Failed to persist memory block", timestamp=datetime.now()
+            )
 
     except Exception as e:
         logger.error(f"Error creating memory block: {str(e)}")
         return CreateMemoryBlockOutput(
-            success=False, error=f"Creation failed: {str(e)}"
-        ).model_dump()
+            success=False, error=f"Creation failed: {str(e)}", timestamp=datetime.now()
+        )
 
 
 # Create the tool instance

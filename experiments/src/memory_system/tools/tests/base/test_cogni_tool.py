@@ -66,16 +66,18 @@ def test_tool_schema(test_tool):
 def test_direct_invocation(test_tool):
     """Test direct tool invocation with kwargs."""
     result = test_tool(text="Hello")
-    assert result["result"] == "Processed: Hello"
-    assert result["success"] is True
+    assert result.result == "Processed: Hello"
+    assert result.success is True
 
 
 def test_invalid_input(test_tool):
     """Test tool with invalid input."""
+    # Test with an unexpected field
     result = test_tool(invalid_field="test")
+    assert isinstance(result, dict)  # Expect a dict for validation errors
     assert result["success"] is False
-    assert "error" in result
-    assert "Validation error" in result["error"]
+    assert result["error"] == "Validation error"
+    assert "details" in result  # Check if details are included
 
 
 def test_langchain_conversion(test_tool):
@@ -111,19 +113,23 @@ def test_mcp_route(test_tool):
 def test_pydantic_model_conversion(test_tool):
     """Test automatic conversion of Pydantic models to dicts."""
     result = test_tool(text="Hello")
-    assert isinstance(result, dict)
-    assert "result" in result
-    assert "success" in result
+    assert isinstance(result, TestOutput)
+    assert result.result == "Processed: Hello"
+    assert result.success is True
 
 
 def test_error_handling(test_tool):
     """Test error handling in the tool wrapper."""
-    # Test with missing required field
+    # Test with missing required field ('text')
     result = test_tool()
+    assert isinstance(result, dict)  # Expect a dict for validation errors
     assert result["success"] is False
-    assert "error" in result
+    assert result["error"] == "Validation error"
+    assert "details" in result
 
-    # Test with wrong type
+    # Test with wrong type for 'text'
     result = test_tool(text=123)  # Should be string
+    assert isinstance(result, dict)  # Expect a dict for validation errors
     assert result["success"] is False
-    assert "error" in result
+    assert result["error"] == "Validation error"
+    assert "details" in result

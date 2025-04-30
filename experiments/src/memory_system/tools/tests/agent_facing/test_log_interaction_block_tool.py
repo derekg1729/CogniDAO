@@ -42,14 +42,14 @@ def test_log_interaction_block_success(mock_memory_bank, sample_input):
     """Test successful interaction logging."""
     result = log_interaction_block(sample_input, mock_memory_bank)
 
-    assert isinstance(result, dict)
-    assert result["success"] is True
-    assert result["id"] is not None
-    assert result["error"] is None
-    assert isinstance(result["timestamp"], datetime)
+    assert isinstance(result, LogInteractionBlockOutput)
+    assert result.success is True
+    assert result.id is not None
+    assert result.error is None
+    assert isinstance(result.timestamp, datetime)
 
     # Verify memory bank calls
-    mock_memory_bank.get_latest_schema_version.assert_called_once_with("interaction")
+    mock_memory_bank.get_latest_schema_version.assert_called_once_with("log")
     mock_memory_bank.create_memory_block.assert_called_once()
 
 
@@ -59,9 +59,10 @@ def test_log_interaction_block_minimal_input(mock_memory_bank):
 
     result = log_interaction_block(minimal_input, mock_memory_bank)
 
-    assert result["success"] is True
-    assert result["id"] is not None
-    assert result["error"] is None
+    assert isinstance(result, LogInteractionBlockOutput)
+    assert result.success is True
+    assert result.id is not None
+    assert result.error is None
 
 
 def test_log_interaction_block_persistence_failure(mock_memory_bank, sample_input):
@@ -70,9 +71,10 @@ def test_log_interaction_block_persistence_failure(mock_memory_bank, sample_inpu
 
     result = log_interaction_block(sample_input, mock_memory_bank)
 
-    assert result["success"] is False
-    assert result["id"] is None
-    assert "Failed to persist" in result["error"]
+    assert isinstance(result, LogInteractionBlockOutput)
+    assert result.success is False
+    assert result.id is None
+    assert "Failed to persist" in result.error
 
 
 def test_log_interaction_block_tool_initialization():
@@ -106,10 +108,10 @@ def test_log_interaction_block_tool_direct_invocation(mock_memory_bank, sample_i
         memory_bank=mock_memory_bank,
     )
 
-    assert isinstance(result, dict)
-    assert result["success"] is True
-    assert result["id"] is not None
-    assert result["error"] is None
+    assert isinstance(result, LogInteractionBlockOutput)
+    assert result.success is True
+    assert result.id is not None
+    assert result.error is None
 
 
 def test_log_interaction_block_tool_invalid_input(mock_memory_bank):
@@ -119,7 +121,22 @@ def test_log_interaction_block_tool_invalid_input(mock_memory_bank):
         memory_bank=mock_memory_bank,
     )
 
-    assert isinstance(result, dict)
-    assert result["success"] is False
-    assert "error" in result
-    assert "Validation error" in result["error"]
+    assert isinstance(result, LogInteractionBlockOutput)
+    assert result.success is False
+    assert result.error is not None
+    assert "Validation error" in result.error
+
+
+def test_log_interaction_block_unregistered_type(mock_memory_bank, sample_input):
+    """Test interaction logging with an unregistered type."""
+    # Configure mock to return None for schema version lookup
+    mock_memory_bank.get_latest_schema_version.return_value = None
+
+    result = log_interaction_block(sample_input, mock_memory_bank)
+
+    assert isinstance(result, LogInteractionBlockOutput)
+    assert result.success is False
+    assert result.id is None
+    assert "No schema version found for type: log" in result.error
+    mock_memory_bank.get_latest_schema_version.assert_called_once_with("log")
+    mock_memory_bank.create_memory_block.assert_not_called()

@@ -109,17 +109,34 @@ class CogniTool(FunctionTool):
                     result = func(validated_input)
 
                 # Validate output if model exists
-                if self.output_model:
-                    if not isinstance(result, self.output_model):
-                        result = self.output_model(**result)
-                    # Always convert output model to dict
-                    result = result.model_dump()
+                if self.output_model and not isinstance(result, self.output_model):
+                    result = self.output_model(**result)
 
                 return result
 
             except ValidationError as e:
-                return {"error": "Validation error", "details": e.errors(), "success": False}
+                # Always return a dict for input validation errors
+                return {
+                    "error": "Validation error",
+                    "details": e.errors(),
+                    "success": False,
+                }
             except Exception as e:
+                if self.output_model:
+                    # For general exceptions, try to use the output model if available
+                    # Ensure all required fields for the error state are provided
+                    error_data = {"error": str(e), "success": False}
+                    # Attempt to fill missing required fields with defaults or None
+                    # This part might need refinement based on specific output model needs
+                    for field_name, field_info in self.output_model.model_fields.items():
+                        if field_info.is_required() and field_name not in error_data:
+                            # A simple default, might need smarter logic
+                            error_data[field_name] = None
+                    try:
+                        return self.output_model(**error_data)
+                    except ValidationError:
+                        # Fallback if creating output model still fails
+                        return {"error": str(e), "success": False}
                 return {"error": str(e), "success": False}
 
         return wrapper

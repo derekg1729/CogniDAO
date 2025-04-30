@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 from experiments.src.memory_system.tools.memory_core.create_memory_block_tool import (
     create_memory_block,
     CreateMemoryBlockInput,
+    CreateMemoryBlockOutput,
 )
 from experiments.src.memory_system.structured_memory_bank import StructuredMemoryBank
 
@@ -36,10 +37,10 @@ class TestCreateMemoryBlockTool:
         result = create_memory_block(input_data=input_data, memory_bank=mock_memory_bank)
 
         # Verify result
-        assert isinstance(result, dict)  # Result should be a dict since output_model is converted
-        assert result["success"] is True
-        assert result["id"] is not None
-        assert result["error"] is None
+        assert isinstance(result, CreateMemoryBlockOutput)
+        assert result.success is True
+        assert result.id is not None
+        assert result.error is None
 
         # Verify memory bank calls
         mock_memory_bank.get_latest_schema_version.assert_called_once_with("knowledge")
@@ -63,10 +64,10 @@ class TestCreateMemoryBlockTool:
         result = create_memory_block(input_data=input_data, memory_bank=mock_memory_bank)
 
         # Verify result
-        assert isinstance(result, dict)
-        assert result["success"] is False
-        assert result["id"] is None
-        assert result["error"] is not None
+        assert isinstance(result, CreateMemoryBlockOutput)
+        assert result.success is False
+        assert result.id is None
+        assert "Failed to persist" in result.error
 
     def test_create_memory_block_schema_error(self, mock_memory_bank):
         """Test memory block creation when schema version lookup fails."""
@@ -80,7 +81,7 @@ class TestCreateMemoryBlockTool:
         result = create_memory_block(input_data=input_data, memory_bank=mock_memory_bank)
 
         # Verify result
-        assert isinstance(result, dict)
-        assert result["success"] is False
-        assert result["id"] is None
-        assert "No schema version found" in result["error"]
+        assert isinstance(result, CreateMemoryBlockOutput)
+        assert result.success is False
+        assert result.id is None
+        assert "No schema version found for type: knowledge" in result.error

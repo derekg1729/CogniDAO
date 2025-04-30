@@ -24,19 +24,29 @@ from langchain.prompts import PromptTemplate
 
 from experiments.src.memory_system.langchain_adapter import CogniStructuredMemoryAdapter
 from experiments.src.memory_system.structured_memory_bank import StructuredMemoryBank
+from experiments.src.memory_system.initialize_dolt import initialize_dolt_db
 
 
 @pytest.fixture
 def temp_dirs():
-    """Create temporary directories for Dolt and ChromaDB."""
+    """Create temporary directories for Dolt and ChromaDB, and initialize Dolt."""
     temp_dir = tempfile.mkdtemp()
     dolt_dir = os.path.join(temp_dir, "dolt")
     chroma_dir = os.path.join(temp_dir, "chroma")
     os.makedirs(dolt_dir)
     os.makedirs(chroma_dir)
 
-    # Initialize Dolt repository
-    Dolt.init(dolt_dir)
+    # Initialize Dolt repository (redundant if initialize_dolt_db does it, but safe)
+    try:
+        Dolt.init(dolt_dir)
+    except Exception as e:
+        # Handle potential errors if Dolt CLI isn't found or init fails
+        pytest.fail(f"Failed to initialize Dolt repository in {dolt_dir}: {e}")
+
+    # Initialize Dolt tables and schemas using the script
+    if not initialize_dolt_db(dolt_dir):
+        # If initialization fails, fail the test setup
+        pytest.fail(f"Failed to initialize Dolt database using initialize_dolt_db in {dolt_dir}")
 
     yield dolt_dir, chroma_dir
     shutil.rmtree(temp_dir)

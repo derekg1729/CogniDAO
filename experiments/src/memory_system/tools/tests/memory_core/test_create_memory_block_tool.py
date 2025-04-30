@@ -45,26 +45,44 @@ def test_create_memory_block_success(mock_memory_bank, sample_input):
     """Test successful memory block creation."""
     result = create_memory_block(sample_input, mock_memory_bank)
 
-    assert isinstance(result, dict)
-    assert result["success"] is True
-    assert result["id"] is not None
-    assert result["error"] is None
-    assert isinstance(result["timestamp"], datetime)
+    assert isinstance(result, CreateMemoryBlockOutput)
+    assert result.success is True
+    assert result.id is not None
+    assert result.error is None
+    assert isinstance(result.timestamp, datetime)
 
     mock_memory_bank.get_latest_schema_version.assert_called_once_with("knowledge")
     mock_memory_bank.create_memory_block.assert_called_once()
 
 
-def test_create_memory_block_schema_not_found(mock_memory_bank, sample_input):
-    """Test memory block creation when schema version is not found."""
+def test_create_memory_block_schema_not_found(mock_memory_bank):
+    """Test memory block creation with an invalid type that doesn't exist in schema registry."""
+    # Create input with an invalid type
+    input_data = CreateMemoryBlockInput(
+        type="invalid_type",  # This type doesn't exist in the schema registry
+        text="Test memory block content",
+        state="draft",
+        visibility="internal",
+        tags=["test"],
+        metadata={"key": "value"},
+        created_by="test_agent",
+    )
+
+    # Configure mock to return None for unknown type
     mock_memory_bank.get_latest_schema_version.return_value = None
 
-    result = create_memory_block(sample_input, mock_memory_bank)
+    # Try to create the block
+    result = create_memory_block(input_data, mock_memory_bank)
 
-    assert isinstance(result, dict)
-    assert result["success"] is False
-    assert result["id"] is None
-    assert "No schema version found" in result["error"]
+    # Verify the result
+    assert isinstance(result, CreateMemoryBlockOutput)
+    assert result.success is False
+    assert result.id is None
+    assert "No schema version found for type: invalid_type" in result.error
+
+    # Verify the mock was called correctly
+    mock_memory_bank.get_latest_schema_version.assert_called_once_with("invalid_type")
+    mock_memory_bank.create_memory_block.assert_not_called()
 
 
 def test_create_memory_block_persistence_failure(mock_memory_bank, sample_input):
@@ -73,10 +91,10 @@ def test_create_memory_block_persistence_failure(mock_memory_bank, sample_input)
 
     result = create_memory_block(sample_input, mock_memory_bank)
 
-    assert isinstance(result, dict)
-    assert result["success"] is False
-    assert result["id"] is None
-    assert "Failed to persist" in result["error"]
+    assert isinstance(result, CreateMemoryBlockOutput)
+    assert result.success is False
+    assert result.id is None
+    assert "Failed to persist" in result.error
 
 
 def test_create_memory_block_tool_initialization():
@@ -139,10 +157,10 @@ def test_create_memory_block_tool_direct_invocation(mock_memory_bank, sample_inp
         memory_bank=mock_memory_bank,
     )
 
-    assert isinstance(result, dict)
-    assert result["success"] is True
-    assert result["id"] is not None
-    assert result["error"] is None
+    assert isinstance(result, CreateMemoryBlockOutput)
+    assert result.success is True
+    assert result.id is not None
+    assert result.error is None
 
 
 def test_create_memory_block_tool_invalid_input(mock_memory_bank):
@@ -158,7 +176,7 @@ def test_create_memory_block_tool_invalid_input(mock_memory_bank):
 
     result = tool(type="knowledge", memory_bank=mock_memory_bank)  # Missing required 'text' field
 
-    assert isinstance(result, dict)
-    assert result["success"] is False
-    assert "error" in result
-    assert "Validation error" in result["error"]
+    assert isinstance(result, CreateMemoryBlockOutput)
+    assert result.success is False
+    assert result.error is not None
+    assert "Validation error" in result.error

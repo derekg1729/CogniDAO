@@ -16,6 +16,8 @@ from ...tools.memory_core.create_memory_block_tool import (
     CreateMemoryBlockInput,
 )
 
+from memory_system.schemas.metadata.log import LogMetadata
+
 # Setup logging
 logger = logging.getLogger(__name__)
 
@@ -68,26 +70,32 @@ def log_interaction_block(
         if input_data.session_id:
             tags.append(f"session:{input_data.session_id}")
         tags.append(f"date:{datetime.now().strftime('%Y%m%d')}")
-        tags.append("type:interaction")
+        tags.append("type:log")
 
-        metadata = {
-            "timestamp": datetime.now().isoformat(),
-            "adapter_type": "LogInteractionBlockTool",
-        }
+        log_metadata = LogMetadata(
+            timestamp=datetime.now(),
+            agent="agent",  # Or pull dynamically
+            input=input_data.input_text,
+            output=input_data.output_text,
+            tool="LogInteractionBlockTool",
+            session_id=input_data.session_id,
+            # parent_block can be None for now
+        )
+
+        metadata = log_metadata.model_dump()
+
         if input_data.model:
             metadata["model"] = input_data.model
         if input_data.token_count:
             metadata["token_count"] = input_data.token_count
         if input_data.latency_ms:
             metadata["latency_ms"] = input_data.latency_ms
-        if input_data.session_id:
-            metadata["session_id"] = input_data.session_id
         if input_data.metadata:
             metadata.update(input_data.metadata)
 
         # Create the input for create_memory_block
         block_input = CreateMemoryBlockInput(
-            type="interaction",
+            type="log",
             text=block_text,
             tags=tags,
             metadata=metadata,
@@ -102,13 +110,11 @@ def log_interaction_block(
         # Use the core create_memory_block function
         result = create_memory_block(block_input, memory_bank)
 
-        if result["success"]:
-            logger.info(f"Successfully created memory block with ID: {result['id']}")
-            return LogInteractionBlockOutput(
-                success=True, id=result["id"], timestamp=datetime.now()
-            )
+        if result.success:
+            logger.info(f"Successfully created memory block with ID: {result.id}")
+            return LogInteractionBlockOutput(success=True, id=result.id, timestamp=datetime.now())
         else:
-            error_msg = result.get("error", "Unknown error creating memory block")
+            error_msg = result.error or "Unknown error creating memory block"
             logger.error(f"Failed to create memory block: {error_msg}")
             return LogInteractionBlockOutput(
                 success=False,
