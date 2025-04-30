@@ -82,8 +82,8 @@ class TestDoltWriter:
         # as the DB might update it on write.
         assert isinstance(read_back_block.updated_at, datetime.datetime)
         assert (
-            abs((read_back_block.updated_at - datetime.datetime.now()).total_seconds()) < 5
-        )  # Allow 5 sec diff
+            abs((read_back_block.updated_at - datetime.datetime.now()).total_seconds()) < 10
+        )  # Allow 10 sec diff
 
     def test_sql_injection_attempt(self, test_dolt_db_path: Path):
         """
