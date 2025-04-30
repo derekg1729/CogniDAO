@@ -24,6 +24,7 @@
       "tasks": [
         "task-SDWM-2.1-create-sql-client-module.json",
         "task-SDWM-2.2-refactor-dolt-writer.json",
+        "task-SDWM-2.4-refactor-dolt-writer-modular.json",
         "task-SDWM-2.3-update-structuredmemorybank-writes.json"
       ]
     },
@@ -67,4 +68,4 @@
     "pydantic (v2)",
     "python-dotenv (optional, for credentials)"
   ]
-} 
+}

@@ -22,7 +22,7 @@ import logging
 import sys
 from pathlib import Path
 from typing import Optional, Tuple, Any, List
-import datetime  # Import datetime for type checking
+from datetime import datetime  # Import datetime directly
 
 # Use the correct import path for doltpy v2+
 from doltpy.cli import Dolt
@@ -76,7 +76,7 @@ def _format_sql_value(value: Optional[Any]) -> str:
         return "NULL"
     elif isinstance(value, (int, float)):
         return str(value)
-    elif isinstance(value, datetime.datetime):
+    elif isinstance(value, datetime):
         # Ensure datetime is formatted correctly for SQL (YYYY-MM-DD HH:MM:SS.ffffff)
         # Remove timezone info if present, as Dolt DATETIME might not handle it directly
         value_naive = value.replace(tzinfo=None)
@@ -86,7 +86,7 @@ def _format_sql_value(value: Optional[Any]) -> str:
     elif isinstance(value, (list, dict)):
         # Handle nested JSON structures
         def json_serializer(obj):
-            if isinstance(obj, datetime.datetime):
+            if isinstance(obj, datetime):
                 return obj.isoformat()
             elif hasattr(obj, "model_dump"):
                 return obj.model_dump()
@@ -145,11 +145,11 @@ def write_memory_block_to_dolt(
             "id": _format_sql_value(block.id),
             "type": _format_sql_value(block.type),
             "text": _format_sql_value(block.text),
-            "tags": _format_sql_value(block.tags) if block.tags else "NULL",
-            "metadata": _format_sql_value(block.metadata) if block.metadata else "NULL",
-            "links": _format_sql_value([link.model_dump() for link in block.links])
-            if block.links
-            else "NULL",
+            "tags": _format_sql_value(block.tags if block.tags is not None else []),
+            "metadata": _format_sql_value(block.metadata if block.metadata is not None else {}),
+            "links": _format_sql_value(
+                [link.model_dump() for link in block.links] if block.links is not None else []
+            ),
             "source_file": _format_sql_value(block.source_file),
             "source_uri": _format_sql_value(block.source_uri),
             "confidence": _format_sql_value(block.confidence.model_dump())
@@ -162,7 +162,7 @@ def write_memory_block_to_dolt(
             if block.embedding is not None
             else "NULL",
             "schema_version": _format_sql_value(block.schema_version)
-            if hasattr(block, "schema_version")
+            if hasattr(block, "schema_version") and block.schema_version is not None
             else "NULL",
         }
 
@@ -197,7 +197,7 @@ def write_memory_block_to_dolt(
                 )
                 check_result = repo.sql(query=check_query, result_format="json")
                 if check_result and "rows" in check_result and check_result["rows"]:
-                    link_query = f"REPLACE INTO block_links (from_id, to_id, relation) VALUES ({_format_sql_value(block.id)}, {_format_sql_value(link.to_id)}, {_format_sql_value(link.relation)});"
+                    link_query = f"REPLACE INTO block_links (from_id, to_id, relation, created_at) VALUES ({_format_sql_value(block.id)}, {_format_sql_value(link.to_id)}, {_format_sql_value(link.relation)}, {_format_sql_value(datetime.now())});"
                     repo.sql(query=link_query)
         except Exception as e:
             logger.warning(f"Failed to write links for block {block.id}: {e}")
@@ -568,7 +568,7 @@ if __name__ == "__main__":
             type="knowledge",
             text="Writing with manual escaping (necessary evil?). Watch out for quotes: ' and double quotes: \"",
             tags=["dolt", "manual-escape", "warning"],
-            metadata={"test_run": datetime.datetime.now().isoformat(), "escaped": True},
+            metadata={"test_run": datetime.now().isoformat(), "escaped": True},
             links=[],
             confidence=ConfidenceScore(ai=0.5),
         )

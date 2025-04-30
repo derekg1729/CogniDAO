@@ -141,7 +141,23 @@ def generate_table_schema(model: Type[BaseModel], table_name: str) -> str:
 
         # Handle nullable fields
         is_optional = get_origin(field_type) is Union and type(None) in get_args(field_type)
-        null_constraint = "NULL" if is_optional else "NOT NULL"
+
+        # Make specific fields nullable based on their names if they're Optional in Pydantic
+        if (
+            field_name
+            in [
+                "source_file",
+                "source_uri",
+                "confidence",
+                "embedding",
+                "created_by",
+                "schema_version",
+            ]
+            and is_optional
+        ):
+            null_constraint = "NULL"
+        else:
+            null_constraint = "NULL" if is_optional else "NOT NULL"
 
         # Handle default values
         default = format_default_value(field.default)

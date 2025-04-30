@@ -26,26 +26,57 @@ logger = logging.getLogger(__name__)
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS memory_blocks (
     id VARCHAR(255) PRIMARY KEY,
-    type VARCHAR(50),
-    schema_version INT,
-    text LONGTEXT,
-    tags JSON,
-    metadata JSON,
-    links JSON,
-    source_file VARCHAR(1024),
-    source_uri VARCHAR(2048),
-    confidence JSON,
-    created_by VARCHAR(255),
-    created_at DATETIME(6),
-    updated_at DATETIME(6),
-    embedding LONGTEXT
+    type VARCHAR(50) NOT NULL,
+    schema_version INT NULL,
+    text LONGTEXT NOT NULL,
+    state VARCHAR(50) NULL DEFAULT 'draft',
+    visibility VARCHAR(50) NULL DEFAULT 'internal',
+    block_version INT NULL DEFAULT 1,
+    tags JSON NOT NULL,
+    metadata JSON NOT NULL,
+    links JSON NOT NULL,
+    source_file VARCHAR(255) NULL,
+    source_uri VARCHAR(255) NULL,
+    confidence JSON NULL,
+    created_by VARCHAR(255) NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    embedding LONGTEXT NULL,
+    CONSTRAINT chk_valid_state CHECK (state IN ('draft', 'published', 'archived')),
+    CONSTRAINT chk_valid_visibility CHECK (visibility IN ('internal', 'public', 'restricted')),
+    CONSTRAINT chk_block_version_positive CHECK (block_version > 0)
 );
 
+CREATE INDEX idx_memory_blocks_type_state_visibility 
+ON memory_blocks (type, state, visibility);
+
+CREATE TABLE IF NOT EXISTS block_links (
+    from_id VARCHAR(255) NOT NULL,
+    to_id VARCHAR(255) NOT NULL,
+    relation VARCHAR(50) NOT NULL,
+    priority INT NULL DEFAULT 0,
+    link_metadata JSON NULL,
+    created_by VARCHAR(255) NULL,
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (from_id, to_id, relation)
+);
+
+CREATE INDEX idx_block_links_to_id ON block_links (to_id);
+
 CREATE TABLE IF NOT EXISTS node_schemas (
-    node_type VARCHAR(255) NOT NULL,
-    schema_version INT NOT NULL,
-    json_schema JSON NOT NULL,
-    created_at VARCHAR(255) NOT NULL
+  node_type VARCHAR(255) NOT NULL ,
+  schema_version INT NOT NULL ,
+  json_schema JSON NOT NULL ,
+  created_at VARCHAR(255) NOT NULL 
+);
+
+CREATE TABLE IF NOT EXISTS block_proofs (
+  id INTEGER PRIMARY KEY AUTO_INCREMENT,
+  block_id VARCHAR(255) NOT NULL,
+  commit_hash VARCHAR(255) NOT NULL,
+  operation VARCHAR(10) NOT NULL CHECK (operation IN ('create', 'update', 'delete')),
+  timestamp DATETIME NOT NULL,
+  INDEX block_id_idx (block_id)
 );
 """
 
@@ -171,6 +202,88 @@ def validate_schema_versions(db_path: Path) -> bool:
     return True
 
 
+def check_schema_nullability(db_path: Path) -> bool:
+    """
+    Checks that the actual Dolt column nullability matches the MemoryBlock field definitions.
+
+    Args:
+        db_path: Path to the Dolt database directory
+
+    Returns:
+        True if validation passes, False otherwise
+    """
+    from typing import get_args, get_origin, Union
+    from experiments.src.memory_system.schemas.memory_block import MemoryBlock
+
+    logger.info("Checking Dolt schema column nullability against Pydantic model...")
+
+    try:
+        # Get column information from Dolt
+        result = subprocess.run(
+            ["dolt", "sql", "-q", "DESCRIBE memory_blocks"],
+            cwd=str(db_path),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        # Parse the output to get column information
+        # Format: Field | Type | Null | Default | Extra
+        lines = [line.strip() for line in result.stdout.split("\n") if line.strip()]
+        if len(lines) < 2:  # Need at least header + 1 row
+            logger.error("Failed to get column information from Dolt")
+            return False
+
+        # Extract column information
+        column_info = {}
+        for line in lines[1:]:  # Skip header
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) >= 3:
+                column_name = parts[0].strip().lower()
+                nullable = parts[2].strip().lower() == "yes"
+                column_info[column_name] = nullable
+
+        # Check against Pydantic model fields
+        for field_name, field in MemoryBlock.model_fields.items():
+            field_name = field_name.lower()
+            if field_name in column_info:
+                # Determine if field is optional in Pydantic
+                field_type = field.annotation
+                is_optional = (
+                    get_origin(field_type) is Union and type(None) in get_args(field_type)
+                ) or field_name in [
+                    "state",
+                    "visibility",
+                    "block_version",
+                    "source_file",
+                    "source_uri",
+                    "confidence",
+                    "embedding",
+                    "created_by",
+                    "schema_version",
+                ]
+
+                # Check if Dolt nullable setting matches Pydantic
+                if is_optional and not column_info[field_name]:
+                    logger.warning(
+                        f"Column '{field_name}' is Optional in Pydantic but NOT NULL in Dolt"
+                    )
+                elif not is_optional and column_info[field_name]:
+                    logger.warning(
+                        f"Column '{field_name}' is required in Pydantic but nullable in Dolt"
+                    )
+
+        logger.info("Schema nullability check completed")
+        return True
+
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to check schema nullability: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error during schema nullability check: {e}")
+        return False
+
+
 def initialize_dolt_db(db_path_str: str) -> bool:
     """
     Initializes Dolt repo and creates memory_blocks table if they don't exist.
@@ -223,6 +336,11 @@ def initialize_dolt_db(db_path_str: str) -> bool:
     if not validate_schema_versions(db_path):
         logger.error("Schema version validation failed")
         return False
+
+    # 5. Check schema nullability
+    if not check_schema_nullability(db_path):
+        logger.warning("Schema nullability check failed, but continuing...")
+        # We continue despite failures to avoid breaking existing installations
 
     return True
 

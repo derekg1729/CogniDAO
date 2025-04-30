@@ -1,0 +1,43 @@
+{
+    "type": "Task",
+    "status": "todo",
+    "project": "SecureDoltWriteMigration",
+    "id": "refactor-dolt-writer-1.0",
+    "name": "Refactor dolt_writer for modularity and schema consistency",
+    "description": "Improve maintainability and correctness of Dolt write pipeline by modularizing components and eliminating schema duplication.",
+    "action_items": [
+        {
+            "name": "Modularize dolt_writer",
+            "steps": [
+                "[ ] Extract SQL formatting logic into a MemoryBlockSQLBuilder class",
+                "[ ] Create DoltRepoManager to handle repo/sql status, commit, and add operations",
+                "[ ] Move link writing logic to a dedicated write_links(block, repo) function"
+            ]
+        },
+        {
+            "name": "Centralize schema logic",
+            "steps": [
+                "[ ] Avoid hardcoded SQL column names; always derive from Pydantic model",
+                "[ ] Ensure MemoryBlockSQLBuilder uses model_dump and schema introspection",
+                "[ ] Guarantee schema.sql is generated from the same logic used in runtime writes"
+            ]
+        },
+        {
+            "name": "Enforce input validity before SQL generation",
+            "steps": [
+                "[ ] Remove hasattr and conditional schema field checks from write pipeline",
+                "[ ] Ensure all required fields are validated at MemoryBlock creation",
+                "[ ] Raise early errors for incomplete or invalid block instances"
+            ]
+        }
+    ],
+    "technical_debt": {
+        "manual_sql_escaping": true,
+        "tight_coupling_of_link_writes": true,
+        "schema_duplication_risk": "high"
+    },
+    "dependencies": [
+        "task-SDWM-2.2-refactor-dolt-writer.json"
+    ],
+    "current_status": "This task addresses technical debt in the dolt_writer.py module by improving modularity and schema consistency, which will make the transition to parameterized queries safer and more maintainable. It's a preparatory step for the larger Secure Dolt Write Migration project."
+}
