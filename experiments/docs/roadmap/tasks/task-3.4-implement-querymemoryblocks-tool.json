@@ -2,21 +2,89 @@
   "type": "Task",
   "status": "todo",
   "project": "../project-CogniMemorySystem-POC.json",
-  "id": "3.2",
-  "title": "Add QueryMemoryBlocks tool to agent",
+  "id": "3.4",
+  "title": "Implement QueryMemoryBlocks core tool and register agent-facing variant",
   "phase": "⚙️ Agent + Tool Wiring",
-  "goal": "Enable the agent to retrieve relevant information from the LlamaIndex memory.",
+  "goal": "Enable agents to retrieve relevant memory blocks using semantic search via LlamaIndex, through a schema-safe core tool interface.",
   "action_items": [
-    "[ ] Wrap the `query_memory_blocks` function (from Task 2.3) into a LangChain `Tool`.",
-    "[ ] Define the tool's name (`QueryMemoryBlocks`), description (explaining its purpose for the agent), and input schema (e.g., using Pydantic).",
-    "[ ] Register this tool with the LangChain agent created in Task 3.1.",
-    "[ ] Update the agent's prompt to encourage using the tool when necessary.",
-    "[ ] Ensure the LlamaIndex index object is accessible to the tool function."
+    "[ ] Create core tool structure:",
+    "    - Create `memory_core/query_memory_blocks_tool.py`",
+    "    - Define `QueryMemoryBlocksInput` with fields:",
+    "        - query_text: str (required)",
+    "        - type_filter: Optional[str]",
+    "        - tag_filters: Optional[List[str]]",
+    "        - top_k: Optional[int] (default=5)",
+    "        - metadata_filters: Optional[Dict[str, Any]]",
+    "    - Define `QueryMemoryBlocksOutput` with fields:",
+    "        - success: bool",
+    "        - blocks: List[MemoryBlock]",
+    "        - error: Optional[str]",
+    "        - timestamp: datetime",
+    "[ ] Implement core functionality:",
+    "    - Create `query_memory_blocks_core()` function",
+    "    - Use `StructuredMemoryBank.query_semantic()` for search",
+    "    - Apply filters in memory_core layer",
+    "    - Format results consistently with existing tools",
+    "[ ] Create tool instance:",
+    "    - Wrap in `CogniTool` named `QueryMemoryBlocksTool`",
+    "    - Set `memory_linked: true`",
+    "    - Add clear description for agent use",
+    "[ ] Add agent-facing variants:",
+    "    - Create `agent_facing/query_thought_blocks_tool.py`",
+    "    - Create `agent_facing/query_knowledge_blocks_tool.py`",
+    "    - Each variant should hardcode appropriate filters",
+    "[ ] Add comprehensive tests:",
+    "    - Create `tests/memory_core/test_query_memory_blocks_tool.py`",
+    "    - Test core functionality with various filters",
+    "    - Test error handling and edge cases",
+    "    - Test agent-facing variants",
+    "[ ] Register and integrate:",
+    "    - Add to tool registry",
+    "    - Update agent prompts to explain usage",
+    "    - Document in relevant READMEs"
   ],
   "test_criteria": [
-    "Invoke the agent with a query that should trigger memory retrieval (e.g., 'What is CogniDAO?', assuming relevant blocks exist).",
-    "Verify the agent calls the `QueryMemoryBlocks` tool.",
-    "Verify the agent's final response incorporates information from the retrieved memory blocks."
+    "Core functionality:",
+    "    - Verify semantic search returns relevant blocks",
+    "    - Test type and tag filtering",
+    "    - Verify metadata filtering",
+    "    - Check result formatting",
+    "Integration:",
+    "    - Test tool registration with LangChain",
+    "    - Verify agent can invoke tool",
+    "    - Check prompt integration",
+    "Edge cases:",
+    "    - Empty result sets",
+    "    - Invalid filters",
+    "    - Malformed inputs",
+    "    - Error handling"
   ],
-  "current_status": "Not started."
-} 
+  "file_structure": {
+    "tools/": {
+      "memory_core/": {
+        "query_memory_blocks_tool.py": "Core query functionality",
+        "__init__.py": ""
+      },
+      "agent_facing/": {
+        "query_thought_blocks_tool.py": "Thought-specific variant",
+        "query_knowledge_blocks_tool.py": "Knowledge-specific variant",
+        "__init__.py": ""
+      },
+      "tests/": {
+        "memory_core/": {
+          "test_query_memory_blocks_tool.py": "Core tool tests",
+          "__init__.py": ""
+        },
+        "agent_facing/": {
+          "test_query_thought_blocks_tool.py": "Thought variant tests",
+          "test_query_knowledge_blocks_tool.py": "Knowledge variant tests",
+          "__init__.py": ""
+        }
+      }
+    }
+  },
+  "example_snippets": {
+    "memory_core/query_memory_blocks_tool.py": "from tools.base.cogni_tool import CogniTool\nfrom tools.memory_core.query_memory_blocks_tool import query_memory_blocks_core\nfrom schemas.memory_block import MemoryBlock\nfrom pydantic import BaseModel\n\nclass QueryMemoryBlocksInput(BaseModel):\n    query_text: str\n    type_filter: Optional[str] = None\n    tag_filters: Optional[List[str]] = None\n    top_k: Optional[int] = 5\n    metadata_filters: Optional[Dict[str, Any]] = None\n\nclass QueryMemoryBlocksOutput(BaseModel):\n    success: bool\n    blocks: List[MemoryBlock]\n    error: Optional[str] = None\n    timestamp: datetime = Field(default_factory=datetime.now)\n\n\ndef query_memory_blocks_core(input_data: QueryMemoryBlocksInput, memory_bank) -> QueryMemoryBlocksOutput:\n    try:\n        # Query semantic memory\n        blocks = memory_bank.query_semantic(\n            query_text=input_data.query_text,\n            top_k=input_data.top_k\n        )\n        \n        # Apply filters\n        if input_data.type_filter:\n            blocks = [b for b in blocks if b.type == input_data.type_filter]\n        if input_data.tag_filters:\n            blocks = [b for b in blocks if all(tag in b.tags for tag in input_data.tag_filters)]\n        if input_data.metadata_filters:\n            blocks = [b for b in blocks if all(b.metadata.get(k) == v for k, v in input_data.metadata_filters.items())]\n        \n        return QueryMemoryBlocksOutput(\n            success=True,\n            blocks=blocks,\n            timestamp=datetime.now()\n        )\n    except Exception as e:\n        return QueryMemoryBlocksOutput(\n            success=False,\n            blocks=[],\n            error=str(e),\n            timestamp=datetime.now()\n        )\n\n\nquery_memory_blocks_tool = CogniTool(\n    name=\"QueryMemoryBlocks\",\n    description=\"Query memory blocks using semantic search with optional filters\",\n    input_model=QueryMemoryBlocksInput,\n    output_model=QueryMemoryBlocksOutput,\n    function=query_memory_blocks_core,\n    memory_linked=True\n)"
+  },
+  "notes": "This task completes the read/write memory symmetry needed for fully autonomous CogniAgent loops. Follows the LogInteractionBlockTool architecture and is required before implementing update logic. Ensure consistent error handling and metadata structure with existing tools."
+}
