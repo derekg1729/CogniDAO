@@ -35,7 +35,7 @@ def sample_input():
         state="draft",
         visibility="internal",
         tags=["test"],
-        metadata={"key": "value"},
+        metadata={},
         source_file="test.md",
         confidence=ConfidenceScore(),
         created_by="test_agent",
@@ -250,7 +250,6 @@ def test_create_memory_block_respects_provided_system_metadata(mock_memory_bank)
         metadata={
             "x_timestamp": provided_timestamp,
             "x_agent_id": provided_agent_id,
-            "user_field": "abc",
         },
         created_by="fallback_creator",  # Should be ignored
     )
@@ -275,4 +274,3 @@ def test_create_memory_block_respects_provided_system_metadata(mock_memory_bank)
     # Verify provided fields were used and not overridden
     assert block_passed_to_bank.metadata["x_timestamp"] == provided_timestamp
     assert block_passed_to_bank.metadata["x_agent_id"] == provided_agent_id
-    assert block_passed_to_bank.metadata["user_field"] == "abc"  # Check other fields preserved

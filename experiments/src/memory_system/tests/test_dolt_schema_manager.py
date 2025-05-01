@@ -395,6 +395,7 @@ class TestDoltSchemaManager:
 
             # Valid project metadata
             valid_metadata = {
+                "x_agent_id": "test_agent_123",
                 "name": "Test Project",
                 "description": "A test project",
                 "status": "planning",
