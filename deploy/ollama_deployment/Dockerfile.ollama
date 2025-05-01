@@ -1,0 +1,23 @@
+FROM ollama/ollama:latest
+
+# Install utilities
+RUN apt-get update && apt-get install -y curl jq && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set up working directory
+WORKDIR /app
+
+# Copy initialization script
+COPY init_ollama.sh /app/
+RUN chmod +x /app/init_ollama.sh
+
+# Set environment variables
+ENV OLLAMA_HOST="0.0.0.0"
+ENV OLLAMA_MODELS="deepseek-coder"
+
+# Expose Ollama API port
+EXPOSE 11434
+
+# Set entrypoint to the init script, using env var to determine models
+ENTRYPOINT ["/bin/bash", "-c", "/app/init_ollama.sh $OLLAMA_MODELS"] 
