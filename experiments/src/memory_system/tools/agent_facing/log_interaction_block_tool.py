@@ -34,6 +34,12 @@ class LogInteractionBlockInput(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(
         default_factory=dict, description="Optional additional metadata"
     )
+    parent_block: Optional[str] = Field(
+        None, description="Optional ID of the parent block (e.g., task, interaction)"
+    )
+    created_by: Optional[str] = Field(
+        "agent", description="Identifier for creator (agent name or user ID)"
+    )
 
 
 class LogInteractionBlockOutput(BaseModel):
@@ -43,7 +49,7 @@ class LogInteractionBlockOutput(BaseModel):
     id: Optional[str] = Field(None, description="ID of the created block if successful")
     error: Optional[str] = Field(None, description="Error message if logging failed")
     timestamp: datetime = Field(
-        default_factory=datetime.now, description="Timestamp of the logging attempt"
+        ..., description="Timestamp of the logging attempt or successful creation"
     )
 
 
@@ -60,6 +66,9 @@ def log_interaction_block(
     Returns:
         LogInteractionBlockOutput containing logging status, ID, error message, and timestamp
     """
+    # Capture consistent timestamp for this logging attempt
+    log_timestamp = datetime.now()
+
     try:
         # Format block text
         block_text = f"[Interaction Record]\nInput: {input_data.input_text}\nOutput: {input_data.output_text}"
@@ -68,17 +77,19 @@ def log_interaction_block(
         tags = input_data.tags or []
         if input_data.session_id:
             tags.append(f"session:{input_data.session_id}")
-        tags.append(f"date:{datetime.now().strftime('%Y%m%d')}")
+        # Use consistent timestamp for date tag
+        tags.append(f"date:{log_timestamp.strftime('%Y%m%d')}")
         tags.append("type:log")
 
         log_metadata = LogMetadata(
-            timestamp=datetime.now(),
-            agent="agent",  # Or pull dynamically
+            # Use consistent timestamp and input creator
+            timestamp=log_timestamp,
+            agent=input_data.created_by,
             input=input_data.input_text,
             output=input_data.output_text,
             tool="LogInteractionBlockTool",
             session_id=input_data.session_id,
-            # parent_block can be None for now
+            parent_block=input_data.parent_block,
         )
 
         metadata = log_metadata.model_dump()
@@ -100,7 +111,7 @@ def log_interaction_block(
             metadata=metadata,
             state="draft",
             visibility="internal",
-            created_by="agent",
+            created_by=input_data.created_by,
         )
 
         # Log the input for debugging
@@ -111,20 +122,21 @@ def log_interaction_block(
 
         if result.success:
             logger.info(f"Successfully created memory block with ID: {result.id}")
-            return LogInteractionBlockOutput(success=True, id=result.id, timestamp=datetime.now())
+            # Use the actual block creation timestamp from the result
+            return LogInteractionBlockOutput(success=True, id=result.id, timestamp=result.timestamp)
         else:
             error_msg = result.error or "Unknown error creating memory block"
             logger.error(f"Failed to create memory block: {error_msg}")
             return LogInteractionBlockOutput(
                 success=False,
                 error=error_msg,
-                timestamp=datetime.now(),
+                timestamp=log_timestamp,  # Use consistent timestamp for failure
             )
 
     except Exception as e:
         error_msg = f"Error logging interaction: {str(e)}"
         logger.error(error_msg, exc_info=True)
-        return LogInteractionBlockOutput(success=False, error=error_msg, timestamp=datetime.now())
+        return LogInteractionBlockOutput(success=False, error=error_msg, timestamp=log_timestamp)
 
 
 # Create the tool instance

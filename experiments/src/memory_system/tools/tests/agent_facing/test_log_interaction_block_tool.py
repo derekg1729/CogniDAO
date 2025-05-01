@@ -4,13 +4,18 @@ Tests for the LogInteractionBlockTool.
 
 import pytest
 from datetime import datetime
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from experiments.src.memory_system.tools.agent_facing.log_interaction_block_tool import (
     LogInteractionBlockInput,
     LogInteractionBlockOutput,
     log_interaction_block,
     log_interaction_block_tool,
+)
+
+# Import CreateMemoryBlockInput for type hinting in test
+from experiments.src.memory_system.tools.memory_core.create_memory_block_tool import (
+    CreateMemoryBlockInput,
 )
 from experiments.src.memory_system.structured_memory_bank import StructuredMemoryBank
 
@@ -141,3 +146,43 @@ def test_log_interaction_block_unregistered_type(mock_memory_bank, sample_input)
     assert "Schema definition missing or lookup failed for registered type: log" in result.error
     mock_memory_bank.get_latest_schema_version.assert_called_once_with("log")
     mock_memory_bank.create_memory_block.assert_not_called()
+
+
+def test_log_interaction_block_with_parent(mock_memory_bank):
+    """Test logging an interaction with a parent block ID."""
+    parent_id = "task-123"
+    input_data = LogInteractionBlockInput(
+        input_text="Sub-query for task.",
+        output_text="Result found.",
+        parent_block=parent_id,
+        created_by="sub_agent",
+    )
+
+    # Mock the underlying create_memory_block to capture its input
+    # We assume create_memory_block itself works (tested elsewhere)
+    # Need to return a valid success output from create_memory_block mock
+    mock_create_output = MagicMock()
+    mock_create_output.success = True
+    mock_create_output.id = "log-abc"
+    mock_create_output.timestamp = datetime.now()
+    with patch(
+        "experiments.src.memory_system.tools.agent_facing.log_interaction_block_tool.create_memory_block"
+    ) as mock_create:
+        mock_create.return_value = mock_create_output
+
+        result = log_interaction_block(input_data, mock_memory_bank)
+
+        assert isinstance(result, LogInteractionBlockOutput)
+        assert result.success is True
+        assert result.id == "log-abc"
+
+        # Verify create_memory_block was called correctly
+        mock_create.assert_called_once()
+        call_args, call_kwargs = mock_create.call_args
+        created_block_input: CreateMemoryBlockInput = call_args[0]
+
+        # Assert that parent_block is in the metadata passed to create_memory_block
+        assert "parent_block" in created_block_input.metadata
+        assert created_block_input.metadata["parent_block"] == parent_id
+        # Assert created_by was passed correctly too
+        assert created_block_input.created_by == "sub_agent"
