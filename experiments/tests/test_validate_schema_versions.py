@@ -110,6 +110,23 @@ some_other_file.py
         result = validate_schema_versions()
         self.assertFalse(result)
 
+    @patch("scripts.validate_schema_versions.get_modified_metadata_files")
+    @patch("scripts.validate_schema_versions.SCHEMA_VERSIONS", {"base": 1})
+    def test_validate_base_schema_without_version_increment(self, mock_get_files):
+        """Test validation failure when base.py is modified but version not incremented."""
+        # Mock base.py being modified
+        mock_get_files.return_value = [
+            "experiments/src/memory_system/schemas/metadata/base.py",
+        ]
+
+        # We should detect that base.py is modified but its version is still 1 in SCHEMA_VERSIONS
+        with patch("scripts.validate_schema_versions.logger") as mock_logger:
+            result = validate_schema_versions()
+            # The validation should fail
+            self.assertFalse(result)
+            # Logger should have an error about base schema needing version bump
+            mock_logger.error.assert_called()
+
     # 🚨 WARNING:
     # If this test fails after moving schemas to 'infra_core', it's working as intended!
     # Update the hardcoded path in scripts/validate_schema_versions.py
