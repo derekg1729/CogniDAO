@@ -136,14 +136,25 @@ def test_langchain_chain_with_memory_creates_block(cogni_memory, fake_llm):
     assert "This is a test response" in block.text, "Output text not found in memory block"
     assert "type:log" in block.tags, "Missing 'type:log' tag"
     assert any(tag.startswith("date:") for tag in block.tags), "Missing date tag"
-    assert "timestamp" in block.metadata, "Missing timestamp in metadata"
-    assert "tool" in block.metadata, "Missing tool name in metadata"
-    assert block.metadata["tool"] == "LogInteractionBlockTool", "Incorrect tool name in metadata"
 
-    # Verify additional metadata
+    # Verify system metadata fields (using x_ prefix)
+    assert "x_timestamp" in block.metadata, "Missing x_timestamp in metadata"
+    assert isinstance(block.metadata["x_timestamp"], str), (
+        "x_timestamp should be ISO string in final metadata"
+    )
+    assert "x_agent_id" in block.metadata, "Missing x_agent_id in metadata"
+    # Agent ID should come from the fallback 'created_by' field set in the adapter
+    assert block.metadata["x_agent_id"] == "agent", "Incorrect x_agent_id"
+    assert "x_tool_id" in block.metadata, "Missing x_tool_id in metadata"
+    assert block.metadata["x_tool_id"] == "LogInteractionBlockTool", "Incorrect x_tool_id"
+    assert "x_session_id" in block.metadata, "Missing x_session_id in metadata"
+    assert block.metadata["x_session_id"] == inputs["session_id"], "Incorrect x_session_id"
+
+    # Verify additional log-specific metadata fields
     assert block.metadata["model"] == "fake-llm", "Model name not saved in metadata"
-    assert block.metadata["session_id"] == "test_session", "Session ID not saved in metadata"
     assert block.metadata["token_count"] == {"prompt": 10, "completion": 5}, (
         "Token count not saved in metadata"
     )
     assert block.metadata["latency_ms"] == 0.1, "Latency not saved in metadata"
+    assert "input_text" in block.metadata  # Check presence of log-specific fields
+    assert "output_text" in block.metadata

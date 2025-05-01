@@ -15,6 +15,7 @@ from pydantic import Field, root_validator
 from experiments.src.memory_system.structured_memory_bank import StructuredMemoryBank
 from experiments.src.memory_system.schemas.memory_block import MemoryBlock
 from .tools.agent_facing.log_interaction_block_tool import log_interaction_block_tool
+from .schemas.metadata.log import LogMetadata
 
 # --- Path Setup --- START - Ensure project root is in path for imports
 script_dir = Path(__file__).parent
@@ -100,15 +101,15 @@ class CogniStructuredMemoryAdapter(BaseMemory):
 
         input_str = inputs.get(self.input_key)
 
-        # Try both 'output' and 'text' keys for output
-        output_str = outputs.get(self.output_key) or outputs.get("text")
+        # Try both the configured output_key and the common default 'text' key
+        original_output = outputs.get(self.output_key) or outputs.get("text")
 
         if input_str is None:
             logger.warning(
                 f"Input key '{self.input_key}' not found in inputs. Cannot save context."
             )
             return
-        if output_str is None:
+        if original_output is None:
             logger.warning(
                 f"Neither '{self.output_key}' nor 'text' key found in outputs. Cannot save context."
             )
@@ -123,46 +124,54 @@ class CogniStructuredMemoryAdapter(BaseMemory):
             input_str = input_str.replace(f"{{{self.memory_key}}}", "").strip()
 
         try:
-            # Prepare input for the tool
+            # Prepare input for the LogInteractionBlockTool
             tool_input = {
                 "input_text": input_str,
-                "output_text": output_str,
-                "session_id": inputs.get("session_id"),
+                "output_text": original_output,
+                # Map LangChain context keys to LogInteractionBlockInput fields
                 "model": inputs.get("model"),
                 "token_count": inputs.get("token_count"),
-                "latency_ms": inputs.get("latency"),
-                "tags": ["type:log", f"date:{datetime.now().strftime('%Y-%m-%d')}"]
-                + self.save_tags,
-                "metadata": {
-                    "adapter_type": "CogniStructuredMemoryAdapter",
-                    "timestamp": datetime.now().isoformat(),
-                    "input_key": self.input_key,
-                    "output_key": self.output_key,
-                },
+                "latency_ms": inputs.get("latency"),  # Input key from chain is 'latency'
+                "tags": self.save_tags + [f"date:{datetime.now().strftime('%Y%m%d')}"],
+                # Pass session_id as x_session_id
+                "x_session_id": inputs.get("session_id"),
+                # Pass parent_block_id if available in inputs
+                "x_parent_block_id": inputs.get("parent_block_id"),
+                # Set created_by for x_agent_id fallback in core tool
+                "created_by": inputs.get("user_id", "agent"),
+                # Metadata dict for LogInteractionBlockTool specific extras (currently none)
+                # User-defined metadata should be passed within inputs["metadata"] if needed
+                "metadata": inputs.get("metadata", {}),
             }
 
-            # If output_str is a dict, try to extract text and metadata
-            if isinstance(output_str, dict):
-                # Try to get text from various possible keys
-                text_keys = ["output", "text", "content"]
-                for key in text_keys:
-                    if key in output_str:
-                        output_str = output_str[key]
-                        break
+            # Add session tag if session ID exists
+            if tool_input["x_session_id"]:
+                tool_input["tags"].append(f"session:{tool_input['x_session_id']}")
 
-                # If still a dict, convert to string
-                if isinstance(output_str, dict):
-                    output_str = str(output_str)
+            # Final check for None output_text after processing
+            if tool_input.get("output_text") is None:
+                logger.warning(
+                    f"Neither '{self.output_key}' nor recognized text keys found in outputs. Cannot save context."
+                )
+                return
 
-                # Extract metadata if present
-                if "metadata" in outputs[self.output_key]:
-                    tool_input["metadata"].update(outputs[self.output_key]["metadata"])
+            # --- Metadata Filtering --- START
+            # Filter the combined metadata to only include keys valid for LogMetadata
+            # This prevents ValidationErrors due to `extra = forbid`
+            valid_metadata_keys = set(LogMetadata.model_fields.keys())
+            if isinstance(tool_input.get("metadata"), dict):
+                filtered_user_metadata = {
+                    k: v for k, v in tool_input["metadata"].items() if k in valid_metadata_keys
+                }
+                tool_input["metadata"] = filtered_user_metadata
+            # --- Metadata Filtering --- END
 
-            # Update tool input with final output text
-            tool_input["output_text"] = output_str
+            # Clean up None values before calling the tool
+            tool_input_cleaned = {k: v for k, v in tool_input.items() if v is not None}
 
             # Use the tool to create the memory block
-            result = log_interaction_block_tool(memory_bank=self.memory_bank, **tool_input)
+            logger.debug(f"Calling log_interaction_block_tool with input: {tool_input_cleaned}")
+            result = log_interaction_block_tool(memory_bank=self.memory_bank, **tool_input_cleaned)
             if not result.success:
                 logger.error(f"Failed to create memory block: {result.error}")
             else:

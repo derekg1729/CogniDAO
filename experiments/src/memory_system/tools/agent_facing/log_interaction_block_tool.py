@@ -15,7 +15,6 @@ from ...tools.memory_core.create_memory_block_tool import (
     create_memory_block,
     CreateMemoryBlockInput,
 )
-from memory_system.schemas.metadata.log import LogMetadata
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -26,7 +25,7 @@ class LogInteractionBlockInput(BaseModel):
 
     input_text: str = Field(..., description="The input text from the interaction")
     output_text: str = Field(..., description="The output text from the interaction")
-    session_id: Optional[str] = Field(None, description="Optional session ID for tracking")
+    x_session_id: Optional[str] = Field(None, description="Optional session ID for tracking")
     model: Optional[str] = Field(None, description="Optional model name/version")
     token_count: Optional[Dict[str, int]] = Field(None, description="Optional token counts")
     latency_ms: Optional[float] = Field(None, description="Optional latency in milliseconds")
@@ -34,7 +33,7 @@ class LogInteractionBlockInput(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(
         default_factory=dict, description="Optional additional metadata"
     )
-    parent_block: Optional[str] = Field(
+    x_parent_block_id: Optional[str] = Field(
         None, description="Optional ID of the parent block (e.g., task, interaction)"
     )
     created_by: Optional[str] = Field(
@@ -75,31 +74,33 @@ def log_interaction_block(
 
         # Prepare tags and metadata
         tags = input_data.tags or []
-        if input_data.session_id:
-            tags.append(f"session:{input_data.session_id}")
-        # Use consistent timestamp for date tag
+        if input_data.x_session_id:
+            tags.append(f"session:{input_data.x_session_id}")
         tags.append(f"date:{log_timestamp.strftime('%Y%m%d')}")
         tags.append("type:log")
 
-        log_metadata = LogMetadata(
-            # Use consistent timestamp and input creator
-            timestamp=log_timestamp,
-            agent=input_data.created_by,
-            input=input_data.input_text,
-            output=input_data.output_text,
-            tool="LogInteractionBlockTool",
-            session_id=input_data.session_id,
-            parent_block=input_data.parent_block,
-        )
-
-        metadata = log_metadata.model_dump()
-
+        # Construct metadata dictionary directly, including only provided fields
+        # System fields like x_timestamp and x_agent_id will be injected by create_memory_block if needed
+        metadata = {}
+        if input_data.input_text:
+            metadata["input_text"] = input_data.input_text
+        if input_data.output_text:
+            metadata["output_text"] = input_data.output_text
         if input_data.model:
             metadata["model"] = input_data.model
         if input_data.token_count:
             metadata["token_count"] = input_data.token_count
         if input_data.latency_ms:
             metadata["latency_ms"] = input_data.latency_ms
+        if input_data.x_session_id:
+            metadata["x_session_id"] = input_data.x_session_id
+        if input_data.x_parent_block_id:
+            metadata["x_parent_block_id"] = input_data.x_parent_block_id
+
+        # Always set the specific tool ID for this interaction log
+        metadata["x_tool_id"] = "LogInteractionBlockTool"
+
+        # Include any additional metadata provided in the input
         if input_data.metadata:
             metadata.update(input_data.metadata)
 

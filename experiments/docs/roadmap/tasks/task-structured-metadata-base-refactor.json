@@ -1,0 +1,109 @@
+{
+    "type": "Task",
+    "id": "task-structured-metadata-base-refactor",
+    "name": "Refactor metadata schemas to use BaseMetadata inheritance",
+    "status": "completed",
+    "project": "CogniMemorySystem-POC",
+    "description": "Create a unified metadata inheritance model using a BaseMetadata class to reduce duplication, enforce consistency, and enable traceable block hierarchies across all MemoryBlock types. Decided on 'x_' prefix for system fields.",
+    "action_items": [
+        {
+            "name": "Define BaseMetadata",
+            "description": "Create a shared base class for all memory block metadata schemas.",
+            "file": "experiments/src/memory_system/schemas/metadata/base.py",
+            "status": "completed",
+            "details": {
+                "implementation": "Defined BaseMetadata with x_timestamp, x_agent_id, x_tool_id, x_session_id, x_parent_block_id. Added model_config with extra = 'forbid'.",
+                "pseudocode": [
+                    "from pydantic import BaseModel",
+                    "from datetime import datetime",
+                    "from typing import Optional",
+                    "class BaseMetadata(BaseModel):",
+                    "    x_timestamp: datetime = Field(default_factory=datetime.now)",
+                    "    x_agent_id: str",
+                    "    x_tool_id: Optional[str] = None",
+                    "    x_parent_block_id: Optional[str] = None",
+                    "    x_session_id: Optional[str] = None",
+                    "    model_config = ConfigDict(extra='forbid')"
+                ]
+            }
+        },
+        {
+            "name": "Update log.py to use BaseMetadata",
+            "description": "Refactor LogMetadata to inherit from BaseMetadata and remove duplicated fields.",
+            "file": "experiments/src/memory_system/schemas/metadata/log.py",
+            "status": "completed",
+            "details": {
+                "implementation": "Updated LogMetadata to inherit from BaseMetadata, removed duplicate fields, added log-specific fields (input_text, output_text, model, token_count, latency_ms).",
+                "pseudocode": [
+                    "from .base import BaseMetadata",
+                    "from typing import Optional, Dict, Any",
+                    "class LogMetadata(BaseMetadata):",
+                    "    input_text: Optional[str] = None",
+                    "    output_text: Optional[str] = None",
+                    "    model: Optional[str] = None",
+                    "    token_count: Optional[Dict[str, int]] = None",
+                    "    latency_ms: Optional[float] = None"
+                ]
+            }
+        },
+        {
+            "name": "Future-proof naming convention",
+            "description": "Decide on namespace key convention for system-reserved metadata fields (e.g., parent_block_id, session_id vs. cogni_parent_block_id).",
+            "status": "completed",
+            "details": {
+                "decision": "Decided to use 'x_' prefix for system fields (x_timestamp, x_agent_id, etc.).",
+                "discussion_points": [
+                    "Option A: Use simple keys (parent_block_id, session_id)",
+                    "Option B: Use reserved prefix (cogni_parent_block_id, cogni_session_id)",
+                    "Decision needed: Apply chosen convention consistently in BaseMetadata and inheriting classes."
+                ]
+            }
+        },
+        {
+            "name": "Update schema registry validation",
+            "description": "Ensure experiments.src.memory_system.schemas.registry.validate_metadata correctly handles and validates models inheriting from BaseMetadata.",
+            "file": "experiments/src/memory_system/schemas/registry.py",
+            "status": "todo"
+        },
+        {
+            "name": "Update related tests",
+            "description": "Ensure all test files referencing LogMetadata or metadata validation still pass after the refactor.",
+            "files": [
+                "experiments/src/memory_system/tools/tests/agent_facing/test_log_interaction_block_tool.py",
+                "experiments/src/memory_system/tools/tests/memory_core/test_create_memory_block_tool.py",
+                "experiments/src/memory_system/tests/test_langchain_adapter.py",
+                "experiments/src/memory_system/tests/test_langchain_chain_integration.py"
+            ],
+            "status": "completed",
+            "details": {
+                "implementation": [
+                    "Updated test_log_interaction_block_tool.py to patch core create_memory_block and check metadata passed.",
+                    "Updated test_create_memory_block_tool.py with tests for system metadata injection.",
+                    "Updated test_langchain_adapter.py to mock log_interaction_block_tool and check args/kwargs for x_ fields and filtering.",
+                    "Updated test_langchain_chain_integration.py to assert presence and values of x_ prefixed metadata fields."
+                ]
+            }
+        },
+        {
+            "name": "Optional: Add BaseMetadata inheritance test",
+            "description": "Add a unit test to validate that all registered metadata schemas inherit from BaseMetadata.",
+            "file": "experiments/tests/test_registry.py",
+            "status": "todo",
+            "details": {
+                "pseudocode": [
+                    "from experiments.src.memory_system.schemas.metadata.base import BaseMetadata",
+                    "from experiments.src.memory_system.schemas.registry import get_all_metadata_models",
+                    "def test_all_metadata_inherit_from_base():",
+                    "    all_models = get_all_metadata_models()",
+                    "    for type_name, model in all_models.items():",
+                    "        assert issubclass(model, BaseMetadata), f'{type_name} metadata does not inherit from BaseMetadata'"
+                ]
+            }
+        }
+    ],
+    "test_criteria": [
+        "validate_metadata function correctly validates instances of schemas inheriting from BaseMetadata.",
+        "Existing tests in specified files related to LogMetadata and metadata validation pass after refactoring.",
+        "(Optional) A new test confirms all registered metadata schemas inherit from BaseMetadata."
+    ]
+}

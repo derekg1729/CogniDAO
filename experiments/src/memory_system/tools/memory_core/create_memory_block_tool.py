@@ -91,6 +91,17 @@ def create_memory_block(
     now = datetime.now()
 
     try:
+        # Inject system metadata fields FIRST if they are not already present
+        # Ensure metadata exists and is a dict
+        if not isinstance(input_data.metadata, dict):
+            input_data.metadata = {}
+
+        if "x_timestamp" not in input_data.metadata:
+            input_data.metadata["x_timestamp"] = now  # Use the consistent timestamp
+        if "x_agent_id" not in input_data.metadata:
+            # Fallback to created_by field from input if x_agent_id is missing
+            input_data.metadata["x_agent_id"] = input_data.created_by
+
         # Metadata validation now returns error string or None
         metadata_error = validate_metadata(input_data.type, input_data.metadata)
         if metadata_error:

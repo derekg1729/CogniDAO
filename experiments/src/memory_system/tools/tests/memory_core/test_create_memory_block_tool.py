@@ -200,3 +200,79 @@ def test_create_memory_block_tool_invalid_input(mock_memory_bank):
     assert "error" in result
     assert "Validation error" in result["error"]
     assert "details" in result
+
+
+def test_create_memory_block_injects_system_metadata(mock_memory_bank):
+    """Test that create_memory_block injects missing x_timestamp and x_agent_id."""
+    input_data = CreateMemoryBlockInput(
+        type="knowledge",
+        text="Test content for metadata injection.",
+        metadata={},  # Start with empty metadata
+        created_by="test_creator_for_injection",
+    )
+
+    # Mock the memory bank's create call to inspect the block passed to it
+    block_passed_to_bank = None
+
+    def capture_block(*args, **kwargs):
+        nonlocal block_passed_to_bank
+        block_passed_to_bank = args[0]  # First arg is the block
+        return True  # Simulate successful persistence
+
+    mock_memory_bank.create_memory_block.side_effect = capture_block
+    mock_memory_bank.get_latest_schema_version.return_value = 1  # Assume schema exists
+
+    result = create_memory_block(input_data, mock_memory_bank)
+
+    assert result.success is True
+    assert result.id is not None  # ID is generated within MemoryBlock
+    assert result.error is None
+
+    mock_memory_bank.create_memory_block.assert_called_once()
+    assert block_passed_to_bank is not None
+    assert isinstance(block_passed_to_bank.metadata, dict)
+
+    # Verify injected fields
+    assert "x_timestamp" in block_passed_to_bank.metadata
+    assert isinstance(block_passed_to_bank.metadata["x_timestamp"], datetime)
+    assert "x_agent_id" in block_passed_to_bank.metadata
+    assert block_passed_to_bank.metadata["x_agent_id"] == "test_creator_for_injection"
+
+
+def test_create_memory_block_respects_provided_system_metadata(mock_memory_bank):
+    """Test that create_memory_block uses provided x_timestamp and x_agent_id if present."""
+    provided_timestamp = datetime(2024, 1, 1, 12, 0, 0)
+    provided_agent_id = "explicit_agent_id"
+
+    input_data = CreateMemoryBlockInput(
+        type="knowledge",
+        text="Test content with provided metadata.",
+        metadata={
+            "x_timestamp": provided_timestamp,
+            "x_agent_id": provided_agent_id,
+            "user_field": "abc",
+        },
+        created_by="fallback_creator",  # Should be ignored
+    )
+
+    # Mock the memory bank's create call
+    block_passed_to_bank = None
+
+    def capture_block(*args, **kwargs):
+        nonlocal block_passed_to_bank
+        block_passed_to_bank = args[0]
+        return True
+
+    mock_memory_bank.create_memory_block.side_effect = capture_block
+    mock_memory_bank.get_latest_schema_version.return_value = 1
+
+    result = create_memory_block(input_data, mock_memory_bank)
+
+    assert result.success is True
+    mock_memory_bank.create_memory_block.assert_called_once()
+    assert block_passed_to_bank is not None
+
+    # Verify provided fields were used and not overridden
+    assert block_passed_to_bank.metadata["x_timestamp"] == provided_timestamp
+    assert block_passed_to_bank.metadata["x_agent_id"] == provided_agent_id
+    assert block_passed_to_bank.metadata["user_field"] == "abc"  # Check other fields preserved
