@@ -1,0 +1,26 @@
+version: '3'
+
+services:
+  ollama:
+    build:
+      context: .
+      dockerfile: Dockerfile.ollama
+    container_name: ollama-server
+    environment:
+      - OLLAMA_MODELS=deepseek-coder
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+
+volumes:
+  ollama-data:
+    name: ollama-data
