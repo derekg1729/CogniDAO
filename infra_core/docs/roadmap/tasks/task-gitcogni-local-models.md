@@ -21,26 +21,28 @@ Phase: MVP: GitCogni Local Model Support
   - Implemented in `infra_core/model_handlers/base.py`
 - [x] Implement `OpenAIModelHandler` that wraps current `create_completion`, `thread_completion`, etc.
   - Implemented in `infra_core/model_handlers/openai_handler.py`
-- [x] Implement `LMStudioModelHandler` that sends OpenAI-style POST requests to `http://localhost:1234/v1/chat/completions`
-  - Implemented in `infra_core/model_handlers/lmstudio_handler.py`
 - [x] Implement `OllamaModelHandler` for Ollama server with DeepSeek and other models
-  - Implemented in `experiments/src/core/models/ollama_model_handler.py`
-- [ ] Add `model: BaseModelHandler` field to `CogniAgent` and update `GitCogniAgent` to optionally use it
+  - Implemented in `infra_core/model_handlers/ollama_handler.py` (Moved from experiments)
+- [x] Add `model: BaseModelHandler` field to `CogniAgent` and update `GitCogniAgent` to optionally use it
+  - Implemented in `infra_core/cogni_agents/base.py`
 - [ ] Refactor `GitCogniAgent.review_pr()` to bypass thread-based flow if `model` is provided, and use direct `chat_completion` calls
+  - Now handled by `task-gitcogni-modular-refactor.md`
 - [ ] Add fallback logic: if `self.model` is not set, fallback to current OpenAI-based thread system
+  - Now handled by `task-gitcogni-modular-refactor.md`
 - [ ] Add a CLI/config flag (`--local-model deepseek`) or `.env` override to toggle backend at runtime
+  - Now handled by `task-gitcogni-modular-refactor.md`
 - [x] Write a test script to run model inference using a local model
-  - Implemented in `experiments/src/examples/use_ollama_handler.py`
+  - Implemented in `experiments/src/examples/simple_ollama_agent.py` (Example agent script)
 - [x] Create Docker setup for Ollama integration
-  - Implemented in `experiments/src/scripts/` directory
+  - Implemented in `deploy/ollama_deployment/` directory
 - [x] Basic testing of OllamaModelHandler with real Ollama server
-- [ ] Integrate OllamaModelHandler with GitCogniAgent
-  - Started with `experiments/src/examples/gitcogni_with_ollama.py` but needs further work
+- [/] Integrate OllamaModelHandler with GitCogniAgent
+  - Started but needs completion in `infra_core/cogni_agents/git_cogni/git_cogni.py` (Example was `experiments/src/examples/gitcogni_with_ollama.py`)
 - [ ] Log and compare runtime + quality of local vs OpenAI inference for 2 small PRs
 
 ### Integration Targets
 
-- `infra_core/openai_handler.py` → replace with BaseModelHandler
+- `infra_core/cogni_agents/git_cogni/git_cogni.py` → Use `self.model` attribute if present
 - `GitCogniAgent.review_pr` → dual-path: thread-based vs model.create_chat_completion
 - Prefect agent runner or CLI launcher → model config injection
 
@@ -58,4 +60,5 @@ Phase: MVP: GitCogni Local Model Support
 - `infra_core/openai_handler.py`
 - `infra_core/cogni_agents/base.py`
 - `infra_core/model_handlers/*.py`
-- `experiments/src/core/models/ollama_model_handler.py` 
+- `experiments/src/examples/simple_ollama_agent.py`
+- `deploy/ollama_deployment/docker-compose.yml` 
