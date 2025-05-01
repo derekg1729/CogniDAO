@@ -86,8 +86,11 @@ def test_schema_versions_initialization():
 def test_get_schema_version():
     """Test schema version retrieval for valid and invalid block types."""
     # Test valid block types
-    assert get_schema_version("project") == 1
-    assert get_schema_version("task") == 1
+    assert get_schema_version("project") == 2
+    assert get_schema_version("task") == 2
+    assert get_schema_version("doc") == 2
+    assert get_schema_version("knowledge") == 2
+    assert get_schema_version("log") == 2
 
     # Test invalid block type
     with pytest.raises(KeyError):
@@ -128,14 +131,22 @@ def test_validate_metadata():
 
     # Test valid metadata
     valid_metadata = {"field1": "test", "field2": 42}
-    assert validate_metadata("test_type", valid_metadata) is True
+    assert validate_metadata("test_type", valid_metadata) is None
 
-    # Test invalid metadata
-    invalid_metadata = {"field1": "test"}  # Missing required field2
-    assert validate_metadata("test_type", invalid_metadata) is False
+    # Test invalid metadata (missing required field)
+    invalid_metadata_missing = {"field1": "test"}
+    assert validate_metadata("test_type", invalid_metadata_missing) is not None
 
-    # Test validation for unregistered type
-    assert validate_metadata("unregistered_type", {}) is False
+    # Test invalid metadata (wrong type)
+    invalid_metadata_type = {"field1": "test", "field2": "not_an_int"}
+    assert validate_metadata("test_type", invalid_metadata_type) is not None
+
+    # Test metadata for unregistered type (should be allowed if metadata is empty or None)
+    assert validate_metadata("unregistered_type", {}) is None
+    assert validate_metadata("unregistered_type", None) is None
+
+    # Test metadata provided for unregistered type (should log warning but return None for now)
+    assert validate_metadata("unregistered_type", {"some": "data"}) is None
 
 
 def test_get_available_node_types():

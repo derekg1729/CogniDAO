@@ -24,26 +24,6 @@ from scripts.validate_schema_versions import (  # noqa: E402
 class TestValidateSchemaVersions(unittest.TestCase):
     """Tests for schema version validation."""
 
-    @classmethod
-    def setUpClass(cls):
-        """Set up test class."""
-        # Mock SCHEMA_VERSIONS for all tests
-        cls.patcher = patch(
-            "scripts.validate_schema_versions.SCHEMA_VERSIONS",
-            {
-                "task": 1,
-                "project": 1,
-                "doc": 1,
-                "knowledge": 1,
-            },
-        )
-        cls.patcher.start()
-
-    @classmethod
-    def tearDownClass(cls):
-        """Clean up test class."""
-        cls.patcher.stop()
-
     def setUp(self):
         """Set up test environment."""
         # Create a temporary directory for test files
@@ -87,37 +67,71 @@ some_other_file.py
         self.assertIn("experiments/src/memory_system/schemas/metadata/project.py", result)
 
     @patch("scripts.validate_schema_versions.get_modified_metadata_files")
-    def test_validate_schema_versions_success(self, mock_get_files):
+    @patch("scripts.validate_schema_versions.get_staged_schema_versions")
+    def test_validate_schema_versions_success(self, mock_get_versions, mock_get_files):
         """Test successful validation when all modified files have version entries."""
         # Mock modified files
         mock_get_files.return_value = [
             "experiments/src/memory_system/schemas/metadata/task.py",
             "experiments/src/memory_system/schemas/metadata/project.py",
         ]
+        # Mock the versions read from the staged registry.py
+        # Assume versions were correctly incremented relative to BASELINE_VERSIONS in the script
+        # BASELINE_VERSIONS = {"base": 1, "project": 1, "task": 1, "doc": 1, "knowledge": 1, "log": 2}
+        mock_get_versions.return_value = {
+            "base": 1,  # Not modified, version doesn't matter
+            "project": 2,  # Modified, version > baseline (1) -> OK
+            "task": 2,  # Modified, version > baseline (1) -> OK
+            "doc": 1,  # Not modified
+            "knowledge": 1,  # Not modified
+            "log": 2,  # Not modified
+        }
 
         result = validate_schema_versions()
         self.assertTrue(result)
 
     @patch("scripts.validate_schema_versions.get_modified_metadata_files")
-    def test_validate_schema_versions_failure(self, mock_get_files):
+    @patch("scripts.validate_schema_versions.get_staged_schema_versions")
+    def test_validate_schema_versions_failure(self, mock_get_versions, mock_get_files):
         """Test validation failure when a modified file lacks version entry."""
         # Mock modified files
         mock_get_files.return_value = [
             "experiments/src/memory_system/schemas/metadata/task.py",
             "experiments/src/memory_system/schemas/metadata/new_type.py",
         ]
+        # Mock versions read from staged registry.py (missing 'new_type')
+        mock_get_versions.return_value = {
+            "base": 1,
+            "project": 1,
+            "task": 2,
+            "doc": 1,
+            "knowledge": 1,
+            "log": 2,
+        }
 
         result = validate_schema_versions()
-        self.assertFalse(result)
+        self.assertFalse(result)  # Should fail because new_type is missing from versions
 
     @patch("scripts.validate_schema_versions.get_modified_metadata_files")
-    @patch("scripts.validate_schema_versions.SCHEMA_VERSIONS", {"base": 1})
-    def test_validate_base_schema_without_version_increment(self, mock_get_files):
+    @patch("scripts.validate_schema_versions.get_staged_schema_versions")
+    def test_validate_base_schema_without_version_increment(
+        self, mock_get_versions, mock_get_files
+    ):
         """Test validation failure when base.py is modified but version not incremented."""
         # Mock base.py being modified
         mock_get_files.return_value = [
             "experiments/src/memory_system/schemas/metadata/base.py",
         ]
+        # Mock versions where 'base' is NOT incremented relative to BASELINE_VERSIONS
+        # BASELINE_VERSIONS has base: 1, so staged version 1 should fail
+        mock_get_versions.return_value = {
+            "base": 1,  # Modified, but version <= baseline (1) -> FAIL
+            "project": 1,
+            "task": 1,
+            "doc": 1,
+            "knowledge": 1,
+            "log": 2,
+        }
 
         # We should detect that base.py is modified but its version is still 1 in SCHEMA_VERSIONS
         with patch("scripts.validate_schema_versions.logger") as mock_logger:
