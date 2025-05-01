@@ -5,8 +5,8 @@ Test the OllamaModelHandler implementation
 import unittest
 from unittest.mock import patch, MagicMock
 
-# Import the OllamaModelHandler
-from experiments.src.core.models.ollama_model_handler import OllamaModelHandler
+# Import the OllamaModelHandler from its new location
+from infra_core.model_handlers.ollama_handler import OllamaModelHandler
 from infra_core.model_handlers.base import BaseModelHandler
 
 

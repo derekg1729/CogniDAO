@@ -3,6 +3,9 @@ Ollama Model Handler
 
 Implementation of BaseModelHandler for communicating with Ollama server
 using its REST API endpoints.
+
+Moved from experiments/src/core/models to infra_core/model_handlers
+as part of consolidating model handler implementations.
 """
 
 import json
