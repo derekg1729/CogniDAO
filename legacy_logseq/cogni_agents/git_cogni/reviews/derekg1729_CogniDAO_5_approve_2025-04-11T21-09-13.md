@@ -9,7 +9,7 @@
 This PR introduces the Ruff linting tool to ensure consistent and clean coding practices across the project. It aligns with the following:
 - Enhancing code quality and maintainability through automated linting and manual fixes.
 - Iterative improvements well-documented in commit messages, ensuring future traceability.
-- Affected areas include infrastructural configurations (`pyproject.toml`, `.pre-commit-config.yaml`) and various Python scripts primarily within the `legacy_logseq` directory.
+- Affected areas include infrastructural configurations (`pyproject.toml`, `.pre-commit-config.yaml`) and various Python scripts primarily within the `infra_core` directory.
 
 #### 2. **Consistent Issues (if any)**
 - **Documentation:** Insufficient details in `README.md` about the new linting processes could hinder new contributors' understanding.

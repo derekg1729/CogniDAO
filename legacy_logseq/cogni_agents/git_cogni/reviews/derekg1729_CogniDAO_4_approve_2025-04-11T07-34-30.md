@@ -84,14 +84,14 @@ main
 
 ---
 
-### Commit 810d5a5: chore: rename infra-core to legacy_logseq and update references
+### Commit 810d5a5: chore: rename infra-core to infra_core and update references
 ### Commit Review: 810d5a5
 
 #### Code Quality and Simplicity
 - The refactor maintains file and directory integrity while renaming, which enhances naming consistency.
 
 #### Alignment
-- The commit message correctly states the renaming action from `infra-core` to `legacy_logseq` and accurately represents extensive updates across documentation and code.
+- The commit message correctly states the renaming action from `infra-core` to `infra_core` and accurately represents extensive updates across documentation and code.
 
 #### Potential Issues
 - Updating widely used directories in a single commit may risk breaking dependencies not covered by the changes if any paths were missed.
@@ -150,7 +150,7 @@ main
 
 ---
 
-### Commit 8bcbea9: fix: rename to legacy_logseq.md, cognigraph link was broken.
+### Commit 8bcbea9: fix: rename to infra_core.md, cognigraph link was broken.
 ### Commit Review: 8bcbea9
 
 #### Code Quality and Simplicity
@@ -172,7 +172,7 @@ main
 
 ---
 
-### Commit abab5ea: fix: addresing legacy_logseq rename errors with deployment. Adding resulting prefect.yaml config file
+### Commit abab5ea: fix: addresing infra_core rename errors with deployment. Adding resulting prefect.yaml config file
 ### Commit Review: abab5ea
 
 #### Code Quality and Simplicity
@@ -714,7 +714,7 @@ and proper verdict generation.
 - Update tests to reflect the new import patterns
 - Update task documentation for Prefect setup and test coverage
 
-This fixes the: No module named 'legacy_logseq' error when running
+This fixes the: No module named 'infra_core' error when running
 the GitCogni flow through Prefect, ensuring consistent behavior
 across execution environments.
 ### Commit Review: fbd066c

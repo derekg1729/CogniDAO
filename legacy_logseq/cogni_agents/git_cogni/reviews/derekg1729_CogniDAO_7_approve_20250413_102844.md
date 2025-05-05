@@ -345,7 +345,7 @@ Parser now properly extracts headers, paragraphs, and bullet points instead of o
 - Implement memory client integration directly in CogniAgent
 - Migrate GitCogni to use the unified base class functionality
 - Update patching in tests to target correct base class methods
-- Fix memory path structure to use consistent legacy_logseq/memory location
+- Fix memory path structure to use consistent infra_core/memory location
 - Update project tracking documentation to reflect completed work
 **Review of Commit: d8bdaaa ("refactor: migrate agent memory architecture to base class")**
 
