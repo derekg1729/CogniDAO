@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from unittest.mock import patch, mock_open
 
-from experiments.scripts.generate_dolt_schema import (
+from infra_core.memory_system.scripts.generate_dolt_schema import (
     generate_schema_file as generate_schema_sql,
     main,
 )
