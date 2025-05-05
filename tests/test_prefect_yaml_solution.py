@@ -1,6 +1,7 @@
 """
 Test to verify that adding a prefect.yaml with set_working_directory fixes the issue
 """
+
 import unittest
 import os
 import sys
@@ -12,21 +13,21 @@ from pathlib import Path
 
 class TestPrefectYamlSolution(unittest.TestCase):
     """Test to verify that a properly configured prefect.yaml fixes the import issues"""
-    
+
     def setUp(self):
         # Get the project root directory
-        self.project_root = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-        
+        self.project_root = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
     def test_prefect_yaml_simulation(self):
         """Test that simulates Prefect's execution with the YAML fix"""
-        
+
         # Create a temporary directory for our test
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_dir_path = Path(temp_dir)
-            
+
             # Create a simple prefect.yaml file in the temp directory
             prefect_yaml_path = temp_dir_path / "prefect.yaml"
-            with open(prefect_yaml_path, 'w') as f:
+            with open(prefect_yaml_path, "w") as f:
                 f.write(f"""
 name: gitcogni-test
 prefect-version: 3.3.3
@@ -41,10 +42,10 @@ deployments:
 - name: test-deployment
   entrypoint: gitcogni_flow.py:gitcogni_review_flow
 """)
-            
+
             # Create a test script that simulates Prefect's execution using the prefect.yaml
             test_script_path = temp_dir_path / "test_prefect_yaml.py"
-            with open(test_script_path, 'w') as f:
+            with open(test_script_path, "w") as f:
                 f.write(f"""
 import sys
 import os
@@ -72,11 +73,11 @@ try:
     # Step 3: Now try to import the flow and the agent
     try:
         # The flow should be able to import with the proper working directory
-        from infra_core.flows.gitcogni.gitcogni_flow import gitcogni_review_flow
+        from legacy_logseq.flows.gitcogni.gitcogni_flow import gitcogni_review_flow
         results["flow_import"] = "success"
         
         # The agent should also be importable
-        from infra_core.cogni_agents.git_cogni.git_cogni import GitCogniAgent
+        from legacy_logseq.cogni_agents.git_cogni.git_cogni import GitCogniAgent
         results["agent_import"] = "success"
         
     except Exception as e:
@@ -88,28 +89,35 @@ except Exception as e:
 # Print results as JSON for parsing
 print(json.dumps(results, default=str))
 """)
-            
+
             # Run the test script
-            result = subprocess.run([sys.executable, str(test_script_path)], 
-                                   capture_output=True, text=True)
-            
+            result = subprocess.run(
+                [sys.executable, str(test_script_path)], capture_output=True, text=True
+            )
+
             # Print raw output for debugging
             print(f"Raw stdout: {result.stdout}")
             if result.stderr:
                 print(f"Raw stderr: {result.stderr}")
-            
+
             # Parse the output
             output = json.loads(result.stdout.strip())
-            
+
             # Display detailed results
             print(f"Prefect YAML simulation results: {json.dumps(output, indent=2)}")
-            
+
             # Check that both imports succeed with the working directory fix
-            self.assertEqual(output.get("flow_import"), "success", 
-                            "Flow import failed even with proper working directory")
-            self.assertEqual(output.get("agent_import"), "success", 
-                            "Agent import failed even with proper working directory")
+            self.assertEqual(
+                output.get("flow_import"),
+                "success",
+                "Flow import failed even with proper working directory",
+            )
+            self.assertEqual(
+                output.get("agent_import"),
+                "success",
+                "Agent import failed even with proper working directory",
+            )
 
 
-if __name__ == '__main__':
-    unittest.main() 
+if __name__ == "__main__":
+    unittest.main()

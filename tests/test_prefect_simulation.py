@@ -1,6 +1,7 @@
 """
 Test that simulates Prefect's execution environment to demonstrate the import issue
 """
+
 import unittest
 import os
 import sys
@@ -12,19 +13,21 @@ from pathlib import Path
 
 class TestPrefectSimulation(unittest.TestCase):
     """Test that simulates how Prefect loads and executes flows"""
-    
+
     def setUp(self):
         # Get the project root directory
-        self.project_root = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-        
+        self.project_root = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
     def test_prefect_simulation(self):
         """Simulate exactly how Prefect loads and executes the gitcogni flow"""
-        
+
         # Path to the flow file
-        gitcogni_flow_path = self.project_root / "infra_core" / "flows" / "gitcogni" / "gitcogni_flow.py"
-        
+        gitcogni_flow_path = (
+            self.project_root / "legacy_logseq" / "flows" / "gitcogni" / "gitcogni_flow.py"
+        )
+
         # Create a temp script that simulates Prefect loading
-        with tempfile.NamedTemporaryFile(suffix='.py', mode='w+', delete=False) as script_file:
+        with tempfile.NamedTemporaryFile(suffix=".py", mode="w+", delete=False) as script_file:
             script_path = script_file.name
             # Write a script that simulates Prefect loading behavior
             script_file.write(f"""
@@ -75,7 +78,7 @@ try:
                 importlib.invalidate_caches()
                 
                 for k in list(sys.modules.keys()):
-                    if 'gitcogni_flow' in k or 'cogni_agents' in k or 'infra_core' in k:
+                    if 'gitcogni_flow' in k or 'cogni_agents' in k or 'legacy_logseq' in k:
                         del sys.modules[k]
                 
                 # Try again with project root in path
@@ -95,34 +98,39 @@ except Exception as e:
 # Print results as JSON for parsing
 print(json.dumps(results, default=str))
 """)
-        
+
         try:
             # Run the script to simulate Prefect execution
             result = subprocess.run([sys.executable, script_path], capture_output=True, text=True)
-            
+
             # Print raw output for debugging
             print(f"Raw stdout: {result.stdout}")
             if result.stderr:
                 print(f"Raw stderr: {result.stderr}")
-            
+
             # Parse the JSON output
             output = json.loads(result.stdout.strip())
-            
+
             # Display detailed results
             print(f"Prefect simulation results: {json.dumps(output, indent=2)}")
-            
+
             # Verify that the simulation accurately represents the import error seen in Prefect logs
-            self.assertIn("import_result", output, "Test didn't properly run the module import simulation")
-            
+            self.assertIn(
+                "import_result", output, "Test didn't properly run the module import simulation"
+            )
+
             # Verify that the import now succeeds (since we fixed the issue)
-            self.assertEqual(output.get("import_result"), "success", 
-                          "Import should now succeed with the fixed git_cogni.py")
-            
+            self.assertEqual(
+                output.get("import_result"),
+                "success",
+                "Import should now succeed with the fixed git_cogni.py",
+            )
+
         finally:
             # Clean up the temp file
             if os.path.exists(script_path):
                 os.unlink(script_path)
 
 
-if __name__ == '__main__':
-    unittest.main() 
+if __name__ == "__main__":
+    unittest.main()

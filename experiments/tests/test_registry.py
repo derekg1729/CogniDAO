@@ -253,12 +253,12 @@ def test_future_path_structure_does_not_trigger_hook():
     with patch("subprocess.run") as mock_run:
         # Simulate a new future path structure
         mock_run.return_value.stdout = """
-infra_core/src/memory_system/schemas/metadata/task.py
+legacy_logseq/src/memory_system/schemas/metadata/task.py
 """
 
         result = get_modified_metadata_files()
 
         # Should be empty since it doesn't match hardcoded "experiments/..."
         assert result == [], (
-            "Future path structure was incorrectly matched. This test will fail when code is moved to infra_core, reminding us to update file paths."
+            "Future path structure was incorrectly matched. This test will fail when code is moved to legacy_logseq, reminding us to update file paths."
         )

@@ -7,16 +7,16 @@
   "phase": "⚙️ Phase 3: Agent + Tool Wiring (Structured Memory)",
   "implementation_details": {
     "target_files": [
-      "infra_core/memory/memory_bank.py"
+      "legacy_logseq/memory/memory_bank.py"
     ],
     "dependent_files_to_update": [
-      "infra_core/cogni_agents/base.py",
+      "legacy_logseq/cogni_agents/base.py",
       "other potential agent implementations importing FileMemoryBank"
     ]
   },
   "action_items": [
-    "[x] Rename the `FileMemoryBank` class to `FileMemoryBank` in `infra_core/memory/memory_bank.py`.",
-    "[x] Update all import statements referencing `FileMemoryBank` to use `FileMemoryBank` (e.g., in `infra_core/cogni_agents/base.py`).",
+    "[x] Rename the `FileMemoryBank` class to `FileMemoryBank` in `legacy_logseq/memory/memory_bank.py`.",
+    "[x] Update all import statements referencing `FileMemoryBank` to use `FileMemoryBank` (e.g., in `legacy_logseq/cogni_agents/base.py`).",
     "[x] Perform a codebase search for any other usages of `FileMemoryBank` and update them."
   ],
   "test_criteria": [
@@ -29,4 +29,4 @@
     "[x] No broken imports related to the rename exist."
   ],
   "current_status": "Task definition created."
-} 
+}

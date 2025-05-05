@@ -6,8 +6,8 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 # Import the OllamaModelHandler from its new location
-from infra_core.model_handlers.ollama_handler import OllamaModelHandler
-from infra_core.model_handlers.base import BaseModelHandler
+from legacy_logseq.model_handlers.ollama_handler import OllamaModelHandler
+from legacy_logseq.model_handlers.base import BaseModelHandler
 
 
 class TestOllamaModelHandler(unittest.TestCase):

@@ -18,13 +18,13 @@ project_root = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(project_root))
 
 # Import the base CogniAgent
-from infra_core.cogni_agents.base import CogniAgent  # noqa: E402
+from legacy_logseq.cogni_agents.base import CogniAgent  # noqa: E402
 
 # Import memory bank for agent initialization
-from infra_core.memory.memory_bank import CogniMemoryBank  # noqa: E402
+from legacy_logseq.memory.memory_bank import CogniMemoryBank  # noqa: E402
 
 # Import OllamaModelHandler from its new location
-from infra_core.model_handlers.ollama_handler import OllamaModelHandler  # noqa: E402
+from legacy_logseq.model_handlers.ollama_handler import OllamaModelHandler  # noqa: E402
 
 
 class SimpleCogniAgent(CogniAgent):
@@ -72,7 +72,7 @@ class SimpleCogniAgent(CogniAgent):
         super().__init__(
             name=name,
             spirit_path=Path(
-                "infra_core/cogni_spirit/spirits/cogni-core-spirit.md"
+                "legacy_logseq/cogni_spirit/spirits/cogni-core-spirit.md"
             ),  # Default spirit
             agent_root=agent_root,
             memory=memory,

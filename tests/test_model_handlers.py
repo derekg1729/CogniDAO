@@ -5,7 +5,11 @@ Simple test to verify model handlers can be imported correctly.
 
 def test_import_model_handlers():
     """Test that model handlers can be imported without errors."""
-    from infra_core.model_handlers import BaseModelHandler, OpenAIModelHandler, OllamaModelHandler
+    from legacy_logseq.model_handlers import (
+        BaseModelHandler,
+        OpenAIModelHandler,
+        OllamaModelHandler,
+    )
 
     # Basic assertions to test the imports worked
     assert issubclass(OpenAIModelHandler, BaseModelHandler)

@@ -142,14 +142,14 @@ some_other_file.py
             mock_logger.error.assert_called()
 
     # 🚨 WARNING:
-    # If this test fails after moving schemas to 'infra_core', it's working as intended!
+    # If this test fails after moving schemas to 'legacy_logseq', it's working as intended!
     # Update the hardcoded path in scripts/validate_schema_versions.py
     @patch("subprocess.run")
     def test_future_path_structure_does_not_trigger_hook(self, mock_run):
         """Ensure that files outside expected path do not trigger validation (and warn us)."""
         # Simulate a new future path structure
         mock_run.return_value.stdout = """
-infra_core/src/memory_system/schemas/metadata/task.py
+legacy_logseq/src/memory_system/schemas/metadata/task.py
 """
 
         result = get_modified_metadata_files()
@@ -158,7 +158,7 @@ infra_core/src/memory_system/schemas/metadata/task.py
         self.assertEqual(
             result,
             [],
-            "Future path structure was incorrectly matched. This test will fail when code is moved to infra_core, reminding us to update file paths.",
+            "Future path structure was incorrectly matched. This test will fail when code is moved to legacy_logseq, reminding us to update file paths.",
         )
 
 

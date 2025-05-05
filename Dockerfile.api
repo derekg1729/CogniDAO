@@ -11,11 +11,11 @@ RUN pip install --upgrade pip && \
 # Copy knowledge sources and informational files
 COPY api_indexed_files/ api_indexed_files/
 
-# Copy only the necessary application files from infra_core
-COPY infra_core/__init__.py infra_core/
-COPY infra_core/cogni_api.py infra_core/
-COPY infra_core/models.py infra_core/
-COPY infra_core/memory/ infra_core/memory/
+# Copy only the necessary application files from legacy_logseq
+COPY legacy_logseq/__init__.py legacy_logseq/
+COPY legacy_logseq/cogni_api.py legacy_logseq/
+COPY legacy_logseq/models.py legacy_logseq/
+COPY legacy_logseq/memory/ legacy_logseq/memory/
 
 # Copy run script (still useful for potential local dev inside container)
 COPY run_cogni_api.py ./
@@ -24,4 +24,4 @@ COPY run_cogni_api.py ./
 RUN pip install gunicorn
 
 # Command to run the API with gunicorn for production
-CMD ["gunicorn", "infra_core.cogni_api:app", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000", "--workers", "2"] 
+CMD ["gunicorn", "legacy_logseq.cogni_api:app", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000", "--workers", "2"] 
