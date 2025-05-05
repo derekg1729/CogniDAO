@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 import shutil  # Import shutil for cleanup
 
 # --- Project Constants Import (Moved up) ---
-from legacy_logseq.constants import MEMORY_BANKS_ROOT
+from infra_core.constants import MEMORY_BANKS_ROOT
 
 # --- Memory & Langchain Imports ---
 from legacy_logseq.memory.memory_bank import FileMemoryBank, CogniLangchainMemoryAdapter

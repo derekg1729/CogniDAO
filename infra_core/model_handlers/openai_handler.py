@@ -12,7 +12,7 @@ try:
 except ImportError:
     raise ImportError("OpenAI package not installed. Install with 'pip install openai'")
 
-from legacy_logseq.model_handlers.base import BaseModelHandler
+from infra_core.model_handlers.base import BaseModelHandler
 from legacy_logseq.openai_handler import (
     initialize_openai_client,
     create_completion,

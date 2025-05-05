@@ -128,9 +128,9 @@ class TestGitCogniE2E(unittest.TestCase):
             "success": True,
         }
 
-    @patch("legacy_logseq.cogni_agents.git_cogni.git_cogni.initialize_openai_client")
-    @patch("legacy_logseq.cogni_agents.git_cogni.git_cogni.create_completion")
-    @patch("legacy_logseq.cogni_agents.git_cogni.git_cogni.extract_content")
+    @patch("infra_core.model_handlers.openai_handler.initialize_openai_client")
+    @patch("infra_core.model_handlers.openai_handler.create_completion")
+    @patch("infra_core.model_handlers.openai_handler.openai_extract_content")
     @patch("legacy_logseq.flows.gitcogni.gitcogni_flow.GitCogniAgent")
     def test_gitcogni_e2e_flow(
         self, mock_agent_class, mock_extract_content, mock_create_completion, mock_init_openai

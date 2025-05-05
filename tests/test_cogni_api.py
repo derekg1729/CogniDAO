@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 # Import the FastAPI app and models
 from legacy_logseq.cogni_api import app, send_message, verify_auth  # Import verify_auth
-from legacy_logseq.models import HistoryMessage  # Import HistoryMessage
+from infra_core.models import HistoryMessage  # Import HistoryMessage
 
 
 # Define a simple async generator for mocking send_message results

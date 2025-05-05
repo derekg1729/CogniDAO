@@ -9,13 +9,13 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 # Import the centralized constant
-from legacy_logseq.constants import MEMORY_BANKS_ROOT
+from infra_core.constants import MEMORY_BANKS_ROOT
 
 # Import BaseCogniMemory for type hinting
 from legacy_logseq.memory.memory_bank import BaseCogniMemory, FileMemoryBank
 
 # Import model handler for type hinting
-from legacy_logseq.model_handlers.base import BaseModelHandler
+from infra_core.model_handlers.base import BaseModelHandler
 
 
 class CogniAgent(ABC):

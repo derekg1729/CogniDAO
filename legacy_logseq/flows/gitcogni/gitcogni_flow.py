@@ -16,7 +16,7 @@ from prefect import flow, get_run_logger  # noqa: E402
 # Project-specific imports
 from legacy_logseq.cogni_agents.git_cogni.git_cogni import GitCogniAgent  # noqa: E402
 from legacy_logseq.memory.memory_bank import FileMemoryBank  # noqa: E402
-from legacy_logseq.constants import MEMORY_BANKS_ROOT  # noqa: E402
+from infra_core.constants import MEMORY_BANKS_ROOT  # noqa: E402
 
 
 @flow(name="gitcogni-review-flow")

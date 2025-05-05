@@ -13,7 +13,7 @@ import requests
 import logging
 from typing import Dict, Optional, Union, Any, List
 
-from legacy_logseq.model_handlers.base import BaseModelHandler
+from infra_core.model_handlers.base import BaseModelHandler
 
 
 class OllamaModelHandler(BaseModelHandler):

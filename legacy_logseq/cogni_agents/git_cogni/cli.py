@@ -13,7 +13,7 @@ from legacy_logseq.cogni_agents.git_cogni.git_cogni import GitCogniAgent
 from legacy_logseq.memory.memory_bank import FileMemoryBank
 
 # Import the constant for memory bank root
-from legacy_logseq.constants import MEMORY_BANKS_ROOT, AGENTS_DATA_ROOT
+from infra_core.constants import MEMORY_BANKS_ROOT, AGENTS_DATA_ROOT
 
 
 def print_help():

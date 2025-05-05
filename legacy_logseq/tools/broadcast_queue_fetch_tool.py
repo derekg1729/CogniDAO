@@ -5,7 +5,7 @@ from typing_extensions import Annotated
 from autogen_core.tools import FunctionTool
 
 from legacy_logseq.memory.memory_bank import FileMemoryBank
-from legacy_logseq.constants import (
+from infra_core.constants import (
     MEMORY_BANKS_ROOT,
     BROADCAST_QUEUE_PROJECT,
     BROADCAST_QUEUE_SESSION,

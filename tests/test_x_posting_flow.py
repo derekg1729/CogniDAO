@@ -21,7 +21,7 @@ from legacy_logseq.flows.broadcast.x_posting_flow import (
     x_posting_flow,
 )
 from legacy_logseq.flows.broadcast.channel_interface import BroadcastChannel
-from legacy_logseq.constants import BROADCAST_QUEUE_TEST_SESSION, BROADCAST_QUEUE_TEST_ROOT
+from infra_core.constants import BROADCAST_QUEUE_TEST_SESSION, BROADCAST_QUEUE_TEST_ROOT
 
 
 # Test fixture to set up and tear down test data

@@ -15,7 +15,7 @@ import argparse
 from prefect.blocks.system import Secret
 
 # --- Project Constants Import ---
-from legacy_logseq.constants import MEMORY_BANKS_ROOT, THOUGHTS_DIR, BASE_DIR
+from infra_core.constants import MEMORY_BANKS_ROOT, THOUGHTS_DIR, BASE_DIR
 
 # --- Memory Imports ---
 from legacy_logseq.memory.memory_bank import FileMemoryBank, CogniLangchainMemoryAdapter

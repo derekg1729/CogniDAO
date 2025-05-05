@@ -20,7 +20,7 @@ from datetime import datetime
 from prefect import task, flow, get_run_logger
 
 # --- Project Constants Import ---
-from legacy_logseq.constants import MEMORY_BANKS_ROOT
+from infra_core.constants import MEMORY_BANKS_ROOT
 
 # --- Memory Imports ---
 from legacy_logseq.memory.memory_bank import FileMemoryBank
@@ -35,7 +35,7 @@ from legacy_logseq.tools.broadcast_queue_fetch_tool import (
     update_broadcast_queue_item,
 )
 from legacy_logseq.tools.broadcast_queue_update_tool import update_broadcast_queue_status
-from legacy_logseq.constants import BROADCAST_QUEUE_PROJECT, BROADCAST_QUEUE_SESSION
+from infra_core.constants import BROADCAST_QUEUE_PROJECT, BROADCAST_QUEUE_SESSION
 
 
 @flow

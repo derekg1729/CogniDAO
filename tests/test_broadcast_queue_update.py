@@ -7,7 +7,7 @@ from unittest.mock import patch, MagicMock
 # Import the update tool
 from legacy_logseq.tools.broadcast_queue_update_tool import update_broadcast_queue_status
 from legacy_logseq.memory.memory_bank import FileMemoryBank
-from legacy_logseq.constants import BROADCAST_QUEUE_TEST_SESSION, BROADCAST_QUEUE_TEST_ROOT
+from infra_core.constants import BROADCAST_QUEUE_TEST_SESSION, BROADCAST_QUEUE_TEST_ROOT
 
 # --- Test Constants ---
 TEST_QUEUE_ID = f"test-queue-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"

@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 # Import the flow and required classes
 from legacy_logseq.flows.broadcast.x_posting_flow import async_x_posting_flow
-from legacy_logseq.constants import (
+from infra_core.constants import (
     BROADCAST_QUEUE_TEST_SESSION,
     BROADCAST_QUEUE_TEST_ROOT,
     TEST_MOCK_MEMORY_ROOT,
