@@ -41,9 +41,9 @@ class TestValidateSchemaVersions(unittest.TestCase):
     def test_get_block_type_from_path(self):
         """Test extracting block type from file path."""
         test_cases = [
-            ("experiments/src/memory_system/schemas/metadata/task.py", "task"),
-            ("experiments/src/memory_system/schemas/metadata/project.py", "project"),
-            ("experiments/src/memory_system/schemas/metadata/doc.py", "doc"),
+            ("infra_core/memorysystem/schemas/metadata/task.py", "task"),
+            ("infra_core/memorysystem/schemas/metadata/project.py", "project"),
+            ("infra_core/memorysystem/schemas/metadata/doc.py", "doc"),
         ]
 
         for path, expected in test_cases:
@@ -56,15 +56,15 @@ class TestValidateSchemaVersions(unittest.TestCase):
         """Test detection of modified metadata files."""
         # Mock git diff output
         mock_run.return_value.stdout = """
-experiments/src/memory_system/schemas/metadata/task.py
-experiments/src/memory_system/schemas/metadata/project.py
+infra_core/memorysystem/schemas/metadata/task.py
+infra_core/memorysystem/schemas/metadata/project.py
 some_other_file.py
 """
 
         result = get_modified_metadata_files()
         self.assertEqual(len(result), 2)
-        self.assertIn("experiments/src/memory_system/schemas/metadata/task.py", result)
-        self.assertIn("experiments/src/memory_system/schemas/metadata/project.py", result)
+        self.assertIn("infra_core/memorysystem/schemas/metadata/task.py", result)
+        self.assertIn("infra_core/memorysystem/schemas/metadata/project.py", result)
 
     @patch("scripts.validate_schema_versions.get_modified_metadata_files")
     @patch("scripts.validate_schema_versions.get_staged_schema_versions")
@@ -72,8 +72,8 @@ some_other_file.py
         """Test successful validation when all modified files have version entries."""
         # Mock modified files
         mock_get_files.return_value = [
-            "experiments/src/memory_system/schemas/metadata/task.py",
-            "experiments/src/memory_system/schemas/metadata/project.py",
+            "infra_core/memorysystem/schemas/metadata/task.py",
+            "infra_core/memorysystem/schemas/metadata/project.py",
         ]
         # Mock the versions read from the staged registry.py
         # Assume versions were correctly incremented relative to BASELINE_VERSIONS in the script
@@ -96,8 +96,8 @@ some_other_file.py
         """Test validation failure when a modified file lacks version entry."""
         # Mock modified files
         mock_get_files.return_value = [
-            "experiments/src/memory_system/schemas/metadata/task.py",
-            "experiments/src/memory_system/schemas/metadata/new_type.py",
+            "infra_core/memorysystem/schemas/metadata/task.py",
+            "infra_core/memorysystem/schemas/metadata/new_type.py",
         ]
         # Mock versions read from staged registry.py (missing 'new_type')
         mock_get_versions.return_value = {
@@ -120,7 +120,7 @@ some_other_file.py
         """Test validation failure when base.py is modified but version not incremented."""
         # Mock base.py being modified
         mock_get_files.return_value = [
-            "experiments/src/memory_system/schemas/metadata/base.py",
+            "infra_core/memorysystem/schemas/metadata/base.py",
         ]
         # Mock versions where 'base' is NOT incremented relative to BASELINE_VERSIONS
         # BASELINE_VERSIONS has base: 1, so staged version 1 should fail

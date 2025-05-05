@@ -4,15 +4,20 @@ from datetime import datetime
 import sys
 from pathlib import Path
 
-# Add the experiments source directory to the Python path
+# Add the project root to the Python path
 # This allows importing the schema module directly
-project_root = Path(__file__).parent.parent.parent # Adjust based on actual file location relative to project root
-experiment_src_path = project_root / "experiments/src"
-sys.path.insert(0, str(experiment_src_path))
+project_root = Path(
+    __file__
+).parent.parent.parent  # Adjust based on actual file location relative to project root
+sys.path.insert(0, str(project_root))
 
 # Import the models AFTER adding the path
 try:
-    from memory_system.schemas.memory_block import MemoryBlock, BlockLink, ConfidenceScore
+    from infra_core.memory_system.schemas.memory_block import (
+        MemoryBlock,
+        BlockLink,
+        ConfidenceScore,
+    )
 except ImportError as e:
     pytest.fail(f"Failed to import MemoryBlock schemas. Check sys.path and file location: {e}")
 
@@ -29,9 +34,7 @@ def test_memory_block_instantiation():
             text="This is a test memory block.",
             tags=["test", "pydantic"],
             metadata={"source": "test_script", "version": 1.0},
-            links=[
-                BlockLink(to_id=link_to_id, relation="related_to")
-            ],
+            links=[BlockLink(to_id=link_to_id, relation="related_to")],
             source_file="test_file.md",
             source_uri="logseq://graph/page/block-id",
             confidence=ConfidenceScore(human=0.9, ai=0.75),
@@ -68,7 +71,7 @@ def test_memory_block_defaults():
         block = MemoryBlock(
             id="minimal-id",
             type="task",
-            text="Minimal block."
+            text="Minimal block.",
             # All other fields should use defaults or be None
         )
 
@@ -87,4 +90,4 @@ def test_memory_block_defaults():
         assert block.embedding is None
 
     except Exception as e:
-        pytest.fail(f"Minimal MemoryBlock instantiation failed: {e}") 
+        pytest.fail(f"Minimal MemoryBlock instantiation failed: {e}")

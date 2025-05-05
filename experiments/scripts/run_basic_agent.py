@@ -5,13 +5,13 @@ import logging
 from datetime import datetime
 import time
 
-from experiments.src.memory_system.tools.memory_core.create_memory_block_tool import (
+from infra_core.memorysystem.tools.memory_core.create_memory_block_tool import (
     create_memory_block,
     CreateMemoryBlockInput,
 )
 from langchain.tools import Tool
-from experiments.src.memory_system.langchain_adapter import CogniStructuredMemoryAdapter
-from experiments.src.memory_system.structured_memory_bank import StructuredMemoryBank
+from infra_core.memorysystem.langchain_adapter import CogniStructuredMemoryAdapter
+from infra_core.memorysystem.structured_memory_bank import StructuredMemoryBank
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from langchain_community.llms import OpenAI

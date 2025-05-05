@@ -39,7 +39,7 @@ def get_staged_schema_versions() -> dict:
         dict: The SCHEMA_VERSIONS from the staged registry.py
     """
     try:
-        registry_path = "experiments/src/memory_system/schemas/registry.py"
+        registry_path = "infra_core/memorysystem/schemas/registry.py"
 
         # Get the staged content of registry.py
         result = subprocess.run(
@@ -88,7 +88,7 @@ def get_modified_metadata_files() -> list[str]:
         )
 
         # Filter for metadata schema files
-        metadata_path = "experiments/src/memory_system/schemas/metadata/"
+        metadata_path = "infra_core/memorysystem/schemas/metadata/"
         modified_files = [
             f
             for f in result.stdout.splitlines()

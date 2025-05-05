@@ -6,7 +6,7 @@ Check available schemas in the experimental database.
 import os
 import sys
 from pathlib import Path
-from experiments.src.memory_system.dolt_schema_manager import list_available_schemas
+from infra_core.memorysystem.dolt_schema_manager import list_available_schemas
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent

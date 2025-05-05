@@ -19,11 +19,11 @@ import pytest
 from pydantic import BaseModel
 
 # Add project root to path before local imports
-project_root = Path(__file__).parent.parent
+project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 # Local imports
-from src.memory_system.schemas.registry import (  # noqa: E402
+from infra_core.memory_system.schemas.registry import (  # noqa: E402
     SCHEMA_VERSIONS,
     get_schema_version,
     register_metadata,
@@ -32,7 +32,7 @@ from src.memory_system.schemas.registry import (  # noqa: E402
     get_available_node_types,
     _metadata_registry,
 )
-from src.memory_system.initialize_dolt import initialize_dolt_db, validate_schema_versions  # noqa: E402
+from infra_core.memory_system.initialize_dolt import initialize_dolt_db, validate_schema_versions  # noqa: E402
 from scripts.validate_schema_versions import get_modified_metadata_files  # noqa: E402
 
 
@@ -232,7 +232,9 @@ def test_schema_version_missing_type(temp_dolt_db):
         SCHEMA_VERSIONS.update({"other_type": 1})
 
         # Mock get_all_metadata_models to return only our test model
-        with patch("src.memory_system.initialize_dolt.get_all_metadata_models") as mock_get_models:
+        with patch(
+            "infra_core.memory_system.initialize_dolt.get_all_metadata_models"
+        ) as mock_get_models:
             mock_get_models.return_value = {"test_missing_type": MockMetadataModel}
 
             # Validation should fail because test_missing_type is not in SCHEMA_VERSIONS

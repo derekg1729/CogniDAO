@@ -7,7 +7,7 @@
             "step": 1,
             "name": "Create New Schema File",
             "description": "Create a new Python file in the metadata directory for the schema",
-            "location": "experiments/src/memory_system/schemas/metadata/{schema_name}.py",
+            "location": "infra_core/memorysystem/schemas/metadata/{schema_name}.py",
             "template": {
                 "imports": [
                     "from datetime import datetime",
@@ -45,7 +45,7 @@
             "step": 2,
             "name": "Update Registry Version",
             "description": "Add the new schema type and version to SCHEMA_VERSIONS in registry.py",
-            "location": "experiments/src/memory_system/schemas/registry.py",
+            "location": "infra_core/memorysystem/schemas/registry.py",
             "actions": [
                 "Add new entry to SCHEMA_VERSIONS dictionary: \"{schema_name}\": 1",
                 "Run pre-commit hook to verify version registration: git add registry.py && pre-commit run --files registry.py"
@@ -55,7 +55,7 @@
             "step": 3,
             "name": "Update Metadata Package",
             "description": "Import and export the new schema in the metadata package's __init__.py",
-            "location": "experiments/src/memory_system/schemas/metadata/__init__.py",
+            "location": "infra_core/memorysystem/schemas/metadata/__init__.py",
             "actions": [
                 "Add import: from . import {schema_name}",
                 "Add import: from .{schema_name} import {SchemaName}Metadata",
@@ -76,9 +76,9 @@
     ],
     "validation": {
         "checks": [
-            "Schema appears in get_available_node_types(): python3 -c \"from experiments.src.memory_system.schemas.registry import get_available_node_types; print(get_available_node_types())\"",
-            "Schema can be retrieved using get_metadata_model(): python3 -c \"from experiments.src.memory_system.schemas.registry import get_metadata_model; print(get_metadata_model('{schema_name}'))\"",
-            "Schema version matches SCHEMA_VERSIONS entry: python3 -c \"from experiments.src.memory_system.schemas.registry import get_schema_version; print(get_schema_version('{schema_name}'))\"",
+            "Schema appears in get_available_node_types(): python3 -c \"from infra_core.memorysystem.schemas.registry import get_available_node_types; print(get_available_node_types())\"",
+            "Schema can be retrieved using get_metadata_model(): python3 -c \"from infra_core.memorysystem.schemas.registry import get_metadata_model; print(get_metadata_model('{schema_name}'))\"",
+            "Schema version matches SCHEMA_VERSIONS entry: python3 -c \"from infra_core.memorysystem.schemas.registry import get_schema_version; print(get_schema_version('{schema_name}'))\"",
             "Schema is present in Dolt node_schemas table: dolt sql -q \"SELECT node_type, schema_version FROM node_schemas WHERE node_type = '{schema_name}'\""
         ],
         "test_files": {

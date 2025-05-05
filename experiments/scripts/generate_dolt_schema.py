@@ -14,8 +14,8 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
 try:
-    from experiments.src.memory_system.schemas.memory_block import MemoryBlock
-    from experiments.src.memory_system.schemas.common import BlockLink
+    from infra_core.memory_system.schemas.memory_block import MemoryBlock
+    from infra_core.memory_system.schemas.common import BlockLink
     from pydantic import BaseModel
 except ImportError as e:
     print(f"Error importing required modules: {e}")

@@ -14,7 +14,7 @@
     "affected_components": [
         "experiments/dolt_data/memory_db (table: node_schemas)",
         "experiments/scripts/register_schemas.py",
-        "experiments/src/memory_system/dolt_schema_manager.py"
+        "infra_core/memorysystem/dolt_schema_manager.py"
     ],
     "suggested_solution": "Define a primary key (likely on `node_type`, `schema_version`) for the `node_schemas` table and ensure the registration script correctly handles updates or replacements based on this key, driven by Pydantic model/schema definitions."
 }
