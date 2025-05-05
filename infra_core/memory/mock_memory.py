@@ -14,7 +14,7 @@ class MockMemoryBank(BaseModel, BaseCogniMemory):
     Inherits from BaseCogniMemory to ensure interface compliance.
     """
 
-    # Added session_id to match CogniMemoryBank interface used in tests/flow logs
+    # Added session_id to match FileMemoryBank interface used in tests/flow logs
     session_id: str = Field(default_factory=lambda: f"mock_session_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}")
 
     preset_history: List[Dict[str, Any]] = Field(default_factory=list, description="Pre-loaded history for tests.")

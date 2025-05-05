@@ -1,0 +1,55 @@
+{
+    "type": "Guide",
+    "title": "Migration Script Testing Workflow v0.1",
+    "description": "Process for designing, testing, and safely validating Dolt migration scripts.",
+    "steps": [
+      {
+        "step": 1,
+        "name": "Draft Migration Script",
+        "details": "Design the migration file carefully with clear ALTERs and constraint logic.",
+        "example_commands": [
+          "# Edit or create migration file",
+          "vim scripts/migrate_schema.py"
+        ]
+      },
+      {
+        "step": 2,
+        "name": "Run Migration Script",
+        "details": "Execute the migration script against your Dolt test database.",
+        "example_commands": [
+          "python scripts/migrate_schema.py /path/to/dolt_repo"
+        ]
+      },
+      {
+        "step": 2.1,
+        "name": "Validate Successful Migration",
+        "details": "Check the schema and confirm new fields, defaults, and constraints are correct.",
+        "example_commands": [
+          "dolt --data-dir dolt_data/memory_db sql -q \"DESCRIBE memory_blocks;\"",
+          "dolt --data-dir dolt_data/memory_db sql -q \"DESCRIBE block_links;\""
+        ]
+      },
+      {
+        "step": 2.2,
+        "name": "Handle Migration Failure",
+        "details": "If migration fails or result is incorrect, debug and reset Dolt repo files.",
+        "example_commands": [
+          "# View Dolt working directory changes",
+          "git status",
+          "# Revert unintended schema or working set changes",
+          "git restore dolt_data/memory_db/.schema.sql",
+          "git restore dolt_data/memory_db/.working",
+          "# Rework script and retry",
+          "vim scripts/migrate_schema.py"
+        ]
+      }
+    ],
+    "best_practices": [
+      "Make migration scripts idempotent — rerunnable without error.",
+      "Use descriptive error logging and `try/except` blocks for resilience.",
+      "Always inspect `git status` after each run to ensure clean diffs.",
+      "Avoid data loss by never dropping columns or tables without backups.",
+      "Keep test data seeded if needed to validate functional constraints."
+    ]
+  }
+  

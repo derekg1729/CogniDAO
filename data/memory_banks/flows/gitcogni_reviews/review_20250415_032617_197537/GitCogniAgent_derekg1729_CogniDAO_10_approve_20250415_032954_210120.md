@@ -85,7 +85,7 @@ feat/broadcast-cogni
 ### Commit c96aa02: feat(presence): Implement dual-agent flow with shared memory
 
 Creates ReflectionCogniAgent and refactors the Ritual of Presence flow
-to use two agents interacting via a shared CogniMemoryBank.
+to use two agents interacting via a shared FileMemoryBank.
 
 - Adds ReflectionCogniAgent that reads history via memory adapter.
 - Modifies ritual_of_presence_flow to initialize and pass a shared

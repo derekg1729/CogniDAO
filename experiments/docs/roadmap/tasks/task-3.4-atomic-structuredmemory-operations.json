@@ -1,0 +1,49 @@
+{
+  "type": "Task",
+  "status": "completed",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "name": "Ensure Atomic Operations in StructuredMemoryBank",
+  "description": "Redesign StructuredMemoryBank create/update/delete flows to coordinate Dolt persistence and LlamaIndex indexing into a single atomic operation. No data committed unless both persistence and indexing succeed.",
+  "phase": "⚙️ Phase 3: Agent + Tool Wiring (Structured Memory)",
+  "implementation_details": {
+    "target_files": [
+        "experiments/src/memory_system/structured_memory_bank.py",
+        "experiments/src/memory_system/dolt_writer.py" 
+    ],
+    "test_file": "experiments/src/memory_system/tests/test_structured_memory_bank.py",
+    "notes": "Handles atomicity between Dolt persistence and LlamaIndex indexing.",
+    "dependencies": [
+      "Completion of core CRUD methods in task-3.1-implement-structuredmemorybank.json",
+      "Completion of project-SecureDoltWriteMigration.json (necessary for proper transaction control in Dolt)"
+    ]
+  },
+  "action_items": [
+    "[x] Modify Dolt write functions (potentially in the new `sql_client` from the migration project, or temporarily in `dolt_writer.py`) to optionally delay commits (e.g., `commit=False` parameter).",
+    "[x] Refactor `StructuredMemoryBank.create_memory_block`:",
+    "[x]   Perform Dolt write (with `commit=False`).",
+    "[x]   Perform LlamaIndex indexing.",
+    "[x]   If both succeed, explicitly commit Dolt changes.",
+    "[x]   If LlamaIndex indexing fails, discard Dolt working changes (e.g., use SQL `ROLLBACK` if using `sql_client` or `dolt checkout .` if using CLI approach).",
+    "[x]   Include robust error handling for rollback failures (e.g., log critical error, flag database as potentially inconsistent).",
+    "[x] Refactor `StructuredMemoryBank.update_memory_block` with similar atomic logic.",
+    "[x] Refactor `StructuredMemoryBank.delete_memory_block` with similar atomic logic.",
+    "[x] Add a mechanism to detect and handle Dolt lock timeouts for long-running transactions (for future scaling considerations).",
+    "[x] Update relevant tests in `test_structured_memory_bank.py` to simulate partial failures (e.g., mock LlamaIndex add/update/delete to raise errors) and confirm atomicity/rollback.",
+    "[x] Add tests that simulate Dolt commit failures after successful LlamaIndex operations."
+  ],
+  "test_criteria": [
+    "[x] Tests verify that if LlamaIndex operations fail during create/update/delete, the corresponding changes in Dolt are not committed or are rolled back.",
+    "[x] Tests verify that if Dolt operations succeed and LlamaIndex operations succeed, Dolt changes are committed.",
+    "[x] Tests verify that if Dolt commit operations fail after successful LlamaIndex operations, appropriate error handling occurs.",
+    "[x] Tests verify that if rollback operations fail, the system logs appropriate critical errors.",
+    "[x] See relevant tests within `test_structured_memory_bank.py` (add new tests as needed)."
+  ],
+  "success_criteria": [
+    "[x] MemoryBlock creation, update, and delete operations in StructuredMemoryBank are fully atomic between Dolt persistence and LlamaIndex indexing.",
+    "[x] No partial persistence occurs in Dolt if the corresponding LlamaIndex operation fails.",
+    "[x] No partial indexing persists if the Dolt commit fails.",
+    "[x] Failure during rollback is properly handled and logged.",
+    "[x] Tests demonstrate correct commit/rollback behavior under success and failure conditions."
+  ],
+  "current_status": "Task completed. Implemented atomic operations in StructuredMemoryBank by modifying Dolt writer functions to support delayed commits and adding proper transaction control. Modified create_memory_block, update_memory_block, and delete_memory_block methods to ensure proper atomicity between Dolt and LlamaIndex operations. Added consistency tracking, appropriate error handling, and comprehensive tests to verify atomicity behavior in various failure scenarios. All tests are passing."
+} 

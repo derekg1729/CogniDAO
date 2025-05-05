@@ -69,6 +69,9 @@ CogniMemoryClient V2 will provide a unified interface with two distinct layers:
   - [x] Design task document with requirements
   - [x] Implementation
 
+## Known Issues
+- [ ] Address [[tasks/bug-dolt-schema-registration]] - Schema registration script doesn't handle updates correctly due to missing PK on `node_schemas` table.
+
 ## Success Criteria
 1. Agent systems can directly scan and extract blocks from Logseq files without embedding overhead
 2. Agents can read full page content from markdown files without parsing into blocks

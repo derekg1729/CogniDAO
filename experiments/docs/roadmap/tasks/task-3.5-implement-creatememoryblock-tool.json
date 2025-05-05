@@ -1,0 +1,67 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "CogniMemorySystem-POC",
+  "id": "3.5",
+  "name": "Create CreateMemoryBlock CogniTool",
+  "description": "Implement a CogniTool (MCP-compatible) that allows an agent to create new MemoryBlocks, validate type-specific metadata, persist to Dolt, and trigger indexing in LlamaMemory.",
+  "phase": "⚙️ Phase 3: Agent + Tool Wiring (Structured Memory)",
+  "implementation_details": {
+    "target_file": "experiments/src/memory_system/tools/create_memory_block_tool.py",
+    "schema_file": "experiments/src/memory_system/schemas/memory_block.py",
+    "dolt_writer_file": "experiments/src/memory_system/dolt_writer.py",
+    "indexer_file": "experiments/src/memory_system/llama_memory.py",
+    "registry_table": "node_schemas",
+    "base_class": "CogniTool (inheriting from FunctionTool MCP standard)",
+    "dependencies": [
+      "task-2.8-define-schemas.json",
+      "task-3.1-implement-structuredmemorybank.json",
+      "task-2.1-build-memory-block-to-node-function.json"
+    ],
+    "tool_properties": {
+      "memory_linked": true
+    },
+    "tool_behavior": "Tool must operate on MemoryBlock structures. Input schema will represent creation data; output schema will confirm created MemoryBlock ID and status.",
+    "notes": [
+      "Use the CogniTool class to define the tool, ensuring MCP, Autogen, LangChain, and OpenAI compatibility.",
+      "The function should generate a new MemoryBlock ID, timestamps, and 'created_by' field automatically.",
+      "Validate base MemoryBlock fields from input.",
+      "If the 'type' requires special metadata, validate against corresponding Pydantic sub-model.",
+      "Lookup latest schema_version from node_schemas table based on type.",
+      "On successful validation, use DoltWriter to persist the new block.",
+      "After successful write, trigger LlamaMemory reindexing for semantic + graph stores.",
+      "Return a success object { success: true, id: new_block_id } to the agent."
+    ]
+  },
+  "action_items": [
+    "[ ] Define CreateMemoryBlockInput and CreateMemoryBlockOutput Pydantic models.",
+    "[ ] Implement the creation function logic (including ID generation, validation, persistence, indexing).",
+    "[ ] Instantiate CreateMemoryBlockTool using CogniTool.",
+    "[ ] Make tool available for agent registration.",
+    "[ ] Test: Successful creation flow with valid inputs.",
+    "[ ] Test: Failure flow when metadata validation fails (should return informative error).",
+    "[ ] Test: Correct persistence in Dolt and reindexing in LlamaMemory."
+  ],
+  "test_criteria": [
+    "Tests pass for successful and failed creation flows.",
+    "Created block visible in memory_blocks Dolt table.",
+    "Block appears in LlamaMemory semantic search.",
+    "Block appears in LlamaMemory graph search.",
+    "Tool correctly handles type-specific metadata validation.",
+    "Tool properly sets schema_version from node_schemas table.",
+    "Tool returns appropriate error messages for validation failures.",
+    "Tool correctly identifies as memory-linked in agent registration.",
+    "Tool properly handles MemoryBlock structure validation."
+  ],
+  "success_criteria": [
+    "A CogniTool is implemented for creating MemoryBlocks with validation, persistence, and indexing.",
+    "Compatible with MCP, AutoGen, LangChain, and OpenAI standards.",
+    "Tool can be easily registered in agent startup sequences.",
+    "All validation and error handling is properly implemented.",
+    "Memory blocks are correctly persisted and indexed.",
+    "Tool follows the project's standards for error handling and logging.",
+    "Tool correctly identifies as memory-linked and operates on MemoryBlock structures.",
+    "Input/output schemas properly represent MemoryBlock creation data and status."
+  ],
+  "current_status": "Task definition updated to include memory-linked tool properties and behavior, ensuring proper MemoryBlock structure handling."
+}

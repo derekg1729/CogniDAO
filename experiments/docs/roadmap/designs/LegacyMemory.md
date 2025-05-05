@@ -9,7 +9,7 @@ subgraph MemoryBank
         +read_history_dicts() List[Dict]
     }
 
-    class CogniMemoryBank {
+    class FileMemoryBank {
         <<File I/O Logic>>
         +write_history_dicts(history_dicts: List[Dict])
     }
@@ -33,7 +33,7 @@ subgraph MemoryBank
         <<LangChain Core Data>>
     }
 
-    CogniMemoryBank --|> BaseCogniMemory : implements
+    FileMemoryBank --|> BaseCogniMemory : implements
     MockMemoryBank --|> BaseCogniMemory : implements
     CogniLangchainMemoryAdapter --|> BaseMemory : implements
     CogniLangchainMemoryAdapter --> BaseCogniMemory : wraps/uses

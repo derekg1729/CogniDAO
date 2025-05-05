@@ -31,7 +31,7 @@ Update the test suite to work with the new `MCPFileMemory` implementation, ensur
 
 ## Action Items
 - [x] **Create Tests for Memory Components:**
-  - [x] Implement `pytest` tests for `CogniMemoryBank` (core logic) in `test_memory_bank.py`.
+  - [x] Implement `pytest` tests for `FileMemoryBank` (core logic) in `test_memory_bank.py`.
   - [x] Implement `pytest` tests for `CogniLangchainMemoryAdapter` in `test_memory_bank.py`.
   - [x] Implement `pytest` tests for Markdown export in `test_memory_bank.py`.
 - [x] **Analyze Current Tests:**
@@ -41,7 +41,7 @@ Update the test suite to work with the new `MCPFileMemory` implementation, ensur
   - [x] Determine required changes
 
 - [x] **Design Test Utilities:**
-  - [x] Create test fixtures for `CogniMemoryBank` (Using `tmp_path` in tests)
+  - [x] Create test fixtures for `FileMemoryBank` (Using `tmp_path` in tests)
   - [x] Implement setup and teardown utilities (Using `setUp` and `tearDown` methods in tests)
   - [x] Design test data generators (Implemented within tests)
   - [x] Create mock implementations if needed (Using `unittest.mock`)
@@ -60,7 +60,7 @@ Update the test suite to work with the new `MCPFileMemory` implementation, ensur
   - [x] Verify specialized memory operations (Done for `GitCogniAgent`, `CoreCogniAgent`)
 
 - [/] **Implement Integration Tests:**
-  - [x] Test `CogniMemoryBank` with agents (Done for `GitCogniAgent`, `CoreCogniAgent`)
+  - [x] Test `FileMemoryBank` with agents (Done for `GitCogniAgent`, `CoreCogniAgent`)
   - [x] Verify correct memory storage and retrieval
   - [x] Test error handling
   - [ ] Validate schema enforcement (*Deferred*)
@@ -70,13 +70,13 @@ Update the test suite to work with the new `MCPFileMemory` implementation, ensur
   - [ ] Test concurrent access (*Deferred*)
 
 - [ ] **Document Testing Patterns:**
-  - [ ] Create examples for testing with `CogniMemoryBank`
+  - [ ] Create examples for testing with `FileMemoryBank`
   - [ ] Document common testing patterns
   - [ ] Capture best practices
 
 ## Deliverables
 1. [/] Updated test suite for all agents (`GitCogniAgent`, `CoreCogniAgent` done)
-2. [x] Test utilities for `CogniMemoryBank` (Fixtures, mocks)
+2. [x] Test utilities for `FileMemoryBank` (Fixtures, mocks)
 3. [/] Integration tests for the memory system (`GitCogniAgent`, `CoreCogniAgent` integration done)
 4. [ ] Test documentation and examples
 
@@ -217,7 +217,7 @@ class TestAgentBase:
 - [ ] Concurrent access is handled safely (*Deferred*)
 
 ## Integration Points
-- **CogniMemoryBank**: Primary object under test
+- **FileMemoryBank**: Primary object under test
 - **MCPFileMemory**: Primary object under test
 - **CogniAgent**: Base class being tested
 - **Derived Agent Classes**: For specific agent tests

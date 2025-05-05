@@ -17,7 +17,7 @@ from prefect.blocks.system import Secret
 from infra_core.constants import MEMORY_BANKS_ROOT, THOUGHTS_DIR, BASE_DIR
 
 # --- Memory Imports ---
-from infra_core.memory.memory_bank import CogniMemoryBank, CogniLangchainMemoryAdapter
+from infra_core.memory.memory_bank import FileMemoryBank, CogniLangchainMemoryAdapter
 
 # --- Agent Imports ---
 from infra_core.cogni_agents.core_cogni import CoreCogniAgent
@@ -183,7 +183,7 @@ def ritual_of_presence_flow(custom_prompt: Optional[str] = None):
     memory_root = Path(MEMORY_BANKS_ROOT)
     memory_root.mkdir(parents=True, exist_ok=True)
     
-    flow_memory_bank = CogniMemoryBank(
+    flow_memory_bank = FileMemoryBank(
         memory_bank_root=memory_root, 
         project_name=f"flows/{flow_project_name}", 
         session_id=flow_session_id

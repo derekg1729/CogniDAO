@@ -58,12 +58,12 @@ class TestCoreCogniAgent(unittest.TestCase):
     @patch('infra_core.cogni_agents.core_cogni.extract_content')
     @patch('infra_core.cogni_agents.core_cogni.create_completion')
     @patch('infra_core.cogni_agents.core_cogni.initialize_openai_client')
-    @patch('infra_core.memory.memory_bank.CogniMemoryBank.log_decision')
-    @patch('infra_core.memory.memory_bank.CogniMemoryBank.write_context')
-    @patch('infra_core.memory.memory_bank.CogniMemoryBank._read_file')
+    @patch('infra_core.memory.memory_bank.FileMemoryBank.log_decision')
+    @patch('infra_core.memory.memory_bank.FileMemoryBank.write_context')
+    @patch('infra_core.memory.memory_bank.FileMemoryBank._read_file')
     def test_core_agent_act_uses_memory_bank(self, mock_read, mock_write, mock_log, mock_init_openai, mock_create_completion, mock_extract_content, mock_load_core_context):
         """
-        Test that CoreCogniAgent.act uses CogniMemoryBank via record_action.
+        Test that CoreCogniAgent.act uses FileMemoryBank via record_action.
         """
         # --- Setup ---
         # Prevent load_core_context from running during init
@@ -83,8 +83,8 @@ class TestCoreCogniAgent(unittest.TestCase):
         mock_log.reset_mock()
 
         # Create a memory bank instance to pass to the agent
-        from infra_core.memory.memory_bank import CogniMemoryBank
-        memory = CogniMemoryBank(
+        from infra_core.memory.memory_bank import FileMemoryBank
+        memory = FileMemoryBank(
             memory_bank_root=self.memory_bank_root,
             project_name="core-cogni",
             session_id="test-session"

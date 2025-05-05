@@ -1,0 +1,71 @@
+{
+  "type": "Project",
+  "status": "planning",
+  "epic": "[[Epic_Presence_and_Control_Loops]]",
+  "name": "Secure Dolt Write Migration",
+  "description": "Replace unsafe doltpy CLI SQL string-building with parameterized SQL using Dolt's sql-server mode and a real SQL client (e.g., mysql-connector-python) to mitigate SQL injection risks.",
+  "design_decisions": {
+    "sql_client_choice": "Use mysql-connector-python as the standard SQL client for interacting with Dolt in sql-server mode.",
+    "connection_management": "Implement connection pooling (e.g., using mysql.connector.pooling) within a dedicated client module (e.g., sql_client.py) to manage connections efficiently and safely.",
+    "dolt_writer_deprecation": "The existing experiments/src/memory_system/dolt_writer.py (using doltpy.cli) will be refactored to use the new SQL client, and its direct SQL manipulation logic will be removed.",
+    "version_control_integration": "Ensure that Dolt commits are still triggered appropriately after writes performed via the new SQL client, preserving version history."
+  },
+  "implementation_flow": [
+    {
+      "phase": "🧪 Phase 1: Local sql-server Setup + Manual Query Test",
+      "tasks": [
+        "task-SDWM-1.1-start-dolt-sql-server.json",
+        "task-SDWM-1.2-verify-mysql-connection.json",
+        "task-SDWM-1.3-manual-parameterized-query-test.json"
+      ]
+    },
+    {
+      "phase": "🔁 Phase 2: Refactor Write Layer",
+      "tasks": [
+        "task-SDWM-2.1-create-sql-client-module.json",
+        "task-SDWM-2.2-refactor-dolt-writer.json",
+        "task-SDWM-2.4-refactor-dolt-writer-modular.json",
+        "task-SDWM-2.3-update-structuredmemorybank-writes.json"
+      ]
+    },
+    {
+      "phase": "✅ Phase 3: Security & Migration Testing",
+      "tasks": [
+        "task-SDWM-3.1-remove-manual-escaping.json",
+        "task-SDWM-3.2-test-sql-injection-safe.json",
+        "task-SDWM-3.3-test-concurrent-writes.json"
+      ]
+    }
+  ],
+  "success_criteria": {
+    "core_functionality": [
+      "No manual SQL string interpolation exists in the memory system write paths.",
+      "All writes to Dolt use parameterized SQL via mysql-connector-python.",
+      "MemoryBlocks can be successfully created and updated via StructuredMemoryBank using the new safe SQL client."
+    ],
+    "version_control": [
+      "Dolt version control behavior is preserved; commits are created for writes as expected."
+    ],
+    "security": [
+      "The SQL injection test (`test_sql_injection_attempt_safe`) confirms malicious input is handled safely.",
+      "Manual escaping functions (`_escape_sql_string`, `_format_sql_value`) are removed from the codebase."
+    ],
+    "stability": [
+      "Concurrent write tests demonstrate the connection pool handles load without deadlocks (within reasonable test limits)."
+    ],
+    "readiness": [
+      "The memory system write functionality is considered safe enough to be exposed to agents or APIs (assuming proper input validation elsewhere)."
+    ]
+  },
+  "references": {
+    "dolt_sql_server_docs": "https://docs.dolthub.com/sql-reference/server-and-client/sql-server",
+    "mysql_connector_python_docs": "https://dev.mysql.com/doc/connector-python/en/",
+    "original_issue": "Identified limitation and security risk of using doltpy.cli.Dolt.sql without parameterized query support."
+  },
+  "required_libraries": [
+    "dolt (>=1.0)",
+    "mysql-connector-python (>=8.0)",
+    "pydantic (v2)",
+    "python-dotenv (optional, for credentials)"
+  ]
+}

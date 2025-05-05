@@ -1,0 +1,96 @@
+{
+    "name": "Standard Operating Procedure: Adding New Schema",
+    "version": "1.0",
+    "description": "Step-by-step guide for adding a new metadata schema to the memory system",
+    "steps": [
+        {
+            "step": 1,
+            "name": "Create New Schema File",
+            "description": "Create a new Python file in the metadata directory for the schema",
+            "location": "experiments/src/memory_system/schemas/metadata/{schema_name}.py",
+            "template": {
+                "imports": [
+                    "from datetime import datetime",
+                    "from typing import Optional",
+                    "from pydantic import BaseModel, Field"
+                ],
+                "class_structure": {
+                    "class_name": "{SchemaName}Metadata",
+                    "base_class": "BaseModel",
+                    "fields": {
+                        "required": [
+                            "field1: str = Field(..., description=\"Required field description\")",
+                            "field2: datetime = Field(..., description=\"Required datetime field\")"
+                        ],
+                        "optional": [
+                            "field3: Optional[str] = Field(default=None, description=\"Optional field description\")"
+                        ]
+                    },
+                    "model_config": {
+                        "json_schema_extra": {
+                            "examples": [
+                                {
+                                    "field1": "example_value",
+                                    "field2": "2024-03-20T10:30:00Z",
+                                    "field3": "optional_value"
+                                }
+                            ]
+                        }
+                    }
+                },
+                "registration": "from ..registry import register_metadata\nregister_metadata('{schema_name}', {SchemaName}Metadata)"
+            }
+        },
+        {
+            "step": 2,
+            "name": "Update Registry Version",
+            "description": "Add the new schema type and version to SCHEMA_VERSIONS in registry.py",
+            "location": "experiments/src/memory_system/schemas/registry.py",
+            "actions": [
+                "Add new entry to SCHEMA_VERSIONS dictionary: \"{schema_name}\": 1",
+                "Run pre-commit hook to verify version registration: git add registry.py && pre-commit run --files registry.py"
+            ]
+        },
+        {
+            "step": 3,
+            "name": "Update Metadata Package",
+            "description": "Import and export the new schema in the metadata package's __init__.py",
+            "location": "experiments/src/memory_system/schemas/metadata/__init__.py",
+            "actions": [
+                "Add import: from . import {schema_name}",
+                "Add import: from .{schema_name} import {SchemaName}Metadata",
+                "Add to __all__: '{SchemaName}Metadata', '{schema_name}'"
+            ]
+        },
+        {
+            "step": 4,
+            "name": "Register Schema in Dolt",
+            "description": "Run the schema registration script to persist the schema in the Dolt database",
+            "command": "PYTHONPATH=/path/to/project/root python experiments/scripts/register_schemas.py",
+            "verification": [
+                "Check Python output for successful registration",
+                "Verify Dolt registration: dolt sql -q \"SELECT * FROM node_schemas WHERE node_type = '{schema_name}'\"",
+                "Expected output should show the schema with version 1"
+            ]
+        }
+    ],
+    "validation": {
+        "checks": [
+            "Schema appears in get_available_node_types(): python3 -c \"from experiments.src.memory_system.schemas.registry import get_available_node_types; print(get_available_node_types())\"",
+            "Schema can be retrieved using get_metadata_model(): python3 -c \"from experiments.src.memory_system.schemas.registry import get_metadata_model; print(get_metadata_model('{schema_name}'))\"",
+            "Schema version matches SCHEMA_VERSIONS entry: python3 -c \"from experiments.src.memory_system.schemas.registry import get_schema_version; print(get_schema_version('{schema_name}'))\"",
+            "Schema is present in Dolt node_schemas table: dolt sql -q \"SELECT node_type, schema_version FROM node_schemas WHERE node_type = '{schema_name}'\""
+        ],
+        "test_files": {
+            "unit_test": "experiments/tests/test_registry.py",
+            "integration_test": "experiments/tests/test_dolt_schema_manager.py"
+        }
+    },
+    "notes": [
+        "Schema versions start at 1 and increment for breaking changes",
+        "Breaking changes include: adding required fields, removing fields, changing field types",
+        "Non-breaking changes (no version bump): adding optional fields, adding validation rules that don't invalidate existing data",
+        "Always use Field(..., description=\"\") for required fields and Field(default=None, description=\"\") for optional fields",
+        "Include at least one example in model_config.json_schema_extra"
+    ]
+}

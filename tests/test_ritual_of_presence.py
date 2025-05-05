@@ -8,7 +8,7 @@ import shutil # Import shutil for cleanup
 from infra_core.constants import MEMORY_BANKS_ROOT
 
 # --- Memory & Langchain Imports ---
-from infra_core.memory.memory_bank import CogniMemoryBank, CogniLangchainMemoryAdapter
+from infra_core.memory.memory_bank import FileMemoryBank, CogniLangchainMemoryAdapter
 
 # --- Ritual of Presence Imports ---
 from infra_core.flows.rituals.ritual_of_presence import (
@@ -23,7 +23,7 @@ TEST_SESSION_ID = f"test-session-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
 @pytest.fixture
 def base_mock_memory_adapter():
     """Creates a mock memory adapter for testing."""
-    mock_memory_bank = MagicMock(spec=CogniMemoryBank)
+    mock_memory_bank = MagicMock(spec=FileMemoryBank)
     mock_memory_adapter = MagicMock(spec=CogniLangchainMemoryAdapter)
     mock_memory_adapter.memory_bank = mock_memory_bank
     return mock_memory_adapter
@@ -79,7 +79,7 @@ def cleanup_test_session():
 # --- Test Class ---
 
 class MockMemoryBank:
-    """Mock implementation of CogniMemoryBank for testing purposes."""
+    """Mock implementation of FileMemoryBank for testing purposes."""
     def __init__(self, memory_bank_root=None, project_name="test_project", session_id="test_session"):
         self.session_id = session_id
         self.project_name = project_name
@@ -173,16 +173,16 @@ mock_process_with_swarm.return_value.future.result.return_value = {
 
 @patch('infra_core.flows.rituals.ritual_of_presence.process_with_swarm', new=mock_process_with_swarm)
 @patch('infra_core.flows.rituals.ritual_of_presence.create_initial_thought', new=mock_create_initial_thought)
-@patch('infra_core.flows.rituals.ritual_of_presence.CogniMemoryBank')
+@patch('infra_core.flows.rituals.ritual_of_presence.FileMemoryBank')
 def test_flow_with_mock_memory_and_mock_agents(mock_cogni_memory_bank_class):
     """
-    Test the end-to-end flow with mocked CogniMemoryBank and mocked agent tasks.
+    Test the end-to-end flow with mocked FileMemoryBank and mocked agent tasks.
     Verifies that the flow completes and returns the expected message format,
     including the correct session ID and path from the mocked memory bank.
     """
     pytest.skip("Skipping test: issue with submit_kwargs")
-    # Configure the mock instance that the CogniMemoryBank class will return
-    mock_instance = MagicMock(spec=CogniMemoryBank)
+    # Configure the mock instance that the FileMemoryBank class will return
+    mock_instance = MagicMock(spec=FileMemoryBank)
     mock_instance.session_id = 'flow-mock-session-123' # Directly set the attribute
     mock_session_path = Path('/mock/memory/ritual_of_presence/flow-mock-session-123')
     mock_instance._get_session_path.return_value = mock_session_path
@@ -194,7 +194,7 @@ def test_flow_with_mock_memory_and_mock_agents(mock_cogni_memory_bank_class):
     # Verify both mock tasks were called
     assert "flow-mock-session-123" in result_message
 
-@patch('infra_core.flows.rituals.ritual_of_presence.CogniMemoryBank') # Patch the class used by the flow
+@patch('infra_core.flows.rituals.ritual_of_presence.FileMemoryBank') # Patch the class used by the flow
 @patch('infra_core.flows.rituals.ritual_of_presence.process_with_swarm', new=mock_process_with_swarm)
 @patch('infra_core.flows.rituals.ritual_of_presence.create_initial_thought', new=mock_create_initial_thought)
 def test_flow_creates_memory_files_in_correct_location(
@@ -208,17 +208,17 @@ def test_flow_creates_memory_files_in_correct_location(
     pytest.skip("Skipping test: memory_adapter key is missing in submit_kwargs")
     # --- Configure Mocks ---
     # Configure the mock instance that the flow will create
-    # Use a real CogniMemoryBank instance pointed at the temp path
+    # Use a real FileMemoryBank instance pointed at the temp path
     temp_memory_root = tmp_path / "test_memory_banks"
     flow_project_name = "flows/ritual_of_presence"
     flow_session_id = "ritual-session"
-    real_temp_bank = CogniMemoryBank(
+    real_temp_bank = FileMemoryBank(
         memory_bank_root=temp_memory_root,
         project_name=flow_project_name,
         session_id=flow_session_id
     )
 
-    # Set the return_value for the mocked CogniMemoryBank to use our real temp bank
+    # Set the return_value for the mocked FileMemoryBank to use our real temp bank
     mock_cogni_memory_bank_class.return_value = real_temp_bank
 
     # Run the flow
@@ -241,7 +241,7 @@ def test_flow_creates_memory_files_in_correct_location(
 
 @patch('infra_core.flows.rituals.ritual_of_presence.process_with_swarm', new=mock_process_with_swarm)
 @patch('infra_core.flows.rituals.ritual_of_presence.create_initial_thought', new=mock_create_initial_thought)
-@patch('infra_core.flows.rituals.ritual_of_presence.CogniMemoryBank')
+@patch('infra_core.flows.rituals.ritual_of_presence.FileMemoryBank')
 def test_flow_handles_swarm_error_correctly(mock_cogni_memory_bank_class):
     """
     Test that the flow correctly handles errors from the swarm result.
@@ -250,7 +250,7 @@ def test_flow_handles_swarm_error_correctly(mock_cogni_memory_bank_class):
     """
     pytest.skip("Skipping test: error handling assertion failing")
     # Configure mock memory bank
-    mock_instance = MagicMock(spec=CogniMemoryBank)
+    mock_instance = MagicMock(spec=FileMemoryBank)
     mock_instance.session_id = 'error-test-session'
     mock_session_path = Path('/mock/memory/ritual_of_presence/error-test-session')
     mock_instance._get_session_path.return_value = mock_session_path

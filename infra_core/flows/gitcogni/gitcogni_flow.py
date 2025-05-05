@@ -15,7 +15,7 @@ from prefect import flow, get_run_logger # noqa: E402
 
 # Project-specific imports
 from infra_core.cogni_agents.git_cogni.git_cogni import GitCogniAgent # noqa: E402
-from infra_core.memory.memory_bank import CogniMemoryBank # noqa: E402
+from infra_core.memory.memory_bank import FileMemoryBank # noqa: E402
 from infra_core.constants import MEMORY_BANKS_ROOT # noqa: E402
 
 @flow(name="gitcogni-review-flow")
@@ -53,7 +53,7 @@ def gitcogni_review_flow(pr_url=None, test_mode=False):
 
     # Create a memory bank instance for this flow run
     session_id = f"review_{datetime.datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')}" # Keep unique session ID
-    agent_memory = CogniMemoryBank(
+    agent_memory = FileMemoryBank(
         memory_bank_root=memory_root, # Use standardized root
         project_name=f"flows/{flow_project_name}", # Use standardized project name structure
         session_id=session_id
@@ -158,7 +158,7 @@ if __name__ == "__main__":
             # Also need to provide memory here for the agent instance
             memory_root = Path(MEMORY_BANKS_ROOT) # Use constant
             cli_project_name = "gitcogni_cli_helper" # Keep distinct project name
-            cli_memory = CogniMemoryBank(
+            cli_memory = FileMemoryBank(
                 memory_bank_root=memory_root,
                 project_name=f"flows/{cli_project_name}", # Use flows/ prefix here too? Let's keep it separate for now.
                 session_id="cli_verdict_extraction" # Use a fixed or temp session

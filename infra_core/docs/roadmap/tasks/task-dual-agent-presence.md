@@ -3,13 +3,13 @@
 :status: completed
 :project: [[project-langchain-memory-integration]] # Demonstrates shared memory usage
 
-Enhance the `ritual_of_presence.py` flow to include a second agent (`ReflectionCogniAgent`) that responds to the first agent's (`CoreCogniAgent`) thought using a shared `CogniMemoryBank`, aligning with LangChain memory patterns.
+Enhance the `ritual_of_presence.py` flow to include a second agent (`ReflectionCogniAgent`) that responds to the first agent's (`CoreCogniAgent`) thought using a shared `FileMemoryBank`, aligning with LangChain memory patterns.
 
 ## Action Items
 - [x] Define `ReflectionCogniAgent` class in `infra_core/cogni_agents/reflection_cogni.py`.
       - Agent uses `memory_adapter.load_memory_variables` in `prepare_input`.
 - [x] Modify `ritual_of_presence_flow` in `infra_core/flows/rituals/ritual_of_presence.py`:
-      - Instantiate `CogniMemoryBank` and wrap with `CogniLangchainMemoryAdapter` in the main flow function.
+      - Instantiate `FileMemoryBank` and wrap with `CogniLangchainMemoryAdapter` in the main flow function.
       - Implement shared memory initialization and `adapter.clear()` at flow start.
 - [x] Refactor the existing `create_thought` task (rename `create_initial_thought`):
       - Accept the shared memory adapter instance.

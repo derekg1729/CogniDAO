@@ -1,0 +1,20 @@
+{
+    "title": "Bug: Dolt Schema Registration Script and Table Structure Issues",
+    "type": "Bug",
+    "status": "reported",
+    "description": "The schema registration process for Dolt has issues related to table structure and update logic, leading to duplicate schema versions.",
+    "details": [
+        "The `node_schemas` table in the `experiments/dolt_data/memory_db` Dolt database currently lacks a primary key or unique constraint.",
+        "The `experiments/scripts/register_schemas.py` script uses `INSERT ... ON DUPLICATE KEY UPDATE` to add or update schema versions.",
+        "Because there is no primary/unique key, the `ON DUPLICATE KEY UPDATE` clause is ineffective, and the script inserts new rows instead of updating existing ones when a new version of a schema is registered.",
+        "This results in multiple rows for the same `node_type` with different `schema_version` values (e.g., both version 1 and version 2 exist simultaneously).",
+        "While the current behavior of reading the latest schema might work for now, it's not robust and relies on implicit assumptions rather than explicit table constraints.",
+        "Addressing this requires modifying the table schema (adding a PK) and potentially the registration logic, originating from the schema management layer (e.g., Pydantic models, schema generation scripts) rather than direct SQL modification in the registration script."
+    ],
+    "affected_components": [
+        "experiments/dolt_data/memory_db (table: node_schemas)",
+        "experiments/scripts/register_schemas.py",
+        "experiments/src/memory_system/dolt_schema_manager.py"
+    ],
+    "suggested_solution": "Define a primary key (likely on `node_type`, `schema_version`) for the `node_schemas` table and ensure the registration script correctly handles updates or replacements based on this key, driven by Pydantic model/schema definitions."
+}

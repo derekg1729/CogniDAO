@@ -157,7 +157,7 @@ main
    - Analysis tasks may delay implementation if dependencies or complexities in the external repository are underestimated.
    
 4. **Suggestions for Improvement**:
-   - Prioritize key components of the external repository that directly impact the CogniMemoryBank implementation to streamline analysis.
+   - Prioritize key components of the external repository that directly impact the FileMemoryBank implementation to streamline analysis.
 
 5. **Rating**: 5/5 stars. This commit strategically leverages existing resources and updates critical project documentation, setting a clear path forward for development.
 
@@ -204,10 +204,10 @@ main
 
 ---
 
-### Commit 42663f1: feat(experiment): introduce CogniMemoryBank and LangChain Memory Adapter
+### Commit 42663f1: feat(experiment): introduce FileMemoryBank and LangChain Memory Adapter
 **Commit Review: 42663f1**
 
-1. **Code Quality & Simplicity**: Functional modifications and new testing scripts enhance usability and maintainability of the `CogniMemoryBank` and its integration with LangChain. Changes are clearly structured for readability.
+1. **Code Quality & Simplicity**: Functional modifications and new testing scripts enhance usability and maintainability of the `FileMemoryBank` and its integration with LangChain. Changes are clearly structured for readability.
 
 2. **Alignment with Commit Message**: The changes align well with the commit message that mentions the introduction of specific memory handling strategies within the project framework.
 
@@ -224,19 +224,19 @@ main
 
 ---
 
-### Commit a5e8ac7: feat(wip): Refactor CogniAgent base to use CogniMemoryBank - Replaces CogniMemoryClient with CogniMemoryBank in CogniAgent base. Moves CogniMemoryBank/tests from experiments/ to infra_core/memory/. Adds testability overrides to base Agent. Creates tests for CogniAgent base class. Fixes imports and removes duplicates. Note: Global tests may fail until subclasses are refactored.
+### Commit a5e8ac7: feat(wip): Refactor CogniAgent base to use FileMemoryBank - Replaces CogniMemoryClient with FileMemoryBank in CogniAgent base. Moves FileMemoryBank/tests from experiments/ to infra_core/memory/. Adds testability overrides to base Agent. Creates tests for CogniAgent base class. Fixes imports and removes duplicates. Note: Global tests may fail until subclasses are refactored.
 **Commit Review: a5e8ac7**
 
-1. **Code Quality & Simplicity**: The refactor simplifies interaction by integrating `CogniMemoryBank`, enhancing code maintainability. Consolidation of test files improves manageability.
+1. **Code Quality & Simplicity**: The refactor simplifies interaction by integrating `FileMemoryBank`, enhancing code maintainability. Consolidation of test files improves manageability.
 
-2. **Alignment with Commit Message**: Changes correspond directly with the detailed commit message, accurately covering the shift to `CogniMemoryBank` and the addition of new tests.
+2. **Alignment with Commit Message**: Changes correspond directly with the detailed commit message, accurately covering the shift to `FileMemoryBank` and the addition of new tests.
 
 3. **Potential Issues**:
    - Risk of global test failures as noted, indicating possible incomplete refactoring in other dependent components.
    - Removal of extensive old code could inadvertently eliminate needed functionality.
 
 4. **Suggestions for Improvement**:
-    - Ensure all dependent modules are fully compatible with the new `CogniMemoryBank` integration.
+    - Ensure all dependent modules are fully compatible with the new `FileMemoryBank` integration.
     - Continuous testing during the refactor process could mitigate integration issues.
 
 5. **Rating**: 4/5 stars. Strong refactor with strategic enhancements. Minor potential for disruptions given the extent of integration changes.
@@ -244,7 +244,7 @@ main
 
 ---
 
-### Commit 5f7b16d: WIP Refactor: Use CogniMemoryBank in Base Agent and GitCogniAgent
+### Commit 5f7b16d: WIP Refactor: Use FileMemoryBank in Base Agent and GitCogniAgent
 Why WIP? tests pass, but a prefect silent error around thought generation
 - Replaced  with  in  base class.
 - Updated , , and  in the base class to use .
@@ -253,9 +253,9 @@ Why WIP? tests pass, but a prefect silent error around thought generation
 - Updated project/task documentation for base agent refactoring and GitCogniAgent migration.
 **Commit Review: 5f7b16d**
 
-1. **Code Quality & Simplicity**: Substantial improvements in simplifying the agent's base structure through `CogniMemoryBank`. Changes are well integrated, enhancing readability and maintainability.
+1. **Code Quality & Simplicity**: Substantial improvements in simplifying the agent's base structure through `FileMemoryBank`. Changes are well integrated, enhancing readability and maintainability.
    
-2. **Alignment with Commit Message**: The commit message explicates the shift to `CogniMemoryBank` and addresses corresponding updates, aligning well with implemented modifications.
+2. **Alignment with Commit Message**: The commit message explicates the shift to `FileMemoryBank` and addresses corresponding updates, aligning well with implemented modifications.
 
 3. **Potential Issues**:
    - Silent error noted in thought generation could impact functionality. Immediate investigation needed to prevent possible downstream effects on product stability.
@@ -283,7 +283,7 @@ Why WIP? tests pass, but a prefect silent error around thought generation
 
 1. **Code Quality & Simplicity**: Code refactoring included consolidations and simplifications that improve readability, especially with parameters enhancements in constructors. Removed redundant diagnostics enhance cleanliness.
 
-2. **Alignment with Commit Message**: The commit suits the message well, demonstrating crucial updates to base agents with `CogniMemoryBank` and appropriately documenting changes. The message provides sufficient detail regarding ongoing issues with double output logs.
+2. **Alignment with Commit Message**: The commit suits the message well, demonstrating crucial updates to base agents with `FileMemoryBank` and appropriately documenting changes. The message provides sufficient detail regarding ongoing issues with double output logs.
 
 3. **Potential Issues**:
    - Mentioned double output logs issue could clutter logs and affect performance.
@@ -363,7 +363,7 @@ Removed  and  calls in . Action outputs are now only written to the .
 ### Commit c96aa02: feat(presence): Implement dual-agent flow with shared memory
 
 Creates ReflectionCogniAgent and refactors the Ritual of Presence flow
-to use two agents interacting via a shared CogniMemoryBank.
+to use two agents interacting via a shared FileMemoryBank.
 
 - Adds ReflectionCogniAgent that reads history via memory adapter.
 - Modifies ritual_of_presence_flow to initialize and pass a shared
@@ -413,7 +413,7 @@ to use two agents interacting via a shared CogniMemoryBank.
 ### Commit 7e5b0a3: Merge branch 'feat/broadcast-cogni' into feat/refactor-memory-bank-attempt-2
 **Commit Review: b8c4527**
 
-1. **Code Quality & Simplicity**: The addition of `gitcogni_PR9_action_20250414_115518.md` encapsulates detailed documentation of the PR approval process for the `CogniMemoryBank` implementation. The document appears well-structured and comprehensive.
+1. **Code Quality & Simplicity**: The addition of `gitcogni_PR9_action_20250414_115518.md` encapsulates detailed documentation of the PR approval process for the `FileMemoryBank` implementation. The document appears well-structured and comprehensive.
 
 2. **Alignment with Commit Message**: The commit message straightforwardly conveys the completion and approval of `MemoryBanks`, appropriately reflected by the detailed markdown file added.
 
@@ -432,7 +432,7 @@ to use two agents interacting via a shared CogniMemoryBank.
 
 ### Commit 2bff29d: Merge pull request #9 from derekg1729/feat/refactor-memory-bank-attempt-2
 
-Introduce Langchain and MCP compatible CogniMemoryBanks (Foundational Refactor)
+Introduce Langchain and MCP compatible FileMemoryBanks (Foundational Refactor)
 **Commit Review: b8c4527**
 
 1. **Code Quality & Simplicity**: The major addition in this commit is the detailed markdown file for #PR_9 approval. This is comprehensive but very lengthy which could obscure rapid information retrieval and maintenance.

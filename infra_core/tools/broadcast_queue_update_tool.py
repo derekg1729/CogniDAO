@@ -5,7 +5,7 @@ from datetime import datetime
 from typing_extensions import Annotated
 from autogen_core.tools import FunctionTool
 
-from infra_core.memory.memory_bank import CogniMemoryBank
+from infra_core.memory.memory_bank import FileMemoryBank
 from infra_core.constants import (
     MEMORY_BANKS_ROOT, 
     BROADCAST_QUEUE_PROJECT, 
@@ -27,7 +27,7 @@ def update_broadcast_queue_status(
     """
     try:
         # Set up memory bank access using constants
-        queue_bank = CogniMemoryBank(
+        queue_bank = FileMemoryBank(
             memory_bank_root=Path(MEMORY_BANKS_ROOT),
             project_name=BROADCAST_QUEUE_PROJECT,
             session_id=BROADCAST_QUEUE_SESSION

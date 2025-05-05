@@ -18,7 +18,11 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "title": "MemoryBlock",
       "type": "object",
-      "required": ["id", "type", "text"],
+      "required": [
+        "id",
+        "type",
+        "text"
+      ],
       "properties": {
         "id": {
           "type": "string",
@@ -26,7 +30,12 @@
         },
         "type": {
           "type": "string",
-          "enum": ["knowledge", "task", "project", "doc"],
+          "enum": [
+            "knowledge",
+            "task",
+            "project",
+            "doc"
+          ],
           "description": "Block type used to determine metadata structure and relationships"
         },
         "text": {
@@ -35,7 +44,9 @@
         },
         "tags": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Optional tags for filtering, theming, or metadata"
         },
         "metadata": {
@@ -47,7 +58,10 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["to_id", "relation"],
+            "required": [
+              "to_id",
+              "relation"
+            ],
             "properties": {
               "to_id": {
                 "type": "string",
@@ -55,7 +69,13 @@
               },
               "relation": {
                 "type": "string",
-                "enum": ["related_to", "subtask_of", "depends_on", "child_of", "mentions"],
+                "enum": [
+                  "related_to",
+                  "subtask_of",
+                  "depends_on",
+                  "child_of",
+                  "mentions"
+                ],
                 "description": "Canonical type of relationship"
               }
             }
@@ -63,24 +83,36 @@
           "description": "Directed outgoing edges connecting this block to others"
         },
         "source_file": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Optional source markdown or file name"
         },
         "source_uri": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Optional source link or Logseq block URI"
         },
         "confidence": {
           "type": "object",
           "properties": {
             "human": {
-              "type": ["number", "null"],
+              "type": [
+                "number",
+                "null"
+              ],
               "minimum": 0,
               "maximum": 1,
               "description": "Optional human approval confidence score"
             },
             "ai": {
-              "type": ["number", "null"],
+              "type": [
+                "number",
+                "null"
+              ],
               "minimum": 0,
               "maximum": 1,
               "description": "Optional AI-generated confidence score"
@@ -89,16 +121,25 @@
           "description": "Confidence scores for this memory block"
         },
         "created_by": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Optional identifier for who created the block (agent name or user ID)"
         },
         "created_at": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "format": "date-time",
           "description": "ISO timestamp of block creation"
         },
         "updated_at": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "format": "date-time",
           "description": "ISO timestamp of last update"
         }
@@ -107,15 +148,31 @@
     "block_link_json": {
       "title": "BlockLink",
       "type": "object",
-      "required": ["from_id", "to_id", "relation"],
+      "required": [
+        "from_id",
+        "to_id",
+        "relation"
+      ],
       "properties": {
-        "from_id": { "type": "string", "description": "ID of the source block" },
-        "to_id": { "type": "string", "description": "ID of the target block" },
+        "from_id": {
+          "type": "string",
+          "description": "ID of the source block"
+        },
+        "to_id": {
+          "type": "string",
+          "description": "ID of the target block"
+        },
         "relation": {
           "type": "string",
-          "enum": ["related_to", "subtask_of", "depends_on", "child_of", "mentions"],
+          "enum": [
+            "related_to",
+            "subtask_of",
+            "depends_on",
+            "child_of",
+            "mentions"
+          ],
           "description": "Canonical type of relationship"
-         }
+        }
       }
     },
     "memory_block_pydantic": "from typing import Optional, List, Literal, Dict, Any\nfrom datetime import datetime\nfrom pydantic import BaseModel, Field\n\n# Canonical relation types defined\nRelationType = Literal[\"related_to\", \"subtask_of\", \"depends_on\", \"child_of\", \"mentions\"]\n\nclass BlockLink(BaseModel):\n    to_id: str\n    relation: RelationType # Use canonical types\n\n\nclass ConfidenceScore(BaseModel):\n    human: Optional[float] = None\n    ai: Optional[float] = None\n\n\nclass MemoryBlock(BaseModel):\n    id: str\n    type: Literal[\"knowledge\", \"task\", \"project\", \"doc\"]\n    text: str\n    tags: List[str] = Field(default_factory=list)\n    metadata: Dict[str, Any] = Field(default_factory=dict)\n    links: List[BlockLink] = Field(default_factory=list)\n    source_file: Optional[str] = None\n    source_uri: Optional[str] = None\n    confidence: Optional[ConfidenceScore] = None\n    created_by: Optional[str] = None\n    created_at: Optional[datetime] = None\n    updated_at: Optional[datetime] = None\n",
@@ -157,13 +214,17 @@
       ]
     },
     {
-      "phase": "⚙️ Phase 3: Agent + Tool Wiring",
+      "phase": "⚙️ Phase 3: Agent + Tool Wiring (Structured Memory)",
       "tasks": [
-        "task-3.0-redesign-memorybank-class.json",
-        "task-3.1-setup-basic-langchain-agent.json",
-        "task-3.2-add-querymemoryblocks-tool.json",
-        "task-3.3-add-creatememoryblock-tool.json",
-        "task-3.4-implement-project-task-metadata-validation.json"
+        "task-3.0-rename-filememorybank.json",
+        "task-3.1-implement-structuredmemorybank.json",
+        "task-3.2-implement-cogni-structured-memory-adapter.json",
+        "task-3.3-integrate-adapter-into-agent.json",
+        "task-3.4-implement-querymemoryblocks-tool.json",
+        "task-3.5-implement-creatememoryblock-tool.json",
+        "task-3.6-enhance-memory-block-schema.json",
+        "task-3.7-test-structuredmemorybank.json",
+        "task-3.8-test-cogni-structured-memory-adapter.json"
       ]
     },
     {
@@ -171,7 +232,8 @@
       "tasks": [
         "task-4.1-create-api-chat-endpoint.json",
         "task-4.2-build-basic-frontend-chatbox.json",
-        "task-4.3-hook-up-agent-response-retrieved-memory.json"
+        "task-4.3-hook-up-agent-response-retrieved-memory.json",
+        "task-4.4-implement-occ-retry-strategy.json"
       ]
     },
     {
@@ -192,12 +254,13 @@
       ]
     },
     {
-      "phase": "🛡️ Phase 7: Decentralized Hashing + DAO Integration (Early POC)",
+      "phase": "⚙️ Phase 7: Security + Dev Experience",
       "tasks": [
         "task-7.1-fetch-dolt-hash-on-write.json",
         "task-7.2-store-block-proofs.json",
         "task-7.3-mock-dao-submitmemoryupdate.json",
-        "task-7.4-optional-submit-zkvm-hash.json"
+        "task-7.4-optional-submit-zkvm-hash.json",
+        "task-7.5-implement-identity-auth-foundation.json"
       ]
     },
     {
@@ -224,8 +287,16 @@
       "Generate schema.sql automatically from MemoryBlock definition to ensure DB-schema consistency."
     ],
     "phase_3_agent_tools": [
-      "Demonstrate LangChain agent querying memory semantically and returning MemoryBlocks via tools.",
-      "Demonstrate LangChain agent creating or updating a MemoryBlock via tools, reflected in Dolt and reindexed in LlamaIndex."
+      "Successfully rename the old FileMemoryBank to FileMemoryBank.",
+      "Demonstrate StructuredMemoryBank performing CRUD operations on MemoryBlocks in Dolt and LlamaIndex.",
+      "Verify StructuredMemoryBank can retrieve blocks by tags, semantic query, and graph links (forward/backward).",
+      "Verify CogniStructuredMemoryAdapter successfully wraps StructuredMemoryBank and conforms to LangChain's BaseMemory interface.",
+      "Demonstrate a LangChain agent using CogniStructuredMemoryAdapter to load relevant MemoryBlocks based on input.",
+      "Demonstrate a LangChain agent using the CreateMemoryBlock tool to save context as a new, validated, and indexed MemoryBlock.",
+      "Demonstrate a LangChain agent using the QueryMemoryBlocks tool to retrieve information from StructuredMemoryBank.",
+      "Pass test suites for both StructuredMemoryBank and CogniStructuredMemoryAdapter.",
+      "Verify MemoryBlock schema enhancements (state, visibility, versioning) are properly implemented and validated.",
+      "Verify OCC retry strategy successfully handles concurrent operations without data corruption."
     ],
     "phase_4_frontend_and_api": [
       "Show interaction via a minimal frontend chat interface connected to a FastAPI endpoint.",
@@ -238,9 +309,9 @@
       "Simulate DAO-style memory proposal submission with commit hash and MemoryBlock metadata."
     ],
     "phase_6_optional_debugging_and_inspection": [
-        "Demonstrate listing memory blocks via API endpoint.",
-        "Demonstrate basic graph visualization of blocks and links.",
-        "Verify the memory sync validator tool can detect inconsistencies between Dolt and LlamaIndex state (e.g., missing index updates, schema mismatches)."
+      "Demonstrate listing memory blocks via API endpoint.",
+      "Demonstrate basic graph visualization of blocks and links.",
+      "Verify the memory sync validator tool can detect inconsistencies between Dolt and LlamaIndex state (e.g., missing index updates, schema mismatches)."
     ]
   },
   "references": {
@@ -250,7 +321,8 @@
     "mvp_roadmap_updates": "Provided JSON with adjustments and additions to the roadmap"
   },
   "future_considerations": {
-      "structured_content_blocks": "Future versions may migrate the 'text' field to a structured 'content_blocks' array to better represent headings, lists, code blocks, and nested content, improving semantic understanding and rendering.",
-      "advanced_graph_analytics": "Explore deeper graph analytics capabilities beyond simple traversal, potentially integrating graph algorithms for community detection, centrality analysis, etc."
+    "structured_content_blocks": "Future versions may migrate the 'text' field to a structured 'content_blocks' array to better represent headings, lists, code blocks, and nested content, improving semantic understanding and rendering.",
+    "advanced_graph_analytics": "Explore deeper graph analytics capabilities beyond simple traversal, potentially integrating graph algorithms for community detection, centrality analysis, etc.",
+    "concurrent_operations": "Task 4.5's OCC retry strategy provides a foundation for handling concurrent operations. Future work may explore distributed locking strategies or more sophisticated conflict resolution mechanisms."
   }
-} 
+}

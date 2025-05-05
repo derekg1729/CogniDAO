@@ -14,7 +14,7 @@ from langchain_core.messages import BaseMessage, messages_from_dict, messages_to
 
 
 # --- Core Memory Bank Class (Implements BaseCogniMemory) ---
-class CogniMemoryBank(BaseModel, BaseCogniMemory):
+class FileMemoryBank(BaseModel, BaseCogniMemory):
     """Core logic for managing memory files, implementing BaseCogniMemory.
 
     Handles file I/O operations within a structured directory:
@@ -220,10 +220,10 @@ class CogniMemoryBank(BaseModel, BaseCogniMemory):
 class CogniLangchainMemoryAdapter(BaseMemory):
     """LangChain BaseMemory adapter for a BaseCogniMemory implementation.
 
-    Wraps a BaseCogniMemory instance (like CogniMemoryBank) to provide the
+    Wraps a BaseCogniMemory instance (like FileMemoryBank) to provide the
     standard LangChain memory interface (load_memory_variables, save_context, clear).
     Handles the conversion between LangChain message objects and the
-    dictionary format used by CogniMemoryBank.
+    dictionary format used by FileMemoryBank.
     """
 
     # Now expects any BaseCogniMemory implementation

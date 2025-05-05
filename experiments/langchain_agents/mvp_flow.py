@@ -16,7 +16,7 @@ from langchain_core.messages import HumanMessage
 from infra_core.openai_handler import initialize_openai_client, create_completion, extract_content
 
 # Import the new memory classes
-from .cogni_memory_bank import CogniMemoryBank, CogniLangchainMemoryAdapter
+from .cogni_memory_bank import FileMemoryBank, CogniLangchainMemoryAdapter
 
 # Load environment variables (for OPENAI_API_KEY needed by the handler)
 load_dotenv()
@@ -93,16 +93,16 @@ def agent_task(agent_name: str, system_prompt: str, input_data: Dict[str, Any], 
 # --- Prefect Flow (now just a regular function) --- 
 
 # Comment out @flow decorator
-# @flow(name="MVP 2-Agent CogniMemoryBank Workflow") # Updated flow name
+# @flow(name="MVP 2-Agent FileMemoryBank Workflow") # Updated flow name
 def two_agent_flow():
-    """Demonstrates two agents interacting via shared CogniMemoryBank."""
+    """Demonstrates two agents interacting via shared FileMemoryBank."""
     # logger = get_run_logger()
     print("Starting two_agent_flow...") # Use print
 
     # Define Memory Bank Configuration
     memory_root = Path("./_memory_banks_experiment") # Define root directory for this experiment's banks
     project = "mvp_flow_test"
-    # Session ID will be generated automatically by CogniMemoryBank
+    # Session ID will be generated automatically by FileMemoryBank
 
     # Ensure root exists
     memory_root.mkdir(exist_ok=True)
@@ -110,11 +110,11 @@ def two_agent_flow():
     print(f"Using memory bank root: {memory_root.resolve()}")
 
     # Initialize the core memory bank first
-    core_memory_bank = CogniMemoryBank(memory_bank_root=memory_root, project_name=project)
+    core_memory_bank = FileMemoryBank(memory_bank_root=memory_root, project_name=project)
     session_path = core_memory_bank._get_session_path() # Get the generated session path for logging
-    # logger.info(f"Initialized CogniMemoryBank core for project '{project}', session: {core_memory_bank.session_id}")
+    # logger.info(f"Initialized FileMemoryBank core for project '{project}', session: {core_memory_bank.session_id}")
     # logger.info(f"Session path: {session_path}")
-    print(f"Initialized CogniMemoryBank core for project '{project}', session: {core_memory_bank.session_id}")
+    print(f"Initialized FileMemoryBank core for project '{project}', session: {core_memory_bank.session_id}")
     print(f"Session path: {session_path}")
 
     # Create the LangChain adapter, wrapping the core bank
@@ -130,7 +130,7 @@ def two_agent_flow():
     agent_2_system_prompt = "You are Agent 2. Answer the user's question based *only* on the provided Conversation History. If the answer is not in the history, say you don't know."
 
     # Agent 1 introduces a fact
-    fact_to_introduce = "The project uses CogniMemoryBank for state management."
+    fact_to_introduce = "The project uses FileMemoryBank for state management."
     agent_1_input = {"input": fact_to_introduce}
     # Run Agent 1 task - change .submit to direct call
     agent_task(

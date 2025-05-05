@@ -6,7 +6,7 @@ from unittest.mock import patch, call, MagicMock
 from typing import Dict, Any
 
 from infra_core.cogni_agents.base import CogniAgent
-from infra_core.memory.memory_bank import CogniMemoryBank # Needed for type hinting and patching targets
+from infra_core.memory.memory_bank import FileMemoryBank # Needed for type hinting and patching targets
 
 # Dummy concrete agent implementation for testing
 class DummyAgent(CogniAgent):
@@ -77,8 +77,8 @@ def core_files(temp_dir):
 
 @pytest.fixture
 def memory_instance(memory_bank_root):
-    """Create a real CogniMemoryBank instance for testing."""
-    return CogniMemoryBank(
+    """Create a real FileMemoryBank instance for testing."""
+    return FileMemoryBank(
         memory_bank_root=memory_bank_root,
         project_name="test_project",
         session_id="test_session"
@@ -87,7 +87,7 @@ def memory_instance(memory_bank_root):
 @pytest.fixture
 def mock_memory_instance():
     """Create a mock memory instance for testing."""
-    mock = MagicMock(spec=CogniMemoryBank)
+    mock = MagicMock(spec=FileMemoryBank)
     # Set up default behaviors for commonly used methods
     mock.load_or_seed_file.return_value = "# Mocked Content\nThis is mocked content."
     mock.write_context.return_value = None
@@ -99,7 +99,7 @@ def mock_memory_instance():
 def test_agent_initialization(memory_instance, agent_root, spirit_file, memory_bank_root, temp_dir):
     """Test agent initialization with a real memory bank instance."""
     # Create a simple memory bank instance
-    with patch.object(CogniMemoryBank, 'load_or_seed_file', return_value="Test Spirit Content"):
+    with patch.object(FileMemoryBank, 'load_or_seed_file', return_value="Test Spirit Content"):
         # Initialize agent with the memory bank
         agent = DummyAgent(
             name="test_agent",
@@ -197,8 +197,8 @@ def test_load_core_context_from_memory(memory_instance, agent_root, spirit_file,
     memory_instance.write_context("MANIFESTO.md", core_files["manifesto"].read_text(), is_json=False)
     memory_instance.write_context("guide_cogni-core-spirit.md", core_files["core_spirit"].read_text(), is_json=False)
     
-    with patch.object(CogniMemoryBank, '__init__', return_value=None) as mock_init:
-        with patch.object(CogniMemoryBank, 'load_or_seed_file') as mock_load:
+    with patch.object(FileMemoryBank, '__init__', return_value=None) as mock_init:
+        with patch.object(FileMemoryBank, 'load_or_seed_file') as mock_load:
             # Set up the mock to return proper content
             mock_load.side_effect = lambda file_name, fallback_path: {
                 "CHARTER.md": core_files["charter"].read_text(),
@@ -218,7 +218,7 @@ def test_load_core_context_from_memory(memory_instance, agent_root, spirit_file,
                     project_root_override=temp_dir
                 )
                 
-                # Verify CogniMemoryBank was initialized with the correct parameters
+                # Verify FileMemoryBank was initialized with the correct parameters
                 mock_init.assert_called_once()
                 
                 # Verify the core context was loaded and processed
@@ -246,7 +246,7 @@ def test_load_core_context_mixed(mock_memory_instance, agent_root, spirit_file, 
     
     mock_memory_instance.load_or_seed_file.side_effect = mock_load_side_effect
     
-    with patch('infra_core.cogni_agents.base.CogniMemoryBank', return_value=mock_memory_instance):
+    with patch('infra_core.cogni_agents.base.FileMemoryBank', return_value=mock_memory_instance):
         with patch.object(DummyAgent, 'load_spirit'):
             agent = DummyAgent(
                 name="test_load_core_mixed",
@@ -281,8 +281,8 @@ def test_get_guide_for_task_default(mock_memory_instance, agent_root, spirit_fil
     
     with patch.object(DummyAgent, 'load_spirit'):
         with patch.object(DummyAgent, 'load_core_context'):
-            # Also patch CogniMemoryBank constructor to return our mock
-            with patch('infra_core.cogni_agents.base.CogniMemoryBank', return_value=mock_memory_instance):
+            # Also patch FileMemoryBank constructor to return our mock
+            with patch('infra_core.cogni_agents.base.FileMemoryBank', return_value=mock_memory_instance):
                 agent = DummyAgent(
                     name="test_guide_task",
                     spirit_path=spirit_file,
@@ -322,8 +322,8 @@ def test_get_guide_for_task_custom(mock_memory_instance, agent_root, spirit_file
     
     with patch.object(DummyAgent, 'load_spirit'):
         with patch.object(DummyAgent, 'load_core_context'):
-            # Also patch CogniMemoryBank constructor to return our mock
-            with patch('infra_core.cogni_agents.base.CogniMemoryBank', return_value=mock_memory_instance):
+            # Also patch FileMemoryBank constructor to return our mock
+            with patch('infra_core.cogni_agents.base.FileMemoryBank', return_value=mock_memory_instance):
                 agent = DummyAgent(
                     name="test_guide_custom",
                     spirit_path=spirit_file,
@@ -386,7 +386,7 @@ def test_record_action(mock_memory_instance, agent_root, spirit_file, temp_dir):
 
 def test_load_core_context_from_core_bank(mock_memory_instance, agent_root, spirit_file, core_files, temp_dir):
     """Test loading core context from a core bank at MEMORY_BANKS_ROOT."""
-    with patch('infra_core.cogni_agents.base.CogniMemoryBank') as mock_core_bank_cls:
+    with patch('infra_core.cogni_agents.base.FileMemoryBank') as mock_core_bank_cls:
         # Create a mock for the core bank instance
         mock_core_bank = MagicMock()
         mock_core_bank_cls.return_value = mock_core_bank
@@ -456,7 +456,7 @@ def test_load_core_context_from_core_bank(mock_memory_instance, agent_root, spir
                 fallback_path=expected_fallback_paths["guide_cogni-core-spirit.md"]
             )
 
-@patch.object(CogniMemoryBank, 'load_or_seed_file')
+@patch.object(FileMemoryBank, 'load_or_seed_file')
 def test_load_spirit_not_found_in_core_bank(mock_load_seed_file, agent_root, spirit_file, mock_memory_instance, temp_dir):
     """Verify load_spirit raises FileNotFoundError when spirit can't be loaded or seeded."""
     # Set up the side effect for the mocked method to simulate not found for spirit
@@ -464,7 +464,7 @@ def test_load_spirit_not_found_in_core_bank(mock_load_seed_file, agent_root, spi
     # 1. Make sure the patched method affects mock_memory_instance.load_or_seed_file
     # 2. Return None specifically for spirit_file but not for other files
     
-    # Instead of patching CogniMemoryBank.load_or_seed_file, set up the mock directly
+    # Instead of patching FileMemoryBank.load_or_seed_file, set up the mock directly
     mock_memory_instance.load_or_seed_file.return_value = None
     
     # Test should raise FileNotFoundError for spirit file

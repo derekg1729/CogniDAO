@@ -1,0 +1,63 @@
+{
+  "type": "Task",
+  "status": "completed",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "name": "Implement CogniStructuredMemoryAdapter",
+  "description": "Create a LangChain BaseMemory adapter that wraps StructuredMemoryBank, allowing LangChain agents to interact with persistent structured memory.",
+  "phase": "⚙️ Phase 3: Agent + Tool Wiring (Structured Memory)",
+  "implementation_details": {
+    "target_file": "experiments/src/memory_system/langchain_adapter.py",
+    "test_file": "experiments/src/memory_system/tests/test_langchain_adapter.py",
+    "wraps": "StructuredMemoryBank (from Task 3.1)",
+    "inherits_from": "langchain_core.memory.BaseMemory"
+  },
+  "action_items": [
+    "[x] Import `BaseMemory` from `langchain_core.memory`.",
+    "[x] Import `StructuredMemoryBank`.",
+    "[x] Define the `CogniStructuredMemoryAdapter` class inheriting from `BaseMemory`.",
+    "[x] Implement `__init__` to accept a `StructuredMemoryBank` instance.",
+    "[x] Define `memory_variables` property (e.g., return `['relevant_blocks']` or similar).",
+    "[x] Implement `load_memory_variables(inputs: Dict[str, Any]) -> Dict[str, Any]`:",
+    "[x]   Extract the main input key (e.g., `inputs['input']`).",
+    "[x]   Use the wrapped `StructuredMemoryBank.query_semantic()` with the input text.",
+    "[x]   Format the retrieved `MemoryBlock` list as structured markdown (not raw dicts) under the key defined in `memory_variables`.",
+    "[x]   For each block, include type, tags, and other metadata in a consistent markdown format that's easily parsed by LLMs.",
+    "[x]   Example markdown format:",
+    "[x]   ```",
+    "[x]   ## Memory Block: {block.id}",
+    "[x]   **Type**: {block.type}",
+    "[x]   **Tags**: {', '.join(block.tags)}",
+    "[x]   **Created**: {block.created_at}",
+    "[x]   ",
+    "[x]   {block.text}",
+    "[x]   ```",
+    "[x]   Return the dictionary (e.g., `{'relevant_blocks': formatted_markdown_blocks}`).",
+    "[x] Implement `save_context(inputs: Dict[str, Any], outputs: Dict[str, str]) -> None`:",
+    "[x]   Use a standardized template for creating block text, e.g.:",
+    "[x]   ```",
+    "[x]   [Interaction Record]",
+    "[x]   Input: {input}",
+    "[x]   Output: {output}",
+    "[x]   ```",
+    "[x]   Define `type` (e.g., 'interaction', 'knowledge').",
+    "[x]   Generate relevant `tags` (e.g., `agent:<agent_name>`, `session:<session_id>`, maybe extract keywords from input/output).",
+    "[x]   Instantiate a `MemoryBlock` object (ID, timestamps etc. will be handled by `create_memory_block`).",
+    "[x]   Call the wrapped `StructuredMemoryBank.create_memory_block()`.",
+    "[x] Implement `clear()` method:",
+    "[x]   Decide on clearing strategy (e.g., delete blocks with a specific session tag? No-op? Needs clarification based on use case). For now, maybe just log a message or raise `NotImplementedError`.",
+    "[x] Fix Pydantic import to use direct imports instead of langchain_core.pydantic_v1.",
+    "[x] Fix save_tags handling to properly handle FieldInfo objects and prevent 'not iterable' errors."
+  ],
+  "test_criteria": [
+    "[x] See `task-3.7-test-cogni-structured-memory-adapter.json`."
+  ],
+  "success_criteria": [
+    "[x] A class conforming to LangChain's `BaseMemory` interface exists.",
+    "[x] The adapter successfully uses `StructuredMemoryBank` for semantic retrieval in `load_memory_variables`.",
+    "[x] The adapter successfully uses `StructuredMemoryBank` to create new blocks in `save_context`.",
+    "[x] The adapter can be instantiated and used within a LangChain agent/chain.",
+    "[x] Memory blocks are formatted as structured markdown for better LLM comprehension.",
+    "[x] Saved interactions follow a standardized template for consistency."
+  ],
+  "current_status": "CogniStructuredMemoryAdapter implementation completed and tested. Fixed import issues by updating from langchain_core.pydantic_v1 to direct pydantic imports. Fixed save_tags handling to properly handle FieldInfo objects, preventing 'not iterable' errors during save_context operations. Successfully integrated with the basic agent script to demonstrate memory capabilities with Dolt persistent storage and LlamaIndex semantic search."
+} 

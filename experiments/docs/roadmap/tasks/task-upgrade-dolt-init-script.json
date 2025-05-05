@@ -1,0 +1,22 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-SecureDoltWriteMigration.json",
+  "name": "Upgrade Dolt Initialization Script for SQL Server Readiness",
+  "description": "Slightly improve initialize_dolt.py to support sql-server usage and make it more robust for production setup.",
+  "phase": "🔁 Phase 2: Refactor Write Layer",
+  "implementation_details": {
+    "target_file": "experiments/src/memory_system/initialize_dolt.py",
+    "action_items": [
+      "[ ] Add comment above CREATE_TABLE_SQL: 'Schema must match memory block model expected by sql-client writes.'",
+      "[ ] Add timeout=60 to all subprocess.run() calls inside run_command().",
+      "[ ] After successful initialization, optionally prompt the user: 'Start Dolt SQL server now? (y/n)'. If yes, run 'dolt sql-server' in background."
+    ]
+  },
+  "success_criteria": [
+    "[ ] initialize_dolt.py sets up Dolt repo cleanly with memory_blocks table created.",
+    "[ ] No hanging processes during Dolt CLI operations.",
+    "[ ] User can optionally auto-start Dolt SQL server after setup."
+  ],
+  "current_status": "Task definition created, pending implementation."
+} 

@@ -21,7 +21,7 @@
           │ uses                             │ uses
           │                                  ▼
           │                          ┌────────────────────────┐
-          │                          │    CogniMemoryBank     │
+          │                          │    FileMemoryBank     │
           │                          │   (Core File Logic)    │
           │                          └────────────────────────┘
           │
@@ -35,7 +35,7 @@
 	- [ ] Define MCP schema for memory blocks
 	- [ ] Map LangChain BaseMemory interface to our requirements
 	- [ ] Design directory structure
-- [x] Create the MCPFileMemory adapter (*Refactored to CogniMemoryBank + CogniLangchainMemoryAdapter*)
+- [x] Create the MCPFileMemory adapter (*Refactored to FileMemoryBank + CogniLangchainMemoryAdapter*)
 	- [x] Implement BaseMemory interface (load_memory_variables, save_context) in Adapter
 	- [ ] Add schema validation (*Deferred*)
 	- [x] Implement directory-based JSON storage in Core Bank
@@ -44,7 +44,7 @@
 	- [ ] Implement basic formatting for human readability
 	- [ ] Add minimal export utilities
 - [x] Refactor CogniAgent base class
-	- [x] Replace CogniMemoryClient with CogniLangchainMemoryAdapter (Implemented via `CogniMemoryBank`)
+	- [x] Replace CogniMemoryClient with CogniLangchainMemoryAdapter (Implemented via `FileMemoryBank`)
 	- [x] Update load_spirit to use memory adapter (Implemented in `base.py`)
 	- [x] Refactor record_action for memory adapter (Implemented in `base.py`)
 - [ ] Migrate existing agents
@@ -52,7 +52,7 @@
 	- [x] Update CoreCogni (Implemented in `core_cogni.py`)
 	- [ ] Update BroadcastCogni
 - [x] Update tests
-	- [x] Create tests for CogniMemoryBank and Adapter (Already done in `test_memory_bank.py`)
+	- [x] Create tests for FileMemoryBank and Adapter (Already done in `test_memory_bank.py`)
 	- [x] Update agent tests (Implemented in `test_git_cogni_agent.py` and `test_core_cogni.py`)
 - [x] [[task-dual-agent-presence]] - Implement dual-agent Ritual of Presence flow
 - ## Success Criteria
@@ -71,7 +71,7 @@
   5. **Simplicity**: Focus on core functionality, defer complex features
 - ## Tasks
 - [ ] [[task-design-langchain-memory-architecture]] - Design the overall architecture (*Consider marking as complete or refining based on MVP*)
-- [x] [[task-implement-mcp-file-memory]] - Implement the `CogniMemoryBank` and `CogniLangchainMemoryAdapter` (*Task name might need update to reflect split*)
+- [x] [[task-implement-mcp-file-memory]] - Implement the `FileMemoryBank` and `CogniLangchainMemoryAdapter` (*Task name might need update to reflect split*)
 - [ ] [[task-create-markdown-export-utility]] - Create minimal utility for human-readable exports
 - [x] [[task-refactor-cogni-agent-for-langchain]] - Refactor base agent to use LangChain memory
 - [x] [[task-update-agent-tests]] - Update tests for new memory system
@@ -86,7 +86,7 @@
 
 ## Notes (Original)
 The LangChain adapter (`CogniLangchainMemoryAdapter`) implements BaseMemory.
-The core logic (`CogniMemoryBank`) handles file I/O.
+The core logic (`FileMemoryBank`) handles file I/O.
 Markdown export remains an optional view layer.
 Vector storage integration is deferred.
 This approach prioritizes simplicity and direct alignment with LangChain patterns

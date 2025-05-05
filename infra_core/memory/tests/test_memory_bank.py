@@ -4,7 +4,7 @@ from datetime import datetime, timezone # Import timezone for UTC
 import pytest
 
 # Updated imports
-from infra_core.memory.memory_bank import CogniMemoryBank, CogniLangchainMemoryAdapter
+from infra_core.memory.memory_bank import FileMemoryBank, CogniLangchainMemoryAdapter
 # Assuming adapter is also moved or will be moved to infra_core.memory.adapters
 # For now, let's try importing from the expected future location
 # If this fails later, we know we need to move the adapter file too.
@@ -37,9 +37,9 @@ def test_session_id() -> str:
     return "pytest_" + datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')
 
 @pytest.fixture
-def core_memory_bank(temp_memory_bank_root: Path, test_project_name: str, test_session_id: str) -> CogniMemoryBank:
-    """Fixture to create a clean CogniMemoryBank instance for testing core logic."""
-    bank = CogniMemoryBank(
+def core_memory_bank(temp_memory_bank_root: Path, test_project_name: str, test_session_id: str) -> FileMemoryBank:
+    """Fixture to create a clean FileMemoryBank instance for testing core logic."""
+    bank = FileMemoryBank(
         memory_bank_root=temp_memory_bank_root,
         project_name=test_project_name,
         session_id=test_session_id
@@ -51,11 +51,11 @@ def core_memory_bank(temp_memory_bank_root: Path, test_project_name: str, test_s
 
 
 @pytest.fixture
-def adapter_memory_bank(temp_memory_bank_root: Path, test_project_name: str, test_session_id: str) -> CogniMemoryBank:
-    """Fixture to create a clean CogniMemoryBank instance specifically for adapter tests."""
+def adapter_memory_bank(temp_memory_bank_root: Path, test_project_name: str, test_session_id: str) -> FileMemoryBank:
+    """Fixture to create a clean FileMemoryBank instance specifically for adapter tests."""
     # Create a distinct session ID for adapter tests
     adapter_session_id = test_session_id + "_adapter"
-    bank = CogniMemoryBank(
+    bank = FileMemoryBank(
         memory_bank_root=temp_memory_bank_root,
         project_name=test_project_name,
         session_id=adapter_session_id
@@ -64,7 +64,7 @@ def adapter_memory_bank(temp_memory_bank_root: Path, test_project_name: str, tes
     yield bank
 
 @pytest.fixture
-def memory_adapter(adapter_memory_bank: CogniMemoryBank) -> CogniLangchainMemoryAdapter:
+def memory_adapter(adapter_memory_bank: FileMemoryBank) -> CogniLangchainMemoryAdapter:
     """Fixture to create a CogniLangchainMemoryAdapter wrapping a clean memory bank."""
     adapter = CogniLangchainMemoryAdapter(memory_bank=adapter_memory_bank)
     # Clearing is done via the adapter_memory_bank fixture setup
@@ -72,9 +72,9 @@ def memory_adapter(adapter_memory_bank: CogniMemoryBank) -> CogniLangchainMemory
 
 # --- Test Functions ---
 
-# == CogniMemoryBank Core Tests ==
+# == FileMemoryBank Core Tests ==
 
-def test_memory_bank_initialization(core_memory_bank: CogniMemoryBank, temp_memory_bank_root: Path, test_project_name: str, test_session_id: str):
+def test_memory_bank_initialization(core_memory_bank: FileMemoryBank, temp_memory_bank_root: Path, test_project_name: str, test_session_id: str):
     """Test basic initialization and path generation."""
     assert core_memory_bank.memory_bank_root == temp_memory_bank_root
     assert core_memory_bank.project_name == test_project_name
@@ -85,7 +85,7 @@ def test_memory_bank_initialization(core_memory_bank: CogniMemoryBank, temp_memo
     # Ensure path doesn't exist initially (clear_session was called in fixture)
     assert not expected_session_path.exists()
 
-def test_memory_bank_ensure_session_path(core_memory_bank: CogniMemoryBank):
+def test_memory_bank_ensure_session_path(core_memory_bank: FileMemoryBank):
     """Test that the session path is created when needed."""
     session_path = core_memory_bank._get_session_path()
     assert not session_path.exists()
@@ -93,7 +93,7 @@ def test_memory_bank_ensure_session_path(core_memory_bank: CogniMemoryBank):
     assert session_path.exists()
     assert session_path.is_dir()
 
-def test_memory_bank_history_read_write(core_memory_bank: CogniMemoryBank):
+def test_memory_bank_history_read_write(core_memory_bank: FileMemoryBank):
     """Test writing and reading history dictionaries."""
     assert core_memory_bank.read_history_dicts() == [] # Should be empty initially
 
@@ -115,7 +115,7 @@ def test_memory_bank_history_read_write(core_memory_bank: CogniMemoryBank):
     core_memory_bank.clear_session()
     assert core_memory_bank.read_history_dicts() == []
 
-def test_memory_bank_write_context_text(core_memory_bank: CogniMemoryBank):
+def test_memory_bank_write_context_text(core_memory_bank: FileMemoryBank):
     """Test writing plain text context."""
     file_name = "thought.txt"
     content = "This is an intermediate thought."
@@ -125,7 +125,7 @@ def test_memory_bank_write_context_text(core_memory_bank: CogniMemoryBank):
     assert file_path.read_text() == content
     assert core_memory_bank._read_file(file_name) == content
 
-def test_memory_bank_write_context_json(core_memory_bank: CogniMemoryBank):
+def test_memory_bank_write_context_json(core_memory_bank: FileMemoryBank):
     """Test writing JSON context."""
     file_name = "tool_output.json"
     content = {"tool": "calculator", "result": 42, "nested": {"works": True}}
@@ -138,7 +138,7 @@ def test_memory_bank_write_context_json(core_memory_bank: CogniMemoryBank):
     assert read_content_str is not None # Add check for None
     assert json.loads(read_content_str) == content
 
-def test_memory_bank_log_decision(core_memory_bank: CogniMemoryBank):
+def test_memory_bank_log_decision(core_memory_bank: FileMemoryBank):
     """Test logging decisions to a JSONL file."""
     file_name = "decisions.jsonl"
     decision1 = {"action": "decision_1", "param": "a"}
@@ -165,7 +165,7 @@ def test_memory_bank_log_decision(core_memory_bank: CogniMemoryBank):
     assert "timestamp" in log2
     assert log2["timestamp"] >= log1["timestamp"] # Check order
 
-def test_memory_bank_update_progress(core_memory_bank: CogniMemoryBank):
+def test_memory_bank_update_progress(core_memory_bank: FileMemoryBank):
     """Test updating the progress JSON file."""
     file_name = "progress.json"
     progress1 = {"status": "running", "step": 1}
@@ -180,7 +180,7 @@ def test_memory_bank_update_progress(core_memory_bank: CogniMemoryBank):
     assert file_path.exists()
     assert json.loads(file_path.read_text()) == progress2
 
-def test_memory_bank_clear_session(core_memory_bank: CogniMemoryBank):
+def test_memory_bank_clear_session(core_memory_bank: FileMemoryBank):
     """Test clearing the session directory."""
     # Write some files first
     core_memory_bank.write_context("test1.txt", "content1")
@@ -278,7 +278,7 @@ def test_markdown_export(memory_adapter: CogniLangchainMemoryAdapter):
     assert "\n## Ai\nSecond Response" in markdown_output # Corrected case
     assert markdown_output.count("\n## ") == 4 # Check for 4 message headers
 
-def test_markdown_export_empty(core_memory_bank: CogniMemoryBank):
+def test_markdown_export_empty(core_memory_bank: FileMemoryBank):
     """Test markdown export when history is empty."""
     markdown_output = core_memory_bank.export_history_markdown()
     assert markdown_output == "# Conversation History\n\n*No history found.*"

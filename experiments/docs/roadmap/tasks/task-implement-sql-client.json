@@ -1,0 +1,30 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-SecureDoltWriteMigration.json",
+  "name": "Implement sql_client.py for Safe Parameterized Dolt SQL Access",
+  "description": "Create a secure SQL client module that uses mysql-connector-python to perform parameterized reads and writes to Dolt running in sql-server mode. Eliminate manual SQL string construction for memory block operations.",
+  "phase": "🔁 Phase 2: Refactor Write Layer",
+  "implementation_details": {
+    "target_file": "experiments/src/memory_system/sql_client.py",
+    "required_libraries": [
+      "mysql-connector-python (>=8.0)"
+    ],
+    "action_items": [
+      "[ ] Set up a MySQLConnectionPool to manage database connections to Dolt SQL server (host=127.0.0.1, user=root, default db).",
+      "[ ] Implement insert_memory_block(block: MemoryBlock): insert using parameterized query.",
+      "[ ] Implement update_memory_block(block_id: str, update_data: dict): safely update fields using dynamic parameterized queries.",
+      "[ ] Implement delete_memory_block(block_id: str): safely delete a block using parameterized query.",
+      "[ ] Implement simple query_memory_block(block_id: str) for single block retrieval (optional but recommended).",
+      "[ ] Use '%s' placeholders and args list syntax for all queries — NO string interpolation allowed.",
+      "[ ] (Optional) Support .env file loading for DB credentials if desired for production hardening."
+    ]
+  },
+  "success_criteria": [
+    "[ ] All memory block writes and reads use safe parameterized queries.",
+    "[ ] Connections are pooled and reused efficiently.",
+    "[ ] No manual SQL escaping functions (_escape_sql_string, etc.) are used anywhere in sql_client.py.",
+    "[ ] Unit tests can insert and retrieve MemoryBlocks without SQL injection vulnerabilities."
+  ],
+  "current_status": "Task definition created, pending implementation."
+} 

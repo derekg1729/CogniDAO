@@ -1,0 +1,34 @@
+{
+  "type": "Task",
+  "status": "completed",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "name": "Enhance CogniStructuredMemoryAdapter SaveContext Metadata and Tagging",
+  "description": "Expand the save_context method in CogniStructuredMemoryAdapter to automatically enrich saved MemoryBlocks with more metadata and dynamic tagging based on inputs/outputs. This will improve future semantic search, graph building, and analytics.",
+  "phase": "⚙️ Phase 3: Agent + Tool Wiring (Structured Memory)",
+  "implementation_details": {
+    "target_file": "experiments/src/memory_system/langchain_adapter.py",
+    "depends_on": [
+      "task-3.2-implement-cogni-structured-memory-adapter.json"
+    ]
+  },
+  "action_items": [
+    "[x] In save_context, extract important information from inputs and outputs (e.g., session ID if available, keywords).",
+    "[x] Auto-generate additional dynamic tags (e.g., `session:<session_id>`, `keyword:<top_keywords>` if extractable).",
+    "[x] Expand metadata dictionary to include more fields, such as:",
+    "[x]   - Model name/version (if available from config)",
+    "[x]   - Token counts (if tracked, optional)",
+    "[x]   - Latency / time-to-response (if available, optional)",
+    "[x]   - Any other custom interaction attributes relevant to analysis.",
+    "[x] Ensure backward compatibility: If no session ID or keywords are available, default to just the fixed tags.",
+    "[x] Document these metadata extensions clearly in the docstring for save_context."
+  ],
+  "test_criteria": [
+    "[x] Unit test save_context to verify that dynamic tags and metadata fields are correctly generated when input provides necessary info.",
+    "[x] Unit test fallback behavior when dynamic fields are not available (no crash, uses fixed tags only)."
+  ],
+  "success_criteria": [
+    "[x] MemoryBlocks saved by save_context automatically have richer metadata for downstream semantic retrieval and graph analytics.",
+    "[x] Saved blocks have dynamic session tagging when available (improving future session-based queries and visualization)."
+  ],
+  "current_status": "Task completed: Enhanced save_context method implemented and tested. Added sanitization to prevent recursive memory growth, dynamic tag generation (session, date, type tags), and extended metadata including model info, timestamp, session ID, token counts, and latency metrics. Verified in practice that memory blocks are correctly saved with enriched metadata, as confirmed by database query showing properly structured tags and metadata fields in the saved memory block."
+}
