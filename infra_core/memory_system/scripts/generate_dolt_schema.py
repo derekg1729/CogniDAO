@@ -10,12 +10,13 @@ from pathlib import Path
 from typing import Any, Literal, Type, Union, get_args, get_origin
 
 # Add the project root to the Python path to enable imports
-project_root = Path(__file__).parent.parent.parent
+project_root = Path(__file__).parent.parent.parent.parent
 sys.path.append(str(project_root))
 
 try:
     from infra_core.memory_system.schemas.memory_block import MemoryBlock
     from infra_core.memory_system.schemas.common import BlockLink
+    from infra_core.constants import MEMORY_DOLT_ROOT
     from pydantic import BaseModel
 except ImportError as e:
     print(f"Error importing required modules: {e}")
@@ -50,6 +51,9 @@ FIELD_TYPE_OVERRIDES = {
     "visibility": "VARCHAR(50)",
     "relation": "VARCHAR(50)",
 }
+
+# --- Constants --- #
+DOLT_DATA_DIR = Path(__file__).parent.parent / "dolt_data"
 
 
 def get_sql_type(field_type: Type, field_name: str) -> str:
@@ -226,8 +230,11 @@ def generate_schema_file(output_path: Path) -> None:
 
 def main() -> None:
     """Main entry point."""
-    # Define output path
-    output_path = Path(__file__).parent.parent / "schema.sql"
+    # Define output path - place in memory_dolt directory
+    output_path = MEMORY_DOLT_ROOT / "schema.sql"
+
+    # Ensure the directory exists
+    MEMORY_DOLT_ROOT.mkdir(parents=True, exist_ok=True)
 
     # Generate schema
     generate_schema_file(output_path)
