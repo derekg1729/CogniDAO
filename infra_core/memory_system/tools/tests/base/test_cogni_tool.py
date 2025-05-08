@@ -4,8 +4,9 @@ Tests for the CogniTool base class.
 
 import pytest
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, get_type_hints
 from langchain.tools import Tool as LangChainTool
+from unittest.mock import Mock
 
 from infra_core.memory_system.tools.base.cogni_tool import CogniTool
 
@@ -26,7 +27,7 @@ class TestOutput(BaseModel):
 
 
 # Helper function for testing
-def echo_function(input_data: TestInput) -> TestOutput:
+def echo_function(input_data: TestInput, memory_bank=None) -> TestOutput:
     """Echo function that processes input."""
     return TestOutput(result=f"Processed: {input_data.text}", success=True)
 
@@ -87,7 +88,45 @@ def test_langchain_conversion(test_tool):
     assert isinstance(lc_tool, LangChainTool)
     assert lc_tool.name == "TestTool"
     assert lc_tool.description == "A test tool"
-    assert lc_tool.args_schema == TestInput
+    # Compare type hints without internal attributes
+    v1_hints = get_type_hints(lc_tool.args_schema)
+    v2_hints = get_type_hints(TestInput)
+    v1_fields = {k: v for k, v in v1_hints.items() if not k.startswith("_")}
+    v2_fields = {k: v for k, v in v2_hints.items() if not k.startswith("_")}
+    assert set(v1_fields.keys()) == set(v2_fields.keys())
+    for field_name in v2_fields:
+        assert v1_fields[field_name] == v2_fields[field_name]
+
+
+def test_langchain_tool_memory_injection(test_tool):
+    """Test that memory_bank is properly injected when using LangChain tool."""
+    # Create mock memory bank
+    mock_memory_bank = Mock()
+
+    # Create LangChain tool with memory bank
+    lc_tool = test_tool.as_langchain_tool(memory_bank=mock_memory_bank)
+
+    # Call tool with text input
+    result = lc_tool.run({"text": "test"})
+
+    # Verify result
+    assert isinstance(result, TestOutput)
+    assert result.result == "Processed: test"
+    assert result.success is True
+
+
+def test_langchain_tool_memory_required(test_tool):
+    """Test that memory-linked tools require memory_bank."""
+    # Create LangChain tool
+    lc_tool = test_tool.as_langchain_tool()
+
+    # Call tool without memory_bank
+    result = lc_tool.run({"text": "test"})
+
+    # Verify error response
+    assert isinstance(result, dict)
+    assert result["success"] is False
+    assert "memory_bank must be supplied" in result["error"]
 
 
 def test_openai_schema(test_tool):

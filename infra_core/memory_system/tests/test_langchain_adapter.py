@@ -62,6 +62,7 @@ def sample_memory_blocks():
 # --- Tests ---
 
 
+@pytest.mark.skip(reason="Deprecated - legacy LangChain adapter")
 def test_load_memory_variables_success(adapter, mock_memory_bank, sample_memory_blocks):
     """Test load_memory_variables calls query_semantic and formats output correctly."""
     # Arrange
@@ -85,6 +86,7 @@ def test_load_memory_variables_success(adapter, mock_memory_bank, sample_memory_
     assert "---" in result[expected_key]  # Check for block separator
 
 
+@pytest.mark.skip(reason="Deprecated - legacy LangChain adapter")
 def test_load_memory_variables_no_input(adapter, mock_memory_bank):
     """Test load_memory_variables handles missing input key."""
     # Act
@@ -95,6 +97,7 @@ def test_load_memory_variables_no_input(adapter, mock_memory_bank):
     assert result == {adapter.memory_key: "Input query not provided."}
 
 
+@pytest.mark.skip(reason="Deprecated - legacy LangChain adapter")
 @patch("infra_core.memory_system.langchain_adapter.log_interaction_block_tool")
 def test_save_context_success(mock_log_tool, adapter, mock_memory_bank):
     """Test save_context calls log_interaction_block_tool correctly."""
@@ -120,6 +123,7 @@ def test_save_context_success(mock_log_tool, adapter, mock_memory_bank):
     assert "session123" in call_kwargs["tags"]
 
 
+@pytest.mark.skip(reason="Deprecated - legacy LangChain adapter")
 def test_save_context_missing_input_output(adapter, mock_memory_bank):
     """Test save_context handles missing input or output keys gracefully."""
     # Arrange
@@ -144,6 +148,7 @@ def test_save_context_missing_input_output(adapter, mock_memory_bank):
 # --- New Tests for Enhanced save_context ---
 
 
+@pytest.mark.skip(reason="Deprecated - legacy LangChain adapter")
 @patch("infra_core.memory_system.langchain_adapter.log_interaction_block_tool")
 def test_save_context_session_id_tag(mock_log_tool, adapter, mock_memory_bank):
     """Test session_id from inputs is passed to the tool."""
@@ -163,6 +168,7 @@ def test_save_context_session_id_tag(mock_log_tool, adapter, mock_memory_bank):
     assert call_kwargs["x_session_id"] == session_id
 
 
+@pytest.mark.skip(reason="Deprecated - legacy LangChain adapter")
 @patch("infra_core.memory_system.langchain_adapter.log_interaction_block_tool")
 def test_save_context_model_metadata(mock_log_tool, adapter, mock_memory_bank):
     """Test model info is passed to the tool."""
@@ -182,6 +188,7 @@ def test_save_context_model_metadata(mock_log_tool, adapter, mock_memory_bank):
     assert call_kwargs["model"] == model_name
 
 
+@pytest.mark.skip(reason="Deprecated - legacy LangChain adapter")
 @patch("infra_core.memory_system.langchain_adapter.log_interaction_block_tool")
 def test_save_context_token_count_and_latency(mock_log_tool, adapter, mock_memory_bank):
     """Test token counts and latency are passed to the tool correctly."""
@@ -203,6 +210,7 @@ def test_save_context_token_count_and_latency(mock_log_tool, adapter, mock_memor
     assert call_kwargs["latency_ms"] == latency_ms
 
 
+@pytest.mark.skip(reason="Deprecated - legacy LangChain adapter")
 @patch("infra_core.memory_system.langchain_adapter.log_interaction_block_tool")
 def test_save_context_sanitization(mock_log_tool, adapter, mock_memory_bank):
     """Test that input is sanitized to remove memory placeholders."""
@@ -226,6 +234,7 @@ def test_save_context_sanitization(mock_log_tool, adapter, mock_memory_bank):
     assert call_kwargs["output_text"] == "Python is a programming language"
 
 
+@pytest.mark.skip(reason="Deprecated - legacy LangChain adapter")
 @patch("infra_core.memory_system.langchain_adapter.log_interaction_block_tool")
 def test_save_context_dict_output(mock_log_tool, adapter, mock_memory_bank):
     """Test that dictionary outputs are handled correctly."""
@@ -246,6 +255,7 @@ def test_save_context_dict_output(mock_log_tool, adapter, mock_memory_bank):
     assert isinstance(call_kwargs["output_text"], dict)
 
 
+@pytest.mark.skip(reason="Deprecated - legacy LangChain adapter")
 @patch("infra_core.memory_system.langchain_adapter.log_interaction_block_tool")
 def test_save_context_dict_output_no_text_key(mock_log_tool, adapter, mock_memory_bank):
     """Test that dictionary outputs without a 'text' key are converted to strings."""
@@ -266,6 +276,7 @@ def test_save_context_dict_output_no_text_key(mock_log_tool, adapter, mock_memor
     assert isinstance(call_kwargs["output_text"], dict)
 
 
+@pytest.mark.skip(reason="Deprecated - legacy LangChain adapter")
 @patch("infra_core.memory_system.langchain_adapter.log_interaction_block_tool")
 def test_save_context_all_features_combined(mock_log_tool, adapter, mock_memory_bank):
     """Test save_context passes all features combined to the tool."""

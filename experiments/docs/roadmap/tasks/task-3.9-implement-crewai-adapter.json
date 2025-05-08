@@ -37,9 +37,9 @@
             "item": "CogniTool Base Enhancements",
             "details": [
                 "[x] Keep inheritance `CogniTool(FunctionTool)` (MCP ready)",
-                "[ ] Guard `autogen_core` import with try/except for optional install",
-                "[ ] Implement `.as_langchain_tool()` returning `LangChainTool` for CrewAI",
-                "[ ] Ensure wrapper injects `memory_bank` when `memory_linked` and `external_memory` present"
+                "[x] Guard `autogen_core` import with try/except for optional install",
+                "[x] Implement `.as_langchain_tool()` returning `LangChainTool` for CrewAI",
+                "[x] Ensure wrapper injects `memory_bank` when `memory_linked` and `external_memory` present"
             ]
         },
         {
@@ -81,17 +81,17 @@
         {
             "item": "High Priority Fixes",
             "details": [
-                "[ ] Patch CogniTool.as_langchain_tool to inject memory_bank from agent.external_memory",
-                "[ ] Update CogniMemoryStorage.save to return structured response with block_id",
+                "[x] Patch CogniTool.as_langchain_tool to inject memory_bank from agent.external_memory",
+                "[x] Update CogniMemoryStorage.save to return structured response with block_id",
                 "[ ] Write integration test for CrewAI Thinker + Reflector with memory persistence"
             ]
         },
         {
             "item": "Medium Priority Improvements",
             "details": [
-                "[ ] Implement reset() as no-op returning True or document CrewAI agent restrictions",
+                "[x] Implement reset() as no-op returning True or document CrewAI agent restrictions",
                 "[ ] Add text truncation/summarization to QueryMemoryBlocksTool output",
-                "[ ] Wrap autogen_core import in try/except for optional install"
+                "[x] Wrap autogen_core import in try/except for optional install"
             ]
         },
         {

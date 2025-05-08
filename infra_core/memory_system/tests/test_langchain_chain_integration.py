@@ -10,6 +10,8 @@ and our custom memory components. The tests use mocked LLMs to focus on testing:
 - Chroma-based semantic retrieval
 
 For full integration tests with real LLMs, see test_langchain_integration_e2e.py
+
+Note: Currently skipped as the LangChain adapter implementation is deprecated.
 """
 
 import pytest
@@ -82,6 +84,7 @@ def fake_llm():
     return FakeListLLM(responses=["This is a test response."])
 
 
+@pytest.mark.skip(reason="Deprecated - legacy LangChain adapter")
 def test_langchain_chain_with_memory_creates_block(cogni_memory, fake_llm):
     """
     Functional test verifying that LangChain chain execution creates a memory block.

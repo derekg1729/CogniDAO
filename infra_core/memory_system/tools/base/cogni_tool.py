@@ -5,10 +5,49 @@ This class extends the FunctionTool from autogen_core.tools to add memory linkin
 capabilities and ensure compatibility with MCP, AutoGen, LangChain, and OpenAI.
 """
 
-from typing import Any, Callable, Dict, Optional, Type
-from pydantic import BaseModel, ValidationError
+from typing import Any, Callable, Dict, Optional, Type, get_type_hints
+from pydantic import BaseModel, ValidationError, Field
+from pydantic.v1 import BaseModel as V1BaseModel
 from autogen_core.tools import FunctionTool
 from langchain.tools import Tool as LangChainTool
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def convert_to_v1_model(v2_model: Type[BaseModel]) -> Type[V1BaseModel]:
+    """Convert a Pydantic v2 model to v1 format."""
+    # Get type hints and field info from v2 model
+    type_hints = get_type_hints(v2_model)
+    fields = {}
+
+    # Create field definitions for v1 model
+    for field_name, field in v2_model.model_fields.items():
+        field_type = type_hints.get(field_name, Any)
+        fields[field_name] = (
+            field_type,
+            Field(
+                default=... if field.is_required() else None,
+                description=field.description,
+            ),
+        )
+
+    # Create v1 model dynamically
+    v1_model = type(
+        v2_model.__name__,
+        (V1BaseModel,),
+        {
+            "__annotations__": type_hints,
+            "__module__": v2_model.__module__,
+            **{k: v[1] for k, v in fields.items()},
+        },
+    )
+
+    # Copy over class attributes to make it look like the original
+    v1_model.__qualname__ = v2_model.__qualname__
+    v1_model.__name__ = v2_model.__name__
+
+    return v1_model
 
 
 class CogniTool(FunctionTool):
@@ -153,13 +192,82 @@ class CogniTool(FunctionTool):
 
         return self._create_wrapper(self.raw_function)(input_dict)
 
-    def as_langchain_tool(self) -> LangChainTool:
-        """Convert to a LangChain Tool."""
+    def as_langchain_tool(self, *, memory_bank=None) -> LangChainTool:
+        """Convert to a LangChain Tool.
+
+        This method creates a LangChain Tool that properly handles memory bank injection
+        from CrewAI's external_memory. The tool will:
+        1. Extract memory_bank from kwargs if present
+        2. Validate input using the tool's input model
+        3. Call the underlying function with memory_bank if memory_linked
+        4. Format the output according to the tool's output model
+
+        Args:
+            memory_bank: Optional memory bank to use for this tool instance
+
+        Returns:
+            LangChainTool: A LangChain-compatible tool instance
+        """
+
+        def langchain_wrapper(*args: Any, **kwargs: Any) -> Any:
+            """Wrapper for LangChain tool interface."""
+            try:
+                # Convert positional args to tool_input
+                if len(args) == 1:
+                    if isinstance(args[0], (str, dict)):
+                        tool_input = args[0]
+                    else:
+                        raise ValueError("Tool only accepts string or dict input")
+                elif len(args) > 1:
+                    raise ValueError("Tool only accepts a single argument")
+                else:
+                    tool_input = kwargs
+
+                # Extract memory bank from tool_input if it's a dict
+                tool_memory_bank = None
+                if isinstance(tool_input, dict):
+                    tool_memory_bank = tool_input.pop("memory_bank", None)
+
+                # 1) memory_bank priority: explicit kwarg → captured param → tool_input memory_bank
+                mem_from_kwargs = kwargs.pop("memory_bank", None)
+                final_memory_bank = mem_from_kwargs or memory_bank or tool_memory_bank
+
+                if self.memory_linked and final_memory_bank is None:
+                    raise ValueError(
+                        "memory_bank must be supplied when tool is instantiated or called"
+                    )
+
+                # Create kwargs dict with memory_bank if needed
+                tool_kwargs = {}
+                if final_memory_bank is not None:
+                    tool_kwargs["memory_bank"] = final_memory_bank
+
+                # Call the tool with the input and memory bank
+                if isinstance(tool_input, str):
+                    # Map single string to first input_model field
+                    field_name = list(self.input_model.model_fields.keys())[0]
+                    tool_input = {field_name: tool_input}
+                    result = self(**{**tool_input, **tool_kwargs})
+                else:
+                    result = self(**{**tool_input, **tool_kwargs})
+
+                # Validate output model if specified
+                if self.output_model:
+                    result = self.output_model.model_validate(result)
+                return result
+
+            except Exception as e:
+                logger.error(f"Error in {self.name}: {str(e)}", exc_info=True)
+                return {"success": False, "error": str(e)}
+
+        # Convert input model to v1 format for LangChain compatibility
+        v1_input_model = convert_to_v1_model(self.input_model)
+
         return LangChainTool(
             name=self.name,
             description=self.description,
-            func=self._create_wrapper(self.raw_function),
-            args_schema=self.input_model,
+            func=langchain_wrapper,
+            args_schema=v1_input_model,
         )
 
     def openai_schema(self) -> Dict[str, Any]:

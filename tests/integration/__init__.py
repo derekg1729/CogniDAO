@@ -1,1 +1,1 @@
-"""Integration tests for the Cogni system.""" 
+"""Integration tests for the Cogni system."""

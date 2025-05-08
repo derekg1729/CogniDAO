@@ -1,4 +1,8 @@
 """
+DEPRECATED: This LangChain adapter is no longer supported.
+The functionality has been replaced by CogniTool.as_langchain_tool().
+This file is kept for reference only and may be removed in future versions.
+
 LangChain BaseMemory adapter for the Cogni StructuredMemoryBank.
 """
 
@@ -11,7 +15,7 @@ from datetime import datetime
 from langchain_core.memory import BaseMemory
 
 # Update the import to use pydantic directly instead of langchain_core.pydantic_v1
-from pydantic import Field, root_validator
+from pydantic import Field
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
 from .tools.agent_facing.log_interaction_block_tool import log_interaction_block_tool
@@ -55,14 +59,12 @@ class CogniStructuredMemoryAdapter(BaseMemory):
         # Allow non-Pydantic types like StructuredMemoryBank
         arbitrary_types_allowed = True
 
-    @root_validator(pre=True)
-    def check_memory_bank_provided(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        """Ensure memory_bank is provided during initialization."""
-        if "memory_bank" not in values or not isinstance(
-            values["memory_bank"], StructuredMemoryBank
-        ):
+    def __init__(self, **data):
+        """Initialize the adapter with validation."""
+        # Validate memory_bank before initialization
+        if "memory_bank" not in data or not isinstance(data["memory_bank"], StructuredMemoryBank):
             raise ValueError("An instance of StructuredMemoryBank must be provided.")
-        return values
+        super().__init__(**data)
 
     # --- BaseMemory Interface Implementation (Stubs) ---
 
