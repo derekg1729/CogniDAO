@@ -10,11 +10,15 @@ from __future__ import annotations
 import logging
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+from uuid import uuid4
 
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
 
 logger = logging.getLogger(__name__)
+
+# Constants
+MEMORY_TYPE = "knowledge"  # Default type for CrewAI thoughts
 
 
 class CogniMemoryStorage:
@@ -42,8 +46,8 @@ class CogniMemoryStorage:
         try:
             # Create a MemoryBlock from the thought
             block = MemoryBlock(
-                id=f"crewai_{datetime.now().strftime('%Y%m%d%H%M%S')}",
-                type="knowledge",  # Default type for CrewAI thoughts
+                id=f"crewai_{uuid4().hex}",
+                type=MEMORY_TYPE,
                 text=thought,
                 tags=["crewai", "thought"],
                 metadata=metadata or {},
@@ -60,7 +64,8 @@ class CogniMemoryStorage:
             return success
 
         except Exception as e:
-            logger.error(f"Error saving CrewAI thought: {e}", exc_info=True)
+            error_msg = f"Error saving CrewAI thought: {e}"
+            logger.error(error_msg, exc_info=True)
             return False
 
     def search(self, query: str, top_k: int = 5) -> List[str]:
@@ -74,6 +79,9 @@ class CogniMemoryStorage:
             List[str]: List of matching thought texts.
         """
         try:
+            # Limit top_k to reasonable range
+            top_k = min(top_k, 20)
+
             # Use StructuredMemoryBank's semantic search
             blocks = self.memory_bank.query_semantic(query, top_k=top_k)
 
@@ -89,13 +97,13 @@ class CogniMemoryStorage:
     def reset(self) -> bool:
         """Reset the memory system.
 
+        Note:
+            This method is not yet implemented. It will eventually:
+            1. Clear LlamaIndex session cache
+            2. Create new Dolt branch named agent_{timestamp}
+
         Returns:
-            bool: True if the reset was successful, False otherwise.
+            bool: False since the functionality is not yet implemented.
         """
-        try:
-            # TODO: Implement reset functionality
-            logger.warning("Reset functionality not yet implemented")
-            return False
-        except Exception as e:
-            logger.error(f"Error resetting memory system: {e}", exc_info=True)
-            return False
+        logger.warning("Reset functionality not yet implemented")
+        return False

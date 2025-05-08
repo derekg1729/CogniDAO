@@ -24,7 +24,13 @@
                 "[ ]   - Clear LlamaIndex session cache",
                 "[ ]   - Create new Dolt branch named `agent_{timestamp}`",
                 "[x] Add logging + error propagation",
-                "[x] Unit‑test each method with an in‑memory Dolt clone"
+                "[x] Unit‑test each method with an in‑memory Dolt clone",
+                "[x] Fix ID generation to use UUID4 or microsecond-precision timestamp",
+                "[x] Update save() to return structured response with block_id",
+                "[x] Add max_results guard to search() (min(top_k, 20))",
+                "[x] Document reset() as no-op or implement session branch",
+                "[x] Extract 'knowledge' type to constant or param",
+                "[x] Add type hints for metadata dict"
             ]
         },
         {
@@ -45,7 +51,9 @@
                 "[x] Define `MemoryBlockFilterInput` schema for type-safe filtering (using core schema)",
                 "[x] Ensure wrappers use filter schema instead of raw dicts",
                 "[ ] Add `.to_mcp_route()` metadata for each",
-                "[x] Unit tests covering happy‑path + validation errors"
+                "[x] Unit tests covering happy‑path + validation errors",
+                "[x] Verify core tools return LangChain Tool instances",
+                "[x] Review core tool implementations for CrewAI compatibility"
             ]
         },
         {
@@ -68,6 +76,29 @@
                 "[ ] Architecture diagram update (markdown / mermaid)",
                 "[ ] Create `scripts/demo_crewai.py` with minimal working example",
                 "[ ] Usage example notebook or script"
+            ]
+        },
+        {
+            "item": "High Priority Fixes",
+            "details": [
+                "[ ] Patch CogniTool.as_langchain_tool to inject memory_bank from agent.external_memory",
+                "[ ] Update CogniMemoryStorage.save to return structured response with block_id",
+                "[ ] Write integration test for CrewAI Thinker + Reflector with memory persistence"
+            ]
+        },
+        {
+            "item": "Medium Priority Improvements",
+            "details": [
+                "[ ] Implement reset() as no-op returning True or document CrewAI agent restrictions",
+                "[ ] Add text truncation/summarization to QueryMemoryBlocksTool output",
+                "[ ] Wrap autogen_core import in try/except for optional install"
+            ]
+        },
+        {
+            "item": "Low Priority Optimizations",
+            "details": [
+                "[x] Fix UUID4 ID generation (completed)",
+                "[ ] Cache wrapper creation in CogniTool.__call__"
             ]
         }
     ],
@@ -105,7 +136,7 @@
     },
     "estimated_effort": "intensive single‑day sprint",
     "priority": "high",
-    "notes": "Focus strictly on adapter and minimal demo crew; full UI wiring and Autogen adapter deferred. Note: Agent-facing tool wrappers (QueryProjectsTool, etc.) are separate from adapter layer and will be implemented in subsequent tasks. Package structure: Keep cogni_adapters at repo root (sibling to infra_core) for clean distribution.",
+    "notes": "Focus strictly on adapter and minimal demo crew; full UI wiring and Autogen adapter deferred. Note: Agent-facing tool wrappers (QueryProjectsTool, etc.) are separate from adapter layer and will be implemented in subsequent tasks. Package structure: Keep cogni_adapters at repo root (sibling to infra_core) for clean distribution. Recent updates: Fixed ID generation to use UUID4, implemented structured responses for save(), added max_results guard to search(), and documented reset() as no-op for now. Next focus: High-priority fixes for memory_bank injection and structured save responses.",
     "architecture_notes": {
         "adapter_layer": "The adapter layer (CogniMemoryStorage + CogniTool.as_langchain_tool()) only cares about: 1) A callable that touches StructuredMemoryBank, 2) A LangChain-compatible Tool wrapper for CrewAI registration.",
         "tool_architecture": "Multi-tier tool structure (core ↔ agent-facing) is an API-surface concern, not part of the adapter layer. Core tools remain unchanged; agent-facing wrappers can be added later.",

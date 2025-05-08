@@ -81,6 +81,15 @@ def test_memory_storage_search(memory_storage, mock_memory_bank):
     mock_memory_bank.query_semantic.assert_called_once_with(query, top_k=2)
 
 
+def test_memory_storage_reset(memory_storage):
+    """Test reset functionality of CogniMemoryStorage."""
+    # Execute
+    result = memory_storage.reset()
+
+    # Verify
+    assert result is False  # Currently not implemented
+
+
 def test_memory_storage_error_handling(memory_storage, mock_memory_bank):
     """Test error handling in CogniMemoryStorage."""
     # Setup
@@ -91,12 +100,3 @@ def test_memory_storage_error_handling(memory_storage, mock_memory_bank):
 
     # Verify
     assert result is False
-
-
-def test_memory_storage_reset(memory_storage):
-    """Test reset functionality in CogniMemoryStorage."""
-    # Execute
-    result = memory_storage.reset()
-
-    # Verify
-    assert result is False  # Currently not implemented
