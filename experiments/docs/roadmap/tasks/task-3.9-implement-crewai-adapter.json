@@ -1,6 +1,6 @@
 {
     "type": "Task",
-    "status": "todo",
+    "status": "in-progress",
     "project": "CogniMemorySystem-POC",
     "name": "Implement CrewAI Adapter (v2)",
     "description": "Build the CrewAI adapter layer that lets CrewAI agents use StructuredMemoryBank via CogniTool wrappers while preserving MCP/Autogen compatibility.",
@@ -8,29 +8,29 @@
         {
             "item": "Repository + Package Setup",
             "details": [
-                "[ ] Create `cogni_adapters/__init__.py` with version metadata",
-                "[ ] Add `cogni_adapters/crewai/__init__.py` exporting adapter classes",
-                "[ ] Add `pyproject.toml` / `setup.py` with deps: crewai>=0.1,<0.2, llama-index, doltpy, autogen-core (optional)",
+                "[x] Create `cogni_adapters/__init__.py` with version metadata",
+                "[x] Add `cogni_adapters/crewai/__init__.py` exporting adapter classes",
+                "[x] Add `pyproject.toml` / `setup.py` with deps: crewai>=0.1,<0.2, llama-index, doltpy, autogen-core (optional)",
                 "[ ] Add GitHub Actions workflow for pytest + coverage, failing if <90% branch coverage"
             ]
         },
         {
             "item": "CogniMemoryStorage (ExternalMemory) Implementation",
             "details": [
-                "[ ] Implement class wrapping StructuredMemoryBank with `save`, `search`, `reset`",
-                "[ ] Inject `StructuredMemoryBank` instance via constructor",
-                "[ ] Map `save` ➜ `create_memory_block`, `search` ➜ `query_semantic`",
-                "[ ] Implement `reset()` with clear semantics:",
+                "[x] Implement class wrapping StructuredMemoryBank with `save`, `search`, `reset`",
+                "[x] Inject `StructuredMemoryBank` instance via constructor",
+                "[x] Map `save` ➜ `create_memory_block`, `search` ➜ `query_semantic`",
+                "[/] Implement `reset()` with clear semantics:",
                 "[ ]   - Clear LlamaIndex session cache",
                 "[ ]   - Create new Dolt branch named `agent_{timestamp}`",
-                "[ ] Add logging + error propagation",
-                "[ ] Unit‑test each method with an in‑memory Dolt clone"
+                "[x] Add logging + error propagation",
+                "[x] Unit‑test each method with an in‑memory Dolt clone"
             ]
         },
         {
             "item": "CogniTool Base Enhancements",
             "details": [
-                "[ ] Keep inheritance `CogniTool(FunctionTool)` (MCP ready)",
+                "[x] Keep inheritance `CogniTool(FunctionTool)` (MCP ready)",
                 "[ ] Guard `autogen_core` import with try/except for optional install",
                 "[ ] Implement `.as_langchain_tool()` returning `LangChainTool` for CrewAI",
                 "[ ] Ensure wrapper injects `memory_bank` when `memory_linked` and `external_memory` present"
@@ -39,13 +39,13 @@
         {
             "item": "Core Tool Adapter Implementation",
             "details": [
-                "[ ] Create thin wrappers around existing core tools:",
-                "[ ]   - `SaveMemoryBlockTool` wrapping `CreateMemoryBlockTool`",
-                "[ ]   - `QueryMemoryBlockTool` wrapping `QueryMemoryBlocksTool`",
-                "[ ] Define `MemoryBlockFilterInput` schema for type-safe filtering",
-                "[ ] Ensure wrappers use filter schema instead of raw dicts",
+                "[x] Create thin wrappers around existing core tools:",
+                "[x]   - Re-export `create_memory_block_tool` from core",
+                "[x]   - Re-export `query_memory_blocks_tool` from core",
+                "[x] Define `MemoryBlockFilterInput` schema for type-safe filtering (using core schema)",
+                "[x] Ensure wrappers use filter schema instead of raw dicts",
                 "[ ] Add `.to_mcp_route()` metadata for each",
-                "[ ] Unit tests covering happy‑path + validation errors"
+                "[x] Unit tests covering happy‑path + validation errors"
             ]
         },
         {
@@ -63,7 +63,7 @@
         {
             "item": "Documentation + Examples",
             "details": [
-                "[ ] Docstrings for all public classes",
+                "[x] Docstrings for all public classes",
                 "[ ] `README.md` snippet: install + YAML sample",
                 "[ ] Architecture diagram update (markdown / mermaid)",
                 "[ ] Create `scripts/demo_crewai.py` with minimal working example",
@@ -105,7 +105,7 @@
     },
     "estimated_effort": "intensive single‑day sprint",
     "priority": "high",
-    "notes": "Focus strictly on adapter and minimal demo crew; full UI wiring and Autogen adapter deferred. Note: Agent-facing tool wrappers (QueryProjectsTool, etc.) are separate from adapter layer and will be implemented in subsequent tasks.",
+    "notes": "Focus strictly on adapter and minimal demo crew; full UI wiring and Autogen adapter deferred. Note: Agent-facing tool wrappers (QueryProjectsTool, etc.) are separate from adapter layer and will be implemented in subsequent tasks. Package structure: Keep cogni_adapters at repo root (sibling to infra_core) for clean distribution.",
     "architecture_notes": {
         "adapter_layer": "The adapter layer (CogniMemoryStorage + CogniTool.as_langchain_tool()) only cares about: 1) A callable that touches StructuredMemoryBank, 2) A LangChain-compatible Tool wrapper for CrewAI registration.",
         "tool_architecture": "Multi-tier tool structure (core ↔ agent-facing) is an API-surface concern, not part of the adapter layer. Core tools remain unchanged; agent-facing wrappers can be added later.",
