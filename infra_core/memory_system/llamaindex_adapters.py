@@ -3,6 +3,7 @@ from llama_index.core.schema import TextNode, NodeRelationship, RelatedNodeInfo
 from typing import Dict, Any
 import json  # For serializing complex metadata
 import logging
+from datetime import datetime  # Import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -22,6 +23,17 @@ RELATION_TO_NODE_RELATIONSHIP = {
     # For "mentions" links, use NEXT relationship (closest match)
     "mentions": NodeRelationship.NEXT,
 }
+
+
+# Helper function to convert datetime objects in nested structures
+def convert_datetimes_to_isoformat(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {k: convert_datetimes_to_isoformat(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_datetimes_to_isoformat(elem) for elem in obj]
+    elif isinstance(obj, datetime):
+        return obj.isoformat()
+    return obj
 
 
 def memory_block_to_node(block: MemoryBlock) -> TextNode:
@@ -52,10 +64,12 @@ def memory_block_to_node(block: MemoryBlock) -> TextNode:
     # Store nested metadata as a JSON string for potential filtering/retrieval
     if block.metadata:
         try:
-            metadata["metadata_json"] = json.dumps(block.metadata)
+            serializable_metadata = convert_datetimes_to_isoformat(block.metadata)
+            metadata["metadata_json"] = json.dumps(serializable_metadata)
         except TypeError as e:
             logger.warning(f"Could not serialize metadata for block {block.id}: {e}")
             # Decide on fallback: store partial, store as string repr, or omit
+            # Fallback to repr if deep conversion and serialization still fail
             metadata["metadata_json"] = repr(block.metadata)
 
     # Flatten confidence scores

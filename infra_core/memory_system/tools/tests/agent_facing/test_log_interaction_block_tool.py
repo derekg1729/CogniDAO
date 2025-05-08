@@ -51,9 +51,7 @@ def sample_input():
 
 
 # Patch the core create_memory_block function within the tool's module scope
-@patch(
-    "infra_core.memory_system.tools.agent_facing.log_interaction_block_tool.create_memory_block"
-)
+@patch("infra_core.memory_system.tools.agent_facing.log_interaction_block_tool.create_memory_block")
 def test_log_interaction_block_success(mock_create_memory_block, mock_memory_bank, sample_input):
     """Test successful interaction logging and correct metadata passing."""
     # Configure the mock return value for create_memory_block
@@ -96,9 +94,7 @@ def test_log_interaction_block_success(mock_create_memory_block, mock_memory_ban
 
 
 # Patch the core create_memory_block function
-@patch(
-    "infra_core.memory_system.tools.agent_facing.log_interaction_block_tool.create_memory_block"
-)
+@patch("infra_core.memory_system.tools.agent_facing.log_interaction_block_tool.create_memory_block")
 def test_log_interaction_block_minimal_input(mock_create_memory_block, mock_memory_bank):
     """Test interaction logging with minimal required input."""
     mock_create_output = CreateMemoryBlockOutput(
@@ -131,9 +127,7 @@ def test_log_interaction_block_minimal_input(mock_create_memory_block, mock_memo
 
 
 # Patch the core create_memory_block function
-@patch(
-    "infra_core.memory_system.tools.agent_facing.log_interaction_block_tool.create_memory_block"
-)
+@patch("infra_core.memory_system.tools.agent_facing.log_interaction_block_tool.create_memory_block")
 def test_log_interaction_block_persistence_failure(
     mock_create_memory_block, mock_memory_bank, sample_input
 ):
@@ -177,9 +171,7 @@ def test_log_interaction_block_tool_schema():
 
 
 # Patch the core create_memory_block function
-@patch(
-    "infra_core.memory_system.tools.agent_facing.log_interaction_block_tool.create_memory_block"
-)
+@patch("infra_core.memory_system.tools.agent_facing.log_interaction_block_tool.create_memory_block")
 def test_log_interaction_block_tool_direct_invocation(
     mock_create_memory_block, mock_memory_bank, sample_input
 ):
@@ -221,18 +213,16 @@ def test_log_interaction_block_tool_invalid_input(mock_memory_bank):
         )
         mock_func.assert_not_called()  # Function shouldn't be called if input validation fails
 
-    # Expect dict for input validation error
-    assert isinstance(result, dict)
-    assert result["success"] is False
-    assert result["error"] == "Validation error"
-    assert "details" in result
-    assert "'output_text'" in str(result["details"])  # Check error details mention missing field
+    # Expect structured error output model
+    assert isinstance(result, LogInteractionBlockOutput)
+    assert result.success is False
+    # Error message should mention validation and the missing field
+    assert "Validation error" in result.error
+    assert "output_text" in (result.error or "")
 
 
 # Test for failure if create_memory_block itself raises an exception (e.g., validation within core tool)
-@patch(
-    "infra_core.memory_system.tools.agent_facing.log_interaction_block_tool.create_memory_block"
-)
+@patch("infra_core.memory_system.tools.agent_facing.log_interaction_block_tool.create_memory_block")
 def test_log_interaction_block_core_validation_failure(
     mock_create_memory_block, mock_memory_bank, sample_input
 ):
@@ -250,9 +240,7 @@ def test_log_interaction_block_core_validation_failure(
 
 
 # Patch the core create_memory_block function
-@patch(
-    "infra_core.memory_system.tools.agent_facing.log_interaction_block_tool.create_memory_block"
-)
+@patch("infra_core.memory_system.tools.agent_facing.log_interaction_block_tool.create_memory_block")
 def test_log_interaction_block_with_parent(mock_create_memory_block, mock_memory_bank):
     """Test logging an interaction with a parent block ID passed correctly."""
     mock_create_output = CreateMemoryBlockOutput(

@@ -1,16 +1,24 @@
 """
 CogniTool: Base class for all Cogni tools with memory linking support.
 
-This class extends the FunctionTool from autogen_core.tools to add memory linking
-capabilities and ensure compatibility with MCP, AutoGen, LangChain, and OpenAI.
+Originally this module relied on *FunctionTool* from *autogen_core* and embedded
+framework-specific helpers.  It has been rewritten to be **completely
+framework-agnostic**.  The class now focuses solely on:
+
+1. Input validation
+2. Output validation/formatting
+3. Optional memory-bank dispatch
+4. JSON-schema exposure for the Model Context Protocol (MCP)
+
+Individual adapter modules (e.g. for LangChain, AutoGen, CrewAI) can extend or
+monkey-patch `CogniTool` instances as needed without polluting the core class.
 """
 
 from typing import Any, Callable, Dict, Optional, Type, get_type_hints
 from pydantic import BaseModel, ValidationError, Field
 from pydantic.v1 import BaseModel as V1BaseModel
-from autogen_core.tools import FunctionTool
-from langchain.tools import Tool as LangChainTool
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -24,21 +32,40 @@ def convert_to_v1_model(v2_model: Type[BaseModel]) -> Type[V1BaseModel]:
     # Create field definitions for v1 model
     for field_name, field in v2_model.model_fields.items():
         field_type = type_hints.get(field_name, Any)
-        fields[field_name] = (
-            field_type,
-            Field(
-                default=... if field.is_required() else None,
-                description=field.description,
-            ),
-        )
 
-    # Create v1 model dynamically
+        # Handle nested Pydantic models
+        if isinstance(field_type, type) and issubclass(field_type, BaseModel):
+            field_type = convert_to_v1_model(field_type)
+
+        # Create field with validation
+        field_kwargs = {
+            "default": ... if field.is_required() else None,
+            "description": field.description,
+        }
+
+        # Add validation constraints
+        if hasattr(field, "ge"):
+            field_kwargs["ge"] = field.ge
+        if hasattr(field, "le"):
+            field_kwargs["le"] = field.le
+        if hasattr(field, "gt"):
+            field_kwargs["gt"] = field.gt
+        if hasattr(field, "lt"):
+            field_kwargs["lt"] = field.lt
+
+        fields[field_name] = (field_type, Field(**field_kwargs))
+
+    # Create v1 model dynamically with arbitrary_types_allowed=True
+    class Config:
+        arbitrary_types_allowed = True
+
     v1_model = type(
         v2_model.__name__,
         (V1BaseModel,),
         {
             "__annotations__": type_hints,
             "__module__": v2_model.__module__,
+            "Config": Config,
             **{k: v[1] for k, v in fields.items()},
         },
     )
@@ -50,243 +77,164 @@ def convert_to_v1_model(v2_model: Type[BaseModel]) -> Type[V1BaseModel]:
     return v1_model
 
 
-class CogniTool(FunctionTool):
-    """CogniTool supporting memory-linked or ephemeral actions."""
+class CogniTool:
+    """Framework-agnostic base class for Cogni tools.
 
+    Responsibilities:
+        1. Rigid input validation using a Pydantic v2 model
+        2. Optional output validation using a Pydantic v2 model
+        3. Dispatch to the underlying callable, optionally injecting ``memory_bank``
+        4. Expose an MCP-compatible schema via :py:meth:`to_mcp_route`
+
+    The class purposefully avoids inheriting from — or even importing — any
+    third-party tool abstractions (e.g. LangChain, AutoGen, CrewAI). Framework
+    adapters must live in *separate* modules and may choose to monkey-patch a
+    CogniTool instance at runtime.  This keeps the core class lightweight and
+    fully testable without heavyweight dependencies.
+    """
+
+    # ---------------------------------------------------------------------
+    # Construction helpers
+    # ---------------------------------------------------------------------
     def __init__(
         self,
+        *,
         name: str,
         description: str,
         input_model: Type[BaseModel],
-        output_model: Optional[Type[BaseModel]],
-        function: Callable[..., Any],  # Allow any callable signature
+        output_model: Optional[Type[BaseModel]] = None,
+        function: Callable[..., Any],
         memory_linked: bool = True,
-    ):
-        """
-        Initialize a new CogniTool.
+    ) -> None:
+        self.name = name
+        self.description = description
+        self.input_model = input_model
+        self.output_model = output_model
+        self.memory_linked = memory_linked
+        self._function = function
 
-        Args:
-            name: Name of the tool
-            description: Description of what the tool does
-            input_model: Pydantic model for input validation
-            output_model: Pydantic model for output validation (optional)
-            function: Callable that implements the tool's logic
-            memory_linked: Whether this tool interacts with the memory system
-        """
-        # Create the wrapper function
-        wrapped_func = self._create_wrapper(function)
-
-        # Initialize parent class
-        super().__init__(name=name, func=wrapped_func, description=description)
-
-        # Store additional attributes
-        self._input_model = input_model
-        self._output_model = output_model
-        self._memory_linked = memory_linked
-        self._raw_function = function
-
-        # Update schema with memory_linked property and OpenAI compatibility
-        self._schema = {
-            "name": name,
-            "description": description,
-            "memory_linked": memory_linked,
+        # Pre-compute JSON schemas once – they are immutable after construction
+        self._schema: Dict[str, Any] = {
+            "name": self.name,
+            "description": self.description,
+            "memory_linked": self.memory_linked,
             "type": "function",
-            "parameters": input_model.model_json_schema(),
-            "returns": output_model.model_json_schema() if output_model else None,
+            "parameters": self.input_model.model_json_schema(),
+            "returns": self.output_model.model_json_schema() if self.output_model else None,
         }
 
-    @property
-    def schema(self) -> Dict[str, Any]:
-        """Get the tool's schema."""
-        return self._schema
+    # ------------------------------------------------------------------
+    #  Primary call interface
+    # ------------------------------------------------------------------
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: C901 (complexity)
+        """Invoke the tool.
 
-    @property
-    def input_model(self) -> Type[BaseModel]:
-        """Get the input model."""
-        return self._input_model
+        Accepted calling patterns (in order of precedence):
 
-    @property
-    def output_model(self) -> Optional[Type[BaseModel]]:
-        """Get the output model."""
-        return self._output_model
+        1. ``tool(<InputModel instance>, memory_bank=...)``
+        2. ``tool(<dict>, memory_bank=...)``
+        3. ``tool(field1=value1, field2=value2, ..., memory_bank=...)``
 
-    @property
-    def memory_linked(self) -> bool:
-        """Get whether this tool is memory-linked."""
-        return self._memory_linked
-
-    @property
-    def raw_function(self) -> Callable[..., Any]:
-        """Get the original function."""
-        return self._raw_function
-
-    @raw_function.setter
-    def raw_function(self, value: Callable[..., Any]) -> None:
-        """Set the original function (for testing)."""
-        self._raw_function = value
-
-    @raw_function.deleter
-    def raw_function(self) -> None:
-        """Delete the original function (for testing)."""
-        self._raw_function = None
-
-    def _create_wrapper(self, func: Callable[..., Any]) -> Callable[[Dict[str, Any]], Any]:
-        """Create a wrapper function that handles input validation and output formatting."""
-
-        def wrapper(kwargs: Dict[str, Any]) -> Any:
-            try:
-                # Extract memory_bank if present
-                memory_bank = kwargs.pop("memory_bank", None) if self.memory_linked else None
-
-                # Validate input
-                validated_input = self.input_model(**kwargs)
-
-                # Call function with validated input and memory_bank if needed
-                if self.memory_linked and memory_bank is not None:
-                    result = func(validated_input, memory_bank)
-                else:
-                    result = func(validated_input)
-
-                # Validate output if model exists
-                if self.output_model and not isinstance(result, self.output_model):
-                    result = self.output_model(**result)
-
-                return result
-
-            except ValidationError as e:
-                # Always return a dict for input validation errors
-                return {
-                    "error": "Validation error",
-                    "details": e.errors(),
-                    "success": False,
-                }
-            except Exception as e:
-                if self.output_model:
-                    # For general exceptions, try to use the output model if available
-                    # Ensure all required fields for the error state are provided
-                    error_data = {"error": str(e), "success": False}
-                    # Attempt to fill missing required fields with defaults or None
-                    # This part might need refinement based on specific output model needs
-                    for field_name, field_info in self.output_model.model_fields.items():
-                        if field_info.is_required() and field_name not in error_data:
-                            # A simple default, might need smarter logic
-                            error_data[field_name] = None
-                    try:
-                        return self.output_model(**error_data)
-                    except ValidationError:
-                        # Fallback if creating output model still fails
-                        return {"error": str(e), "success": False}
-                return {"error": str(e), "success": False}
-
-        return wrapper
-
-    def __call__(self, **kwargs: Any) -> Any:
-        """Enable direct invocation of the tool with kwargs."""
-        # Extract memory_bank from kwargs if memory_linked
-        memory_bank = kwargs.pop("memory_bank", None) if self.memory_linked else None
-
-        # Create input dict with memory_bank if needed
-        input_dict = kwargs
-        if memory_bank is not None:
-            input_dict["memory_bank"] = memory_bank
-
-        return self._create_wrapper(self.raw_function)(input_dict)
-
-    def as_langchain_tool(self, *, memory_bank=None) -> LangChainTool:
-        """Convert to a LangChain Tool.
-
-        This method creates a LangChain Tool that properly handles memory bank injection
-        from CrewAI's external_memory. The tool will:
-        1. Extract memory_bank from kwargs if present
-        2. Validate input using the tool's input model
-        3. Call the underlying function with memory_bank if memory_linked
-        4. Format the output according to the tool's output model
-
-        Args:
-            memory_bank: Optional memory bank to use for this tool instance
-
-        Returns:
-            LangChainTool: A LangChain-compatible tool instance
+        For convenience, *one* lone scalar positional argument is also allowed
+        if the input model has exactly one field. This is handy for simple
+        tools that take a single ``text`` string, for example.
         """
 
-        def langchain_wrapper(*args: Any, **kwargs: Any) -> Any:
-            """Wrapper for LangChain tool interface."""
-            try:
-                # Convert positional args to tool_input
-                if len(args) == 1:
-                    if isinstance(args[0], (str, dict)):
-                        tool_input = args[0]
-                    else:
-                        raise ValueError("Tool only accepts string or dict input")
-                elif len(args) > 1:
-                    raise ValueError("Tool only accepts a single argument")
+        memory_bank = kwargs.pop("memory_bank", None)
+
+        # ------------------------------------------------------------------
+        # Coerce *args / **kwargs into a validated ``input_model`` instance
+        # ------------------------------------------------------------------
+        try:
+            if args and len(args) > 1:
+                raise ValueError("CogniTool accepts at most one positional argument.")
+
+            if args:
+                first = args[0]
+                if isinstance(first, self.input_model):
+                    validated_input = first
+                elif isinstance(first, dict):
+                    validated_input = self.input_model(**first)
                 else:
-                    tool_input = kwargs
+                    # Allow scalar positional when model has exactly one field
+                    fields = list(self.input_model.model_fields.keys())
+                    if len(fields) != 1:
+                        raise TypeError(
+                            "Positional value only supported if input model has a single field."  # noqa: E501
+                        )
+                    validated_input = self.input_model(**{fields[0]: first})
+            else:
+                # No positional – use kwargs (memory_bank already popped)
+                validated_input = self.input_model(**kwargs)
+        except ValidationError as e:
+            return self._error_response("Validation error", e)
+        except Exception as e:
+            return self._error_response(str(e))
 
-                # Extract memory bank from tool_input if it's a dict
-                tool_memory_bank = None
-                if isinstance(tool_input, dict):
-                    tool_memory_bank = tool_input.pop("memory_bank", None)
+        # ------------------------------------------------------------------
+        # Ensure memory bank presence for memory-linked tools
+        # ------------------------------------------------------------------
+        if self.memory_linked and memory_bank is None:
+            return self._error_response(
+                "memory_bank must be supplied when calling a memory-linked tool"
+            )
 
-                # 1) memory_bank priority: explicit kwarg → captured param → tool_input memory_bank
-                mem_from_kwargs = kwargs.pop("memory_bank", None)
-                final_memory_bank = mem_from_kwargs or memory_bank or tool_memory_bank
+        # ------------------------------------------------------------------
+        # Delegate to underlying callable
+        # ------------------------------------------------------------------
+        try:
+            if self.memory_linked:
+                result = self._function(validated_input, memory_bank)
+            else:
+                result = self._function(validated_input)
 
-                if self.memory_linked and final_memory_bank is None:
-                    raise ValueError(
-                        "memory_bank must be supplied when tool is instantiated or called"
-                    )
-
-                # Create kwargs dict with memory_bank if needed
-                tool_kwargs = {}
-                if final_memory_bank is not None:
-                    tool_kwargs["memory_bank"] = final_memory_bank
-
-                # Call the tool with the input and memory bank
-                if isinstance(tool_input, str):
-                    # Map single string to first input_model field
-                    field_name = list(self.input_model.model_fields.keys())[0]
-                    tool_input = {field_name: tool_input}
-                    result = self(**{**tool_input, **tool_kwargs})
-                else:
-                    result = self(**{**tool_input, **tool_kwargs})
-
-                # Validate output model if specified
-                if self.output_model:
-                    result = self.output_model.model_validate(result)
+            # ------------------------------------------------------------------
+            # Output validation / coercion
+            # ------------------------------------------------------------------
+            if self.output_model is None:
                 return result
 
-            except Exception as e:
-                logger.error(f"Error in {self.name}: {str(e)}", exc_info=True)
-                return {"success": False, "error": str(e)}
+            if isinstance(result, self.output_model):
+                return result
 
-        # Convert input model to v1 format for LangChain compatibility
-        v1_input_model = convert_to_v1_model(self.input_model)
+            # Attempt to coerce mapping / object into output model
+            return self.output_model(**result)  # type: ignore[arg-type]
 
-        return LangChainTool(
-            name=self.name,
-            description=self.description,
-            func=langchain_wrapper,
-            args_schema=v1_input_model,
-        )
+        except ValidationError as e:
+            # Output failed model validation
+            return self._error_response("Output validation failed", e)
+        except Exception as e:  # noqa: BLE001 (broad-exception-caught)
+            # Unhandled runtime error from the underlying function
+            return self._error_response(str(e))
+
+    # ------------------------------------------------------------------
+    #  Metadata helpers
+    # ------------------------------------------------------------------
+    @property
+    def schema(self) -> Dict[str, Any]:
+        """Return the cached JSON schema for the tool."""
+
+        return self._schema
 
     def openai_schema(self) -> Dict[str, Any]:
-        """Return OpenAI function calling schema."""
-        schema = {
+        """Return a schema that matches OpenAI function-calling format."""
+
+        return {
             "name": self.name,
             "description": self.description,
             "parameters": self.input_model.model_json_schema(),
+            "returns": self.output_model.model_json_schema() if self.output_model else None,
         }
-        if self.output_model:
-            schema["returns"] = self.output_model.model_json_schema()
-        return schema
 
-    def to_openai_function(self) -> Dict[str, Any]:
-        """Alias for openai_schema() for compatibility."""
+    def to_openai_function(self) -> Dict[str, Any]:  # Backwards compatibility alias
         return self.openai_schema()
 
+    # ------------------------------------------------------------------
+    #  MCP integration
+    # ------------------------------------------------------------------
     def to_mcp_route(self) -> Dict[str, Any]:
-        """Return MCP-compatible route definition."""
+        """Return an MCP-compatible route definition."""
+
         return {
             "schema": {
                 "name": self.name,
@@ -297,5 +245,35 @@ class CogniTool(FunctionTool):
                 if self.output_model
                 else None,
             },
-            "handler": self._create_wrapper(self.raw_function),
+            "handler": self,  # The instance itself is callable and encapsulates validation
         }
+
+    # ------------------------------------------------------------------
+    #  Internal utilities
+    # ------------------------------------------------------------------
+    def _error_response(self, message: str, exc: Optional[Exception] = None) -> Any:
+        """Build a structured error response.
+
+        If an ``output_model`` is supplied, attempt to coerce a minimal error-shaped
+        object into that model. Otherwise, return a plain dict.
+        """
+
+        base: Dict[str, Any] = {
+            "success": False,
+            "error": f"{message}: {str(exc)}" if exc else message,
+            "timestamp": datetime.now(),
+        }
+
+        if self.output_model is None:
+            return base
+
+        # Fill missing required fields with None so model construction succeeds
+        for field_name, field_info in self.output_model.model_fields.items():
+            if field_info.is_required() and field_name not in base:
+                base[field_name] = None
+
+        try:
+            return self.output_model(**base)  # type: ignore[arg-type]
+        except ValidationError:
+            # Fallback to raw dict if even this fails
+            return base

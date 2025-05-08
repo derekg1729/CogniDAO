@@ -5,6 +5,11 @@ Tests for the CogniTool base class.
 import pytest
 from pydantic import BaseModel, Field
 from typing import Optional, get_type_hints
+
+# NOTE: Import adapter *before* importing CogniTool instances so the
+# monkey-patch is applied globally.
+import infra_core.memory_system.tools.adapters.langchain_tool_adapter  # noqa: F401
+
 from langchain.tools import Tool as LangChainTool
 from unittest.mock import Mock
 
@@ -66,7 +71,7 @@ def test_tool_schema(test_tool):
 
 def test_direct_invocation(test_tool):
     """Test direct tool invocation with kwargs."""
-    result = test_tool(text="Hello")
+    result = test_tool(text="Hello", memory_bank=Mock())
     assert isinstance(result, TestOutput)
     assert result.result == "Processed: Hello"
     assert result.success is True
@@ -78,8 +83,7 @@ def test_invalid_input(test_tool):
     result = test_tool(invalid_field="test")
     assert isinstance(result, dict)
     assert result["success"] is False
-    assert result["error"] == "Validation error"
-    assert "details" in result
+    assert "Validation error" in result["error"]
 
 
 def test_langchain_conversion(test_tool):
@@ -107,7 +111,10 @@ def test_langchain_tool_memory_injection(test_tool):
     lc_tool = test_tool.as_langchain_tool(memory_bank=mock_memory_bank)
 
     # Call tool with text input
-    result = lc_tool.run({"text": "test"})
+    result_str = lc_tool.run({"text": "test"})
+
+    # Parse the JSON string back into the expected model
+    result = TestOutput.model_validate_json(result_str)
 
     # Verify result
     assert isinstance(result, TestOutput)
@@ -152,7 +159,7 @@ def test_mcp_route(test_tool):
 
 def test_pydantic_model_conversion(test_tool):
     """Test that the tool returns the correct Pydantic model instance."""
-    result = test_tool(text="Hello")
+    result = test_tool(text="Hello", memory_bank=Mock())
     assert isinstance(result, TestOutput)
     assert result.result == "Processed: Hello"
     assert result.success is True
@@ -162,14 +169,12 @@ def test_error_handling(test_tool):
     """Test error handling in the tool wrapper for validation errors."""
     # Test with missing required field ('text')
     result = test_tool()
-    assert isinstance(result, dict)  # Expect dict for validation errors
+    assert isinstance(result, dict)
     assert result["success"] is False
-    assert result["error"] == "Validation error"
-    assert "details" in result
+    assert "Validation error" in result["error"]
 
     # Test with wrong type for 'text'
     result = test_tool(text=123)  # Should be string
-    assert isinstance(result, dict)  # Expect dict for validation errors
+    assert isinstance(result, dict)
     assert result["success"] is False
-    assert result["error"] == "Validation error"
-    assert "details" in result
+    assert "Validation error" in result["error"]
