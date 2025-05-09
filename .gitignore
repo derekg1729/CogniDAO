@@ -40,6 +40,7 @@ api.pid
 /legacy_logseq/memory/archive/*
 !/legacy_logseq/memory/archive/.gitkeep
 /data/memory/
+/data/memory_chroma/
 /cogni-memory/
 /test_memory/
 .cache/
