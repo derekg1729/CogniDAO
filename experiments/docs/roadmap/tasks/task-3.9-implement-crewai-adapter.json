@@ -59,10 +59,10 @@
         {
             "item": "CrewAI Integration Tests",
             "details": [
-                "[ ] YAML crew: Thinker(agent) with `external_memory`=CogniMemoryStorage and `tools`=[SaveMemoryBlockTool.as_langchain_tool()]",
-                "[ ] Python test spins up crew, submits prompt, asserts Dolt commit exists + LlamaIndex node count==1",
-                "[ ] Add second agent Reflector using `QueryMemoryBlockTool`, assert retrieval accuracy",
-                "[ ] Test error handling:",
+                "[x] YAML crew: Thinker(agent) with `external_memory`=CogniMemoryStorage and `tools`=[SaveMemoryBlockTool.as_langchain_tool()]",
+                "[x] Python test spins up crew, submits prompt, asserts Dolt commit exists + LlamaIndex node count==1",
+                "[x] Add second agent Reflector using `QueryMemoryBlockTool`, assert retrieval accuracy",
+                "[x] Test error handling:",
                 "[ ]   - Force LlamaIndex exception during save",
                 "[ ]   - Verify Dolt rollback occurs",
                 "[ ]   - Assert no partial state remains"
@@ -83,7 +83,7 @@
             "details": [
                 "[x] Patch CogniTool.as_langchain_tool to inject memory_bank from agent.external_memory",
                 "[x] Update CogniMemoryStorage.save to return structured response with block_id",
-                "[ ] Write integration test for CrewAI Thinker + Reflector with memory persistence"
+                "[x] Write integration test for CrewAI Thinker + Reflector with memory persistence"
             ]
         },
         {

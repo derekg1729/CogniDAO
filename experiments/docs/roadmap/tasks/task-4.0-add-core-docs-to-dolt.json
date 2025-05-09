@@ -1,0 +1,47 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "id": "4.0",
+  "name": "Add Core Project Documents to Dolt Memory System",
+  "description": "Ingest core project documents (Charter, Manifesto, License, Core Cogni Spirit) into the Dolt-backed StructuredMemoryBank as 'doc' type MemoryBlocks, utilizing the specialized CreateDocMemoryBlockTool and QueryDocMemoryBlockTool.",
+  "action_items": [
+    "[x] Implement `CreateDocMemoryBlockTool` (infra_core/memory_system/tools/agent_facing/create_doc_memory_block_tool.py) as a wrapper for `create_memory_block`.",
+    "[x] Implement `QueryDocMemoryBlockTool` (infra_core/memory_system/tools/agent_facing/query_doc_memory_block_tool.py) as a wrapper for `query_memory_blocks_core`.",
+    "[x] Write and pass unit tests for `CreateDocMemoryBlockTool` (infra_core/memory_system/tools/tests/agent_facing/test_create_doc_memory_block_tool.py).",
+    "[x] Write and pass unit tests for `QueryDocMemoryBlockTool` (infra_core/memory_system/tools/tests/agent_facing/test_query_doc_memory_block_tool.py).",
+    "[ ] Confirm canonical source file paths for: CHARTER.md, MANIFESTO.md, LICENSE.md, and guide_cogni-core-spirit.md.",
+    "[ ] Read the content of each identified source document.",
+    "[ ] For each document, prepare the necessary data for ingestion using `CreateDocMemoryBlockInput`:\n    - title: <Document Title>\n    - content: <full document content>\n    - source_file: <relative_path_to_source>\n    - doc_version: \"1.0\"\n    - doc_format: \"markdown\"\n    - tags: [\"core-document\", \"<specific_tag e.g., legal, philosophy>\"]\n    - (Consider other relevant `DocMetadata` fields: audience, section, last_reviewed, completed)",
+    "[ ] Develop or utilize an existing script/method to call the `CreateDocMemoryBlockTool` to ingest each document.",
+    "[ ] Ensure each new MemoryBlock creation results in a successful commit to the Dolt database.",
+    "[ ] Verify that each document, once ingested, is retrievable from the memory system using `QueryDocMemoryBlockTool`."
+  ],
+  "test_criteria": [
+    "Unit tests for `CreateDocMemoryBlockTool` and `QueryDocMemoryBlockTool` pass successfully.",
+    "MemoryBlocks for Charter, Manifesto, License, and Core Cogni Spirit exist in the database with type='doc'.",
+    "The 'text' field of each MemoryBlock accurately reflects the content of its source document.",
+    "Populated metadata (via `CreateDocMemoryBlockTool`) for each block includes at least 'title', 'source_file', 'doc_version', 'doc_format', and relevant 'tags'.",
+    "Dolt log confirms new commits corresponding to the addition of these four documents.",
+    "Each document can be successfully queried and retrieved from the StructuredMemoryBank using `QueryDocMemoryBlockTool`."
+  ],
+  "dependencies": [
+    "task-3.1-structuredmemorybank.json",
+    "task-3.5-creatememoryblock-tool.json",
+    "task-3.4-querymemoryblocks-tool.json"
+  ],
+  "success_criteria": {
+    "functionality": [
+      "Core project documents are durably stored in Dolt via the StructuredMemoryBank using the new agent-facing tools.",
+      "Documents are accessible for query and retrieval through the memory system's interfaces, specifically `QueryDocMemoryBlockTool`."
+    ],
+    "data_integrity": [
+      "Document content is preserved accurately in the 'text' field of MemoryBlocks.",
+      "Key metadata is correctly associated with each document's MemoryBlock as defined by `DocMetadata` and `CreateDocMemoryBlockInput`."
+    ],
+    "code_quality": [
+      "Agent-facing tools `CreateDocMemoryBlockTool` and `QueryDocMemoryBlockTool` are implemented with unit tests achieving sufficient coverage."
+    ]
+  },
+  "notes": "Follow the recommendation to use the existing 'doc' MemoryBlock type. Prioritize using root-level .md files (CHARTER.md, MANIFESTO.md, LICENSE.md) and 'data/memory_banks/core/main/guide_cogni-core-spirit.md' as sources. The ingestion process should leverage the newly created `CreateDocMemoryBlockTool`.\n\nKey Files Created:\n- infra_core/memory_system/tools/agent_facing/create_doc_memory_block_tool.py\n- infra_core/memory_system/tools/agent_facing/query_doc_memory_block_tool.py\n- infra_core/memory_system/tools/tests/agent_facing/test_create_doc_memory_block_tool.py\n- infra_core/memory_system/tools/tests/agent_facing/test_query_doc_memory_block_tool.py"
+}
