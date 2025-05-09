@@ -10,7 +10,7 @@ from langchain.schema import HumanMessage, AIMessage, SystemMessage
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Import the FastAPI app and models
-from legacy_logseq.cogni_api import app, send_message, verify_auth  # Import verify_auth
+from legacy_logseq.legacy_cogni_api import app, send_message, verify_auth  # Import verify_auth
 from infra_core.models import HistoryMessage  # Import HistoryMessage
 
 
