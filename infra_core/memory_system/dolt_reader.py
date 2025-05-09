@@ -325,6 +325,104 @@ def read_memory_blocks_by_tags(
     return memory_blocks_list
 
 
+def read_memory_blocks_from_working_set(db_path: str) -> List[MemoryBlock]:
+    """
+    Reads MemoryBlocks from the working set of the specified Dolt database.
+
+    Queries the 'memory_blocks' table, parses rows, and validates them into
+    MemoryBlock Pydantic objects.
+    """
+    logger.info(f"Attempting to read MemoryBlocks from Dolt DB working set at {db_path}")
+    memory_blocks_list: List[MemoryBlock] = []
+    repo: Optional[Dolt] = None
+
+    try:
+        repo = Dolt(db_path)
+
+        # Query to select all relevant columns from memory_blocks in the working set.
+        # No 'AS OF' clause is used, so it queries the working tables.
+        query = """
+        SELECT
+            id, type, schema_version, text, tags, metadata, links,
+            source_file, source_uri, confidence, created_by, created_at, updated_at,
+            state, visibility
+        FROM memory_blocks
+        """
+        # Removed block_version and embedding for now to match ingest script's --no-commit path more closely
+        # and typical Dolt select, can be added if needed and present.
+
+        logger.debug(f"Executing SQL query on working set:\\n{query}")
+
+        result = repo.sql(query=query, result_format="json")
+
+        if result and "rows" in result and result["rows"]:
+            logger.info(f"Retrieved {len(result['rows'])} rows from Dolt working set.")
+            for row_data in result["rows"]:
+                try:
+                    # Prepare row data for Pydantic model validation.
+                    # Pydantic should handle type conversions (e.g., str to datetime, JSON str to dict/list).
+                    # Create a copy to avoid modifying the original result row if necessary.
+                    # Fields like 'tags', 'metadata', 'links', 'confidence' might be JSON strings
+                    # if not automatically parsed by doltpy with result_format="json".
+                    # The MemoryBlock model expects Python dicts/lists for these.
+
+                    parsed_row = {}
+                    for key, value in row_data.items():
+                        if value is None:  # Pydantic handles optional fields being None
+                            parsed_row[key] = None
+                            continue
+
+                        # Explicitly parse potential JSON string fields if not auto-parsed
+                        if key in ["tags", "metadata", "links", "confidence"]:
+                            if isinstance(value, str):
+                                try:
+                                    parsed_row[key] = json.loads(value)
+                                except json.JSONDecodeError:
+                                    logger.warning(
+                                        f"Failed to parse JSON string for field '{key}' in block ID {row_data.get('id', 'UNKNOWN')}: {value}"
+                                    )
+                                    parsed_row[key] = (
+                                        value  # Keep as string if parsing fails, Pydantic might handle or error
+                                    )
+                            else:
+                                parsed_row[key] = value  # Assume already parsed by doltpy
+                        else:
+                            parsed_row[key] = value
+
+                    # Ensure all required fields for MemoryBlock are present or handle defaults
+                    # This simplified example assumes most fields are coming from Dolt.
+                    # Add default values here if any are missing from the SELECT but required by MemoryBlock
+                    # and not Optional with a default in the model. For example:
+                    # parsed_row.setdefault('state', 'draft') # If state can be null from DB but required
+
+                    memory_block = MemoryBlock.model_validate(parsed_row)
+                    memory_blocks_list.append(memory_block)
+
+                except ValidationError as e:
+                    logger.error(
+                        f"Pydantic validation failed for row (Block ID: {row_data.get('id', 'UNKNOWN')}): {e}"
+                    )
+                except Exception as parse_e:
+                    logger.error(
+                        f"Unexpected error processing row (Block ID: {row_data.get('id', 'UNKNOWN')}): {parse_e}",
+                        exc_info=True,
+                    )
+        else:
+            logger.info("No rows returned from the Dolt working set query.")
+
+    except FileNotFoundError:
+        logger.error(f"Dolt database path not found: {db_path}")
+        raise
+    except Exception as e:
+        logger.error(f"Failed to read from Dolt DB working set at {db_path}: {e}", exc_info=True)
+        return []
+
+    logger.info(
+        f"Finished reading. Successfully parsed {len(memory_blocks_list)} MemoryBlocks from working set."
+    )
+    return memory_blocks_list
+
+
 # Example Usage (can be run as a script for testing)
 if __name__ == "__main__":
     logger.info("Running Dolt reader example...")

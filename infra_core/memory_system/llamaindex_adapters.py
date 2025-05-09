@@ -51,6 +51,12 @@ def memory_block_to_node(block: MemoryBlock) -> TextNode:
     # --- Map MemoryBlock fields to metadata ---
     # Simple fields
     metadata["type"] = block.type
+
+    # Directly promote 'title' from block.metadata
+    # This makes it top-level accessible in the LlamaIndex Node's metadata
+    if block.metadata and "title" in block.metadata:
+        metadata["title"] = block.metadata["title"]
+
     if block.tags:
         metadata["tags"] = ",".join(block.tags)  # Join tags into a comma-separated string
     if block.source_file:
@@ -64,7 +70,12 @@ def memory_block_to_node(block: MemoryBlock) -> TextNode:
     # Store nested metadata as a JSON string for potential filtering/retrieval
     if block.metadata:
         try:
-            serializable_metadata = convert_datetimes_to_isoformat(block.metadata)
+            # Create a copy to avoid modifying the original if serializing the rest
+            metadata_to_serialize = block.metadata.copy()
+            # Optionally, if you want metadata_json to not duplicate the promoted title:
+            # metadata_to_serialize.pop("title", None)
+
+            serializable_metadata = convert_datetimes_to_isoformat(metadata_to_serialize)
             metadata["metadata_json"] = json.dumps(serializable_metadata)
         except TypeError as e:
             logger.warning(f"Could not serialize metadata for block {block.id}: {e}")
