@@ -17,6 +17,7 @@ class DocMetadata(BaseMetadata):
     Basic structure for documentation blocks.
     """
 
+    title: str = Field(..., description="Title of the document")
     audience: Optional[str] = Field(
         None, description="Intended audience for the document (e.g., 'developers', 'users')"
     )
@@ -34,6 +35,7 @@ class DocMetadata(BaseMetadata):
         "json_schema_extra": {
             "examples": [
                 {
+                    "title": "Example Document Title",
                     "audience": "developers",
                     "section": "api-reference",
                     "version": "1.0.0",

@@ -34,7 +34,7 @@ SCHEMA_VERSIONS: Dict[str, int] = {
     "base": 2,
     "project": 2,
     "task": 2,
-    "doc": 2,
+    "doc": 3,
     "knowledge": 2,
     "log": 2,
 }

@@ -18,12 +18,13 @@ logger = logging.getLogger(__name__)
 
 # Baseline versions that require incrementing if files are modified
 # Update this whenever SCHEMA_VERSIONS in registry.py is appropriately updated
+# TODO: This is a cheap and brittle way to do this, but it's good enough for now.
 BASELINE_VERSIONS = {
-    "base": 1,
-    "project": 1,
-    "task": 1,
-    "doc": 1,
-    "knowledge": 1,
+    "base": 2,
+    "project": 2,
+    "task": 2,
+    "doc": 2,
+    "knowledge": 2,
     "log": 2,
 }
 
@@ -39,7 +40,7 @@ def get_staged_schema_versions() -> dict:
         dict: The SCHEMA_VERSIONS from the staged registry.py
     """
     try:
-        registry_path = "infra_core/memorysystem/schemas/registry.py"
+        registry_path = "infra_core/memory_system/schemas/registry.py"
 
         # Get the staged content of registry.py
         result = subprocess.run(
@@ -88,7 +89,7 @@ def get_modified_metadata_files() -> list[str]:
         )
 
         # Filter for metadata schema files
-        metadata_path = "infra_core/memorysystem/schemas/metadata/"
+        metadata_path = "infra_core/memory_system/schemas/metadata/"
         modified_files = [
             f
             for f in result.stdout.splitlines()
