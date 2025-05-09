@@ -52,7 +52,7 @@ class TestCogniAPI(unittest.TestCase):
 
     # --- Tests for /chat endpoint (stream_chat function) ---
 
-    @patch("legacy_logseq.cogni_api.send_message")  # Simpler patch
+    @patch("legacy_logseq.legacy_cogni_api.send_message")  # Simpler patch
     def test_chat_endpoint_no_history(self, mock_send_message):
         """Test POST /chat endpoint without history."""
         # Configure mock inside the test
@@ -69,7 +69,7 @@ class TestCogniAPI(unittest.TestCase):
         # Verify send_message was called correctly
         mock_send_message.assert_called_once_with("Hello", None)
 
-    @patch("legacy_logseq.cogni_api.send_message")  # Simpler patch
+    @patch("legacy_logseq.legacy_cogni_api.send_message")  # Simpler patch
     def test_chat_endpoint_with_history(self, mock_send_message):
         """Test POST /chat endpoint with history."""
         # Configure mock inside the test
@@ -115,9 +115,11 @@ class TestCogniAPI(unittest.TestCase):
 # Use IsolatedAsyncioTestCase for async function testing
 class TestSendMessageFunction(unittest.IsolatedAsyncioTestCase):
     @patch(
-        "legacy_logseq.cogni_api.ChatOpenAI", new=MockChatOpenAI
+        "legacy_logseq.legacy_cogni_api.ChatOpenAI", new=MockChatOpenAI
     )  # Replace ChatOpenAI with our mock
-    @patch("legacy_logseq.cogni_api.AsyncIteratorCallbackHandler")  # Mock the callback handler
+    @patch(
+        "legacy_logseq.legacy_cogni_api.AsyncIteratorCallbackHandler"
+    )  # Mock the callback handler
     async def test_send_message_constructs_correct_lc_messages_no_history(
         self, MockCallback, *args
     ):
@@ -137,8 +139,8 @@ class TestSendMessageFunction(unittest.IsolatedAsyncioTestCase):
         # Reset mock for other tests
         MockChatOpenAI.agenerate.reset_mock()
 
-    @patch("legacy_logseq.cogni_api.ChatOpenAI", new=MockChatOpenAI)
-    @patch("legacy_logseq.cogni_api.AsyncIteratorCallbackHandler")
+    @patch("legacy_logseq.legacy_cogni_api.ChatOpenAI", new=MockChatOpenAI)
+    @patch("legacy_logseq.legacy_cogni_api.AsyncIteratorCallbackHandler")
     async def test_send_message_constructs_correct_lc_messages_with_history(
         self, MockCallback, *args
     ):
@@ -168,8 +170,8 @@ class TestSendMessageFunction(unittest.IsolatedAsyncioTestCase):
 
         MockChatOpenAI.agenerate.reset_mock()
 
-    @patch("legacy_logseq.cogni_api.ChatOpenAI", new=MockChatOpenAI)
-    @patch("legacy_logseq.cogni_api.AsyncIteratorCallbackHandler")
+    @patch("legacy_logseq.legacy_cogni_api.ChatOpenAI", new=MockChatOpenAI)
+    @patch("legacy_logseq.legacy_cogni_api.AsyncIteratorCallbackHandler")
     async def test_send_message_handles_invalid_history_items(self, MockCallback, *args):
         """Verify send_message skips invalid history entries."""
         history = [
