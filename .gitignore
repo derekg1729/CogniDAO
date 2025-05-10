@@ -35,11 +35,12 @@ api.pid
 *.pid
 
 # Memory and vector database files
-/infra_core/memory/chroma/*
-!/infra_core/memory/chroma/.gitkeep
-/infra_core/memory/archive/*
-!/infra_core/memory/archive/.gitkeep
+/legacy_logseq/memory/chroma/*
+!/legacy_logseq/memory/chroma/.gitkeep
+/legacy_logseq/memory/archive/*
+!/legacy_logseq/memory/archive/.gitkeep
 /data/memory/
+/data/memory_chroma/
 /cogni-memory/
 /test_memory/
 .cache/

@@ -1,0 +1,145 @@
+{
+    "type": "Task",
+    "status": "in-progress",
+    "project": "CogniMemorySystem-POC",
+    "name": "Implement CrewAI Adapter (v2)",
+    "description": "Build the CrewAI adapter layer that lets CrewAI agents use StructuredMemoryBank via CogniTool wrappers while preserving MCP/Autogen compatibility.",
+    "action_items": [
+        {
+            "item": "Repository + Package Setup",
+            "details": [
+                "[x] Create `cogni_adapters/__init__.py` with version metadata",
+                "[x] Add `cogni_adapters/crewai/__init__.py` exporting adapter classes",
+                "[x] Add `pyproject.toml` / `setup.py` with deps: crewai>=0.1,<0.2, llama-index, doltpy, autogen-core (optional)",
+                "[ ] Add GitHub Actions workflow for pytest + coverage, failing if <90% branch coverage"
+            ]
+        },
+        {
+            "item": "CogniMemoryStorage (ExternalMemory) Implementation",
+            "details": [
+                "[x] Implement class wrapping StructuredMemoryBank with `save`, `search`, `reset`",
+                "[x] Inject `StructuredMemoryBank` instance via constructor",
+                "[x] Map `save` ➜ `create_memory_block`, `search` ➜ `query_semantic`",
+                "[/] Implement `reset()` with clear semantics:",
+                "[ ]   - Clear LlamaIndex session cache",
+                "[ ]   - Create new Dolt branch named `agent_{timestamp}`",
+                "[x] Add logging + error propagation",
+                "[x] Unit‑test each method with an in‑memory Dolt clone",
+                "[x] Fix ID generation to use UUID4 or microsecond-precision timestamp",
+                "[x] Update save() to return structured response with block_id",
+                "[x] Add max_results guard to search() (min(top_k, 20))",
+                "[x] Document reset() as no-op or implement session branch",
+                "[x] Extract 'knowledge' type to constant or param",
+                "[x] Add type hints for metadata dict"
+            ]
+        },
+        {
+            "item": "CogniTool Base Enhancements",
+            "details": [
+                "[x] Keep inheritance `CogniTool(FunctionTool)` (MCP ready)",
+                "[x] Guard `autogen_core` import with try/except for optional install",
+                "[x] Implement `.as_langchain_tool()` returning `LangChainTool` for CrewAI",
+                "[x] Ensure wrapper injects `memory_bank` when `memory_linked` and `external_memory` present"
+            ]
+        },
+        {
+            "item": "Core Tool Adapter Implementation",
+            "details": [
+                "[x] Create thin wrappers around existing core tools:",
+                "[x]   - Re-export `create_memory_block_tool` from core",
+                "[x]   - Re-export `query_memory_blocks_tool` from core",
+                "[x] Define `MemoryBlockFilterInput` schema for type-safe filtering (using core schema)",
+                "[x] Ensure wrappers use filter schema instead of raw dicts",
+                "[ ] Add `.to_mcp_route()` metadata for each",
+                "[x] Unit tests covering happy‑path + validation errors",
+                "[x] Verify core tools return LangChain Tool instances",
+                "[x] Review core tool implementations for CrewAI compatibility"
+            ]
+        },
+        {
+            "item": "CrewAI Integration Tests",
+            "details": [
+                "[x] YAML crew: Thinker(agent) with `external_memory`=CogniMemoryStorage and `tools`=[SaveMemoryBlockTool.as_langchain_tool()]",
+                "[x] Python test spins up crew, submits prompt, asserts Dolt commit exists + LlamaIndex node count==1",
+                "[x] Add second agent Reflector using `QueryMemoryBlockTool`, assert retrieval accuracy",
+                "[x] Test error handling:",
+                "[ ]   - Force LlamaIndex exception during save",
+                "[ ]   - Verify Dolt rollback occurs",
+                "[ ]   - Assert no partial state remains"
+            ]
+        },
+        {
+            "item": "Documentation + Examples",
+            "details": [
+                "[x] Docstrings for all public classes",
+                "[ ] `README.md` snippet: install + YAML sample",
+                "[ ] Architecture diagram update (markdown / mermaid)",
+                "[ ] Create `scripts/demo_crewai.py` with minimal working example",
+                "[ ] Usage example notebook or script"
+            ]
+        },
+        {
+            "item": "High Priority Fixes",
+            "details": [
+                "[x] Patch CogniTool.as_langchain_tool to inject memory_bank from agent.external_memory",
+                "[x] Update CogniMemoryStorage.save to return structured response with block_id",
+                "[x] Write integration test for CrewAI Thinker + Reflector with memory persistence"
+            ]
+        },
+        {
+            "item": "Medium Priority Improvements",
+            "details": [
+                "[x] Implement reset() as no-op returning True or document CrewAI agent restrictions",
+                "[ ] Add text truncation/summarization to QueryMemoryBlocksTool output",
+                "[x] Wrap autogen_core import in try/except for optional install"
+            ]
+        },
+        {
+            "item": "Low Priority Optimizations",
+            "details": [
+                "[x] Fix UUID4 ID generation (completed)",
+                "[ ] Cache wrapper creation in CogniTool.__call__"
+            ]
+        }
+    ],
+    "test_criteria": [
+        "CogniMemoryStorage correctly registers with CrewAI as ExternalMemory",
+        "`save`, `search`, `reset` delegate to StructuredMemoryBank and propagate exceptions",
+        "SaveMemoryBlockTool and QueryMemoryBlockTool pass validation and operate atomically (Dolt commit + index)",
+        "Integration test shows CrewAI agent can create then query the same MemoryBlock",
+        "Error handling tests verify Dolt rollback on LlamaIndex failures"
+    ],
+    "dependencies": [
+        "task-3.1-structuredmemorybank.json",
+        "task-3.5-creatememoryblock-tool.json",
+        "task-3.4-querymemoryblocks-tool.json"
+    ],
+    "success_criteria": {
+        "functionality": [
+            "CrewAI agent stores and retrieves MemoryBlocks through adapter without errors",
+            "Dolt commit proofs are recorded for each save/update/delete",
+            "LlamaIndex search returns expected blocks with ≥90% recall in test set",
+            "Error handling maintains atomicity with proper rollback"
+        ],
+        "code_quality": [
+            ">90% branch coverage on adapter and tools modules",
+            "No hard dependency on Autogen if not installed",
+            "Logging includes block_id, commit_hash, and operation type",
+            "Type-safe filter schemas prevent raw dict usage"
+        ],
+        "documentation": [
+            "Clear quick‑start README section",
+            "API docs generated via docstring extraction",
+            "Mermaid diagram illustrates adapter flow",
+            "Working demo script in scripts/demo_crewai.py"
+        ]
+    },
+    "estimated_effort": "intensive single‑day sprint",
+    "priority": "high",
+    "notes": "Focus strictly on adapter and minimal demo crew; full UI wiring and Autogen adapter deferred. Note: Agent-facing tool wrappers (QueryProjectsTool, etc.) are separate from adapter layer and will be implemented in subsequent tasks. Package structure: Keep cogni_adapters at repo root (sibling to infra_core) for clean distribution. Recent updates: Fixed ID generation to use UUID4, implemented structured responses for save(), added max_results guard to search(), and documented reset() as no-op for now. Next focus: High-priority fixes for memory_bank injection and structured save responses.",
+    "architecture_notes": {
+        "adapter_layer": "The adapter layer (CogniMemoryStorage + CogniTool.as_langchain_tool()) only cares about: 1) A callable that touches StructuredMemoryBank, 2) A LangChain-compatible Tool wrapper for CrewAI registration.",
+        "tool_architecture": "Multi-tier tool structure (core ↔ agent-facing) is an API-surface concern, not part of the adapter layer. Core tools remain unchanged; agent-facing wrappers can be added later.",
+        "crewai_usage": "In YAML, agents only see the tools they need (e.g., QueryProjectsTool), while internally using the same adapter path → StructuredMemoryBank → Dolt/LlamaIndex."
+    }
+}

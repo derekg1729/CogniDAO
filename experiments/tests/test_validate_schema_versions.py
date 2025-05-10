@@ -41,9 +41,9 @@ class TestValidateSchemaVersions(unittest.TestCase):
     def test_get_block_type_from_path(self):
         """Test extracting block type from file path."""
         test_cases = [
-            ("experiments/src/memory_system/schemas/metadata/task.py", "task"),
-            ("experiments/src/memory_system/schemas/metadata/project.py", "project"),
-            ("experiments/src/memory_system/schemas/metadata/doc.py", "doc"),
+            ("infra_core/memory_system/schemas/metadata/task.py", "task"),
+            ("infra_core/memory_system/schemas/metadata/project.py", "project"),
+            ("infra_core/memory_system/schemas/metadata/doc.py", "doc"),
         ]
 
         for path, expected in test_cases:
@@ -56,15 +56,15 @@ class TestValidateSchemaVersions(unittest.TestCase):
         """Test detection of modified metadata files."""
         # Mock git diff output
         mock_run.return_value.stdout = """
-experiments/src/memory_system/schemas/metadata/task.py
-experiments/src/memory_system/schemas/metadata/project.py
+infra_core/memory_system/schemas/metadata/task.py
+infra_core/memory_system/schemas/metadata/project.py
 some_other_file.py
 """
 
         result = get_modified_metadata_files()
         self.assertEqual(len(result), 2)
-        self.assertIn("experiments/src/memory_system/schemas/metadata/task.py", result)
-        self.assertIn("experiments/src/memory_system/schemas/metadata/project.py", result)
+        self.assertIn("infra_core/memory_system/schemas/metadata/task.py", result)
+        self.assertIn("infra_core/memory_system/schemas/metadata/project.py", result)
 
     @patch("scripts.validate_schema_versions.get_modified_metadata_files")
     @patch("scripts.validate_schema_versions.get_staged_schema_versions")
@@ -72,18 +72,17 @@ some_other_file.py
         """Test successful validation when all modified files have version entries."""
         # Mock modified files
         mock_get_files.return_value = [
-            "experiments/src/memory_system/schemas/metadata/task.py",
-            "experiments/src/memory_system/schemas/metadata/project.py",
+            "infra_core/memory_system/schemas/metadata/task.py",
+            "infra_core/memory_system/schemas/metadata/project.py",
         ]
         # Mock the versions read from the staged registry.py
-        # Assume versions were correctly incremented relative to BASELINE_VERSIONS in the script
-        # BASELINE_VERSIONS = {"base": 1, "project": 1, "task": 1, "doc": 1, "knowledge": 1, "log": 2}
+        # BASELINE_VERSIONS = {"base": 2, "project": 2, "task": 2, "doc": 2, "knowledge": 2, "log": 2}
         mock_get_versions.return_value = {
-            "base": 1,  # Not modified, version doesn't matter
-            "project": 2,  # Modified, version > baseline (1) -> OK
-            "task": 2,  # Modified, version > baseline (1) -> OK
-            "doc": 1,  # Not modified
-            "knowledge": 1,  # Not modified
+            "base": 2,  # Not modified, version equals baseline
+            "project": 3,  # Modified, version > baseline (2) -> OK
+            "task": 3,  # Modified, version > baseline (2) -> OK
+            "doc": 2,  # Not modified
+            "knowledge": 2,  # Not modified
             "log": 2,  # Not modified
         }
 
@@ -96,8 +95,8 @@ some_other_file.py
         """Test validation failure when a modified file lacks version entry."""
         # Mock modified files
         mock_get_files.return_value = [
-            "experiments/src/memory_system/schemas/metadata/task.py",
-            "experiments/src/memory_system/schemas/metadata/new_type.py",
+            "infra_core/memory_system/schemas/metadata/task.py",
+            "infra_core/memory_system/schemas/metadata/new_type.py",
         ]
         # Mock versions read from staged registry.py (missing 'new_type')
         mock_get_versions.return_value = {
@@ -120,16 +119,16 @@ some_other_file.py
         """Test validation failure when base.py is modified but version not incremented."""
         # Mock base.py being modified
         mock_get_files.return_value = [
-            "experiments/src/memory_system/schemas/metadata/base.py",
+            "infra_core/memory_system/schemas/metadata/base.py",
         ]
         # Mock versions where 'base' is NOT incremented relative to BASELINE_VERSIONS
-        # BASELINE_VERSIONS has base: 1, so staged version 1 should fail
+        # BASELINE_VERSIONS has base: 2, so staged version 2 should fail
         mock_get_versions.return_value = {
-            "base": 1,  # Modified, but version <= baseline (1) -> FAIL
-            "project": 1,
-            "task": 1,
-            "doc": 1,
-            "knowledge": 1,
+            "base": 2,  # Modified, but version <= baseline (2) -> FAIL
+            "project": 2,
+            "task": 2,
+            "doc": 2,
+            "knowledge": 2,
             "log": 2,
         }
 
@@ -142,14 +141,14 @@ some_other_file.py
             mock_logger.error.assert_called()
 
     # 🚨 WARNING:
-    # If this test fails after moving schemas to 'infra_core', it's working as intended!
+    # If this test fails after moving schemas to 'legacy_logseq', it's working as intended!
     # Update the hardcoded path in scripts/validate_schema_versions.py
     @patch("subprocess.run")
     def test_future_path_structure_does_not_trigger_hook(self, mock_run):
         """Ensure that files outside expected path do not trigger validation (and warn us)."""
         # Simulate a new future path structure
         mock_run.return_value.stdout = """
-infra_core/src/memory_system/schemas/metadata/task.py
+legacy_logseq/src/memory_system/schemas/metadata/task.py
 """
 
         result = get_modified_metadata_files()
@@ -158,7 +157,7 @@ infra_core/src/memory_system/schemas/metadata/task.py
         self.assertEqual(
             result,
             [],
-            "Future path structure was incorrectly matched. This test will fail when code is moved to infra_core, reminding us to update file paths.",
+            "Future path structure was incorrectly matched. This test will fail when code is moved to legacy_logseq, reminding us to update file paths.",
         )
 
 

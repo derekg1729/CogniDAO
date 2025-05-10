@@ -3,11 +3,15 @@ from pathlib import Path
 
 # --- Core Paths ---
 
-# Calculate the absolute path of the project root directory (one level above infra_core)
+# Calculate the absolute path of the project root directory (one level above legacy_logseq)
 BASE_DIR = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Define the root directory for memory banks (outside infra_core)
+# Define the root directory for memory banks (outside legacy_logseq)
 MEMORY_BANKS_ROOT = BASE_DIR / "data" / "memory_banks"
+
+# Define memory system data paths
+MEMORY_DOLT_ROOT = BASE_DIR / "data" / "memory_dolt"
+MEMORY_CHROMA_ROOT = BASE_DIR / "data" / "memory_chroma"
 
 # Define the directory for agent-specific files like thoughts
 # (Even if not writing directly, agents might use this for their root)
@@ -23,8 +27,10 @@ BROADCAST_QUEUE_ROOT = MEMORY_BANKS_ROOT / BROADCAST_QUEUE_PROJECT / BROADCAST_Q
 
 # Test-specific constants
 TEST_SESSION = "test_session"
-BROADCAST_QUEUE_TEST_SESSION = TEST_SESSION  
-BROADCAST_QUEUE_TEST_ROOT = MEMORY_BANKS_ROOT / BROADCAST_QUEUE_PROJECT / BROADCAST_QUEUE_TEST_SESSION
+BROADCAST_QUEUE_TEST_SESSION = TEST_SESSION
+BROADCAST_QUEUE_TEST_ROOT = (
+    MEMORY_BANKS_ROOT / BROADCAST_QUEUE_PROJECT / BROADCAST_QUEUE_TEST_SESSION
+)
 
 # Mock memory path for tests
 TEST_MOCK_MEMORY_ROOT = Path.home() / "test" / "mock" / "memory"
@@ -33,7 +39,9 @@ TEST_MOCK_MEMORY_ROOT = Path.home() / "test" / "mock" / "memory"
 # MEMORY_BANKS_ROOT.mkdir(parents=True, exist_ok=True)
 # AGENTS_DATA_ROOT.mkdir(parents=True, exist_ok=True)
 # THOUGHTS_DIR.mkdir(parents=True, exist_ok=True) # Example if needed
+# MEMORY_DOLT_ROOT.mkdir(parents=True, exist_ok=True)
+# MEMORY_CHROMA_ROOT.mkdir(parents=True, exist_ok=True)
 
 
 # --- Other Constants (Example) ---
-DEFAULT_PROJECT_NAME = "cogni-default" 
+DEFAULT_PROJECT_NAME = "cogni-default"

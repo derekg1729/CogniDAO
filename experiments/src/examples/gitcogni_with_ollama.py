@@ -17,9 +17,9 @@ sys.path.append(str(project_root))
 
 # Import after sys.path adjustment
 from experiments.src.core.models.ollama_model_handler import OllamaModelHandler  # noqa: E402
-from infra_core.cogni_agents.git_cogni.git_cogni import GitCogniAgent  # noqa: E402
-from infra_core.memory.memory_bank import CogniMemoryBank  # noqa: E402
-from infra_core.constants import MEMORY_BANKS_ROOT  # noqa: E402
+from legacy_logseq.cogni_agents.git_cogni.git_cogni import GitCogniAgent  # noqa: E402
+from legacy_logseq.memory.memory_bank import CogniMemoryBank  # noqa: E402
+from legacy_logseq.constants import MEMORY_BANKS_ROOT  # noqa: E402
 
 
 def main():

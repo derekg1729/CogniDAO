@@ -1,27 +1,38 @@
+FROM dolthub/dolt-sql-server:latest as dolt
+
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy requirements first for better caching
+# Install required system dependencies for building packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc g++ libaio-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy dolt binary and configuration from the dolthub/dolt-sql-server image
+COPY --from=dolt /usr/local/bin/dolt /usr/local/bin/dolt
+
+# Configure dolt
+RUN dolt config --global --add user.email "cogni-api@example.com" && \
+    dolt config --global --add user.name "Cogni API"
+
 COPY requirements.api.txt ./
 RUN pip install --upgrade pip && \
-    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.api.txt
 
-# Copy knowledge sources and informational files
-COPY api_indexed_files/ api_indexed_files/
+# Copy knowledge sources and data directories
+# These files might not be needed with the Dolt memory system
+# COPY api_indexed_files/ api_indexed_files/
+COPY data/memory_dolt/ data/memory_dolt/
+COPY data/memory_chroma/ data/memory_chroma/
 
-# Copy only the necessary application files from infra_core
-COPY infra_core/__init__.py infra_core/
-COPY infra_core/cogni_api.py infra_core/
-COPY infra_core/models.py infra_core/
-COPY infra_core/memory/ infra_core/memory/
-
-# Copy run script (still useful for potential local dev inside container)
+# Copy application code
+COPY infra_core/ infra_core/
 COPY run_cogni_api.py ./
 
-# Install gunicorn for production serving
-RUN pip install gunicorn
+# Expose port
+EXPOSE 8000
 
-# Command to run the API with gunicorn for production
-CMD ["gunicorn", "infra_core.cogni_api:app", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000", "--workers", "2"] 
+# Run the API
+CMD ["uvicorn", "infra_core.cogni_api:app", "--host", "0.0.0.0", "--port", "8000"] 

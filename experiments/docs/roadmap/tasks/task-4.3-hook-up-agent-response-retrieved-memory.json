@@ -1,15 +1,15 @@
 {
   "type": "Task",
-  "status": "todo",
+  "status": "in-progress",
   "project": "../project-CogniMemorySystem-POC.json",
   "id": "4.3",
   "title": "Hook up agent response to include retrieved memory blocks",
   "phase": "🌐 Frontend + API Hookup",
   "goal": "Allow users to see the source memory blocks used by the agent to generate its response.",
   "action_items": [
-    "[ ] Modify the `/api/chat` endpoint (Task 4.1) or the agent logic (Phase 3) to capture the source nodes/blocks retrieved by the `QueryMemoryBlocks` tool.",
-    "[ ] Determine how to send this source information to the frontend:",
-    "[ ] Option A: Send as separate metadata alongside the streaming response (e.g., using Vercel AI SDK data messages or custom SSE events).",
+    "[/] Modify the `/api/chat` endpoint (Task 4.1) or the agent logic (Phase 3) to capture the source nodes/blocks retrieved by the `QueryMemoryBlocks` tool.",
+    "[x] Determine how to send this source information to the frontend:",
+    "[x] Option A: Send as separate metadata alongside the streaming response (e.g., using Vercel AI SDK data messages or custom SSE events).",
     "[ ] Option B: Include citations or summaries within the streamed response text itself.",
     "[ ] Modify the frontend (Task 4.2) to receive and display this source information.",
     "[ ] Add a UI element (e.g., a small citation link, an expandable section below the message) to show the retrieved block(s)."
@@ -19,5 +19,5 @@
     "Verify the agent's response appears.",
     "Verify that information about the source MemoryBlock(s) used is displayed alongside or linked from the agent's response in the UI."
   ],
-  "current_status": "Not started."
-} 
+  "current_status": "Research phase completed. Here are the key findings:\n\n1. Core Components to Modify:\n   - Update `legacy_logseq/cogni_api.py` to integrate with the new StructuredMemoryBank and LlamaMemory systems\n   - Create a new ChatResponse model that includes source blocks\n\n2. Implementation Path:\n   - Replace the current memory client with StructuredMemoryBank in the API lifespan\n   - Update `/chat` endpoint to query StructuredMemoryBank's semantic search\n   - Modify the response streaming to include source block metadata\n   - Return MemoryBlocks with query results\n\n3. Specific Files to Modify:\n   - `legacy_logseq/cogni_api.py`: Replace CogniMemoryClient with StructuredMemoryBank\n   - `infra_core/models.py`: Extend ChatResponse to include source blocks\n\n4. Component Interfaces:\n   - `query_semantic` method from StructuredMemoryBank will retrieve blocks\n   - SSE events will be used to send both text and source blocks\n   - Add serialization for MemoryBlock to ensure clean JSON output\n\nNext steps: Implement the code changes and test the API integration."
+}

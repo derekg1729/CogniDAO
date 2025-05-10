@@ -1,0 +1,17 @@
+# Configuration for the GitCogni review flow
+
+name: gitcogni
+prefect-version: 3.3.3
+
+pull:
+- prefect.deployments.steps.set_working_directory:
+    directory: ../../..
+
+deployments:
+- name: gitcogni-review
+  entrypoint: legacy_logseq/flows/gitcogni/gitcogni_flow.py:gitcogni_review_flow
+  work_pool:
+    name: cogni-pool
+  parameters:
+    pr_url: null
+    test_mode: false 

@@ -4,6 +4,7 @@ tweepy
 openai>=1.0.0
 PyGithub>=2.1.1
 python-dotenv # From experimental
+crewai>=0.1,<0.2  # For CrewAI adapter
 
 # Langchain related (from experimental)
 langchain-core 

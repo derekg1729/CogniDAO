@@ -12,8 +12,17 @@ langchain-openai
 
 # Memory component dependencies
 chromadb
-sentence-transformers
-torch
+# The following packages may not be needed if using OpenAI embeddings
+# sentence-transformers
+# torch
 tqdm
 python-frontmatter
 onnxruntime 
+
+# Dolt memory system dependencies
+doltpy
+llama-index-core
+llama-index-embeddings-huggingface
+llama-index-vector-stores-chroma
+llama-index-embeddings-openai
+llama-index-llms-openai 

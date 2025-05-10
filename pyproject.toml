@@ -1,3 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cogni-adapters"
+version = "0.1.0"
+description = "Adapter layers for integrating Cogni's memory system with various AI frameworks"
+authors = [
+    { name = "CogniDAO" }
+]
+dependencies = [
+    "crewai>=0.1,<0.2",
+    "llama-index>=0.10,<0.11",
+    "doltpy"
+]
+requires-python = ">=3.9"
+
+[project.optional-dependencies]
+autogen = ["autogen-core"]
+
 [tool.ruff]
 line-length = 100
 exclude = ["build", "dist", ".venv", "__pycache__"]
