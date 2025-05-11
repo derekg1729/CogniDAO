@@ -1,0 +1,68 @@
+{
+    "type": "Task",
+    "status": "todo",
+    "project": "LiveKnowledgeNodeBackendDoltFastAPI",
+    "name": "Live Knowledge-Node Backend (Dolt + FastAPI) - V4",
+    "description": "Serve knowledge-node data from an on-disk Dolt repo. Emphasizes secure, read-only API access to Dolt, robust Docker networking, correct volume mounting, and clear development/testing practices.",
+    "key_principles": [
+        "⛴  Two lightweight containers — one for Dolt SQL-Server, one for FastAPI, on a dedicated bridge network.",
+        "📦  Ship the Dolt repo in-repo (`data/memory_dolt/` which is the root of the Dolt DB) for local Dolt DB in deployment.",
+        "🔐  API uses dedicated, read-only credentials (defined in `.env.dev` and created via `bootstrap.sql`) for accessing Dolt.",
+        "🌱  Keep Chroma vectors on disk (`data/memory_chroma/`) so we can RAG later.",
+        "📝  All secrets (DB passwords, API keys) managed via `.env.dev` and not hardcoded."
+    ],
+    "implementation_details": {
+        "target_files": [
+            "deploy/docker-compose.yml",
+            "deploy/dolt_bootstrap/bootstrap.sql",
+            "Dockerfile.api",
+            "infra_core/cogni_api.py",
+            "infra_core/routers/nodes_router.py",
+            "requirements.api.txt",
+            "requirements.dev.txt",
+            ".env.dev"
+        ],
+        "required_libraries_prod": [
+            "fastapi",
+            "uvicorn[standard]",
+            "mysql-connector-python"
+        ],
+        "required_libraries_dev": [
+            "pytest",
+            "httpx"
+        ],
+        "action_items": [
+            "[ ] **(env_setup)** Create/Update `.env.dev` at the project root. Include: `COGNI_DOLT_ROOT_PASSWORD`, `COGNI_DOLT_RO_USER`, `COGNI_DOLT_RO_PASSWORD`, `COGNI_DOLT_HOST=dolt`, `COGNI_DOLT_DB_NAME=knowledge`, `CHROMA_PATH=/app/data/memory_chroma`, `FRONTEND_ORIGIN=http://localhost:3000` (and other necessary API keys like `OPENAI_API_KEY`).",
+            "[ ] **(bootstrap_sql_creation)** Create `deploy/dolt_bootstrap/bootstrap.sql` with content: `CREATE USER IF NOT EXISTS '${COGNI_DOLT_RO_USER}'@'%' IDENTIFIED BY '${COGNI_DOLT_RO_PASSWORD}'; GRANT SELECT ON \`${COGNI_DOLT_DB_NAME}\`.* TO '${COGNI_DOLT_RO_USER}'@'%'; FLUSH PRIVILEGES;` (Ensure backticks around DB name if it could contain special chars).",
+            "[ ] **(compose_file_update)** Update `deploy/docker-compose.yml`:",
+            "  - [ ] Define a top-level network: `networks: cogni-net: driver: bridge`.",
+            "  - [ ] `dolt` service: image `dolthub/dolt-sql-server:latest`. `env_file: [../.env.dev]`. Command: `[\"dolt\", \"sql-server\", \"--host=0.0.0.0\", \"--user=root\", \"--password=${COGNI_DOLT_ROOT_PASSWORD}\", \"--port=3306\", \"--init-file=/docker-entrypoint-initdb.d/bootstrap.sql\", \"--loglevel=debug\", \"${COGNI_DOLT_DB_NAME}\"]` (ensure `COGNI_DOLT_DB_NAME` is the last arg for the db to serve). Volumes: `../data/memory_dolt:/var/lib/dolt/repos/${COGNI_DOLT_DB_NAME}` (ensure `../data/memory_dolt` on host IS the root of your Dolt repository), `../deploy/dolt_bootstrap/bootstrap.sql:/docker-entrypoint-initdb.d/bootstrap.sql:ro`. Healthcheck: `test: [\"CMD\", \"dolt\", \"sql\", \"-q\", \"SELECT 1;\"]`, `interval: 5s`, `retries: 10`, `start_period: 15s`. Assign to `cogni-net` network. `restart: unless-stopped`.",
+            "  - [ ] `api` service: build context `../`, `dockerfile: Dockerfile.api`. `env_file: [../.env.dev]`. Volumes: `../infra_core:/app/infra_core`, `../data/memory_chroma:/app/data/memory_chroma`. Expose port 8000. Depends on `dolt` (healthy). Assign to `cogni-net` network. `restart: unless-stopped`.",
+            "[ ] **(dockerfile_api_update)** Update `Dockerfile.api`: `WORKDIR /app`. (Remove `gcc`, `g++` from apt-get installs if not needed by any direct dependency). Copy `requirements.api.txt`, install. Copy app code (`infra_core/`, `run_cogni_api.py`). CMD `[\"uvicorn\", \"infra_core.cogni_api:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]`.",
+            "[ ] **(requirements_split)** Create `requirements.api.txt` (prod deps: `fastapi`, `uvicorn[standard]`, `mysql-connector-python`). Create `requirements.dev.txt` (dev deps: `pytest`, `httpx`). Comment in `requirements.api.txt`: `# Consider asyncmy or aiomysql for future async refactor.`",
+            "[ ] **(fastapi_cors)** In `infra_core/cogni_api.py` (main FastAPI app file): import `CORSMiddleware`, add to app with `allow_origins=[os.getenv(\"FRONTEND_ORIGIN\")]`, `allow_credentials=True`, `allow_methods=[\"*\"]`, `allow_headers=[\"*\"]`.",
+            "[ ] **(fastapi_router_impl)** In `infra_core/routers/nodes_router.py`: Connect to Dolt using read-only creds from env vars (`COGNI_DOLT_RO_USER`, `COGNI_DOLT_RO_PASSWORD`, `COGNI_DOLT_HOST`, `COGNI_DOLT_DB_NAME`). Use `with mysql.connector.connect(**cfg) as cnx:` for connection management. Implement `/nodes` GET endpoint.",
+            "[ ] **(router_registration)** In `infra_core/cogni_api.py`, import and include the nodes router (`prefix=\"/api\"`).",
+            "[ ] **(api_unit_test)** Create `tests/test_api_nodes.py`. Add unit test for `GET /api/nodes` using `pytest` and FastAPI's `TestClient` (`from fastapi.testclient import TestClient`). Monkeypatch/mock the database connection (e.g., `mysql.connector.connect` or a `get_db` dependency) to return a stub.",
+            "[ ] **(frontend_wireup)** Ensure Next.js frontend uses `NEXT_PUBLIC_BACKEND_URL` (e.g., `process.env.NEXT_PUBLIC_BACKEND_URL || \"http://localhost:8000\"`) for API calls to `/api/nodes`.",
+            "[ ] **(manual_test)** Run `docker compose -f deploy/docker-compose.yml up --build`. Verify Dolt server starts with specified command and init file, `SHOW DATABASES` lists `${COGNI_DOLT_DB_NAME}`. Verify API connectivity, read-only user access, CORS, and UI."
+        ]
+    },
+    "success_criteria": [
+        "[ ] `docker compose -f deploy/docker-compose.yml up --build` starts services on `cogni-net` without errors.",
+        "[ ] Dolt service executes `bootstrap.sql` (check logs or user privileges) creating read-only user defined in `.env.dev`.",
+        "[ ] Dolt server command in `docker ps` output matches the defined command including `--init-file`.",
+        "[ ] API service uses read-only Dolt credentials from `.env.dev`.",
+        "[ ] `GET http://localhost:8000/api/nodes?q=` returns JSON from Dolt via the read-only user.",
+        "[ ] CORS headers are correctly set, allowing requests from `FRONTEND_ORIGIN`.",
+        "[ ] Unit tests in `tests/test_api_nodes.py` pass, mocking DB interactions.",
+        "[ ] Next.js UI loads data from `/api/nodes` (via `NEXT_PUBLIC_BACKEND_URL`)."
+    ],
+    "follow_up": [
+        "🌿 Prefect flow to rebuild Chroma vectors from updated Dolt rows.",
+        "🔒 Add API-key auth and rate-limits to relevant endpoints (not just global).",
+        "📤 Explore DoltLab or DoltHub for multi-contributor workflows when needed."
+    ],
+    "priority": "high",
+    "current_status": "Task definition V4: Refined Docker command, volumes, healthcheck, env vars, and testing scope based on detailed feedback."
+}
