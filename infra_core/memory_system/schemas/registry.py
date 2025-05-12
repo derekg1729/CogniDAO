@@ -192,3 +192,6 @@ def resolve_schema_model_and_version(
         raise TypeError(f"No schema model registered for block type: {block_type}")
 
     return model, resolved_version
+
+
+# Test comment AGAIN to trigger pre-commit hook

@@ -13,7 +13,7 @@ if [ -z "$DOLT_DB_PATH" ]; then
     echo "Error: Could not determine Dolt DB path." 
     exit 1
 fi
-echo "Using Dolt DB Path: $DOLT_DB_PATH"
+# # echo "Using Dolt DB Path: $DOLT_DB_PATH" # Commented out for quieter runs
 
 # --- Check Dolt Workspace Cleanliness --- #
 # Check if Dolt CLI is available
@@ -25,7 +25,7 @@ fi
 
 # Go into the Dolt directory to run dolt status
 if [ -d "$DOLT_DB_PATH" ]; then
-    echo "Checking Dolt status in $DOLT_DB_PATH..."
+    # # echo "Checking Dolt status in $DOLT_DB_PATH..." # Commented out for quieter runs
     DOLT_STATUS_OUTPUT=$(cd "$DOLT_DB_PATH" && dolt status)
     DOLT_STATUS_EXIT_CODE=$?
     
@@ -37,14 +37,15 @@ if [ -d "$DOLT_DB_PATH" ]; then
     # Check if status output indicates a clean working set
     # Adjust this check based on the exact output of `dolt status` for a clean repo
     if [[ "$DOLT_STATUS_OUTPUT" != *"nothing to commit, working tree clean"* ]]; then
-        echo "Error: Dolt working directory ($DOLT_DB_PATH) is not clean."
+        echo "Error: Dolt working directory ($DOLT_DB_PATH) is not clean (Comparison failed)."
         echo "Please commit or stash Dolt changes before registering schemas."
-        echo "------ Dolt Status ------"
+        echo "------ Dolt Status Again (Directly from script) ------"
         echo "$DOLT_STATUS_OUTPUT"
-        echo "-------------------------"
+        echo "-----------------------------------------------------"
         exit 1
     else
-        echo "Dolt working directory is clean."
+        # # echo "Dolt working directory is clean." # Commented out for quieter runs
+        : # Null command to satisfy Bash syntax for an empty else block
     fi
 else
     echo "Warning: Dolt directory $DOLT_DB_PATH not found. Skipping cleanliness check."
@@ -53,10 +54,12 @@ else
 fi
 
 # --- Run Schema Registration --- #
-# Run the script, explicitly passing the determined path for clarity 
-# (though the script would determine the same path internally)
-echo "Running schema registration script..."
-python infra_core/memory_system/scripts/register_schemas.py --db-path "$DOLT_DB_PATH"
+# Add current directory to PYTHONPATH to help Python find project modules
+export PYTHONPATH=".:$PYTHONPATH"
+
+# # echo "Running schema registration script..." # Commented out for quieter runs
+# Python script will be called with the correct PYTHONPATH set by the hook
+python infra_core/memory_system/scripts/register_schemas.py --db-path "$DOLT_DB_PATH" --quiet
 
 REGISTRATION_EXIT_CODE=$?
 if [ $REGISTRATION_EXIT_CODE -ne 0 ]; then
@@ -64,23 +67,6 @@ if [ $REGISTRATION_EXIT_CODE -ne 0 ]; then
     exit $REGISTRATION_EXIT_CODE
 fi
 
-# --- Check for Unstaged Git Changes in Dolt Path --- #
-# Use the determined path
-if [ ! -d "$DOLT_DB_PATH" ]; then
-    # This case should ideally not happen if registration succeeded and path was valid,
-    # but check defensively.
-    echo "Error: Dolt database directory $DOLT_DB_PATH not found after successful registration attempt?" 
-    exit 1
-fi
-
-GIT_STATUS_OUTPUT=$(git status --porcelain "$DOLT_DB_PATH")
-
-if [ -n "$GIT_STATUS_OUTPUT" ]; then
-    echo "Uncommitted git changes found in $DOLT_DB_PATH after schema registration:"
-    echo "$GIT_STATUS_OUTPUT"
-    echo "Please stage these changes (e.g., git add $DOLT_DB_PATH) and commit again."
-    exit 1
-else
-    echo "Schema registration successful and no uncommitted Dolt git changes found."
-    exit 0
-fi 
+# --- Final Git Cleanliness Check is now handled within register_schemas.py --- #
+# The exit code of the python script determines the hook's success/failure.
+exit $REGISTRATION_EXIT_CODE 
