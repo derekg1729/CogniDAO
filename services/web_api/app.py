@@ -18,6 +18,7 @@ from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 from .routes import health as health_router
 from .routes import chat as chat_router
 from .routes import blocks_router
+from .routes import schemas_router
 
 # Set up logger for this app module
 logger = logging.getLogger(__name__)
@@ -70,6 +71,7 @@ app = FastAPI(
 app.include_router(health_router.router)
 app.include_router(chat_router.router)
 app.include_router(blocks_router.router, prefix="/api", tags=["Blocks"])
+app.include_router(schemas_router.router)
 
 # Add CORS middleware
 app.add_middleware(
