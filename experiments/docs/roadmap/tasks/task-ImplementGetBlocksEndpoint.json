@@ -1,0 +1,70 @@
+{
+    "type": "Task",
+    "status": "todo",
+    "project": "ExistingBackendEnhancements",
+    "name": "Implement /api/memory_blocks Endpoint (Refactored Structure)",
+    "description": "Add a new `/api/memory_blocks` endpoint to the existing backend (now in `infra_core/main.py`) to serve memory block data, primarily queried from a Dolt database. This involves defining the Pydantic model for `MemoryBlock` in `infra_core/models/blocks.py`, implementing the API logic in `infra_core/api/blocks.py` with initial filtering, generating JSON schemas, and ensuring frontend compatibility. This task reflects the new refactored backend structure.",
+    "key_principles": [
+        "🛠️ Leverage the existing refactored backend infrastructure (`infra_core/main.py`, `infra_core/api/`, `infra_core/models/`).",
+        "📄 Clearly define the schema for `MemoryBlock` data in `infra_core/models/blocks.py` and generate JSON schemas.",
+        "🧪 Ensure the new endpoint is robust, well-tested (e.g., in `tests/api/test_blocks.py`), and adheres to API best practices.",
+        "🔗 Plan for seamless integration with the frontend.",
+        "💾 Blocks are sourced from Dolt, with potential static fallbacks during initial development. Logic to eventually reside in a service layer."
+    ],
+    "implementation_details": {
+        "target_files": [
+            "infra_core/main.py",
+            "infra_core/api/__init__.py",
+            "infra_core/api/blocks.py",
+            "infra_core/models/__init__.py",
+            "infra_core/models/blocks.py",
+            "schemas/backend/",
+            "tests/api/test_blocks.py",
+            ".env.dev",
+            "infra_core/services/query_blocks.py",
+            "infra_core/config.py"
+        ],
+        "required_libraries_prod": [
+            "fastapi",
+            "uvicorn[standard]",
+            "mysql-connector-python"
+        ],
+        "required_libraries_dev": [
+            "pytest",
+            "httpx"
+        ],
+        "action_items": [
+            "[x] **(Scaffold Model)** Defined Pydantic `MemoryBlock` model in `infra_core/models/blocks.py`.",
+            "[x] **(Scaffold API Router)** Created `infra_core/api/blocks.py` with initial endpoint logic and static fallback.",
+            "[x] **(Scaffold Main App)** Created `infra_core/main.py` as the FastAPI entry point and registered the blocks router.",
+            "[x] **(Create Package Inits)** Created `infra_core/api/__init__.py` and `infra_core/models/__init__.py`.",
+            "[ ] **(Generate Schemas)** Run `scripts/generate_schemas.py` to create/update JSON schemas for the `MemoryBlock` models in the `schemas/backend/` directory. Commit these schemas.",
+            "[ ] **(Implement Dolt Logic in API)** In `infra_core/api/blocks.py` (Note: this logic should eventually move to `infra_core/services/query_blocks.py` as a function like `query_blocks_from_dolt()`):",
+            "  - [ ] Uncomment and complete Dolt connection logic (ideally using env vars loaded via `infra_core/config.py`).",
+            "  - [ ] Implement the SQL query to fetch `MemoryBlock` data from Dolt, including `type` and `limit` filters.",
+            "  - [ ] Ensure robust error handling for database operations.",
+            "[ ] **(Write Unit Tests)** Create/Update `tests/api/test_blocks.py`. Write unit tests for the `/api/memory_blocks` endpoint using `pytest` and FastAPI's `TestClient`. Focus on mocking the (future) service layer function (e.g., `infra_core.services.query_blocks.query_blocks_from_dolt`). Test for successful responses, error cases, and parameter handling.",
+            "[ ] **(Environment Configuration & Config Module)** Set up Dolt connection variables (e.g., `DOLT_HOST`, `DOLT_PORT`, `DOLT_USER`, `DOLT_PASSWORD`, `DOLT_DATABASE`) in `.env.dev`. Plan or create `infra_core/config.py` to load these variables, providing dev-mode defaults or clear fallback behavior if `.env.dev` is incomplete, to facilitate early development.",
+            "[ ] **(Frontend Integration Planning)** Document or discuss with the frontend team the exact URL (`/api/memory_blocks`), expected request parameters, and response structure of the endpoint to facilitate integration.",
+            "[ ] **(Manual Test with Dolt)** Once Dolt logic is implemented, run the backend application locally and manually test the `/api/memory_blocks` endpoint to verify Dolt integration.",
+            "[ ] **(Cleanup Old Files)** Delete `infra_core/routers/memory_blocks_router.py` (and `infra_core/routers/` if empty). Review and migrate/delete old main API file (e.g., `cogni_api.py`)."
+        ]
+    },
+    "success_criteria": [
+        "[ ] The `/api/memory_blocks` endpoint in `infra_core/api/blocks.py` is successfully implemented and accessible via `infra_core/main.py`.",
+        "[ ] The endpoint returns `MemoryBlock` data (defined in `infra_core/models/blocks.py`) from Dolt, or static fallback during dev.",
+        "[ ] JSON schemas for `MemoryBlock` models are generated and located in `schemas/backend/`.",
+        "[ ] Unit tests in `tests/api/test_blocks.py` cover the endpoint's functionality (mocking the service layer) and pass.",
+        "[ ] Dolt connection variables are correctly configured (ideally via `config.py`) and used.",
+        "[ ] Old router/API files are cleaned up after migration."
+    ],
+    "follow_up": [
+        "↪️ Implement other API endpoints as per the new structure (e.g., `chat`, `health`).",
+        "↪️ Create and implement `infra_core/services/query_blocks.py` with `query_blocks_from_dolt()` function, moving DB logic out of the router.",
+        "↪️ Fully implement `infra_core/config.py` for centralized environment variable management with fallbacks/defaults.",
+        "↪️ Implement `infra_core/logging_config.py` and `infra_core/dependencies.py`.",
+        "🔐 Add authentication/authorization to the `/api/memory_blocks` endpoint if required."
+    ],
+    "priority": "high",
+    "current_status": "Backend structure refactored. Scaffolding for /api/memory_blocks endpoint (model, api router, main app) completed. Task definition refined to include future service layer and config best practices. Next: Implement Dolt query logic and tests."
+}
