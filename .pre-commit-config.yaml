@@ -12,4 +12,11 @@ repos:
         language: python
         types: [python]
         pass_filenames: false
-        additional_dependencies: ['pydantic>=2.0.0'] 
+        additional_dependencies: ['pydantic>=2.0.0']
+      - id: register-dolt-schemas
+        name: Register Dolt Schemas and Check Staging
+        entry: scripts/pre_commit_register_schemas.sh
+        language: system
+        files: ^infra_core/memory_system/schemas/registry\.py$
+        pass_filenames: false
+        verbose: true 

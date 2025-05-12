@@ -13,11 +13,29 @@
         "    - Retain `latest_url` alongside `latest_version` for frontend convenience.",
         "[x] **HTTP Headers: Caching** ➜ Add `Cache-Control: max-age=86400, public` to `/schemas/*` responses (including index.json).",
         "[x] **Server‑side writes**  ➜  POST/PUT `/api/blocks` must fetch the correct schema from registry and validate with Pydantic before commit.",
-        "[ ] **Dolt persistence**  ➜  Ensure every new schema row is inserted into `node_schemas` with `NodeSchemaRecord`.",
+        "[x] **Dolt persistence**  ➜  Ensure every new schema row is inserted into `node_schemas` with `NodeSchemaRecord` (via `scripts/register_schemas.py`).",
         "[ ] **OpenAPI enrichment**  ➜  Add an `x-base-url` and `x-schema-index` (e.g. `/schemas/index.json`) extension in the generated `/openapi.json`.  orval will read `servers[0].url` for baseUrl; keep that in sync.",
         "[ ] **CLI utility**  ➜  `scripts/export_openapi.py` dumps `openapi.json` *and* copies `/schemas/index.json` into `schemas/api/` for the frontend to consume in CI.",
         "[x] **Unit tests**  ➜  Update tests to assert `$id` correctness in schemas, `latest_version` in index, and that `GET /.../latest` matches `GET /.../<latest_version>`. Tests added for POST /api/blocks validation.",
-        "[ ] **Docs**  ➜  README section: “How to add a new MemoryBlock schema” (update registry, bump version, run export script)."
+        "[ ] **Docs**  ➜  README section: \"How to add a new MemoryBlock schema\" (update registry, bump version, run export script)."
+    ],
+    "registry_sync_action_items": [
+        {
+            "action_items": [
+                "[x] Pre-commit hook validates version bump when schema files are changed",
+                "[ ] Add test: for every `(type, version)` in `SCHEMA_VERSIONS`, assert Dolt has a corresponding row via `get_schema()`",
+                "[ ] Make `scripts/register_schemas.py` accept env var `DOLT_DB_PATH` or CLI args",
+                "[ ] Update CI to run schema registration + assert `git diff node_schemas` is clean",
+                "[ ] Document manual and CI schema registration in README"
+            ],
+            "success_criteria": [
+                "• Any change to `registry.py` can be followed by a one-liner (`make register-schemas`) to sync Dolt.",
+                "• CI or tests fail if schema registry diverges from persisted Dolt state.",
+                "• Dolt DB path is configurable via env/args — not hardcoded.",
+                "• Block creation fails gracefully if schema version not found in Dolt.",
+                "• Registry never directly mutates Dolt."
+            ]
+        }
     ],
     "success_criteria": [
         "• `GET /schemas/index.json` lists all schemas (with `latest_version`, `latest_url`, `base` filtered).",
