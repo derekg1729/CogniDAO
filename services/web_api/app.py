@@ -22,7 +22,6 @@ from .routes import chat as chat_router
 logger = logging.getLogger(__name__)
 
 # Define paths for memory and source data (moved from main.py)
-API_INDEXED_FILES_DIR = "./api_indexed_files"
 DOLT_DB_PATH = "data/memory_dolt"
 CHROMA_PATH = "data/memory_chroma"
 CHROMA_COLLECTION = "cogni_memory_poc"
@@ -34,8 +33,6 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 API starting up...")
 
     os.makedirs(CHROMA_PATH, exist_ok=True)
-    logger.info(f"Ensuring directory exists: {API_INDEXED_FILES_DIR}")
-    os.makedirs(API_INDEXED_FILES_DIR, exist_ok=True)
 
     logger.info("🧠 Initializing StructuredMemoryBank...")
     memory_bank_instance = None
