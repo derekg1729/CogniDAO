@@ -119,9 +119,9 @@ cleanup() {
 # Function to handle local deployment
 deploy_local() {
   # Check for required files
-  check_file "Dockerfile.api"
-  check_file "requirements.api.txt"
-  check_file "infra_core/cogni_api.py"
+  check_file "services/web_api/Dockerfile.api"
+  check_file "services/web_api/requirements.api.txt"
+  check_file "services/web_api/cogni_api.py"
 
   # Check for env file and create minimal one if needed
   if [ ! -f "$ENV_FILE" ]; then
@@ -170,7 +170,7 @@ deploy_local() {
 
   # Build Docker image
   status "Building Docker image..."
-  docker build -t "$IMAGE_NAME" -f Dockerfile.api .
+  docker build -t "$IMAGE_NAME" -f services/web_api/Dockerfile.api .
 
   # Remove any existing containers
   docker stop "$CONTAINER_NAME" 2>/dev/null || true
@@ -204,6 +204,7 @@ deploy_local() {
       break
     elif [ $i -eq $MAX_RETRIES ]; then
       warning "❌ API failed to start after $MAX_RETRIES attempts"
+      docker logs "$CONTAINER_NAME"
       cleanup
       exit 1
     else
@@ -391,7 +392,7 @@ build_and_push_ghcr() {
   local secrets_file=$1 # Accept secrets file as argument
   status "Building and pushing image to GHCR using secrets from $secrets_file..." >&2
 
-  local dockerfile="Dockerfile.api"
+  local dockerfile="services/web_api/Dockerfile.api"
   local gh_owner="cogni-1729" # IMPORTANT: Replace with your GH username/org
   local repo_name="cogni-backend" # Or your desired repo name on GHCR
 
