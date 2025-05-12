@@ -121,7 +121,7 @@ deploy_local() {
   # Check for required files
   check_file "services/web_api/Dockerfile.api"
   check_file "services/web_api/requirements.api.txt"
-  check_file "services/web_api/cogni_api.py"
+  check_file "services/web_api/main.py"
 
   # Check for env file and create minimal one if needed
   if [ ! -f "$ENV_FILE" ]; then

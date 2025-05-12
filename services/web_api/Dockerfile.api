@@ -26,14 +26,14 @@ RUN pip install --upgrade pip && \
 COPY ./data/memory_dolt /app/data/memory_dolt/
 COPY ./data/memory_chroma /app/data/memory_chroma/
 
-# Copy application code from services/web_api/ into /app/
-# This will place cogni_api.py and other service code directly into /app/
-COPY ./services/web_api/ /app/
-# Copy application code
-COPY ./infra_core/ infra_core/
+# Copy infra_core application code
+COPY ./infra_core/ /app/infra_core/
+# Copy services application code (this will create /app/services/web_api/ etc.)
+COPY ./services /app/services/
 
 # Expose port
 EXPOSE 8000
 
-# Run the API, assuming 'app' is in 'cogni_api.py' which is now at /app/cogni_api.py
-CMD ["uvicorn", "cogni_api:app", "--host", "0.0.0.0", "--port", "8000"] 
+# Run the application using Uvicorn, referencing the app via its full module path
+# This ensures that relative imports within services.web_api.main work correctly.
+CMD ["uvicorn", "services.web_api.main:app", "--host", "0.0.0.0", "--port", "8000"] 

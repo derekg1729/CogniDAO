@@ -1,157 +1,34 @@
-"""
-Simple Cogni API
-
-A minimal FastAPI that directly passes user queries to OpenAI.
-
-Thank you to Coding-Crashkurse for the clean foundation: https://github.com/Coding-Crashkurse/LangChain-FastAPI-Streaming/blob/main/main.py
-"""
-
+from fastapi import APIRouter, Request, Depends
+from fastapi.responses import StreamingResponse
 import asyncio
 import logging
 from typing import AsyncIterable, List, Dict, Optional
-import json
-import os
-from typing import Any
-from contextlib import asynccontextmanager
 
-from dotenv import load_dotenv
-from fastapi import FastAPI, Request, Header, HTTPException, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse
 from langchain_community.chat_models import ChatOpenAI
 from langchain.callbacks import AsyncIteratorCallbackHandler
 from langchain.schema import HumanMessage, AIMessage, SystemMessage
 
-# Import our schemas
-from infra_core.models import CompleteQueryRequest, ErrorResponse
-
-# Import memory components - Updated for Dolt + LlamaIndex
-from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
+# Imports from infra_core (adjust paths if necessary based on project structure)
+from infra_core.models import CompleteQueryRequest
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
-
-# Import doc query tool
 from infra_core.memory_system.tools.agent_facing.query_doc_memory_block_tool import (
     query_doc_memory_block,
     QueryDocMemoryBlockInput,
 )
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    # format='%(asctime)s - %(name)s - %(levelname)s - %(message)s' # Use default for now
-)
+# Import verify_auth from auth_utils.py
+from ..auth_utils import verify_auth
+
+# Set up logger for this router
 logger = logging.getLogger(__name__)
 
-load_dotenv()
-
-# Define paths for memory and source data
-API_INDEXED_FILES_DIR = "./api_indexed_files"
-
-# Define paths for Dolt and LlamaIndex storage
-DOLT_DB_PATH = "data/memory_dolt"  # Path to Dolt database
-CHROMA_PATH = "data/memory_chroma"  # Path to ChromaDB storage
-CHROMA_COLLECTION = "cogni_memory_poc"  # Name of ChromaDB collection
-
-# Lifespan context to hold shared resources like the memory client
-# lifespan_context = {} # No longer needed
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Manage the lifespan of the application, including memory client setup."""
-    logger.info("🚀 API starting up...")
-
-    # Ensure necessary directories exist
-    os.makedirs(CHROMA_PATH, exist_ok=True)
-    logger.info(f"Ensuring directory exists: {API_INDEXED_FILES_DIR}")
-    os.makedirs(API_INDEXED_FILES_DIR, exist_ok=True)  # Ensure source dir exists too
-
-    # Initialize StructuredMemoryBank
-    logger.info("🧠 Initializing StructuredMemoryBank...")
-    memory_bank_instance = None  # Define variable in outer scope
-    try:
-        memory_bank_instance = StructuredMemoryBank(
-            dolt_db_path=DOLT_DB_PATH,
-            chroma_path=CHROMA_PATH,
-            chroma_collection=CHROMA_COLLECTION,
-        )
-        logger.info("🧠 StructuredMemoryBank initialized.")
-
-        # Store the memory bank directly on app.state
-        app.state.memory_bank = memory_bank_instance
-        logger.info("🧠 Memory bank attached to app.state")
-
-    except Exception as client_e:
-        logger.exception(f"❌ Failed to initialize StructuredMemoryBank: {client_e}")
-        app.state.memory_bank = None  # Indicate failure on app.state
-        logger.warning("🧠 app.state.memory_bank set to None due to initialization error.")
-
-    yield  # Yield nothing, state is attached directly
-
-    # --- Shutdown ---
-    logger.info("🌙 API shutting down...")
-    # Clean up the state if needed
-    if hasattr(app.state, "memory_bank"):
-        del app.state.memory_bank
-        logger.info("🧠 Memory bank removed from app.state")
-
-
-app = FastAPI(
-    title="Cogni API",
-    description="A minimal FastAPI that directly passes user queries to OpenAI, augmented with Cogni memory.",
-    version="0.1.0",
-    lifespan=lifespan,  # Pass the lifespan manager
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+router = APIRouter(
+    prefix="/chat",
+    tags=["Chat"],
 )
 
 
-# Authentication validator
-def verify_auth(authorization: str = Header(...)):
-    """Verify the Authorization header contains a valid token."""
-    api_key = os.getenv("COGNI_API_KEY")
-    if not api_key:
-        logger.error("COGNI_API_KEY not set in environment variables!")
-        raise HTTPException(status_code=500, detail="API authentication not configured")
-
-    if authorization != f"Bearer {api_key}":
-        logger.warning("Authentication failed - Invalid token")
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    logger.info("Authentication successful")
-    return True
-
-
-# Health check endpoint
-@app.get("/healthz")
-async def health_check():
-    """Health check endpoint for monitoring."""
-    return {"status": "healthy"}
-
-
-# Log middleware to capture request information
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    """Middleware to log all requests and responses."""
-    # Log request
-    logger.info(f"Request: {request.method} {request.url}")
-
-    # Process request
-    response = await call_next(request)
-
-    # Log response
-    logger.info(f"Response status: {response.status_code}")
-
-    return response
-
-
-# Updated to include source blocks
+# Helper function moved from main.py
 async def send_message(
     message: str,
     memory_blocks: Optional[List[MemoryBlock]] = None,
@@ -262,7 +139,7 @@ async def send_message(
     logger.info("✅ Task completed")
 
 
-@app.post("/chat")
+@router.post("/")  # Path is relative to the router's prefix ("/chat")
 async def stream_chat(
     body: CompleteQueryRequest, fastapi_request: Request, auth=Depends(verify_auth)
 ):
@@ -354,36 +231,3 @@ async def stream_chat(
 
     logger.info("▶️ Returning streaming response.")
     return StreamingResponse(generator, media_type="text/event-stream")
-
-
-@app.exception_handler(422)
-async def validation_exception_handler(request: Request, exc: Any):
-    """
-    Handle 422 Unprocessable Entity errors and log detailed information.
-    """
-    logger.error(f"Validation error (422) on request to: {request.url}")
-
-    # Log request headers
-    logger.error(f"Request headers: {dict(request.headers)}")
-
-    # Log request body
-    try:
-        body = await request.body()
-        body_str = body.decode("utf-8")
-        logger.error(f"Raw request body: {body_str}")
-
-        # Try to parse as JSON for cleaner logging
-        try:
-            json_body = json.loads(body_str)
-            logger.error(f"Parsed JSON body: {json.dumps(json_body, indent=2)}")
-        except json.JSONDecodeError:
-            pass
-
-    except Exception as e:
-        logger.error(f"Could not parse request body: {str(e)}")
-
-    # Return the original error response with our error schema
-    return JSONResponse(
-        status_code=422,
-        content=ErrorResponse(detail=str(exc), code="VALIDATION_ERROR").model_dump(),
-    )
