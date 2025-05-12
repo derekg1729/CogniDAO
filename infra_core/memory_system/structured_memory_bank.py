@@ -12,7 +12,11 @@ from typing import List, Dict, Any, Optional, Tuple
 import datetime
 from pydantic import ValidationError
 from doltpy.cli import Dolt
-from infra_core.memory_system.dolt_reader import read_memory_block, read_memory_blocks_by_tags
+from infra_core.memory_system.dolt_reader import (
+    read_memory_block,
+    read_memory_blocks_by_tags,
+    read_memory_blocks,
+)
 from infra_core.memory_system.dolt_writer import (
     write_memory_block_to_dolt,
     delete_memory_block_from_dolt,
@@ -811,6 +815,30 @@ class StructuredMemoryBank:
             return matching_blocks
         except Exception as e:
             logger.error(f"Error retrieving blocks by tags ({tags}): {e}", exc_info=True)
+            return []  # Return empty list on error
+
+    def get_all_memory_blocks(self, branch: str = "main") -> List[MemoryBlock]:
+        """
+        Retrieves all MemoryBlocks from the specified Dolt branch.
+
+        Args:
+            branch: The Dolt branch to read from (defaults to 'main').
+
+        Returns:
+            A list of matching MemoryBlock objects.
+        """
+        logger.info(f"Getting all memory blocks from branch '{branch}'")
+        try:
+            # Call the reader function from dolt_reader
+            all_blocks = read_memory_blocks(
+                db_path=self.dolt_db_path,
+                branch=branch,
+            )
+            return all_blocks
+        except Exception as e:
+            logger.error(
+                f"Error retrieving all memory blocks from branch '{branch}': {e}", exc_info=True
+            )
             return []  # Return empty list on error
 
     def get_forward_links(self, block_id: str, relation: Optional[str] = None) -> List[BlockLink]:
