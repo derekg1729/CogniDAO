@@ -142,3 +142,53 @@ def get_available_node_types() -> List[str]:
         List[str]: List of available node type strings (e.g., ["project", "task", "doc", "knowledge"])
     """
     return list(get_all_metadata_models().keys())
+
+
+def resolve_schema_model_and_version(
+    block_type: str, version_str: str
+) -> tuple[Type[BaseModel], int]:
+    """
+    Resolves the block type and version string to a Pydantic model class and integer version.
+
+    Args:
+        block_type: The block type identifier.
+        version_str: The version identifier ('latest' or an integer string).
+
+    Returns:
+        A tuple containing the resolved Pydantic model class and the integer schema version.
+
+    Raises:
+        KeyError: If the block_type is unknown.
+        ValueError: If the version_str is invalid or doesn't match the known latest version.
+        TypeError: If no model is registered for the block_type.
+    """
+    # 1. Validate block_type
+    if block_type not in SCHEMA_VERSIONS:
+        raise KeyError(f"Unknown block type: {block_type}")
+
+    latest_version = get_schema_version(block_type)
+
+    # 2. Resolve version string
+    resolved_version: int
+    if version_str == "latest":
+        resolved_version = latest_version
+    else:
+        try:
+            resolved_version = int(version_str)
+        except ValueError:
+            raise ValueError("Version must be an integer string or 'latest'")
+
+        # Currently, we only support retrieving the latest version explicitly by number
+        if resolved_version != latest_version:
+            # In the future, this could check against a list/dict of historical versions
+            raise ValueError(
+                f"Version {resolved_version} not found for type {block_type}. Only latest ({latest_version}) is currently supported."
+            )
+
+    # 3. Get the model
+    model = get_metadata_model(block_type)
+    if model is None:
+        # This case implies an internal inconsistency (version defined but no model registered)
+        raise TypeError(f"No schema model registered for block type: {block_type}")
+
+    return model, resolved_version

@@ -3,8 +3,9 @@ from fastapi.responses import JSONResponse
 from typing import Dict, Any, List
 
 from infra_core.memory_system.schemas.registry import (
-    get_schema_version,
-    get_metadata_model,
+    # get_schema_version, # No longer needed directly here
+    # get_metadata_model, # No longer needed directly here
+    resolve_schema_model_and_version,  # Use the new resolver function
     SCHEMA_VERSIONS,
 )
 
@@ -20,36 +21,32 @@ def get_schema(block_type: str, version: str):
     """
     Returns the JSON schema for the given block type and version.
     If version is 'latest', resolves to the latest version for the type.
+    Uses application/schema+json media type.
     """
-    # Validate block_type
-    if block_type not in SCHEMA_VERSIONS:
-        raise HTTPException(status_code=404, detail=f"Unknown block type: {block_type}")
-
-    # Resolve version
-    if version == "latest":
-        resolved_version = get_schema_version(block_type)
-    else:
-        try:
-            resolved_version = int(version)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Version must be an integer or 'latest'")
-        if resolved_version != get_schema_version(block_type):
-            # Only the latest version is supported for now
-            raise HTTPException(
-                status_code=404,
-                detail=f"Version {resolved_version} not found for type {block_type}",
-            )
-
-    # Get the model
-    model = get_metadata_model(block_type)
-    if not model:
-        raise HTTPException(
-            status_code=404, detail=f"No schema registered for block type: {block_type}"
-        )
+    try:
+        model, resolved_version = resolve_schema_model_and_version(block_type, version)
+    except KeyError as e:
+        # Unknown block type
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        # Invalid version string or version not found
+        raise HTTPException(status_code=400, detail=str(e))
+    except TypeError:
+        # Internal error: No model registered for a known type
+        # Log this ideally
+        raise HTTPException(status_code=500, detail="Internal server error: Schema not registered")
 
     # Generate the schema
     schema = model.model_json_schema()
-    return JSONResponse(content=schema)
+
+    # Add the $id field
+    schema["$id"] = f"/schemas/{block_type}/{resolved_version}"
+
+    return JSONResponse(
+        content=schema,
+        headers={"Cache-Control": "max-age=86400, public"},
+        media_type="application/schema+json",  # Add specific media type
+    )
 
 
 @router.get(
@@ -63,12 +60,19 @@ def get_schema_index():
     """
     index: List[Dict[str, Any]] = []
     for block_type, version in SCHEMA_VERSIONS.items():
+        # Filter out the 'base' type from the public index
+        if block_type == "base":
+            continue
+
         index.append(
             {
                 "type": block_type,
                 "version": version,
+                "latest_version": version,  # Add the latest version number
                 "url": f"/schemas/{block_type}/{version}",
                 "latest_url": f"/schemas/{block_type}/latest",
             }
         )
-    return JSONResponse(content={"schemas": index})
+    return JSONResponse(
+        content={"schemas": index}, headers={"Cache-Control": "max-age=86400, public"}
+    )

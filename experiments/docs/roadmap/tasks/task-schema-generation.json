@@ -1,25 +1,32 @@
 {
     "type": "Task",
-    "status": "todo",
+    "status": "in-progress",
     "project": "VersionedMemorySchemas",
     "name": "Expose versioned schemas + server‑side validation",
     "description": "Serve JSON‑Schema for every (block.type, schema_version) and enforce write‑time validation. Adds metadata needed by orval/zod clients.",
     "action_items": [
-      "[ ] **FastAPI router**  ➜  `GET /schemas/{type}/{version}` and `GET /schemas/index.json` (list of {type, version, url}).",
-      "[ ] **`latest` alias**  ➜  When `{version}` = `latest`, resolve via `registry.get_schema_version(type)`.",
-      "[ ] **Server‑side writes**  ➜  POST/PUT `/api/blocks` must fetch the correct schema from registry and validate with Pydantic before commit.",
-      "[ ] **Dolt persistence**  ➜  Ensure every new schema row is inserted into `node_schemas` with `NodeSchemaRecord`.",
-      "[ ] **OpenAPI enrichment**  ➜  Add an `x-base-url` and `x-schema-index` (e.g. `/schemas/index.json`) extension in the generated `/openapi.json`.  orval will read `servers[0].url` for baseUrl; keep that in sync.",
-      "[ ] **CLI utility**  ➜  `scripts/export_openapi.py` dumps `openapi.json` *and* copies `/schemas/index.json` into `schemas/api/` for the frontend to consume in CI.",
-      "[ ] **Unit tests**  ➜  Test that every `(type, version)` in `SCHEMA_VERSIONS` resolves to a live endpoint and passes round‑trip validation.",
-      "[ ] **Docs**  ➜  README section: “How to add a new MemoryBlock schema” (update registry, bump version, run export script)."
+        "[x] **FastAPI router (Initial)**  ➜  Base `GET /schemas/{type}/{version}` and `GET /schemas/index.json` (list of {type, version, url}) implemented and tested.",
+        "[x] **Schema Content: $id** ➜ Add `$id` (e.g., `/schemas/task/2`) to individual schemas from `GET /schemas/{type}/{version}`.",
+        "[x] **Schema Index: Enhancements** ➜ For `GET /schemas/index.json` output:",
+        "    - Add `latest_version: <int>` to each schema object in the index.",
+        "    - Filter out `base` type from the index if it's not a user-facing block type.",
+        "    - Retain `latest_url` alongside `latest_version` for frontend convenience.",
+        "[x] **HTTP Headers: Caching** ➜ Add `Cache-Control: max-age=86400, public` to `/schemas/*` responses (including index.json).",
+        "[ ] **Server‑side writes**  ➜  POST/PUT `/api/blocks` must fetch the correct schema from registry and validate with Pydantic before commit.",
+        "[ ] **Dolt persistence**  ➜  Ensure every new schema row is inserted into `node_schemas` with `NodeSchemaRecord`.",
+        "[ ] **OpenAPI enrichment**  ➜  Add an `x-base-url` and `x-schema-index` (e.g. `/schemas/index.json`) extension in the generated `/openapi.json`.  orval will read `servers[0].url` for baseUrl; keep that in sync.",
+        "[ ] **CLI utility**  ➜  `scripts/export_openapi.py` dumps `openapi.json` *and* copies `/schemas/index.json` into `schemas/api/` for the frontend to consume in CI.",
+        "[x] **Unit tests**  ➜  Update tests to assert `$id` correctness in schemas, `latest_version` in index, and that `GET /.../latest` matches `GET /.../<latest_version>`.",
+        "[ ] **Docs**  ➜  README section: “How to add a new MemoryBlock schema” (update registry, bump version, run export script)."
     ],
     "success_criteria": [
-      "• `GET /schemas/index.json` lists all schemas.",
-      "• `GET /schemas/task/2` returns correct JSON‑Schema.",
-      "• Invalid POST `/api/blocks` with bad metadata returns 400.",
-      "• `openapi.json` contains `servers[0].url` and `x-schema-index`."
+        "• `GET /schemas/index.json` lists all schemas (with `latest_version`, `latest_url`, `base` filtered).",
+        "• `GET /schemas/task/2` returns correct JSON‑Schema (including `$id`).",
+        "• `GET /schemas/task/latest` returns same content as `/schemas/task/<latest_version>`.",
+        "• `/schemas/*` endpoints include correct `Cache-Control` headers.",
+        "• `/schemas/index.json` also returns `Cache-Control: max-age=86400, public`.",
+        "• Invalid POST `/api/blocks` with bad metadata returns 400.",
+        "• `openapi.json` contains `servers[0].url` and `x-schema-index`."
     ],
     "priority": "high"
-  }
-  
+}
