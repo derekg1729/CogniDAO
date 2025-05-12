@@ -8,7 +8,7 @@ from unittest.mock import (
 import asyncio
 
 from services.web_api.app import app
-from infra_core.models import CompleteQueryRequest  # Corrected import for the request model
+from services.web_api.models import CompleteQueryRequest  # Corrected import for the request model
 from services.web_api import auth_utils  # To override its dependency
 
 

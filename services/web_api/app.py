@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 # Import our schemas
-from infra_core.models import ErrorResponse
+from services.web_api.models import ErrorResponse
 
 # Import memory components
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank

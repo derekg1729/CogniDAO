@@ -1,10 +1,139 @@
 {
+  "$defs": {
+    "BlockReference": {
+      "description": "Schema for a reference to a memory block used as a source in a chat response.\nThis provides essential metadata about the block without including all fields.",
+      "properties": {
+        "id": {
+          "description": "Unique ID of the memory block",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "description": "Type of the memory block (e.g., doc, knowledge)",
+          "title": "Type",
+          "type": "string"
+        },
+        "text": {
+          "description": "Content of the memory block",
+          "title": "Text",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Title of the block, if available",
+          "title": "Title"
+        },
+        "source_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Source file or document",
+          "title": "Source File"
+        },
+        "source_uri": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "URI or link to the source",
+          "title": "Source Uri"
+        },
+        "tags": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Tags associated with the block",
+          "title": "Tags"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Additional metadata",
+          "title": "Metadata"
+        },
+        "relevance_score": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Relevance score of this block to the query (0.0-1.0)",
+          "title": "Relevance Score"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "text"
+      ],
+      "title": "BlockReference",
+      "type": "object"
+    }
+  },
   "description": "Schema for a chat message response.\nThis is returned as a stream for the /chat endpoint.",
   "properties": {
     "content": {
       "description": "The AI-generated response content",
       "title": "Content",
       "type": "string"
+    },
+    "source_blocks": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/BlockReference"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Memory blocks used as sources for the response",
+      "title": "Source Blocks"
     }
   },
   "required": [

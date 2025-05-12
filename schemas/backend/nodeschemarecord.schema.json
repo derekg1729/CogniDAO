@@ -1,0 +1,34 @@
+{
+  "description": "Pydantic model for records in the `node_schemas` Dolt table.",
+  "properties": {
+    "node_type": {
+      "description": "Corresponds to MemoryBlock.type (e.g., 'task', 'project')",
+      "title": "Node Type",
+      "type": "string"
+    },
+    "schema_version": {
+      "description": "Version number for this schema",
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "json_schema": {
+      "additionalProperties": true,
+      "description": "JSON schema output from Pydantic model.model_json_schema()",
+      "title": "Json Schema",
+      "type": "object"
+    },
+    "created_at": {
+      "description": "When this schema version was registered",
+      "title": "Created At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "node_type",
+    "schema_version",
+    "json_schema",
+    "created_at"
+  ],
+  "title": "NodeSchemaRecord",
+  "type": "object"
+}

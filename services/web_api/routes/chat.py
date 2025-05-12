@@ -9,7 +9,7 @@ from langchain.callbacks import AsyncIteratorCallbackHandler
 from langchain.schema import HumanMessage, AIMessage, SystemMessage
 
 # Imports from infra_core (adjust paths if necessary based on project structure)
-from infra_core.models import CompleteQueryRequest
+from services.web_api.models import CompleteQueryRequest
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
 from infra_core.memory_system.tools.agent_facing.query_doc_memory_block_tool import (
     query_doc_memory_block,

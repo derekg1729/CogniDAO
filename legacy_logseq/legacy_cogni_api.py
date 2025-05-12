@@ -23,7 +23,7 @@ from langchain.callbacks import AsyncIteratorCallbackHandler
 from langchain.schema import HumanMessage, AIMessage, SystemMessage
 
 # Import our schemas
-from infra_core.models import CompleteQueryRequest, ErrorResponse
+from services.web_api.models import CompleteQueryRequest, ErrorResponse
 
 # Import memory components
 from legacy_logseq.memory.memory_client import CogniMemoryClient

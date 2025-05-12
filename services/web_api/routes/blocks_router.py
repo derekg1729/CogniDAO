@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, HTTPException
 from typing import List
 
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
-from infra_core.models import ErrorResponse
+from services.web_api.models import ErrorResponse
 
 router = APIRouter()
 

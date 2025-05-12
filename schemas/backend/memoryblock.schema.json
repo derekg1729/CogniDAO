@@ -1,0 +1,311 @@
+{
+  "$defs": {
+    "BlockLink": {
+      "description": "Defines a directed link between two MemoryBlocks.",
+      "properties": {
+        "to_id": {
+          "description": "ID of the target block in the link",
+          "title": "To Id",
+          "type": "string"
+        },
+        "relation": {
+          "description": "The type of relationship between the blocks",
+          "enum": [
+            "related_to",
+            "subtask_of",
+            "depends_on",
+            "child_of",
+            "mentions"
+          ],
+          "title": "Relation",
+          "type": "string"
+        },
+        "priority": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 0,
+          "description": "Priority of the link (higher numbers = higher priority)",
+          "title": "Priority"
+        },
+        "link_metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Additional metadata about the link",
+          "title": "Link Metadata"
+        },
+        "created_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ID of the agent/user who created the link",
+          "title": "Created By"
+        },
+        "created_at": {
+          "description": "When the link was created",
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "to_id",
+        "relation"
+      ],
+      "title": "BlockLink",
+      "type": "object"
+    },
+    "ConfidenceScore": {
+      "description": "Represents confidence scores, potentially from human or AI sources.",
+      "properties": {
+        "human": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional human confidence score (0.0 to 1.0)",
+          "title": "Human"
+        },
+        "ai": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional AI-generated confidence score (0.0 to 1.0)",
+          "title": "Ai"
+        }
+      },
+      "title": "ConfidenceScore",
+      "type": "object"
+    }
+  },
+  "description": "The primary data structure for representing a unit of memory in the Cogni system experiment.\nAligns with the design specified in project-CogniMemorySystem-POC.json.\nIncludes schema versioning support (Task 2.0).",
+  "properties": {
+    "id": {
+      "description": "Globally unique ID for this memory block",
+      "title": "Id",
+      "type": "string"
+    },
+    "type": {
+      "description": "Block type used to determine structure and relationships",
+      "enum": [
+        "knowledge",
+        "task",
+        "project",
+        "doc",
+        "interaction",
+        "log"
+      ],
+      "title": "Type",
+      "type": "string"
+    },
+    "schema_version": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Version of the schema this block adheres to (links to node_schemas table)",
+      "title": "Schema Version"
+    },
+    "text": {
+      "description": "Primary content or description of the block",
+      "title": "Text",
+      "type": "string"
+    },
+    "state": {
+      "anyOf": [
+        {
+          "enum": [
+            "draft",
+            "published",
+            "archived"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Current state of the block",
+      "title": "State"
+    },
+    "visibility": {
+      "anyOf": [
+        {
+          "enum": [
+            "internal",
+            "public",
+            "restricted"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Visibility level of the block",
+      "title": "Visibility"
+    },
+    "block_version": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Version number of this block",
+      "title": "Block Version"
+    },
+    "tags": {
+      "description": "Optional tags for filtering, theming, or metadata",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Tags",
+      "type": "array"
+    },
+    "metadata": {
+      "additionalProperties": true,
+      "description": "Custom metadata based on block type",
+      "title": "Metadata",
+      "type": "object"
+    },
+    "links": {
+      "description": "Directed outgoing edges connecting this block to others",
+      "items": {
+        "$ref": "#/$defs/BlockLink"
+      },
+      "title": "Links",
+      "type": "array"
+    },
+    "source_file": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional source markdown or file name",
+      "title": "Source File"
+    },
+    "source_uri": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional source link or Logseq block URI",
+      "title": "Source Uri"
+    },
+    "confidence": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ConfidenceScore"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Confidence scores for this memory block"
+    },
+    "created_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional identifier for creator (agent name or user ID)",
+      "title": "Created By"
+    },
+    "created_at": {
+      "description": "ISO timestamp of block creation",
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "updated_at": {
+      "description": "ISO timestamp of last update",
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "embedding": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional vector embedding of the block's content",
+      "title": "Embedding"
+    }
+  },
+  "required": [
+    "type",
+    "text"
+  ],
+  "title": "MemoryBlock",
+  "type": "object"
+}

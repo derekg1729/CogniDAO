@@ -6,6 +6,7 @@ Generate JSON schemas from Pydantic models in the Cogni API.
 import json
 import sys
 import inspect
+import importlib  # Added for dynamic imports
 from pathlib import Path
 from typing import Dict, Any, Type
 
@@ -15,7 +16,8 @@ sys.path.append(str(project_root))
 
 # Import after path setup - linter exceptions allowed for these imports
 # ruff: noqa: E402
-from legacy_logseq import models
+# Remove legacy_logseq import, we'll specify modules dynamically
+# from legacy_logseq import models
 from pydantic import BaseModel
 
 # Paths
@@ -28,16 +30,16 @@ def is_pydantic_model(obj: Any) -> bool:
     return inspect.isclass(obj) and issubclass(obj, BaseModel) and obj != BaseModel
 
 
-def discover_models() -> Dict[str, Type[BaseModel]]:
-    """Discover all Pydantic models in the models module."""
+def discover_models_in_module(module: Any) -> Dict[str, Type[BaseModel]]:
+    """Discover all Pydantic models in the given module."""
     model_dict = {}
 
-    for name, obj in inspect.getmembers(models, is_pydantic_model):
-        # Only include models directly defined in models
-        if obj.__module__ == models.__name__:
+    for name, obj in inspect.getmembers(module, is_pydantic_model):
+        # Only include models directly defined in the target module
+        if obj.__module__ == module.__name__:
             model_dict[name] = obj
 
-    print(f"🔍 Discovered {len(model_dict)} Pydantic models in models")
+    print(f"🔍 Discovered {len(model_dict)} Pydantic models in {module.__name__}")
     return model_dict
 
 
@@ -73,18 +75,61 @@ def main():
     """Generate all schemas."""
     print("🔄 Generating JSON schemas from Pydantic models...")
 
-    # Auto-discover models
-    discovered_models = discover_models()
+    # List of modules/packages to scan for Pydantic models
+    module_strings_to_scan = [
+        "infra_core.memory_system.schemas.memory_block",  # For MemoryBlock
+        "infra_core.memory_system.schemas.common",  # For BlockLink, ConfidenceScore, etc.
+        "services.web_api.models",  # For ErrorResponse, ChatResponse etc. (new location)
+        # Models from router files will be added manually below
+    ]
 
-    if not discovered_models:
-        print("❌ No models found! Check that models.py contains Pydantic models.")
+    all_discovered_models: Dict[str, Type[BaseModel]] = {}
+
+    for module_str in module_strings_to_scan:
+        try:
+            module = importlib.import_module(module_str)
+            discovered = discover_models_in_module(module)
+            all_discovered_models.update(discovered)
+        except ImportError as e:
+            print(f"⚠️ Could not import module {module_str}: {e}. Skipping.")
+        except Exception as e:
+            print(f"⚠️ Error processing module {module_str}: {e}. Skipping.")
+
+    # Manually add models from router files
+    try:
+        # Assuming QueryRequest is in services.web_api.routes.chat
+        # Note: CompleteQueryRequest is already in infra_core.models and will be picked up.
+        # The /chat endpoint uses CompleteQueryRequest as its body.
+        # If there was a simpler QueryRequest, we would add it here.
+        # For now, we'll ensure CompleteQueryRequest from infra_core.models is covered.
+
+        # Let's confirm if any specific request model from chat router needs adding.
+        # The current chat router uses `CompleteQueryRequest` from `infra_core.models`.
+        # If QueryRequest was a distinct model in chat.py, it would be:
+        # from services.web_api.routes.chat import QueryRequest
+        # if is_pydantic_model(QueryRequest) and "QueryRequest" not in all_discovered_models:
+        #     all_discovered_models["QueryRequest"] = QueryRequest
+        #     print(f"🔍 Manually added QueryRequest from services.web_api.routes.chat")
+        pass  # No specific, unique models from chat router to add manually for now as per current structure.
+
+    except ImportError:
+        print("⚠️ Could not import models from services.web_api.routes.chat. Skipping.")
+    except NameError:
+        print(
+            "⚠️ One of the models (e.g. QueryRequest) not found in services.web_api.routes.chat. Skipping manual add."
+        )
+
+    if not all_discovered_models:
+        print(
+            "❌ No models found! Check the specified modules and ensure they contain Pydantic models."
+        )
         return
 
     # Track changes
     changes = 0
 
     # Generate schemas for all discovered models
-    for name, model in discovered_models.items():
+    for name, model in all_discovered_models.items():
         schema_filename = f"{name.lower()}.schema.json"
         if generate_schema(model, schema_filename):
             changes += 1

@@ -1,0 +1,37 @@
+{
+  "description": "Represents confidence scores, potentially from human or AI sources.",
+  "properties": {
+    "human": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional human confidence score (0.0 to 1.0)",
+      "title": "Human"
+    },
+    "ai": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional AI-generated confidence score (0.0 to 1.0)",
+      "title": "Ai"
+    }
+  },
+  "title": "ConfidenceScore",
+  "type": "object"
+}
