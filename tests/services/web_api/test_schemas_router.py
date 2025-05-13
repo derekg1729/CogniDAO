@@ -41,10 +41,27 @@ def test_get_schema_latest_and_specific_version():
     assert data_latest["type"] == "object"
     assert "properties" in data_latest
     assert "project" in data_latest["properties"]
+
+    # Check for required metadata fields
     assert "$id" in data_latest
+    assert "x_block_type" in data_latest and data_latest["x_block_type"] == "task"
+    assert "x_schema_version" in data_latest
+
+    # Verify inherited BaseMetadata fields are present
+    assert "x_agent_id" in data_latest["properties"]
+    assert "x_tool_id" in data_latest["properties"]
+    assert "x_timestamp" in data_latest["properties"]
+    assert "x_parent_block_id" in data_latest["properties"]
+    assert "x_session_id" in data_latest["properties"]
+
+    # Check that default values are preserved
+    # Example: x_tool_id is Optional with default None
+    assert data_latest["properties"]["x_tool_id"].get("default") is None
+
     # Dynamically get the latest version for task to check $id
     task_latest_version = SCHEMA_VERSIONS["task"]
     assert data_latest["$id"] == f"/schemas/task/{task_latest_version}"
+    assert data_latest["x_schema_version"] == task_latest_version
 
     # Test with specific version (should match latest)
     response_specific = client.get(f"/schemas/task/{task_latest_version}")
@@ -70,3 +87,47 @@ def test_get_schema_unknown_type():
     response = client.get("/schemas/unknown/latest")
     assert response.status_code == 404
     assert "unknown block type" in response.text.lower()
+
+
+def test_doc_schema_completeness():
+    """Verify schema completeness for the 'doc' type, ensuring all fields, defaults, and enums are included."""
+    response = client.get("/schemas/doc/latest")
+    assert response.status_code == 200
+
+    schema = response.json()
+
+    # Check basic metadata
+    assert schema["$id"].startswith("/schemas/doc/")
+    assert schema["x_block_type"] == "doc"
+    assert schema["x_schema_version"] == SCHEMA_VERSIONS["doc"]
+    assert schema["title"] == "DocMetadata"
+
+    # Check for required and inherited fields
+    properties = schema["properties"]
+    assert "title" in properties
+    assert "format" in properties
+    assert "completed" in properties
+    assert "x_agent_id" in properties
+
+    # Handle optional enum fields (which use 'anyOf' structure)
+    format_property = properties["format"]
+    assert "anyOf" in format_property
+    # First item in anyOf should be the enum
+    enum_option = format_property["anyOf"][0]
+    assert "enum" in enum_option
+    # Check for expected enum values
+    assert set(enum_option["enum"]) == {"markdown", "html", "text", "code"}
+
+    # Check for default values
+    assert "default" in format_property
+    assert format_property["default"] is None
+
+    # Check for required fields
+    assert "title" in schema["required"]
+
+    # Verify default value for 'completed' is preserved
+    assert "default" in properties["completed"]
+    assert properties["completed"]["default"] is False  # completed defaults to False
+
+    # Check that the schema includes examples from model_config
+    assert "examples" in schema

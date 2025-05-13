@@ -27,7 +27,7 @@ from infra_core.memory_system.dolt_writer import (
 from infra_core.memory_system.llama_memory import LlamaMemory
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
 from infra_core.memory_system.schemas.common import BlockLink
-from infra_core.memory_system.dolt_schema_manager import get_schema
+from infra_core.memory_system.dolt_schema_manager import DoltSchemaManager
 
 # --- Path Setup ---
 script_dir = Path(__file__).parent
@@ -163,8 +163,9 @@ class StructuredMemoryBank:
         logger.debug(f"Fetching latest schema version for node type: {node_type}")
 
         try:
-            # Use get_schema from dolt_schema_manager which already has logic to fetch latest version
-            schema = get_schema(db_path=self.dolt_db_path, node_type=node_type)
+            # Use DoltSchemaManager to get the schema
+            schema_manager = DoltSchemaManager(self.dolt_db_path)
+            schema = schema_manager.get_schema(node_type=node_type)
 
             if schema and "x_schema_version" in schema:
                 version = schema["x_schema_version"]

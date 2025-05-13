@@ -23,7 +23,7 @@
         {
             "action_items": [
                 "[x] Pre-commit hook validates version bump when schema files are changed",
-                "[ ] Add test: for every `(type, version)` in `SCHEMA_VERSIONS`, assert Dolt has a corresponding row via `get_schema()`",
+                "[x] Add test: for every `(type, version)` in `SCHEMA_VERSIONS`, assert Dolt has a corresponding row via `get_schema()`",
                 "[x] Make `scripts/register_schemas.py` accept env var `DOLT_DB_PATH` or CLI args",
                 "[ ] Update CI to run schema registration + assert `git diff node_schemas` is clean",
                 "[ ] Document manual and CI schema registration in README"
