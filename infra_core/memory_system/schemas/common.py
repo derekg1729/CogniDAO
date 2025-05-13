@@ -7,7 +7,20 @@ from typing import Any, Dict, Literal, Optional, get_args
 from pydantic import BaseModel, Field, validator
 
 # Canonical relation types defined for links between MemoryBlocks
-RelationType = Literal["related_to", "subtask_of", "depends_on", "child_of", "mentions"]
+RelationType = Literal[
+    "related_to",
+    "subtask_of",
+    "depends_on",
+    "child_of",
+    "mentions",
+    "parent_of",
+    "belongs_to_epic",
+    "epic_contains",
+    "blocks",
+    "is_blocked_by",
+    "bug_affects",
+    "has_bug",
+]
 
 
 class BlockLink(BaseModel):

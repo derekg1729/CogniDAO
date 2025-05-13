@@ -2,26 +2,54 @@
 Task metadata schema for MemoryBlocks of type "task".
 """
 
-from typing import List, Optional, Dict, Any, Literal
+from typing import List, Optional, Dict, Any
+from datetime import datetime
 from pydantic import Field
 
 # Import BaseMetadata
 from .base import BaseMetadata
 from ..registry import register_metadata
+from ..common import ConfidenceScore
 
 
 class TaskMetadata(BaseMetadata):
     """
     Metadata schema for MemoryBlocks of type "task".
-    Based on the structure of task files in experiments/docs/roadmap/tasks/task-*.json.
+    Based on the link-first relationship approach where BlockLink is the source of truth for relationships.
+
+    Tasks can have the following relationships via BlockLinks:
+    - subtask_of: Points to a parent task or project that this task is part of
+    - depends_on: Points to another task that must be completed before this one can start
+    - belongs_to_epic: Points to an epic that this task is part of
+    - blocks: Points to another task that cannot proceed until this one is complete
+    - is_blocked_by: Points to another task that is blocking this one
+    - has_bug: Points to a bug that is related to this task
     """
 
-    status: Literal["todo", "in-progress", "completed", "blocked"] = Field(
-        "todo", description="Current status of the task"
+    status: str = Field(
+        "todo",
+        description="Current status of the task",
+        pattern="^(todo|in_progress|review|blocked|done)$",
     )
-    project: str = Field(..., description="The project this task belongs to")
-    name: str = Field(..., description="Short, descriptive name of the task")
+    assignee: Optional[str] = Field(None, description="User ID of the person assigned to this task")
+    title: str = Field(..., description="Short, descriptive title of the task")
     description: str = Field(..., description="Detailed description of what the task involves")
+    priority: Optional[str] = Field(
+        None,
+        description="Priority level of the task (P0 highest, P3 lowest)",
+        pattern="^(P0|P1|P2|P3)$",
+    )
+    story_points: Optional[float] = Field(None, description="Story points assigned to this task")
+    estimate_hours: Optional[float] = Field(
+        None, description="Estimated hours to complete this task"
+    )
+    start_date: Optional[datetime] = Field(None, description="When work on this task began")
+    due_date: Optional[datetime] = Field(None, description="Deadline for completing this task")
+    labels: List[str] = Field(default_factory=list, description="Labels for categorizing this task")
+    confidence_score: Optional[ConfidenceScore] = Field(
+        None, description="Confidence scores for this task"
+    )
+    # Retain additional fields for backward compatibility
     phase: Optional[str] = Field(None, description="Project phase this task belongs to")
     implementation_details: Optional[Dict[str, Any]] = Field(
         default_factory=dict,
@@ -37,10 +65,6 @@ class TaskMetadata(BaseMetadata):
         default_factory=list, description="Criteria to verify the task meets its objectives"
     )
     completed: bool = Field(False, description="Whether the task is marked as complete")
-    priority: Optional[int] = Field(
-        None, ge=1, le=5, description="Priority level (1-5, where 1 is highest priority)"
-    )
-    assignee: Optional[str] = Field(None, description="Person or agent assigned to this task")
     current_status: Optional[str] = Field(
         None, description="Detailed description of current implementation state"
     )
@@ -49,19 +73,32 @@ class TaskMetadata(BaseMetadata):
         "json_schema_extra": {
             "examples": [
                 {
-                    "status": "todo",
-                    "project": "CogniMemorySystem-POC",
-                    "name": "Define and Register Block Type Schemas",
-                    "description": "Create structured Pydantic sub-schemas",
-                    "phase": "Phase 2: Full Indexing System",
+                    "x_timestamp": "2024-04-30T11:30:00Z",
+                    "x_agent_id": "user_5678",
+                    "status": "in_progress",
+                    "assignee": "user_1234",
+                    "title": "Implement BlockLink Validation",
+                    "description": "Create validation logic for BlockLinks to prevent circular dependencies",
+                    "priority": "P2",
+                    "story_points": 3.0,
+                    "estimate_hours": 6.0,
+                    "start_date": "2024-04-20T00:00:00Z",
+                    "due_date": "2024-05-05T00:00:00Z",
+                    "labels": ["link-manager", "validation", "technical-debt"],
+                    "phase": "Implementation",
                     "implementation_details": {
-                        "target_file": "infra_core/memorysystem/schemas/memory_block.py"
+                        "target_file": "infra_core/memory_system/link_manager.py"
                     },
-                    "action_items": ["Define Pydantic models"],
-                    "test_criteria": ["All models pass validation"],
+                    "action_items": [
+                        "Create validation rules",
+                        "Write unit tests",
+                        "Integrate with LinkManager",
+                    ],
+                    "test_criteria": [
+                        "All validation rules pass",
+                        "Circular dependencies are prevented",
+                    ],
                     "completed": False,
-                    "priority": 1,
-                    "assignee": "agent_1",
                 }
             ]
         }

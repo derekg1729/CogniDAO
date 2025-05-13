@@ -32,11 +32,13 @@ _metadata_registry: Dict[str, Type[BaseModel]] = {}
 # Schema version registry - maps block_type to version number
 SCHEMA_VERSIONS: Dict[str, int] = {
     "base": 2,
-    "project": 2,
-    "task": 2,
+    "project": 3,
+    "task": 3,
     "doc": 3,
     "knowledge": 2,
     "log": 2,
+    "epic": 1,
+    "bug": 1,
 }
 
 
