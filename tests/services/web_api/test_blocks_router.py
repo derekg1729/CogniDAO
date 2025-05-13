@@ -482,3 +482,199 @@ def test_create_block_memory_bank_exception(
     # The router prefixes the tool's error message "Unexpected creation failed: Dolt Write Error"
     assert "Failed to create block: Unexpected creation failed: Dolt Write Error" in response.text
     mock_memory_bank.create_memory_block.assert_called_once()
+
+
+def test_get_blocks_with_type_filter(
+    client: TestClient, sample_memory_blocks_data: list[MemoryBlock]
+):
+    """Test filtering memory blocks by type."""
+    # Add a block with a different type to the test data
+    project_block = MemoryBlock(
+        id="project-block-1",
+        type="project",  # Distinct type for testing the filter
+        text="This is a project block.",
+        tags=["test", "project"],
+        created_at=datetime.datetime.utcnow(),
+        updated_at=datetime.datetime.utcnow(),
+        metadata={"source": "test_fixture", "name": "Test Project"},
+        schema_version=1,
+    )
+    test_blocks = sample_memory_blocks_data + [project_block]
+
+    # Update sample blocks to have explicit types
+    for i, block in enumerate(sample_memory_blocks_data):
+        block.type = "knowledge"
+
+    # Convert Pydantic models to dicts for JSON comparison
+    expected_knowledge_blocks = [
+        block.model_dump(mode="json") for block in sample_memory_blocks_data
+    ]
+    expected_project_blocks = [project_block.model_dump(mode="json")]
+
+    # Mock the memory bank
+    mock_memory_bank = MagicMock()
+    mock_memory_bank.get_all_memory_blocks.return_value = test_blocks
+
+    with patch("services.web_api.app.lifespan", MagicMock()):
+        app.state.memory_bank = mock_memory_bank
+
+        # Test filtering by knowledge type
+        response_knowledge = client.get("/api/blocks?type=knowledge")
+        assert response_knowledge.status_code == 200
+        assert response_knowledge.json() == expected_knowledge_blocks
+
+        # Test filtering by project type
+        response_project = client.get("/api/blocks?type=project")
+        assert response_project.status_code == 200
+        assert response_project.json() == expected_project_blocks
+
+        # Test with a type that doesn't exist
+        response_none = client.get("/api/blocks?type=nonexistent")
+        assert response_none.status_code == 200
+        assert response_none.json() == []
+
+        # Verify the memory bank was called each time
+        assert mock_memory_bank.get_all_memory_blocks.call_count == 3
+
+        if hasattr(app.state, "memory_bank"):
+            del app.state.memory_bank
+
+
+def test_get_blocks_with_no_type_filter(
+    client: TestClient, sample_memory_blocks_data: list[MemoryBlock]
+):
+    """Test that all blocks are returned when no type filter is applied."""
+    # Add a block with a different type to the test data
+    project_block = MemoryBlock(
+        id="project-block-1",
+        type="project",
+        text="This is a project block.",
+        tags=["test", "project"],
+        created_at=datetime.datetime.utcnow(),
+        updated_at=datetime.datetime.utcnow(),
+        metadata={"source": "test_fixture", "name": "Test Project"},
+        schema_version=1,
+    )
+    test_blocks = sample_memory_blocks_data + [project_block]
+
+    # Set explicit types on sample blocks
+    for block in sample_memory_blocks_data:
+        block.type = "knowledge"
+
+    # Convert all blocks to JSON format for comparison
+    expected_all_blocks = [block.model_dump(mode="json") for block in test_blocks]
+
+    # Mock the memory bank
+    mock_memory_bank = MagicMock()
+    mock_memory_bank.get_all_memory_blocks.return_value = test_blocks
+
+    with patch("services.web_api.app.lifespan", MagicMock()):
+        app.state.memory_bank = mock_memory_bank
+
+        # Test without any type filter - should return all blocks
+        response = client.get("/api/blocks")
+        assert response.status_code == 200
+        assert response.json() == expected_all_blocks
+
+        # Verify the memory bank was called
+        mock_memory_bank.get_all_memory_blocks.assert_called_once()
+
+        if hasattr(app.state, "memory_bank"):
+            del app.state.memory_bank
+
+
+def test_get_blocks_with_empty_type_filter(
+    client: TestClient, sample_memory_blocks_data: list[MemoryBlock]
+):
+    """Test behavior when an empty type filter is provided."""
+    # Mock the memory bank with the sample data
+    mock_memory_bank = MagicMock()
+    mock_memory_bank.get_all_memory_blocks.return_value = sample_memory_blocks_data
+
+    # Convert blocks to JSON format for comparison
+    expected_blocks = [block.model_dump(mode="json") for block in sample_memory_blocks_data]
+
+    with patch("services.web_api.app.lifespan", MagicMock()):
+        app.state.memory_bank = mock_memory_bank
+
+        # Test with empty type parameter
+        response = client.get("/api/blocks?type=")
+        assert response.status_code == 200
+        # An empty string type won't match any blocks, so we get all blocks back
+        # This is because the current implementation only filters if type is truthy
+        assert response.json() == expected_blocks
+
+        # Verify the memory bank was called
+        mock_memory_bank.get_all_memory_blocks.assert_called_once()
+
+        if hasattr(app.state, "memory_bank"):
+            del app.state.memory_bank
+
+
+def test_get_blocks_with_case_insensitive_filtering(client: TestClient):
+    """Test case insensitivity in the type filter with the case_insensitive parameter."""
+    # Create test blocks with different valid types
+    knowledge_block = MemoryBlock(
+        id="knowledge-block",
+        type="knowledge",
+        text="This is a knowledge block.",
+        tags=["test", "case-insensitive"],
+        created_at=datetime.datetime.utcnow(),
+        updated_at=datetime.datetime.utcnow(),
+        metadata={"source": "test_fixture"},
+        schema_version=1,
+    )
+
+    project_block = MemoryBlock(
+        id="project-block",
+        type="project",
+        text="This is a project block.",
+        tags=["test", "case-insensitive"],
+        created_at=datetime.datetime.utcnow(),
+        updated_at=datetime.datetime.utcnow(),
+        metadata={"source": "test_fixture"},
+        schema_version=1,
+    )
+
+    task_block = MemoryBlock(
+        id="task-block",
+        type="task",
+        text="This is a task block.",
+        tags=["test", "case-insensitive"],
+        created_at=datetime.datetime.utcnow(),
+        updated_at=datetime.datetime.utcnow(),
+        metadata={"source": "test_fixture"},
+        schema_version=1,
+    )
+
+    test_blocks = [knowledge_block, project_block, task_block]
+
+    # Mock the memory bank
+    mock_memory_bank = MagicMock()
+    mock_memory_bank.get_all_memory_blocks.return_value = test_blocks
+
+    with patch("services.web_api.app.lifespan", MagicMock()):
+        app.state.memory_bank = mock_memory_bank
+
+        # Test with case sensitivity (default) - uppercase should not match
+        response = client.get("/api/blocks?type=PROJECT")
+        assert response.status_code == 200
+        assert len(response.json()) == 0  # No matches with case-sensitive search
+
+        # Test with case insensitivity enabled - uppercase should match lowercase 'project'
+        response = client.get("/api/blocks?type=PROJECT&case_insensitive=true")
+        assert response.status_code == 200
+        assert len(response.json()) == 1
+        assert response.json()[0]["id"] == "project-block"
+
+        # Test with mixed case and case insensitivity
+        response = client.get("/api/blocks?type=pRoJeCt&case_insensitive=true")
+        assert response.status_code == 200
+        assert len(response.json()) == 1
+        assert response.json()[0]["id"] == "project-block"
+
+        # Verify the memory bank was called each time
+        assert mock_memory_bank.get_all_memory_blocks.call_count == 3
+
+        if hasattr(app.state, "memory_bank"):
+            del app.state.memory_bank

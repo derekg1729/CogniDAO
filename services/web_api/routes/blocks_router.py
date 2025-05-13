@@ -30,23 +30,39 @@ router = APIRouter()
     "/blocks",
     response_model=List[MemoryBlock],
     summary="Get all memory blocks",
-    description="Retrieves all memory blocks currently stored in the system from the main branch.",
+    description="Retrieves memory blocks currently stored in the system. Can be filtered by block type.",
     responses={500: {"model": ErrorResponse, "description": "Internal server error"}},
 )
-async def get_all_blocks(request: Request) -> List[MemoryBlock]:
+async def get_all_blocks(
+    request: Request, type: str = None, case_insensitive: bool = False
+) -> List[MemoryBlock]:
     """
-    Retrieves all memory blocks from the StructuredMemoryBank.
+    Retrieves memory blocks from the StructuredMemoryBank.
+
+    Parameters:
+    - type: Optional filter for block type (e.g., "project", "knowledge", "task")
+    - case_insensitive: If True, type filtering will be case-insensitive
     """
     try:
         memory_bank = request.app.state.memory_bank
         if not memory_bank:
+            logger.error("Memory bank not available in app state during blocks retrieval.")
             raise HTTPException(status_code=500, detail="Memory bank not available")
 
         all_blocks = memory_bank.get_all_memory_blocks()  # Defaults to 'main' branch
+
+        # Filter blocks by type if specified
+        if type:
+            logger.info(f"Filtering blocks by type: {type} (case_insensitive={case_insensitive})")
+            if case_insensitive:
+                all_blocks = [block for block in all_blocks if block.type.lower() == type.lower()]
+            else:
+                all_blocks = [block for block in all_blocks if block.type == type]
+
         return all_blocks
     except Exception as e:
         # Log the exception details for debugging
-        # logger.error(f"Error retrieving all blocks: {e}", exc_info=True) # Assuming logger is available
+        logger.exception(f"Error retrieving blocks: {e}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
 
