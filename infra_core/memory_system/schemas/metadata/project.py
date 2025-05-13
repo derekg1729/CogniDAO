@@ -2,17 +2,17 @@
 Project metadata schema for MemoryBlocks of type "project".
 """
 
-from typing import List, Optional, Dict, Union
+from typing import List, Optional, Dict, Union, ClassVar, Set
 from datetime import datetime
 from pydantic import Field
 
-# Import BaseMetadata
-from .base import BaseMetadata
+# Import ExecutableMetadata
+from .common.executable import ExecutableMetadata, PriorityLiteral
 from ..registry import register_metadata
 from ..common import ConfidenceScore
 
 
-class ProjectMetadata(BaseMetadata):
+class ProjectMetadata(ExecutableMetadata):
     """
     Metadata schema for MemoryBlocks of type "project".
     Based on the link-first relationship approach where BlockLink is the source of truth for relationships.
@@ -23,22 +23,31 @@ class ProjectMetadata(BaseMetadata):
     - belongs_to_epic: Points to an epic that this project is part of
     - epic_contains: Points to an epic that is related to this project (if project contains epics)
     - has_bug: Points to a bug that is related to this project
+
+    Projects inherit from ExecutableMetadata and support agent execution with:
+    - Planning fields (tool_hints, action_items, acceptance_criteria, expected_artifacts)
+    - Agent framework fields (execution_timeout_minutes, cost_budget_usd, role_hint)
+    - Completion fields (deliverables, validation_report)
     """
 
-    status: str = Field(
+    # Define allowed status values for Projects
+    ALLOWED_STATUS: ClassVar[Set[str]] = {
         "backlog",
-        description="Current status of the project",
-        pattern="^(backlog|in_progress|blocked|done)$",
-    )
+        "ready",
+        "in_progress",
+        "review",
+        "blocked",
+        "done",
+        "archived",
+    }
+
     owner: str = Field(..., description="User ID of the project owner/lead")
     name: str = Field(..., description="Short, descriptive name of the project")
     description: str = Field(
         ..., description="Detailed description of the project purpose and goals"
     )
-    priority: Optional[str] = Field(
-        None,
-        description="Priority level of the project (P0 highest, P3 lowest)",
-        pattern="^(P0|P1|P2|P3)$",
+    priority: Optional[PriorityLiteral] = Field(
+        None, description="Priority level of the project (P0 highest, P5 lowest)"
     )
     start_date: Optional[datetime] = Field(None, description="When work on this project began")
     target_date: Optional[datetime] = Field(
@@ -92,6 +101,10 @@ class ProjectMetadata(BaseMetadata):
                         {"phase_1": ["BlockLink as source of truth for relationships"]}
                     ],
                     "completed": False,
+                    "acceptance_criteria": [
+                        "All tests pass for block links",
+                        "Link-first approach properly documented",
+                    ],
                 }
             ]
         }

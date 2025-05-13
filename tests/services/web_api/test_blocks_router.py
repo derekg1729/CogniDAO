@@ -320,16 +320,17 @@ def test_get_block_exception(mock_get_block_tool, client_with_mock_bank):
 
 # Helper to create a valid task block payload
 def create_valid_task_payload() -> Dict[str, Any]:
+    """Create a valid task block creation payload for testing."""
     return {
         "type": "task",
         "text": "Test task block creation",
         "metadata": {
             "x_agent_id": "test-runner",
-            "project": "TestProject",
-            "name": "Test Task Name",
+            "title": "Test Task Title",
             "description": "Valid task metadata for testing",
-            "status": "todo",
+            "status": "backlog",  # Updated from 'todo' to 'backlog' to match new schema
             # Other fields from TaskMetadata are optional or have defaults
+            "acceptance_criteria": ["Test passes"],  # Required by ExecutableMetadata
         },
         "tags": ["test", "post"],
     }
@@ -385,7 +386,7 @@ def test_create_block_success(
         # Ensure the captured block has the input data
         assert block_arg.type == payload["type"]
         assert block_arg.text == payload["text"]
-        assert block_arg.metadata["name"] == payload["metadata"]["name"]
+        assert block_arg.metadata["title"] == payload["metadata"]["title"]
         return True  # Simulate success
 
     mock_memory_bank.create_memory_block.side_effect = capture_block_and_succeed
@@ -413,7 +414,7 @@ def test_create_block_success(
     assert response_data["id"] == created_block_instance_capture.id
     assert response_data["type"] == payload["type"]
     assert response_data["text"] == payload["text"]
-    assert response_data["metadata"]["name"] == payload["metadata"]["name"]
+    assert response_data["metadata"]["title"] == payload["metadata"]["title"]
 
 
 def test_create_block_invalid_metadata(
@@ -421,9 +422,7 @@ def test_create_block_invalid_metadata(
 ):
     """Test block creation failure due to invalid metadata for the type."""
     payload = create_valid_task_payload()
-    del payload["metadata"][
-        "project"
-    ]  # Make metadata invalid (project is required for TaskMetadata)
+    del payload["metadata"]["title"]  # Make metadata invalid (title is required for TaskMetadata)
 
     response = client_with_mock_bank.post("/api/blocks", json=payload)
 
@@ -434,7 +433,7 @@ def test_create_block_invalid_metadata(
     assert "Input validation failed: Metadata validation failed for type 'task'" in response.text
     # Ensure the specific field causing issues is mentioned (from Pydantic error details)
     assert (
-        "Field required" in response.text or "'project'" in response.text
+        "Field required" in response.text or "'title'" in response.text
     )  # Pydantic's error for missing field
     mock_memory_bank.create_memory_block.assert_not_called()
 

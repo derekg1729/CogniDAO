@@ -1,39 +1,15 @@
 """
-Bug metadata schema definition.
+Bug metadata schema for MemoryBlocks of type "bug".
 """
 
+from typing import List, Optional, Dict, ClassVar, Set
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional
-
 from pydantic import field_validator
 
-from infra_core.memory_system.schemas.metadata.base import BaseMetadata
+# Import ExecutableMetadata
+from .common.executable import ExecutableMetadata, PriorityLiteral
 from ..registry import register_metadata
-
-
-class BugStatus(str, Enum):
-    """Valid status values for a Bug."""
-
-    OPEN = "open"
-    IN_PROGRESS = "in_progress"
-    BLOCKED = "blocked"
-    RESOLVED = "resolved"
-    CLOSED = "closed"
-    WONT_FIX = "wont_fix"
-    DUPLICATE = "duplicate"
-    CANNOT_REPRODUCE = "cannot_reproduce"
-
-
-class BugPriority(str, Enum):
-    """Valid priority values for a Bug."""
-
-    P0 = "P0"  # Critical
-    P1 = "P1"  # High
-    P2 = "P2"  # Medium
-    P3 = "P3"  # Low
-    P4 = "P4"  # Very low
-    P5 = "P5"  # Trivial
 
 
 class BugSeverity(str, Enum):
@@ -46,13 +22,33 @@ class BugSeverity(str, Enum):
     TRIVIAL = "trivial"  # Cosmetic issues
 
 
-class BugMetadata(BaseMetadata):
+class BugMetadata(ExecutableMetadata):
     """
     Bug metadata schema.
 
     A Bug represents an issue, defect, or unexpected behavior in software
     that needs to be addressed.
+
+    Bugs inherit from ExecutableMetadata and support agent execution with:
+    - Planning fields (tool_hints, action_items, acceptance_criteria, expected_artifacts)
+    - Agent framework fields (execution_timeout_minutes, cost_budget_usd, role_hint)
+    - Completion fields (deliverables, validation_report)
+
+    Bugs can have relationships via BlockLinks:
+    - bug_affects: Points to a component, project, or system affected by this bug
+    - is_blocked_by: Points to another task or bug that is blocking this one
+    - blocks: Points to another task or bug that is blocked by this one
     """
+
+    # Define allowed status values for Bugs
+    ALLOWED_STATUS: ClassVar[Set[str]] = {
+        "backlog",
+        "ready",
+        "in_progress",
+        "blocked",
+        "done",
+        "released",
+    }
 
     # Required fields
     reporter: str
@@ -60,9 +56,8 @@ class BugMetadata(BaseMetadata):
     description: str
 
     # Optional fields
-    status: str = BugStatus.OPEN.value
     assignee: Optional[str] = None
-    priority: Optional[str] = None
+    priority: Optional[PriorityLiteral] = None
     severity: Optional[str] = None
     version_found: Optional[str] = None
     version_fixed: Optional[str] = None
@@ -71,23 +66,12 @@ class BugMetadata(BaseMetadata):
     labels: Optional[List[str]] = None
     confidence_score: Optional[Dict[str, float]] = None
 
-    @field_validator("status")
-    def validate_status(cls, v):
-        """Validate that the status is one of the allowed values."""
-        if v not in [status.value for status in BugStatus]:
-            raise ValueError(
-                f"Invalid status: {v}. Must be one of: {[status.value for status in BugStatus]}"
-            )
-        return v
-
-    @field_validator("priority")
-    def validate_priority(cls, v):
-        """Validate that the priority is one of the allowed values."""
-        if v is not None and v not in [priority.value for priority in BugPriority]:
-            raise ValueError(
-                f"Invalid priority: {v}. Must be one of: {[priority.value for priority in BugPriority]}"
-            )
-        return v
+    # Bug-specific detail fields
+    expected_behavior: Optional[str] = None
+    actual_behavior: Optional[str] = None
+    environment: Optional[str] = None
+    logs_link: Optional[str] = None
+    repro_steps: Optional[List[str]] = None
 
     @field_validator("severity")
     def validate_severity(cls, v):
@@ -118,7 +102,7 @@ class BugMetadata(BaseMetadata):
                     "reporter": "user_1234",
                     "title": "Memory corruption when processing large blocks",
                     "description": "When processing memory blocks larger than 10MB, data corruption occurs.",
-                    "status": "open",
+                    "status": "in_progress",
                     "assignee": "user_5678",
                     "priority": "P1",
                     "severity": "major",
@@ -127,6 +111,10 @@ class BugMetadata(BaseMetadata):
                     "due_date": "2024-05-15T00:00:00Z",
                     "labels": ["memory", "data-integrity", "high-priority"],
                     "confidence_score": {"human": 0.95, "ai": 0.85},
+                    "expected_behavior": "Data should be processed correctly without corruption",
+                    "actual_behavior": "Processed data is corrupted with random values",
+                    "environment": "Production server running v1.5.2",
+                    "acceptance_criteria": ["No data corruption occurs with 20MB blocks"],
                 }
             ]
         }

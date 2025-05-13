@@ -30,20 +30,32 @@
             "[x] Increment schema versions in registry.py for all affected models (project, task, epic, bug)",
             "[x] Update __init__.py to export new metadata models",
             "[x] Verify block_links table schema compatibility with updated BlockLink model",
-            "[ ] Create ValidationResult and ValidationReport models in metadata/validation.py",
-            "[ ] Create ExecutableMetadata mixin in metadata/executable.py with common execution fields",
-            "[ ] Add deliverables and validation_report fields to ExecutableMetadata",
-            "[ ] Add additional agent framework fields (execution_timeout_minutes, cost_budget_usd, role_hint)",
-            "[ ] Add validator that requires validation_report when status is 'done'",
-            "[ ] Update Task, Bug, Project, and Epic models to inherit from ExecutableMetadata",
-            "[ ] Add detailed bug-specific fields to BugMetadata (expected_behavior, actual_behavior, etc.)",
+            "[x] Create ValidationResult and ValidationReport models in metadata/validation.py",
+            "[x] Create ExecutableMetadata mixin in metadata/executable.py with common execution fields",
+            "[x] Add deliverables and validation_report fields to ExecutableMetadata",
+            "[x] Add additional agent framework fields (execution_timeout_minutes, cost_budget_usd, role_hint)",
+            "[x] Add validator that requires validation_report when status is 'done'",
+            "[x] Update Task, Bug, Project, and Epic models to inherit from ExecutableMetadata",
+            "[x] Add detailed bug-specific fields to BugMetadata (expected_behavior, actual_behavior, etc.)",
             "[ ] Create LinkManager class with handling for blocked_by relationship type",
-            "[ ] Add validation test to ensure at least one acceptance_criteria entry for new tasks",
+            "[x] Add validation test to ensure at least one acceptance_criteria entry for new tasks",
             "[ ] Create data transfer script to populate block_links table from existing MemoryBlock.links data",
             "[ ] Update x_parent_block_id in BaseMetadata based on BlockLinks with 'child_of' relation",
             "[x] Generate and publish updated JSON schemas to schemas/backend/ directory (automatic via pre-commit)",
-            "[ ] Document the mixin concept, task lifecycle, and agent framework compatibility in docs/memory_block_schema.md",
-            "[ ] Test the /schemas API endpoint to validate schema updates are accessible"
+            "[x] Document the mixin concept, task lifecycle, and agent framework compatibility in docs/memory_block_schema.md",
+            "[ ] Test the /schemas API endpoint to validate schema updates are accessible",
+            "[x] Create a WorkStatusLiteral in common.py with all possible values: 'backlog', 'ready', 'in_progress', 'review', 'merged', 'validated', 'released', 'done', 'archived'",
+            "[x] Create an ExecutionPhaseLiteral in common.py with values: 'designing', 'implementing', 'testing', 'debugging', 'documenting', 'awaiting_review'",
+            "[x] Add execution_phase field to ExecutableMetadata with validator that enforces it's only used with status=='in_progress'",
+            "[x] Update Epic metadata with valid status subset and validator",
+            "[x] Update Project metadata with valid status subset and validator",
+            "[x] Update Task metadata with valid status subset and validator",
+            "[x] Update Bug metadata with valid status subset and validator",
+            "[x] Update test_dolt_schema_manager.py to use valid status values in tests",
+            "[x] Update all other tests that may be using old status values",
+            "[x] Document the WorkStatus and ExecutionPhase in docs/memory_block_schema.md",
+            "[x] Run tests to verify all changes function correctly",
+            "[x] Create comprehensive test suite for validation models and ExecutableMetadata"
         ],
         "implementation_plan": [
             "1. Schema Updates: First implement all schema changes to memory_block, common, and metadata models",
@@ -92,7 +104,8 @@
                 "role_hint": "Optional[str]",
                 "# Completion fields (post-execution)": "",
                 "deliverables": "List[str]",
-                "validation_report": "Optional[ValidationReport]"
+                "validation_report": "Optional[ValidationReport]",
+                "execution_phase": "Literal['designing', 'implementing', 'testing', 'debugging', 'documenting', 'awaiting_review']"
             },
             "EpicMetadata": {
                 "status": "Literal['idea', 'planning', 'in_progress', 'at_risk', 'done']",
@@ -233,14 +246,14 @@
         },
         {
             "ExecutableMetadata Mixin Implementation": [
-                "[ ] Created executable.py mixin with agent execution fields",
-                "[ ] Created validation.py with ValidationResult and ValidationReport models",
-                "[ ] Added agent framework compatibility fields (timeout, budget, role_hint)",
-                "[ ] Task, Bug, Project, and Epic models inherit from ExecutableMetadata",
-                "[ ] Models have proper validation logic for execution fields",
-                "[ ] At least one acceptance_criteria is required for executable blocks",
-                "[ ] Status='done' requires valid validation_report with all passing criteria",
-                "[ ] Documentation explains task lifecycle from planning to validation"
+                "[x] Created executable.py mixin with agent execution fields",
+                "[x] Created validation.py with ValidationResult and ValidationReport models",
+                "[x] Added agent framework compatibility fields (timeout, budget, role_hint)",
+                "[x] Task, Bug, Project, and Epic models inherit from ExecutableMetadata",
+                "[x] Models have proper validation logic for execution fields",
+                "[x] At least one acceptance_criteria is required for executable blocks",
+                "[x] Status='done' requires valid validation_report with all passing criteria",
+                "[x] Documentation explains task lifecycle from planning to validation"
             ]
         },
         {
@@ -277,9 +290,9 @@
                 "[x] Tracks priority, estimates, and dates",
                 "[x] Contains labels and confidence scores",
                 "[x] No longer contains redundant reference fields",
-                "[ ] Includes agent execution fields (tool_hints, action_items, acceptance_criteria, etc.)",
-                "[ ] Supports task lifecycle with planning and validation stages",
-                "[ ] Compatible with CrewAI, OtherSideAI, and AutoGen agent frameworks"
+                "[x] Includes agent execution fields (tool_hints, action_items, acceptance_criteria, etc.)",
+                "[x] Supports task lifecycle with planning and validation stages",
+                "[x] Compatible with CrewAI, OtherSideAI, and AutoGen agent frameworks"
             ]
         },
         {
@@ -288,10 +301,10 @@
                 "[x] Includes reporter, assignee, title, description fields",
                 "[x] Tracks priority, severity, and dates",
                 "[x] Contains version information and steps to reproduce",
-                "[ ] Includes bug-specific fields (expected_behavior, actual_behavior, environment, etc.)",
-                "[ ] Includes agent execution fields (tool_hints, action_items, acceptance_criteria, etc.)",
-                "[ ] Supports bug lifecycle with planning and validation stages",
-                "[ ] Compatible with agent frameworks for automated bug fixing"
+                "[x] Includes bug-specific fields (expected_behavior, actual_behavior, environment, etc.)",
+                "[x] Includes agent execution fields (tool_hints, action_items, acceptance_criteria, etc.)",
+                "[x] Supports bug lifecycle with planning and validation stages",
+                "[x] Compatible with agent frameworks for automated bug fixing"
             ]
         },
         {
@@ -304,12 +317,21 @@
         },
         {
             "Agent Framework Compatibility": [
-                "[ ] ExecutableMetadata fields align with CrewAI task structure",
-                "[ ] ExecutableMetadata fields align with OtherSideAI workflow steps",
-                "[ ] ExecutableMetadata fields align with AutoGen message contracts",
-                "[ ] Added extension fields for advanced orchestration (timeout, budget, role_hint)"
+                "[x] ExecutableMetadata fields align with CrewAI task structure",
+                "[x] ExecutableMetadata fields align with OtherSideAI workflow steps",
+                "[x] ExecutableMetadata fields align with AutoGen message contracts",
+                "[x] Added extension fields for advanced orchestration (timeout, budget, role_hint)"
+            ]
+        },
+        {
+            "Test Coverage": [
+                "[x] Validation models (ValidationResult, ValidationReport) have comprehensive tests",
+                "[x] ExecutableMetadata fields and validators are thoroughly tested",
+                "[x] Status literals and validation rules are tested across all metadata models",
+                "[x] Tests verify proper enforcement of blocked_by UUID format",
+                "[x] Tests ensure validation reports properly validate acceptance criteria"
             ]
         }
     ],
-    "current_status": "Phase 1 completed: Schema updates for basic types. Phase 2 starting: Implementing ExecutableMetadata mixin and ValidationReport models with additional fields for agent framework compatibility. Adding support for full task lifecycle from planning to execution to validation, with compatibility for CrewAI, OtherSideAI, and AutoGen frameworks."
+    "current_status": "Completed Phase 3: Implemented comprehensive test suite for all metadata schemas. Created test files for ExecutableMetadata status validation, ValidationReport functionality, and type-specific status validation. All tests are now passing, with additional tests for UUID format validation in blocked_by references, validation report requirements for completed items, and status-specific validations for each model type. The metadata schema update is complete with proper validation and test coverage. Next steps will focus on implementing the LinkManager class and data transfer functionality."
 }

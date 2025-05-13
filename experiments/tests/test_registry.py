@@ -86,8 +86,8 @@ def test_schema_versions_initialization():
 def test_get_schema_version():
     """Test schema version retrieval for valid and invalid block types."""
     # Test valid block types
-    assert get_schema_version("project") == 2
-    assert get_schema_version("task") == 2
+    assert get_schema_version("project") == 4
+    assert get_schema_version("task") == 4
     assert get_schema_version("doc") == 3
     assert get_schema_version("knowledge") == 2
     assert get_schema_version("log") == 2

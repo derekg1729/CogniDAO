@@ -398,8 +398,10 @@ class TestDoltSchemaManager:
                 "x_agent_id": "test_agent_123",
                 "name": "Test Project",
                 "description": "A test project",
-                "status": "planning",
+                "status": "backlog",  # Using valid status from pattern
+                "owner": "test_owner",  # Required field
                 "completed": False,
+                "acceptance_criteria": ["Test criterion"],  # Required by ExecutableMetadata
             }
 
             # Validate metadata
@@ -467,7 +469,7 @@ class TestDoltSchemaManager:
         node_types = get_available_node_types()
 
         # Define the expected node types - UPDATE THIS LIST when adding new node types
-        expected_types = ["project", "task", "doc", "knowledge", "log"]
+        expected_types = ["project", "task", "doc", "knowledge", "log", "epic", "bug"]
 
         # Verify all expected types are present
         assert set(node_types) == set(expected_types), (

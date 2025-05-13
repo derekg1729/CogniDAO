@@ -2,17 +2,17 @@
 Task metadata schema for MemoryBlocks of type "task".
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, ClassVar, Set
 from datetime import datetime
 from pydantic import Field
 
-# Import BaseMetadata
-from .base import BaseMetadata
+# Import ExecutableMetadata
+from .common.executable import ExecutableMetadata, PriorityLiteral
 from ..registry import register_metadata
 from ..common import ConfidenceScore
 
 
-class TaskMetadata(BaseMetadata):
+class TaskMetadata(ExecutableMetadata):
     """
     Metadata schema for MemoryBlocks of type "task".
     Based on the link-first relationship approach where BlockLink is the source of truth for relationships.
@@ -24,20 +24,28 @@ class TaskMetadata(BaseMetadata):
     - blocks: Points to another task that cannot proceed until this one is complete
     - is_blocked_by: Points to another task that is blocking this one
     - has_bug: Points to a bug that is related to this task
+
+    Tasks inherit from ExecutableMetadata and support agent execution with:
+    - Planning fields (tool_hints, action_items, acceptance_criteria, expected_artifacts)
+    - Agent framework fields (execution_timeout_minutes, cost_budget_usd, role_hint)
+    - Completion fields (deliverables, validation_report)
     """
 
-    status: str = Field(
-        "todo",
-        description="Current status of the task",
-        pattern="^(todo|in_progress|review|blocked|done)$",
-    )
+    # Define allowed status values for Tasks
+    ALLOWED_STATUS: ClassVar[Set[str]] = {
+        "backlog",
+        "ready",
+        "in_progress",
+        "review",
+        "blocked",
+        "done",
+    }
+
     assignee: Optional[str] = Field(None, description="User ID of the person assigned to this task")
     title: str = Field(..., description="Short, descriptive title of the task")
     description: str = Field(..., description="Detailed description of what the task involves")
-    priority: Optional[str] = Field(
-        None,
-        description="Priority level of the task (P0 highest, P3 lowest)",
-        pattern="^(P0|P1|P2|P3)$",
+    priority: Optional[PriorityLiteral] = Field(
+        None, description="Priority level of the task (P0 highest, P5 lowest)"
     )
     story_points: Optional[float] = Field(None, description="Story points assigned to this task")
     estimate_hours: Optional[float] = Field(
@@ -54,15 +62,6 @@ class TaskMetadata(BaseMetadata):
     implementation_details: Optional[Dict[str, Any]] = Field(
         default_factory=dict,
         description="Technical details for implementation (files, endpoints, etc.)",
-    )
-    action_items: Optional[List[str]] = Field(
-        default_factory=list, description="Specific steps required to complete the task"
-    )
-    test_criteria: Optional[List[str]] = Field(
-        default_factory=list, description="Criteria to verify the task is implemented correctly"
-    )
-    success_criteria: Optional[List[str]] = Field(
-        default_factory=list, description="Criteria to verify the task meets its objectives"
     )
     completed: bool = Field(False, description="Whether the task is marked as complete")
     current_status: Optional[str] = Field(
@@ -94,7 +93,7 @@ class TaskMetadata(BaseMetadata):
                         "Write unit tests",
                         "Integrate with LinkManager",
                     ],
-                    "test_criteria": [
+                    "acceptance_criteria": [
                         "All validation rules pass",
                         "Circular dependencies are prevented",
                     ],
