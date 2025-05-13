@@ -22,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Type
 from pydantic import BaseModel
+from infra_core.memory_system.schemas.registry import get_all_metadata_models, get_schema_version
 
 # Use the correct import path for doltpy v2+
 try:
@@ -327,6 +328,111 @@ class DoltSchemaManager:
         except Exception as e:
             logger.error(f"Failed to list schemas: {e}", exc_info=True)
             return []
+
+
+# Minimal wrapper functions
+def register_schema(db_path, node_type, schema_version, json_schema):
+    """Register a schema definition for a node type."""
+    try:
+        manager = DoltSchemaManager(db_path)
+        # Handle both Pydantic models and direct JSON schema dictionaries
+        if hasattr(json_schema, "model_json_schema"):  # It's a Pydantic model
+            return manager.register_schema(node_type, schema_version, json_schema)
+        else:  # It's a JSON schema dictionary
+            # Just use the schema directly
+            timestamp_str = datetime.utcnow().isoformat()
+            schema_dict = json_schema.copy()
+            schema_dict["x_node_type"] = node_type
+            schema_dict["x_schema_version"] = schema_version
+            schema_dict["x_generated_at"] = timestamp_str
+
+            created_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%f")
+            escaped_json_schema = json.dumps(schema_dict).replace("\\", "\\\\").replace("'", "''")
+
+            sql_query = f"""
+            INSERT INTO node_schemas (node_type, schema_version, json_schema, created_at)
+            VALUES ('{node_type}', {schema_version}, '{escaped_json_schema}', '{created_at}')
+            ON DUPLICATE KEY UPDATE
+                json_schema = VALUES(json_schema),
+                created_at = VALUES(created_at)
+            """
+
+            manager.dolt.sql(query=sql_query)
+            manager.dolt.add("node_schemas")
+            manager.dolt.commit(message=f"Register schema for {node_type} version {schema_version}")
+            return True
+    except Exception as e:
+        logger.error(f"Failed to register schema for {node_type} v{schema_version}: {e}")
+        return False
+
+
+def register_all_metadata_schemas(db_path):
+    """Register all metadata schemas defined in the system."""
+    # Create manager once to reuse the same Dolt connection
+    dolt_instance = Dolt(db_path)
+    results = {}
+
+    # Get all metadata models from registry
+    metadata_models = get_all_metadata_models()
+
+    for node_type, model_cls in metadata_models.items():
+        try:
+            # Get schema version for this node type
+            version = get_schema_version(node_type)
+
+            # Generate JSON schema from the Pydantic model
+            schema_dict = model_cls.model_json_schema()
+            # Add custom metadata expected by the MemoryBlock structure or registry
+            schema_dict["x_node_type"] = node_type
+            schema_dict["x_schema_version"] = version
+            schema_dict["x_generated_at"] = datetime.utcnow().isoformat()
+            json_schema_str = json.dumps(schema_dict, separators=(",", ":"))
+
+            # Escape for SQL
+            escaped_json_schema = json_schema_str.replace("\\", "\\\\").replace("'", "''")
+            created_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%f")
+
+            # SQL query with VALUES clause as expected by the test
+            sql_query = f"""
+            INSERT INTO node_schemas (node_type, schema_version, json_schema, created_at)
+            VALUES ('{node_type}', {version}, '{escaped_json_schema}', '{created_at}')
+            ON DUPLICATE KEY UPDATE
+                json_schema = VALUES(json_schema),
+                created_at = VALUES(created_at)
+            """
+
+            # Execute the SQL query
+            dolt_instance.sql(query=sql_query)
+
+            # Stage the changes in Dolt
+            dolt_instance.add("node_schemas")
+
+            # Commit the changes
+            commit_message = f"Register schema for {node_type} version {version}"
+            dolt_instance.commit(message=commit_message)
+
+            results[node_type] = True
+        except KeyError as ke:
+            # Handle case where no schema version is defined for this type
+            logger.error(f"Error registering schema for {node_type}: {str(ke)}")
+            results[node_type] = False
+        except Exception as e:
+            logger.error(f"Error registering schema for {node_type}: {str(e)}")
+            results[node_type] = False
+
+    return results
+
+
+def get_schema(db_path, node_type, version=None, schema_version=None):
+    """Retrieve a schema definition for a node type."""
+    # Allow schema_version as an alternative parameter name for backward compatibility
+    v = schema_version if schema_version is not None else version
+    return DoltSchemaManager(db_path).get_schema(node_type, v)
+
+
+def list_available_schemas(db_path, branch="main"):
+    """List all available schemas in the database."""
+    return DoltSchemaManager(db_path).list_available_schemas(branch)
 
 
 # Example usage

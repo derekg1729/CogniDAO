@@ -27,7 +27,9 @@ from infra_core.memory_system.dolt_writer import (
 from infra_core.memory_system.llama_memory import LlamaMemory
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
 from infra_core.memory_system.schemas.common import BlockLink
-from infra_core.memory_system.dolt_schema_manager import DoltSchemaManager
+from infra_core.memory_system.dolt_schema_manager import (
+    get_schema as _get_schema_external,
+)
 
 # --- Path Setup ---
 script_dir = Path(__file__).parent
@@ -163,9 +165,8 @@ class StructuredMemoryBank:
         logger.debug(f"Fetching latest schema version for node type: {node_type}")
 
         try:
-            # Use DoltSchemaManager to get the schema
-            schema_manager = DoltSchemaManager(self.dolt_db_path)
-            schema = schema_manager.get_schema(node_type=node_type)
+            # Use the get_schema function from our module
+            schema = get_schema(db_path=self.dolt_db_path, node_type=node_type)
 
             if schema and "x_schema_version" in schema:
                 version = schema["x_schema_version"]
@@ -201,6 +202,7 @@ class StructuredMemoryBank:
             try:
                 latest_version = self.get_latest_schema_version(block.type)
                 if latest_version is not None:
+                    # Explicitly assign the schema version to the block
                     block.schema_version = latest_version
                     logger.info(f"Set schema_version to {latest_version} for block {block.id}")
                 else:
@@ -1142,3 +1144,10 @@ class StructuredMemoryBank:
                 f"Failed to retrieve proof records for block {block_id}: {e}", exc_info=True
             )
             return []
+
+
+# Define get_schema directly in this module so it can be patched by tests
+def get_schema(db_path, node_type, version=None, schema_version=None):
+    """Local wrapper for the get_schema function from dolt_schema_manager."""
+    v = schema_version if schema_version is not None else version
+    return _get_schema_external(db_path, node_type, v)
