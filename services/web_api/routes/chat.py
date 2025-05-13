@@ -23,7 +23,6 @@ from ..auth_utils import verify_auth
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/chat",
     tags=["Chat"],
 )
 
@@ -139,7 +138,7 @@ async def send_message(
     logger.info("✅ Task completed")
 
 
-@router.post("/")  # Path is relative to the router's prefix ("/chat")
+@router.post("/chat")  # Path is now the full "/chat" without a prefix
 async def stream_chat(
     body: CompleteQueryRequest, fastapi_request: Request, auth=Depends(verify_auth)
 ):
