@@ -20,6 +20,11 @@ from infra_core.memory_system.schemas.metadata.task import (
     TaskMetadata,
 )  # Import a concrete metadata type
 
+# Import the tool and its models for testing the get_block endpoint
+from infra_core.memory_system.tools.agent_facing.get_memory_block_tool import (
+    GetMemoryBlockOutput,
+)
+
 
 # Fixture for TestClient
 @pytest.fixture(scope="module")
@@ -54,6 +59,21 @@ def sample_memory_blocks_data():
             schema_version=1,
         ),
     ]
+
+
+# Sample single memory block for get_block tests
+@pytest.fixture
+def sample_memory_block():
+    return MemoryBlock(
+        id="test-block-123",
+        type="knowledge",
+        text="This is a test memory block for individual retrieval.",
+        tags=["test", "api", "get"],
+        created_at=datetime.datetime.utcnow(),
+        updated_at=datetime.datetime.utcnow(),
+        metadata={"source": "test_fixture", "purpose": "testing get_block endpoint"},
+        schema_version=1,
+    )
 
 
 def test_get_all_blocks_success(client: TestClient, sample_memory_blocks_data: list[MemoryBlock]):
@@ -185,6 +205,117 @@ def test_get_all_blocks_bank_exception(client_with_mock_bank, mock_memory_bank):
     assert response.status_code == 500
     assert "An unexpected error occurred" in response.text
     assert "Dolt connection error" in response.text
+
+
+# Tests for the new GET /api/blocks/{id} endpoint
+@patch("services.web_api.routes.blocks_router.get_memory_block_tool")
+def test_get_block_success(mock_get_block_tool, client_with_mock_bank, sample_memory_block):
+    """Test successful retrieval of a specific memory block by ID."""
+    # Configure mock to return success output
+    mock_output = GetMemoryBlockOutput(
+        success=True,
+        block=sample_memory_block,
+        error=None,
+        timestamp=datetime.datetime.utcnow(),
+    )
+    mock_get_block_tool.return_value = mock_output
+
+    # Make the request
+    response = client_with_mock_bank.get(f"/api/blocks/{sample_memory_block.id}")
+
+    # Verify the response
+    assert response.status_code == 200
+    assert response.json() == sample_memory_block.model_dump(mode="json")
+
+    # Verify cache headers
+    assert "Cache-Control" in response.headers
+    assert "max-age=3600" in response.headers["Cache-Control"]
+    assert "public" in response.headers["Cache-Control"]
+
+    # Verify the tool was called correctly
+    mock_get_block_tool.assert_called_once()
+    _, kwargs = mock_get_block_tool.call_args
+    assert "memory_bank" in kwargs
+    assert "block_id" in kwargs
+    assert kwargs["block_id"] == sample_memory_block.id
+
+
+@patch("services.web_api.routes.blocks_router.get_memory_block_tool")
+def test_get_block_not_found(mock_get_block_tool, client_with_mock_bank):
+    """Test retrieval of a non-existent memory block by ID."""
+    # Configure mock to return not found output
+    mock_output = GetMemoryBlockOutput(
+        success=False,
+        block=None,
+        error="Memory block with ID 'non-existent-id' not found.",
+        timestamp=datetime.datetime.utcnow(),
+    )
+    mock_get_block_tool.return_value = mock_output
+
+    # Make the request
+    response = client_with_mock_bank.get("/api/blocks/non-existent-id")
+
+    # Verify the response
+    assert response.status_code == 404
+    error_response = response.json()
+    assert "detail" in error_response
+    assert "not found" in error_response["detail"]
+
+    # Verify the tool was called correctly
+    mock_get_block_tool.assert_called_once()
+
+
+@patch("services.web_api.routes.blocks_router.get_memory_block_tool")
+def test_get_block_error(mock_get_block_tool, client_with_mock_bank):
+    """Test error handling when retrieving a memory block encounters an error."""
+    # Configure mock to return an error output
+    mock_output = GetMemoryBlockOutput(
+        success=False,
+        block=None,
+        error="Database connection error",
+        timestamp=datetime.datetime.utcnow(),
+    )
+    mock_get_block_tool.return_value = mock_output
+
+    # Make the request
+    response = client_with_mock_bank.get("/api/blocks/error-block-id")
+
+    # Verify the response
+    assert response.status_code == 500
+    error_response = response.json()
+    assert "detail" in error_response
+    assert "Failed to retrieve block" in error_response["detail"]
+
+    # Verify the tool was called correctly
+    mock_get_block_tool.assert_called_once()
+
+
+def test_get_block_memory_bank_unavailable(client_with_mock_bank):
+    """Test error handling when memory bank is unavailable for get_block."""
+    app.state.memory_bank = None  # Simulate bank not being available
+    response = client_with_mock_bank.get("/api/blocks/any-id")
+    assert response.status_code == 500
+    assert "Memory bank service unavailable" in response.text
+
+
+@patch("services.web_api.routes.blocks_router.get_memory_block_tool")
+def test_get_block_exception(mock_get_block_tool, client_with_mock_bank):
+    """Test error handling when get_memory_block_tool raises an exception."""
+    # Configure mock to raise an exception
+    mock_get_block_tool.side_effect = Exception("Unexpected tool error")
+
+    # Make the request
+    response = client_with_mock_bank.get("/api/blocks/exception-block-id")
+
+    # Verify the response
+    assert response.status_code == 500
+    error_response = response.json()
+    assert "detail" in error_response
+    assert "An unexpected error occurred during block retrieval" in error_response["detail"]
+    assert "Unexpected tool error" in error_response["detail"]
+
+    # Verify the tool was called correctly
+    mock_get_block_tool.assert_called_once()
 
 
 # Helper to create a valid task block payload

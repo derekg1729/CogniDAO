@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Request, HTTPException, status
 from typing import List
+from fastapi.responses import JSONResponse
 
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
 from services.web_api.models import ErrorResponse
@@ -11,6 +12,11 @@ from infra_core.memory_system.tools.memory_core.create_memory_block_tool import 
     create_memory_block,
     CreateMemoryBlockInput,
     # CreateMemoryBlockOutput is used implicitly by the function
+)
+
+# Import the get_memory_block_tool for retrieving single blocks
+from infra_core.memory_system.tools.agent_facing.get_memory_block_tool import (
+    get_memory_block_tool,
 )
 import logging  # Add logging
 
@@ -42,6 +48,68 @@ async def get_all_blocks(request: Request) -> List[MemoryBlock]:
         # Log the exception details for debugging
         # logger.error(f"Error retrieving all blocks: {e}", exc_info=True) # Assuming logger is available
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
+
+@router.get(
+    "/blocks/{block_id}",
+    response_model=MemoryBlock,
+    summary="Get a specific memory block by ID",
+    description="Retrieves a specific memory block by its unique identifier.",
+    responses={
+        404: {"model": ErrorResponse, "description": "Memory block not found"},
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+    },
+)
+async def get_block(request: Request, block_id: str) -> MemoryBlock:
+    """
+    Retrieves a specific memory block by its ID using the get_memory_block_tool.
+    """
+    # 1. Get Memory Bank instance
+    try:
+        memory_bank = request.app.state.memory_bank
+        if not memory_bank:
+            logger.error("Memory bank not available in app state during block retrieval.")
+            raise HTTPException(status_code=500, detail="Memory bank service unavailable")
+    except AttributeError:
+        logger.error("Memory bank not configured on app state.")
+        raise HTTPException(status_code=500, detail="Memory bank not configured")
+
+    # 2. Call the tool function
+    try:
+        # Call the tool with block_id parameter directly
+        output = get_memory_block_tool(block_id=block_id, memory_bank=memory_bank)
+    except Exception as e:
+        # Catch unexpected errors during the tool execution itself
+        logger.exception(f"Unexpected error calling get_memory_block_tool: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"An unexpected error occurred during block retrieval: {str(e)}",
+        )
+
+    # 3. Handle the output from the tool
+    if output.success and output.block:
+        # Return the block with caching headers
+        return JSONResponse(
+            content=output.block.model_dump(mode="json"),
+            headers={"Cache-Control": "max-age=3600, public"},  # Cache for 1 hour
+        )
+    else:
+        # Handle block not found or other errors
+        error_msg = output.error or "Unknown error during block retrieval"
+        logger.warning(f"Block retrieval failed: {error_msg}")
+
+        if "not found" in error_msg.lower():
+            # Block not found - return 404
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Memory block with ID '{block_id}' not found",
+            )
+        else:
+            # Other errors - return 500
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to retrieve block: {error_msg}",
+            )
 
 
 @router.post(
