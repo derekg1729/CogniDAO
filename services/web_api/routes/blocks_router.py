@@ -23,7 +23,7 @@ import logging  # Add logging
 # Setup logger
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(tags=["v1/Blocks"])
 
 
 @router.get(

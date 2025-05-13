@@ -9,7 +9,7 @@ from infra_core.memory_system.schemas.registry import (
     SCHEMA_VERSIONS,
 )
 
-router = APIRouter()
+router = APIRouter(tags=["v1/Schemas"])
 
 
 @router.get(
@@ -91,8 +91,8 @@ def get_schema_index():
                 "type": block_type,
                 "version": version,
                 "latest_version": version,  # Add the latest version number
-                "url": f"/schemas/{block_type}/{version}",
-                "latest_url": f"/schemas/{block_type}/latest",
+                "url": f"/api/v1/schemas/{block_type}/{version}",
+                "latest_url": f"/api/v1/schemas/{block_type}/latest",
             }
         )
     return JSONResponse(

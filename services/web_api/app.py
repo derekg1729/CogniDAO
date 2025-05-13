@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 # Import our schemas
 from services.web_api.models import ErrorResponse
@@ -69,9 +69,63 @@ app = FastAPI(
 
 # Include routers
 app.include_router(health_router.router)
-app.include_router(chat_router.router)
-app.include_router(blocks_router.router, prefix="/api", tags=["Blocks"])
-app.include_router(schemas_router.router)
+app.include_router(chat_router.router, prefix="/api/v1")
+app.include_router(blocks_router.router, prefix="/api/v1")
+app.include_router(schemas_router.router, prefix="/api/v1")
+
+
+# Add redirects from old paths to new paths for backward compatibility
+@app.get("/chat", include_in_schema=False)
+@app.head("/chat", include_in_schema=False)
+async def redirect_chat_get(request: Request):
+    # Include query parameters in the redirect
+    query_string = request.url.query
+    redirect_url = f"/api/v1/chat{f'?{query_string}' if query_string else ''}"
+    return RedirectResponse(url=redirect_url, status_code=307)
+
+
+@app.post("/chat", include_in_schema=False)
+async def redirect_chat_post(request: Request):
+    # Include query parameters in the redirect
+    query_string = request.url.query
+    redirect_url = f"/api/v1/chat{f'?{query_string}' if query_string else ''}"
+    return RedirectResponse(url=redirect_url, status_code=307)  # 307 preserves POST method
+
+
+@app.get("/schemas/{path:path}", include_in_schema=False)
+@app.head("/schemas/{path:path}", include_in_schema=False)
+async def redirect_schemas(request: Request, path: str):
+    # Include query parameters in the redirect
+    query_string = request.url.query
+    redirect_url = f"/api/v1/schemas/{path}{f'?{query_string}' if query_string else ''}"
+    return RedirectResponse(url=redirect_url, status_code=307)
+
+
+@app.get("/api/blocks", include_in_schema=False)
+@app.head("/api/blocks", include_in_schema=False)
+async def redirect_blocks_get(request: Request):
+    # Include query parameters in the redirect
+    query_string = request.url.query
+    redirect_url = f"/api/v1/blocks{f'?{query_string}' if query_string else ''}"
+    return RedirectResponse(url=redirect_url, status_code=307)
+
+
+@app.post("/api/blocks", include_in_schema=False)
+async def redirect_blocks_post(request: Request):
+    # Include query parameters in the redirect
+    query_string = request.url.query
+    redirect_url = f"/api/v1/blocks{f'?{query_string}' if query_string else ''}"
+    return RedirectResponse(url=redirect_url, status_code=307)  # 307 preserves POST method
+
+
+@app.get("/api/blocks/{block_id}", include_in_schema=False)
+@app.head("/api/blocks/{block_id}", include_in_schema=False)
+async def redirect_block(request: Request, block_id: str):
+    # Include query parameters in the redirect
+    query_string = request.url.query
+    redirect_url = f"/api/v1/blocks/{block_id}{f'?{query_string}' if query_string else ''}"
+    return RedirectResponse(url=redirect_url, status_code=307)
+
 
 # Add CORS middleware
 app.add_middleware(
