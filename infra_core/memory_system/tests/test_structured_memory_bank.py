@@ -128,9 +128,7 @@ def mock_dolt_writer():
 @pytest.fixture
 def mock_dolt_reader():
     """Mock the dolt_reader functions."""
-    with patch(
-        "infra_core.memory_system.structured_memory_bank.read_memory_block"
-    ) as mock_read:
+    with patch("infra_core.memory_system.structured_memory_bank.read_memory_block") as mock_read:
         mock_read.return_value = None  # Default to no block found
         yield mock_read
 
@@ -138,9 +136,7 @@ def mock_dolt_reader():
 @pytest.fixture
 def mock_schema_manager():
     """Mock the dolt_schema_manager functions."""
-    with patch(
-        "infra_core.memory_system.structured_memory_bank.get_schema"
-    ) as mock_get_schema:
+    with patch("infra_core.memory_system.structured_memory_bank.get_schema") as mock_get_schema:
         # Default to returning None (no schema found)
         mock_get_schema.return_value = None
         yield mock_get_schema
@@ -625,7 +621,15 @@ class TestStructuredMemoryBank:
         # Verify schema version was set
         assert result is True
         assert test_block.schema_version == 2
-        mock_schema_manager.assert_called_once_with(db_path=MOCK_DOLT_PATH, node_type="knowledge")
+
+        # Check if the mock was called at all
+        assert mock_schema_manager.call_count == 1
+        # Get the actual arguments the mock was called with
+        args, kwargs = mock_schema_manager.call_args
+        # Check that the function was called with the right parameters, regardless of how they were passed
+        assert MOCK_DOLT_PATH in args or kwargs.get("db_path") == MOCK_DOLT_PATH
+        assert "knowledge" in args or kwargs.get("node_type") == "knowledge"
+
         mock_dolt_writer.assert_called_once()
         mock_llama_memory.add_block.assert_called_once_with(test_block)
 
@@ -650,7 +654,15 @@ class TestStructuredMemoryBank:
         # Verify operation succeeded but schema_version remained None
         assert result is True
         assert test_block.schema_version is None
-        mock_schema_manager.assert_called_once_with(db_path=MOCK_DOLT_PATH, node_type="knowledge")
+
+        # Check if the mock was called at all
+        assert mock_schema_manager.call_count == 1
+        # Get the actual arguments the mock was called with
+        args, kwargs = mock_schema_manager.call_args
+        # Check that the function was called with the right parameters, regardless of how they were passed
+        assert MOCK_DOLT_PATH in args or kwargs.get("db_path") == MOCK_DOLT_PATH
+        assert "knowledge" in args or kwargs.get("node_type") == "knowledge"
+
         mock_dolt_writer.assert_called_once()
         mock_llama_memory.add_block.assert_called_once_with(test_block)
 

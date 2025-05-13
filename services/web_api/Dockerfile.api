@@ -1,0 +1,39 @@
+FROM dolthub/dolt-sql-server:latest as dolt
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install required system dependencies for building packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc g++ libaio-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy dolt binary and configuration from the dolthub/dolt-sql-server image
+COPY --from=dolt /usr/local/bin/dolt /usr/local/bin/dolt
+
+# Configure dolt
+RUN dolt config --global --add user.email "cogni-api@example.com" && \
+    dolt config --global --add user.name "Cogni API"
+
+# Copy requirements file from its new location into /app/
+COPY services/web_api/requirements.api.txt ./requirements.api.txt
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.api.txt
+
+# Copy data directories from project root into /app/data/
+COPY ./data/memory_dolt /app/data/memory_dolt/
+COPY ./data/memory_chroma /app/data/memory_chroma/
+
+# Copy infra_core application code
+COPY ./infra_core/ /app/infra_core/
+# Copy services application code (this will create /app/services/web_api/ etc.)
+COPY ./services /app/services/
+
+# Expose port
+EXPOSE 8000
+
+# Run the application using Uvicorn, referencing the app via its full module path
+# This ensures that relative imports within services.web_api.main work correctly.
+CMD ["uvicorn", "services.web_api.main:app", "--host", "0.0.0.0", "--port", "8000"] 

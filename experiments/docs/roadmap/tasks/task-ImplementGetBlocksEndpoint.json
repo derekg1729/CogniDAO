@@ -1,0 +1,55 @@
+{
+    "type": "Task",
+    "status": "completed",
+    "project": "ExistingBackendEnhancements",
+    "name": "Implement /api/blocks Endpoint to Retrieve All Memory Blocks",
+    "description": "Added a new `/api/blocks` endpoint to the `services/web_api/app.py` backend to serve all memory block data queried from the Dolt database via `StructuredMemoryBank`. This involved defining the API logic in `services/web_api/routes/blocks_router.py`, leveraging the existing `MemoryBlock` Pydantic model from `infra_core/memory_system/schemas/memory_block.py`, and creating unit tests.",
+    "key_principles": [
+        "🛠️ Leverage the existing backend infrastructure (`services/web_api/app.py`, `infra_core/memory_system/`).",
+        "📄 Use the existing `MemoryBlock` schema from `infra_core/memory_system/schemas/memory_block.py`.",
+        "🧪 Ensure the new endpoint is robust and well-tested (`services/web_api/tests/test_blocks_router.py`).",
+        "💾 Blocks are sourced directly from Dolt via `StructuredMemoryBank`."
+    ],
+    "implementation_details": {
+        "target_files": [
+            "services/web_api/app.py",
+            "services/web_api/routes/blocks_router.py",
+            "services/web_api/tests/test_blocks_router.py",
+            "infra_core/memory_system/structured_memory_bank.py",
+            "infra_core/memory_system/dolt_reader.py",
+            "infra_core/memory_system/schemas/memory_block.py",
+            "schemas/backend/"
+        ],
+        "required_libraries_prod": [
+            "fastapi",
+            "uvicorn[standard]",
+            "doltpy"
+        ],
+        "required_libraries_dev": [
+            "pytest",
+            "httpx"
+        ],
+        "action_items": [
+            "[x] **(Define Model Usage)** Leveraged existing Pydantic `MemoryBlock` model in `infra_core/memory_system/schemas/memory_block.py`.",
+            "[x] **(Implement API Router)** Created `services/web_api/routes/blocks_router.py` with an endpoint to get all blocks.",
+            "[x] **(Integrate Router)** Registered the blocks router in `services/web_api/app.py`.",
+            "[x] **(Implement Dolt Logic via Service)** Added `get_all_memory_blocks` method to `infra_core/memory_system/structured_memory_bank.py`, which uses `infra_core/memory_system/dolt_reader.read_memory_blocks` to fetch data from Dolt.",
+            "[x] **(Write Unit Tests)** Created `services/web_api/tests/test_blocks_router.py` with unit tests for the `/api/blocks` endpoint, mocking `StructuredMemoryBank`.",
+            "[x] **(Manual Test with Dolt)** Ran the backend application locally and manually tested the `/api/blocks` endpoint via curl, verifying Dolt integration.",
+            "[ ] **(Generate Schemas)** Run `scripts/generate_schemas.py` to create/update JSON schemas for API-related models in the `schemas/backend/` directory. Commit these schemas."
+        ]
+    },
+    "success_criteria": [
+        "[x] The `/api/blocks` endpoint in `services/web_api/routes/blocks_router.py` is successfully implemented and accessible via `services/web_api/app.py`.",
+        "[x] The endpoint returns `MemoryBlock` data (defined in `infra_core/memory_system/schemas/memory_block.py`) from Dolt via `StructuredMemoryBank`.",
+        "[x] Unit tests in `services/web_api/tests/test_blocks_router.py` cover the endpoint's functionality and pass.",
+        "[ ] JSON schemas for relevant API models are generated and located in `schemas/backend/`."
+    ],
+    "follow_up": [
+        "↪️ Refactor `scripts/generate_schemas.py` to discover models from `infra_core.memory_system.schemas`, `infra_core.models`, and `services.web_api.routes`.",
+        "↪️ Implement other API endpoints as needed (e.g., for chat, health, specific block retrieval/modification).",
+        "🔐 Add authentication/authorization to API endpoints as required."
+    ],
+    "priority": "high",
+    "current_status": "Implemented and tested `/api/blocks` endpoint for retrieving all memory blocks. Next step is to refactor schema generation script and generate schemas for API models."
+}

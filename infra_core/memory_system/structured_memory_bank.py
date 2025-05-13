@@ -12,7 +12,11 @@ from typing import List, Dict, Any, Optional, Tuple
 import datetime
 from pydantic import ValidationError
 from doltpy.cli import Dolt
-from infra_core.memory_system.dolt_reader import read_memory_block, read_memory_blocks_by_tags
+from infra_core.memory_system.dolt_reader import (
+    read_memory_block,
+    read_memory_blocks_by_tags,
+    read_memory_blocks,
+)
 from infra_core.memory_system.dolt_writer import (
     write_memory_block_to_dolt,
     delete_memory_block_from_dolt,
@@ -23,7 +27,9 @@ from infra_core.memory_system.dolt_writer import (
 from infra_core.memory_system.llama_memory import LlamaMemory
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
 from infra_core.memory_system.schemas.common import BlockLink
-from infra_core.memory_system.dolt_schema_manager import get_schema
+from infra_core.memory_system.dolt_schema_manager import (
+    get_schema as _get_schema_external,
+)
 
 # --- Path Setup ---
 script_dir = Path(__file__).parent
@@ -159,7 +165,7 @@ class StructuredMemoryBank:
         logger.debug(f"Fetching latest schema version for node type: {node_type}")
 
         try:
-            # Use get_schema from dolt_schema_manager which already has logic to fetch latest version
+            # Use the get_schema function from our module
             schema = get_schema(db_path=self.dolt_db_path, node_type=node_type)
 
             if schema and "x_schema_version" in schema:
@@ -196,6 +202,7 @@ class StructuredMemoryBank:
             try:
                 latest_version = self.get_latest_schema_version(block.type)
                 if latest_version is not None:
+                    # Explicitly assign the schema version to the block
                     block.schema_version = latest_version
                     logger.info(f"Set schema_version to {latest_version} for block {block.id}")
                 else:
@@ -813,6 +820,30 @@ class StructuredMemoryBank:
             logger.error(f"Error retrieving blocks by tags ({tags}): {e}", exc_info=True)
             return []  # Return empty list on error
 
+    def get_all_memory_blocks(self, branch: str = "main") -> List[MemoryBlock]:
+        """
+        Retrieves all MemoryBlocks from the specified Dolt branch.
+
+        Args:
+            branch: The Dolt branch to read from (defaults to 'main').
+
+        Returns:
+            A list of matching MemoryBlock objects.
+        """
+        logger.info(f"Getting all memory blocks from branch '{branch}'")
+        try:
+            # Call the reader function from dolt_reader
+            all_blocks = read_memory_blocks(
+                db_path=self.dolt_db_path,
+                branch=branch,
+            )
+            return all_blocks
+        except Exception as e:
+            logger.error(
+                f"Error retrieving all memory blocks from branch '{branch}': {e}", exc_info=True
+            )
+            return []  # Return empty list on error
+
     def get_forward_links(self, block_id: str, relation: Optional[str] = None) -> List[BlockLink]:
         """
         Retrieves outgoing links from a specific block.
@@ -1113,3 +1144,10 @@ class StructuredMemoryBank:
                 f"Failed to retrieve proof records for block {block_id}: {e}", exc_info=True
             )
             return []
+
+
+# Define get_schema directly in this module so it can be patched by tests
+def get_schema(db_path, node_type, version=None, schema_version=None):
+    """Local wrapper for the get_schema function from dolt_schema_manager."""
+    v = schema_version if schema_version is not None else version
+    return _get_schema_external(db_path, node_type, v)

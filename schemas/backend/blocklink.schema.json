@@ -1,0 +1,74 @@
+{
+  "description": "Defines a directed link between two MemoryBlocks.",
+  "properties": {
+    "to_id": {
+      "description": "ID of the target block in the link",
+      "title": "To Id",
+      "type": "string"
+    },
+    "relation": {
+      "description": "The type of relationship between the blocks",
+      "enum": [
+        "related_to",
+        "subtask_of",
+        "depends_on",
+        "child_of",
+        "mentions"
+      ],
+      "title": "Relation",
+      "type": "string"
+    },
+    "priority": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": 0,
+      "description": "Priority of the link (higher numbers = higher priority)",
+      "title": "Priority"
+    },
+    "link_metadata": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Additional metadata about the link",
+      "title": "Link Metadata"
+    },
+    "created_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "ID of the agent/user who created the link",
+      "title": "Created By"
+    },
+    "created_at": {
+      "description": "When the link was created",
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "to_id",
+    "relation"
+  ],
+  "title": "BlockLink",
+  "type": "object"
+}
