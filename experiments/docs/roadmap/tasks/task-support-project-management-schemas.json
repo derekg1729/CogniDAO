@@ -17,7 +17,6 @@
             "infra_core/memory_system/schemas/metadata/validation.py",
             "infra_core/memory_system/schemas/registry.py",
             "infra_core/memory_system/schemas/__init__.py",
-            "experiments/src/memory_system/link_manager.py",
             "docs/memory_block_schema.md"
         ],
         "action_items": [
@@ -37,10 +36,7 @@
             "[x] Add validator that requires validation_report when status is 'done'",
             "[x] Update Task, Bug, Project, and Epic models to inherit from ExecutableMetadata",
             "[x] Add detailed bug-specific fields to BugMetadata (expected_behavior, actual_behavior, etc.)",
-            "[ ] Create LinkManager class with handling for blocked_by relationship type",
             "[x] Add validation test to ensure at least one acceptance_criteria entry for new tasks",
-            "[ ] Create data transfer script to populate block_links table from existing MemoryBlock.links data",
-            "[ ] Update x_parent_block_id in BaseMetadata based on BlockLinks with 'child_of' relation",
             "[x] Generate and publish updated JSON schemas to schemas/backend/ directory (automatic via pre-commit)",
             "[x] Document the mixin concept, task lifecycle, and agent framework compatibility in docs/memory_block_schema.md",
             "[ ] Test the /schemas API endpoint to validate schema updates are accessible",
@@ -71,20 +67,18 @@
             "1. Schema Updates: First implement all schema changes to memory_block, common, and metadata models",
             "2. Validation Models: Create ValidationResult and ValidationReport models",
             "3. ExecutableMetadata Mixin: Create mixin class with planning, validation, and agent framework fields",
-            "4. Link Manager: Create LinkManager class with link manipulation methods and blocked_by handling",
-            "5. Data Transfer: Write and test script to transfer existing links to block_links table",
-            "6. Testing: Comprehensive tests for new models and link functionality",
-            "7. API Validation: Test schema API endpoints to ensure proper schema availability",
-            "8. Documentation: Update architecture docs to explain task lifecycle and agent framework compatibility"
+            "4. Testing: Comprehensive tests for new models",
+            "5. API Validation: Test schema API endpoints to ensure proper schema availability",
+            "6. Documentation: Update architecture docs to explain task lifecycle and agent framework compatibility"
         ],
         "implementation_sequence": [
             "Start with the schema changes, as downstream components depend on them",
             "Create validation models first, then ExecutableMetadata mixin that uses them",
             "Update Task/Bug/Project/Epic models to inherit from ExecutableMetadata",
-            "Use test-driven development for LinkManager and database interactions",
             "Run schema verification steps to ensure compatibility",
             "Validate consistency with LlamaIndex and other dependent systems",
-            "Document the task lifecycle and agent framework compatibility to prevent future confusion"
+            "Document the task lifecycle and agent framework compatibility to prevent future confusion",
+            "Note: LinkManager functionality has been moved to a separate task 'task-link-manager.json'"
         ],
         "model_drafts": {
             "MemoryBlock Type Enum": "Literal['knowledge', 'task', 'project', 'doc', 'interaction', 'log', 'epic', 'bug']",
@@ -241,7 +235,6 @@
         {
             "Dolt block_links Table": [
                 "[x] No schema changes needed - existing table structure is compatible",
-                "[ ] LinkManager correctly uses the composite primary key (from_id, to_id, relation)",
                 "[x] New relation types work with existing table structure",
                 "[ ] Uses existing indexes for efficient graph traversal queries"
             ]
@@ -264,15 +257,6 @@
                 "[x] At least one acceptance_criteria is required for executable blocks",
                 "[x] Status='done' requires valid validation_report with all passing criteria",
                 "[x] Documentation explains task lifecycle from planning to validation"
-            ]
-        },
-        {
-            "LinkManager Implementation": [
-                "[ ] Provides methods for creating and deleting links",
-                "[ ] Maintains consistency between BlockLink objects and block_links table",
-                "[ ] Ensures x_parent_block_id is properly synchronized with 'child_of' relationships",
-                "[ ] Handles blocked_by relationships for agent execution scheduling",
-                "[ ] Prevents circular dependencies and other invalid relationships"
             ]
         },
         {
@@ -318,14 +302,6 @@
             ]
         },
         {
-            "Data Transfer Success": [
-                "[ ] All existing links in MemoryBlock.links are correctly transferred to block_links table",
-                "[ ] x_parent_block_id is correctly set based on 'child_of' relationships",
-                "[ ] No data loss during transfer",
-                "[ ] Queries using the new link structure return expected results"
-            ]
-        },
-        {
             "Agent Framework Compatibility": [
                 "[x] ExecutableMetadata fields align with CrewAI task structure",
                 "[x] ExecutableMetadata fields align with OtherSideAI workflow steps",
@@ -343,13 +319,10 @@
             ]
         }
     ],
-    "current_status": "Completed Phase 5: Enhanced existing tools with improved schemas. Fixed tools to handle specific edge cases. Implemented UpdateTaskStatusTool with tests. Tools enhanced include CreateTaskMemoryBlockTool and AddValidationReportTool to ensure robust schema compatibility.\n\nNext steps: Implementing the remaining agent-facing tools: CreateProjectMemoryBlockTool, CreateEpicMemoryBlockTool, and CreateBugMemoryBlockTool.",
+    "current_status": "Completed Phase 6: Enhanced existing tools with improved schemas. Fixed tools to handle specific edge cases. Implemented UpdateTaskStatusTool with tests. Added all agent-facing tools for creating project management entities. Schema enhancements complete.\n\nNote: LinkManager functionality has been moved to a separate task (task-link-manager.json) to better isolate concerns.",
     "next_steps": [
-        "Implement the remaining agent-facing tools:",
-        "- CreateProjectMemoryBlockTool: Following the pattern of CreateTaskMemoryBlockTool but for projects",
-        "- CreateEpicMemoryBlockTool: Following the pattern of CreateTaskMemoryBlockTool but for epics",
-        "- CreateBugMemoryBlockTool: Following the pattern of CreateTaskMemoryBlockTool but for bugs",
-        "Create end-to-end tests for agent task creation workflow",
-        "Document agent usage of project management tools"
+        "[ ] Test the /schemas API endpoint to validate schema updates are accessible",
+        "[ ] Add end-to-end tests for agent task creation workflow",
+        "[ ] Create documentation for agent usage of project management tools"
     ]
 }

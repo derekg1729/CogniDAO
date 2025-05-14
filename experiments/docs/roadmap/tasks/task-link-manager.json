@@ -1,0 +1,55 @@
+{
+  "type": "Task",
+  "status": "todo",
+  "project": "../project-CogniMemorySystem-POC.json",
+  "name": "Implement Generic LinkManager + ExecutableLink helpers",
+  "phase": "Link‑First Graph Layer",
+  "description": "Create a scalable, generic LinkManager for the `block_links` table and a thin domain helper for ExecutableMetadata blocks (task / project / epic / bug). The manager must enforce referential‑integrity, prevent cycles, expose fast graph queries, and emit events. A mix‑in helper (`pm_executable_links.py`) should add ergonomic APIs such as `add_blocker`, `get_blockers`, `ready_tasks`, etc., without duplicating storage logic.",
+  "implementation_details": {
+    "target_files": [
+      "infra_core/memory_system/link_manager.py",
+      "infra_core/memory_system/pm_executable_links.py",
+      "infra_core/memory_system/tests/test_link_manager.py",
+      "infra_core/memory_system/tests/test_executable_links.py",
+      "experiments/src/memory_system/migrate_legacy_links.py",
+      "infra_core/memory_system/tools/agent_facing/add_validation_report_tool.py"
+    ],
+    "action_items": [
+      "[ ] Design LinkManager core interface (create_link, delete_link, links_from, links_to, has_cycle, topo_sort, bulk_upsert)",
+      "[ ] Implement validation: UUID format, RelationType membership, block existence, single‑parent rule, cycle detection for depends_on / blocked_by",
+      "[ ] Add special handling for blocked_by relationship type for agent execution scheduling",
+      "[ ] Ensure LinkManager correctly uses the composite primary key (from_id, to_id, relation) for the block_links table",
+      "[ ] Add optional redis/LRU LinkIndex with auto‑refresh hook",
+      "[ ] Emit LinkEvent (created|deleted) on each mutation (placeholder hook for now)",
+      "[ ] Write pm_executable_links.py with helpers: add_blocker, get_blockers, ready_tasks, set_parent, get_children",
+      "[ ] Implement update_parent_reference method to sync x_parent_block_id in BaseMetadata with 'child_of' relationships",
+      "[ ] Update AddValidationReportTool to clear blockers via LinkManager when a task goes to 'done'",
+      "[ ] Build migration script migrate_legacy_links.py that reads MemoryBlock.links JSON and bulk_upserts via LinkManager",
+      "[ ] Unit tests: happy paths, duplicate link upsert, referential errors, cycle prevention, topo_sort order",
+      "[ ] Integration test: task A →blocked_by→ B  ➜ mark B done ➜ ensure A no longer blocked",
+      "[ ] Update docs/memory_block_schema.md with LinkManager responsibilities & mix‑in example"
+    ],
+    "implementation_plan": [
+      "1. Stub LinkManager with create/delete/query, write failing tests",
+      "2. Implement validation & add SQL indices if missing",
+      "3. Add in‑memory LinkIndex (can default to simple dict; swap for redis later)",
+      "4. Implement pm_executable_links helper layer and adjust AddValidationReportTool",
+      "5. Write migration script and run on staging Dolt branch",
+      "6. Update x_parent_block_id synchronization with 'child_of' relationships",
+      "7. Finalise docs, regenerate JSON schemas if affected"
+    ]
+  },
+  "success_criteria": [
+    "[ ] LinkManager passes all unit tests and enforces composite PK uniqueness",
+    "[ ] Cycle detection prevents creating A→B→A blocked_by chains",
+    "[ ] pm_executable_links.ready_tasks returns only tasks with zero blockers",
+    "[ ] Migration script moves 100% of legacy MemoryBlock.links rows into block_links with no data loss",
+    "[ ] AddValidationReportTool successfully removes blockers and unblocks dependents in tests",
+    "[ ] x_parent_block_id is correctly synced based on 'child_of' relationships in block_links",
+    "[ ] Queries using the new link structure return expected results",
+    "[ ] Proper handling of blocked_by relationships for agent execution scheduling",
+    "[ ] No duplicate references between links and metadata to ensure single source of truth",
+    "[ ] /schemas API unchanged (no regressions); existing agents continue to work"
+  ],
+  "current_status": "Task created based on functionality moved from project management schemas task. The LinkManager will centralize all link-related functionality and provide a clean API for working with block_links."
+}
