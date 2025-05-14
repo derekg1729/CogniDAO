@@ -209,7 +209,8 @@ async def get_links_from(
         # Validate direction if provided
         if direction:
             try:
-                direction = Direction.from_string(direction).value
+                # Get the Direction enum object, not just its value
+                direction_enum = Direction.from_string(direction)
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
 
@@ -220,7 +221,8 @@ async def get_links_from(
         if depth:
             query = query.depth(depth)
         if direction:
-            query = query.direction(direction)
+            # Pass the enum object, not the string value
+            query = query.direction(direction_enum)
         query = query.limit(limit)
         if cursor:
             query = query.cursor(cursor)
@@ -282,7 +284,8 @@ async def get_links_to(
         # Validate direction if provided
         if direction:
             try:
-                direction = Direction.from_string(direction).value
+                # Get the Direction enum object, not just its value
+                direction_enum = Direction.from_string(direction)
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
 
@@ -293,7 +296,8 @@ async def get_links_to(
         if depth:
             query = query.depth(depth)
         if direction:
-            query = query.direction(direction)
+            # Pass the enum object, not the string value
+            query = query.direction(direction_enum)
         query = query.limit(limit)
         if cursor:
             query = query.cursor(cursor)

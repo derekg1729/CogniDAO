@@ -7,7 +7,7 @@ referential integrity enforcement, cycle detection, and efficient querying.
 
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import Dict, List, Optional, Set, Tuple, Any, Iterator
+from typing import Dict, List, Optional, Set, Tuple, Any, Iterator, Union, get_args
 
 from .schemas.common import BlockLink, RelationType
 
@@ -34,12 +34,8 @@ class LinkError(Enum):
             LinkError.CONCURRENCY_CONFLICT: 409,  # Conflict
             LinkError.ORPHAN_BLOCK: 400,  # Bad Request
         }
-        # All possible enum values should be covered above
-        if self not in status_map:
-            # This should never happen with exhaustive enum mapping
-            # Log critical if we reach here in production
-            return 500  # Internal Server Error as fallback
-        return status_map[self]
+        # All possible enum values are covered above
+        return status_map[self]  # pragma: no cover
 
 
 class Direction(Enum):
@@ -93,7 +89,7 @@ class LinkIndex:
             to_id: Target block ID
             relation: Relation type
         """
-        # TODO(core-v0.1.0): Implement index tracking
+        # TODO(core-v0.1.0): Implement index tracking (TASK-LINKS-123)
         raise NotImplementedError("LinkIndex.add_link not yet implemented")
 
     def remove_link(self, from_id: str, to_id: str, relation: RelationType) -> None:
@@ -105,20 +101,21 @@ class LinkIndex:
             to_id: Target block ID
             relation: Relation type
         """
-        # TODO(core-v0.1.0): Implement index tracking
+        # TODO(core-v0.1.0): Implement index tracking (TASK-LINKS-123)
         raise NotImplementedError("LinkIndex.remove_link not yet implemented")
 
-    def get_ready_tasks(self, relation: RelationType = "is_blocked_by") -> List[str]:
+    def get_ready_tasks(self, relation: Union[str, RelationType] = "is_blocked_by") -> List[str]:
         """
         Get IDs of blocks that have zero inbound links of the specified relation.
 
         Args:
-            relation: Relation type to check (default: is_blocked_by)
+            relation: Relation type to check (default: "is_blocked_by")
+                     Can be a string literal or a RelationType value
 
         Returns:
             List of block IDs with no inbound dependencies
         """
-        # TODO(core-v0.1.0): Implement efficient ready tasks query
+        # TODO(core-v0.1.0): Implement efficient ready tasks query (TASK-LINKS-123)
         raise NotImplementedError("LinkIndex.get_ready_tasks not yet implemented")
 
 
@@ -134,9 +131,37 @@ class LinkQuery:
         self._limit = 100
         self._cursor = None
 
-    def relation(self, relation_type: RelationType) -> "LinkQuery":
-        """Filter links by relation type."""
-        # TODO(core-v0.1.0): Implement validation for relation_type
+    def relation(self, relation_type: Union[str, RelationType]) -> "LinkQuery":
+        """
+        Filter links by relation type.
+
+        Args:
+            relation_type: A relation type string or RelationType value
+
+        Raises:
+            ValueError: If relation_type is not a valid relation type
+        """
+
+        # Get the list of valid relation string literals
+        valid_relation_strings = get_args(RelationType)
+
+        # Convert string to validated value
+        if isinstance(relation_type, str):
+            if relation_type not in valid_relation_strings:
+                raise ValueError(
+                    f"Invalid relation type: {relation_type}. Must be one of {valid_relation_strings}"
+                )
+            # Store the validated string literal
+            self._filters["relation"] = relation_type
+        else:
+            # It should already be a valid RelationType literal
+            if relation_type not in valid_relation_strings:
+                raise ValueError(
+                    f"Invalid relation type: {relation_type}. Must be one of {valid_relation_strings}"
+                )
+            # Store the string value for consistency in serialization
+            self._filters["relation"] = relation_type
+
         return self
 
     def depth(self, depth: int) -> "LinkQuery":
@@ -146,36 +171,47 @@ class LinkQuery:
         Args:
             depth: Maximum traversal depth (1 = direct links only)
         """
-        # TODO(core-v0.1.0): Implement validation
         if depth <= 0:
             raise ValueError("Depth must be a positive integer")
+        self._filters["depth"] = depth
         return self
 
-    def direction(self, direction: str) -> "LinkQuery":
+    def direction(self, direction: Direction) -> "LinkQuery":
         """
         Set traversal direction.
 
         Args:
-            direction: One of 'outbound', 'inbound', or 'both'
+            direction: Direction enum value (Direction.OUTBOUND, Direction.INBOUND, or Direction.BOTH)
+                      Do not use string values directly - use the Direction enum.
+
+        Raises:
+            ValueError: If direction is not a valid Direction enum value
+
+        Examples:
+            # Correct usage:
+            query.direction(Direction.OUTBOUND)
+
+            # Not supported:
+            query.direction("outbound")  # Use Direction.OUTBOUND instead
         """
-        # TODO(core-v0.1.0): Implement validation
-        try:
-            # Validate by converting to enum
-            Direction.from_string(direction)
-        except ValueError as e:
-            raise ValueError(str(e))
+        if not isinstance(direction, Direction):
+            raise ValueError(
+                f"direction must be a Direction enum value (Direction.OUTBOUND, Direction.INBOUND, or Direction.BOTH), got {type(direction)}"
+            )
+        self._filters["direction"] = direction.value  # Store the string value for serialization
         return self
 
     def limit(self, limit: int) -> "LinkQuery":
         """Set maximum number of results to return."""
-        # TODO(core-v0.1.0): Implement validation
         if limit <= 0:
             raise ValueError("Limit must be a positive integer")
+        self._limit = limit
         return self
 
     def cursor(self, cursor: str) -> "LinkQuery":
         """Set starting cursor for pagination."""
-        # TODO(core-v0.1.0): Implement validation
+        # TODO(core-v0.1.0): Implement cursor validation (TASK-LINKS-124)
+        self._cursor = cursor
         return self
 
     def to_dict(self) -> Dict[str, Any]:
@@ -209,7 +245,7 @@ class LinkQuery:
 
         Not yet implemented - will be added in future PR.
         """
-        # TODO(core-v0.1.0): Implement SQL generation
+        # TODO(core-v0.1.0): Implement SQL generation (TASK-LINKS-125)
         raise NotImplementedError("SQL generation not yet implemented")
 
 
