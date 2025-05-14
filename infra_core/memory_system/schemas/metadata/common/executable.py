@@ -6,10 +6,11 @@ that are shared across Task, Bug, Project, and Epic metadata models.
 """
 
 from typing import List, Optional, Literal, ClassVar, Set
-from pydantic import Field, validator, model_validator, constr
+from pydantic import Field, validator, model_validator
 
 from ..base import BaseMetadata
 from .validation import ValidationReport
+from ....schemas.common import BlockIdType
 
 # Status and phase literals for executable memory blocks
 WorkStatusLiteral = Literal[
@@ -35,11 +36,6 @@ ExecutionPhaseLiteral = Literal[
 
 # Priority literal for consistent priorities across models
 PriorityLiteral = Literal["P0", "P1", "P2", "P3", "P4", "P5"]
-
-# UUID pattern for IDs
-BlockIdType = constr(
-    pattern=r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", strip_whitespace=True
-)
 
 
 class ExecutableMetadata(BaseMetadata):

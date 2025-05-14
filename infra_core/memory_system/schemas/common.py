@@ -4,7 +4,7 @@ Common models shared across different schema types.
 
 from datetime import datetime
 from typing import Any, Dict, Literal, Optional, get_args
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, constr
 
 # Canonical relation types defined for links between MemoryBlocks
 RelationType = Literal[
@@ -21,6 +21,11 @@ RelationType = Literal[
     "bug_affects",
     "has_bug",
 ]
+
+# Canonical UUID-v4 pattern for MemoryBlock IDs
+BlockIdType = constr(
+    pattern=r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", strip_whitespace=True
+)
 
 
 class BlockLink(BaseModel):
