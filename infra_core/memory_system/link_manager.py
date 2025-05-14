@@ -10,6 +10,7 @@ from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple, Any, Iterator, Union, get_args
 
 from .schemas.common import BlockLink, RelationType
+from .relation_registry import CANONICAL_DEPENDENCY_RELATION
 
 
 class LinkErrorType(Enum):
@@ -180,12 +181,14 @@ class LinkIndex:
             if not self._in_degree[relation_str]:
                 del self._in_degree[relation_str]
 
-    def get_ready_tasks(self, relation: Union[str, RelationType] = "is_blocked_by") -> List[str]:
+    def get_ready_tasks(
+        self, relation: Union[str, RelationType] = CANONICAL_DEPENDENCY_RELATION
+    ) -> List[str]:
         """
         Get IDs of blocks that have zero inbound links of the specified relation.
 
         Args:
-            relation: Relation type to check (default: "is_blocked_by")
+            relation: Relation type to check (default: CANONICAL_DEPENDENCY_RELATION)
                      Can be a string literal or a RelationType value
 
         Returns:

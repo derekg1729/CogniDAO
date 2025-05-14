@@ -9,57 +9,102 @@
     "target_files": [
       "infra_core/memory_system/link_manager.py",
       "infra_core/memory_system/relation_registry.py",
-      "infra_core/memory_system/pm_executable_links.py",
-      "infra_core/memory_system/tests/test_link_manager.py",
-      "infra_core/memory_system/tests/test_relation_registry.py",
-      "infra_core/memory_system/tests/test_executable_links.py",
-      "infra_core/memory_system/tests/test_link_query.py",
-      "infra_core/memory_system/tools/agent_facing/add_validation_report_tool.py",
-      "infra_core/memory_system/events/link_events.py",
-      "infra_core/api/v1/links/__init__.py"
+      "infra_core/memory_system/block_store.py",
+      "infra_core/memory_system/pm_executable_links.py"
     ],
     "action_items": [
-      "[x] MVP: Design LinkManager core interface with essential operations (create_link, delete_link, links_from, links_to, has_cycle, topo_sort, bulk_upsert)",
-      "[x] MVP: Create LinkError enum with error types (VALIDATION_ERROR, CYCLE_DETECTED, CONCURRENCY_CONFLICT, ORPHAN_BLOCK)",
-      "[x] MVP: Implement validation for links: UUID format, RelationType membership, block existence, single‑parent rule",
-      "[x] MVP: Design and implement LinkIndex with in_degree tracking as a critical component for performance optimization",
-      "[x] MVP: Add delete_links_for_block method to handle block deletion and prevent orphaned links",
-      "[x] MVP: Implement transaction handling for atomic link creation and cycle checks",
-      "[x] MVP: Define a simple LinkEvent class for tracking link changes",
-      "[x] MVP: Create a fluent LinkQuery builder for flexible link querying",
-      "[x] MVP: Add comprehensive unit tests for LinkQuery builder covering all filter combinations (relation + depth + direction)",
-      "[x] MVP: Ensure LinkManager correctly uses the composite primary key (from_id, to_id, relation) for the block_links table",
-      "[x] MVP: Unit tests: happy paths, duplicate link upsert, referential errors, cycle prevention, topo_sort order",
-      "[x] MVP: Create relation_registry.py with domain-specific relation enums and helper functions",
-      "[x] MVP: Update schemas/common.py to import RelationType from relation_registry instead of defining it directly",
-      "[ ] MVP: Update LinkManager to use relation_registry for validation and relation operations",
-      "[ ] MVP: ExecutableLinkManager - Write pm_executable_links.py with core helpers: add_blocker, get_blockers, ready_tasks, set_parent, get_children",
-      "[ ] MVP: ExecutableLinkManager - Implement update_parent_reference method to sync x_parent_block_id in BaseMetadata with 'child_of' relationships",
-      "[ ] MVP: ExecutableLinkManager - Update AddValidationReportTool to clear blockers via LinkManager when a task goes to 'done'",
-      "[ ] MVP: ExecutableLinkManager - Integration test: task A →blocks→ B  ➜ mark B done ➜ ensure A no longer blocked",
-      "[ ] Nice-to-have: Cross-validate cycle detection implementation with networkx.simple_cycles in tests",
-      "[ ] Nice-to-have: Performance benchmark: verify ready_tasks runs in <25ms with 10k tasks & 50k links",
-      "[ ] Nice-to-have: Integration test with concurrent writers to verify no post-commit cycles",
-      "[ ] Nice-to-have: Create ER diagram for docs/memory_block_schema.md showing blocks ↔ links ↔ metadata relationships",
-      "[x] MVP: Add API versioning strategy with backward compatibility for LinkQuery endpoints (/api/v1/links/query)",
-      "[x] MVP: Document LinkError codes in OpenAPI schema to support error handling by clients",
-      "[ ] Nice-to-have: Update API documentation for LinkManager and LinkQuery endpoints",
-      "[ ] Nice-to-have: Update docs/memory_block_schema.md with LinkManager responsibilities & mix‑in example",
-      "[ ] Nice-to-have: Create a v0.1.0 release tag when all success criteria are met"
+      {
+        "name": "Core LinkManager Architecture",
+        "status": "completed",
+        "tasks": [
+          "[x] Design the LinkManager interface (`link_manager.py`)",
+          "[x] Create LinkQuery builder with fluent interface",
+          "[x] Implement LinkQueryResult class for structured responses",
+          "[x] Design core methods: create_link, delete_link, query_links",
+          "[x] Create LinkIndex for adjacency list management",
+          "[x] Implement efficient cycle detection"
+        ]
+      },
+      {
+        "name": "Relation Type Registry",
+        "status": "completed",
+        "tasks": [
+          "[x] Create centralized registry for all relation types (`relation_registry.py`)",
+          "[x] Organize relations by domain categories (core, PM, bug, knowledge)",
+          "[x] Add bidirectional relation pairs with inverse mapping",
+          "[x] Implement missing relation pairs (duplicate_of, part_of/contains, etc.)",
+          "[x] Add validation for relation consistency (symmetry checks)",
+          "[x] Create helper functions for relation operations",
+          "[x] Define canonical dependency relation and alias map"
+        ]
+      },
+      {
+        "name": "Basic InMemoryLinkManager",
+        "status": "completed",
+        "tasks": [
+          "[x] Implement InMemoryLinkManager for testing and prototyping",
+          "[x] Add comprehensive tests for all core operations",
+          "[x] Fix concurrency and reference validation errors",
+          "[x] Ensure memory-safe bulk operations",
+          "[x] Validate relation types against schema"
+        ]
+      },
+      {
+        "name": "SQL Link Manager",
+        "status": "in_progress",
+        "tasks": [
+          "[/] Design table schema for block_links",
+          "[ ] Create SQLLinkManager with transaction support",
+          "[ ] Implement SQL query generation from LinkQuery",
+          "[ ] Add pagination support with cursor validation",
+          "[ ] Optimize for common query patterns"
+        ]
+      },
+      {
+        "name": "ExecutableLinkManager Helper (PM integration)",
+        "status": "not_started",
+        "tasks": [
+          "[ ] Create PM-specific link helper in `pm_executable_links.py`",
+          "[ ] Implement ergonomic PM operations (add_blocker, get_blockers, etc.)",
+          "[ ] Add ready_tasks query for dependency resolution",
+          "[ ] Create topological sorting for task sequencing"
+        ]
+      }
     ],
-    "implementation_plan": [
-      "1. Create LinkError enum and interfaces for LinkManager and LinkQuery - COMPLETED",
-      "2. Implement core validation and link operations (create, delete, query) - COMPLETED",
-      "3. Design and implement LinkIndex with in_degree tracking (critical for performance) - COMPLETED",
-      "4. Add referential integrity check and transaction handling - COMPLETED",
-      "5. Create relation_registry.py with domain-specific relation types - COMPLETED",
-      "6. Update LinkManager and schemas to use relation_registry - COMPLETED",
-      "7. Implement ExecutableLinkManager helper layer - NEXT",
-      "8. Update AddValidationReportTool to use LinkManager - PENDING",
-      "9. Add comprehensive tests including integration tests - PENDING",
-      "10. Create documentation with ER diagram and API specs - NICE TO HAVE",
-      "11. Document API versioning strategy and LinkError codes in OpenAPI - COMPLETED"
-    ]
+    "mvp_criteria": [
+      "Generic LinkManager with CRUD operations for links",
+      "Prevent cycles across all relations",
+      "Enable graph queries (links_from, links_to, etc.)",
+      "Central relation registry to enforce consistency",
+      "Perform validation to maintain graph integrity",
+      "Support for bulk operations with transactions"
+    ],
+    "enhancement_criteria": [
+      "PM-specific link helper for executable blocks",
+      "Optimized SQL queries for common patterns",
+      "Advanced graph traversal and aggregation",
+      "Complex pagination with efficient cursors"
+    ],
+    "current_status": {
+      "completed": [
+        "Core LinkManager interface with CRUD operations",
+        "InMemoryLinkManager implementation with tests",
+        "Fluent query API with type safety",
+        "Cycle detection with DFS traversal",
+        "Relation registry with domain categorization",
+        "Inverse relation mapping",
+        "Import-time validation of relation consistency",
+        "Helper functions for relation operations",
+        "Tests for all completed components"
+      ],
+      "in_progress": [
+        "SQL LinkManager implementation",
+        "SQL query generation from LinkQuery"
+      ],
+      "blockers": [
+        "None - SQL implementation can proceed with current foundation"
+      ]
+    }
   },
   "success_criteria": [
     "[x] MVP: LinkManager passes all unit tests and enforces composite PK uniqueness",

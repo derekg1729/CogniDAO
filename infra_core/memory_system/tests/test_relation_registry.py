@@ -3,16 +3,16 @@ Tests for the relation registry module.
 """
 
 import pytest
-from typing import get_args
 
 from infra_core.memory_system.relation_registry import (
     CoreRelationType,
     PMRelationType,
     BugRelationType,
     KnowledgeRelationType,
-    RelationType,
     RELATION_CATEGORIES,
     INVERSE_RELATIONS,
+    CANONICAL_DEPENDENCY_RELATION,
+    RELATION_ALIASES,
     get_all_relation_types,
     get_relation_category,
     get_inverse_relation,
@@ -29,6 +29,13 @@ def test_relation_enums():
     assert CoreRelationType.MENTIONS.value == "mentions"
     assert CoreRelationType.CHILD_OF.value == "child_of"
     assert CoreRelationType.PARENT_OF.value == "parent_of"
+    assert CoreRelationType.DUPLICATE_OF.value == "duplicate_of"
+    assert CoreRelationType.PART_OF.value == "part_of"
+    assert CoreRelationType.CONTAINS.value == "contains"
+    assert CoreRelationType.REQUIRES.value == "requires"
+    assert CoreRelationType.PROVIDES.value == "provides"
+    assert CoreRelationType.OWNED_BY.value == "owned_by"
+    assert CoreRelationType.OWNS.value == "owns"
 
     # Project management relations
     assert PMRelationType.SUBTASK_OF.value == "subtask_of"
@@ -42,11 +49,13 @@ def test_relation_enums():
 
     # Knowledge relations
     assert KnowledgeRelationType.DERIVED_FROM.value == "derived_from"
+    assert KnowledgeRelationType.SOURCE_OF.value == "source_of"
+    assert KnowledgeRelationType.CITED_BY.value == "cited_by"
 
 
 def test_relation_type_literal():
     """Test that RelationType contains all expected values."""
-    relation_types = get_args(RelationType)
+    relation_types = get_all_relation_types()
 
     # Test that we have all relations from each category
     for relation in [r.value for r in CoreRelationType]:
@@ -82,10 +91,30 @@ def test_inverse_relations():
     # Test core inverse relations
     assert INVERSE_RELATIONS[CoreRelationType.CHILD_OF.value] == CoreRelationType.PARENT_OF.value
     assert INVERSE_RELATIONS[CoreRelationType.PARENT_OF.value] == CoreRelationType.CHILD_OF.value
+    assert (
+        INVERSE_RELATIONS[CoreRelationType.DUPLICATE_OF.value]
+        == CoreRelationType.DUPLICATE_OF.value
+    )
+    assert INVERSE_RELATIONS[CoreRelationType.PART_OF.value] == CoreRelationType.CONTAINS.value
+    assert INVERSE_RELATIONS[CoreRelationType.CONTAINS.value] == CoreRelationType.PART_OF.value
+    assert INVERSE_RELATIONS[CoreRelationType.REQUIRES.value] == CoreRelationType.PROVIDES.value
+    assert INVERSE_RELATIONS[CoreRelationType.PROVIDES.value] == CoreRelationType.REQUIRES.value
+    assert INVERSE_RELATIONS[CoreRelationType.OWNED_BY.value] == CoreRelationType.OWNS.value
+    assert INVERSE_RELATIONS[CoreRelationType.OWNS.value] == CoreRelationType.OWNED_BY.value
 
     # Test PM inverse relations
     assert INVERSE_RELATIONS[PMRelationType.BLOCKS.value] == PMRelationType.IS_BLOCKED_BY.value
     assert INVERSE_RELATIONS[PMRelationType.IS_BLOCKED_BY.value] == PMRelationType.BLOCKS.value
+
+    # Test knowledge relations
+    assert (
+        INVERSE_RELATIONS[KnowledgeRelationType.SOURCE_OF.value]
+        == KnowledgeRelationType.CITED_BY.value
+    )
+    assert (
+        INVERSE_RELATIONS[KnowledgeRelationType.CITED_BY.value]
+        == KnowledgeRelationType.SOURCE_OF.value
+    )
 
     # Test symmetry of inverse relations
     for relation, inverse in INVERSE_RELATIONS.items():
@@ -110,6 +139,11 @@ def test_get_all_relation_types():
     assert "related_to" in relations
     assert "is_blocked_by" in relations
     assert "derived_from" in relations
+    assert "duplicate_of" in relations
+    assert "part_of" in relations
+    assert "contains" in relations
+    assert "source_of" in relations
+    assert "cited_by" in relations
 
 
 def test_get_relation_category():
@@ -118,6 +152,11 @@ def test_get_relation_category():
     assert get_relation_category("is_blocked_by") == "project_management"
     assert get_relation_category("bug_affects") == "bug_tracking"
     assert get_relation_category("derived_from") == "knowledge"
+    assert get_relation_category("duplicate_of") == "core"
+    assert get_relation_category("part_of") == "core"
+    assert get_relation_category("contains") == "core"
+    assert get_relation_category("source_of") == "knowledge"
+    assert get_relation_category("cited_by") == "knowledge"
 
     # Test invalid relation
     with pytest.raises(ValueError):
@@ -129,16 +168,28 @@ def test_get_inverse_relation():
     assert get_inverse_relation("child_of") == "parent_of"
     assert get_inverse_relation("blocks") == "is_blocked_by"
     assert get_inverse_relation("bug_affects") == "has_bug"
+    assert get_inverse_relation("duplicate_of") == "duplicate_of"  # Self-inverse
+    assert get_inverse_relation("part_of") == "contains"
+    assert get_inverse_relation("contains") == "part_of"
+    assert get_inverse_relation("source_of") == "cited_by"
+    assert get_inverse_relation("cited_by") == "source_of"
 
     # Test relation with no inverse
     assert get_inverse_relation("related_to") == "related_to"
     assert get_inverse_relation("mentions") == "mentions"
+
+    # Test invalid relation raises error
+    with pytest.raises(ValueError, match="Invalid relation"):
+        get_inverse_relation("invalid_relation")
 
 
 def test_is_valid_relation():
     """Test is_valid_relation correctly validates relations."""
     assert is_valid_relation("related_to") is True
     assert is_valid_relation("is_blocked_by") is True
+    assert is_valid_relation("duplicate_of") is True
+    assert is_valid_relation("part_of") is True
+    assert is_valid_relation("contains") is True
     assert is_valid_relation("invalid_relation") is False
 
 
@@ -147,6 +198,7 @@ def test_is_blocking_relation():
     assert is_blocking_relation("blocks") is True
     assert is_blocking_relation("is_blocked_by") is True
     assert is_blocking_relation("related_to") is False
+    assert is_blocking_relation("duplicate_of") is False
 
 
 def test_is_parent_relation():
@@ -155,3 +207,23 @@ def test_is_parent_relation():
     assert is_parent_relation("parent_of") is True
     assert is_parent_relation("subtask_of") is True
     assert is_parent_relation("blocks") is False
+    assert is_parent_relation("part_of") is False
+    assert is_parent_relation("contains") is False
+
+
+def test_canonical_dependency_relation():
+    """Test that the canonical dependency relation is properly defined."""
+    assert CANONICAL_DEPENDENCY_RELATION == "is_blocked_by"
+    assert CANONICAL_DEPENDENCY_RELATION == PMRelationType.IS_BLOCKED_BY.value
+
+    # Ensure it's properly linked to blocks
+    assert get_inverse_relation(CANONICAL_DEPENDENCY_RELATION) == "blocks"
+
+
+def test_relation_aliases():
+    """Test that relation aliases are properly defined."""
+    # Dependency aliases
+    assert RELATION_ALIASES[PMRelationType.DEPENDS_ON.value] == CANONICAL_DEPENDENCY_RELATION
+
+    # Hierarchy aliases
+    assert RELATION_ALIASES[PMRelationType.SUBTASK_OF.value] == CoreRelationType.CHILD_OF.value
