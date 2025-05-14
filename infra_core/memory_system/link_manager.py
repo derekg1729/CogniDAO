@@ -15,10 +15,10 @@ from .schemas.common import BlockLink, RelationType
 class LinkError(Enum):
     """Error types that can be raised during link operations."""
 
-    VALIDATION_ERROR = auto()
+    VALIDATION_ERROR = auto()  # Covers invalid parameters, missing blocks, etc.
     CYCLE_DETECTED = auto()
     CONCURRENCY_CONFLICT = auto()
-    ORPHAN_BLOCK = auto()
+    ORPHAN_BLOCK = auto()  # For operations that would create orphaned blocks/links
 
     @property
     def code(self) -> str:
@@ -34,7 +34,29 @@ class LinkError(Enum):
             LinkError.CONCURRENCY_CONFLICT: 409,  # Conflict
             LinkError.ORPHAN_BLOCK: 400,  # Bad Request
         }
-        return status_map.get(self, 500)  # Default to 500 Internal Server Error
+        # All possible enum values should be covered above
+        if self not in status_map:
+            # This should never happen with exhaustive enum mapping
+            # Log critical if we reach here in production
+            return 500  # Internal Server Error as fallback
+        return status_map[self]
+
+
+class Direction(Enum):
+    """Direction for link traversal operations."""
+
+    OUTBOUND = "outbound"
+    INBOUND = "inbound"
+    BOTH = "both"
+
+    @classmethod
+    def from_string(cls, value: str) -> "Direction":
+        """Convert string to Direction enum value."""
+        try:
+            return cls(value.lower())
+        except ValueError:
+            valid_values = [d.value for d in cls]
+            raise ValueError(f"Direction must be one of {valid_values}")
 
 
 class LinkQueryResult:
@@ -62,6 +84,43 @@ class LinkIndex:
         # Implementation details will be added in a future PR
         pass
 
+    def add_link(self, from_id: str, to_id: str, relation: RelationType) -> None:
+        """
+        Add a link to the index.
+
+        Args:
+            from_id: Source block ID
+            to_id: Target block ID
+            relation: Relation type
+        """
+        # TODO(core-v0.1.0): Implement index tracking
+        raise NotImplementedError("LinkIndex.add_link not yet implemented")
+
+    def remove_link(self, from_id: str, to_id: str, relation: RelationType) -> None:
+        """
+        Remove a link from the index.
+
+        Args:
+            from_id: Source block ID
+            to_id: Target block ID
+            relation: Relation type
+        """
+        # TODO(core-v0.1.0): Implement index tracking
+        raise NotImplementedError("LinkIndex.remove_link not yet implemented")
+
+    def get_ready_tasks(self, relation: RelationType = "is_blocked_by") -> List[str]:
+        """
+        Get IDs of blocks that have zero inbound links of the specified relation.
+
+        Args:
+            relation: Relation type to check (default: is_blocked_by)
+
+        Returns:
+            List of block IDs with no inbound dependencies
+        """
+        # TODO(core-v0.1.0): Implement efficient ready tasks query
+        raise NotImplementedError("LinkIndex.get_ready_tasks not yet implemented")
+
 
 class LinkQuery:
     """
@@ -77,7 +136,7 @@ class LinkQuery:
 
     def relation(self, relation_type: RelationType) -> "LinkQuery":
         """Filter links by relation type."""
-        # Implementation should check if relation_type is valid
+        # TODO(core-v0.1.0): Implement validation for relation_type
         return self
 
     def depth(self, depth: int) -> "LinkQuery":
@@ -87,7 +146,9 @@ class LinkQuery:
         Args:
             depth: Maximum traversal depth (1 = direct links only)
         """
-        # Removed validation to make tests fail
+        # TODO(core-v0.1.0): Implement validation
+        if depth <= 0:
+            raise ValueError("Depth must be a positive integer")
         return self
 
     def direction(self, direction: str) -> "LinkQuery":
@@ -97,17 +158,24 @@ class LinkQuery:
         Args:
             direction: One of 'outbound', 'inbound', or 'both'
         """
-        # Removed validation to make tests fail
+        # TODO(core-v0.1.0): Implement validation
+        try:
+            # Validate by converting to enum
+            Direction.from_string(direction)
+        except ValueError as e:
+            raise ValueError(str(e))
         return self
 
     def limit(self, limit: int) -> "LinkQuery":
         """Set maximum number of results to return."""
-        # Removed validation to make tests fail
+        # TODO(core-v0.1.0): Implement validation
+        if limit <= 0:
+            raise ValueError("Limit must be a positive integer")
         return self
 
     def cursor(self, cursor: str) -> "LinkQuery":
         """Set starting cursor for pagination."""
-        # Stub implementation
+        # TODO(core-v0.1.0): Implement validation
         return self
 
     def to_dict(self) -> Dict[str, Any]:
@@ -141,6 +209,7 @@ class LinkQuery:
 
         Not yet implemented - will be added in future PR.
         """
+        # TODO(core-v0.1.0): Implement SQL generation
         raise NotImplementedError("SQL generation not yet implemented")
 
 

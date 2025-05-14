@@ -3,7 +3,8 @@ Tests for the LinkQuery builder.
 """
 
 import pytest
-from infra_core.memory_system.link_manager import LinkQuery
+from infra_core.memory_system.link_manager import LinkQuery, Direction
+from infra_core.memory_system.schemas.common import RelationType
 
 
 def test_link_query_default_values():
@@ -19,13 +20,13 @@ def test_link_query_default_values():
 @pytest.mark.xfail(reason="Not yet implemented")
 def test_link_query_relation_filter():
     """Test filtering by relation type."""
-    query = LinkQuery().relation("related_to")
+    query = LinkQuery().relation(RelationType("related_to"))
     query_dict = query.to_dict()
 
-    assert query_dict["relation"] == "related_to"
+    assert query_dict["relation"] == RelationType("related_to")
     assert query_dict["limit"] == 100
     # Check internal structure directly to ensure proper implementation
-    assert query._filters.get("relation") == "related_to"
+    assert query._filters.get("relation") == RelationType("related_to")
 
 
 @pytest.mark.xfail(reason="Not yet implemented")
@@ -43,13 +44,13 @@ def test_link_query_depth_filter():
 @pytest.mark.xfail(reason="Not yet implemented")
 def test_link_query_direction_filter():
     """Test filtering by traversal direction."""
-    query = LinkQuery().direction("inbound")
+    query = LinkQuery().direction(Direction.INBOUND.value)
     query_dict = query.to_dict()
 
-    assert query_dict["direction"] == "inbound"
+    assert query_dict["direction"] == Direction.INBOUND.value
     assert query_dict["limit"] == 100
     # Check internal structure directly to ensure proper implementation
-    assert query._filters.get("direction") == "inbound"
+    assert query._filters.get("direction") == Direction.INBOUND.value
 
 
 @pytest.mark.xfail(reason="Not yet implemented")
@@ -80,17 +81,17 @@ def test_link_query_chained_filters():
     """Test chaining multiple filters together."""
     query = (
         LinkQuery()
-        .relation("is_blocked_by")
+        .relation(RelationType("is_blocked_by"))
         .depth(2)
-        .direction("outbound")
+        .direction(Direction.OUTBOUND.value)
         .limit(25)
         .cursor("test-cursor-value")
     )
     query_dict = query.to_dict()
 
-    assert query_dict["relation"] == "is_blocked_by"
+    assert query_dict["relation"] == RelationType("is_blocked_by")
     assert query_dict["depth"] == 2
-    assert query_dict["direction"] == "outbound"
+    assert query_dict["direction"] == Direction.OUTBOUND.value
     assert query_dict["limit"] == 25
     assert query_dict["cursor"] == "test-cursor-value"
 
@@ -106,7 +107,7 @@ def test_link_query_chained_filters():
 @pytest.mark.xfail(reason="Not yet implemented")
 def test_link_query_string_representation():
     """Test string representation of query for debugging."""
-    query = LinkQuery().relation("child_of").depth(1).limit(10)
+    query = LinkQuery().relation(RelationType("child_of")).depth(1).limit(10)
     query_str = str(query)
 
     assert "LinkQuery" in query_str
@@ -143,20 +144,24 @@ def test_link_query_invalid_limit():
 def test_link_query_complex_filter_combinations():
     """Test various combinations of filters for complex queries."""
     # Test case 1: Outbound traversal with depth
-    query1 = LinkQuery().relation("child_of").direction("outbound").depth(3)
-    assert query1.to_dict()["relation"] == "child_of"
-    assert query1.to_dict()["direction"] == "outbound"
+    query1 = (
+        LinkQuery().relation(RelationType("child_of")).direction(Direction.OUTBOUND.value).depth(3)
+    )
+    assert query1.to_dict()["relation"] == RelationType("child_of")
+    assert query1.to_dict()["direction"] == Direction.OUTBOUND.value
     assert query1.to_dict()["depth"] == 3
 
     # Test case 2: Bidirectional traversal
-    query2 = LinkQuery().relation("related_to").direction("both")
-    assert query2.to_dict()["relation"] == "related_to"
-    assert query2.to_dict()["direction"] == "both"
+    query2 = LinkQuery().relation(RelationType("related_to")).direction(Direction.BOTH.value)
+    assert query2.to_dict()["relation"] == RelationType("related_to")
+    assert query2.to_dict()["direction"] == Direction.BOTH.value
 
     # Test case 3: Inbound with custom limit
-    query3 = LinkQuery().relation("parent_of").direction("inbound").limit(5)
-    assert query3.to_dict()["relation"] == "parent_of"
-    assert query3.to_dict()["direction"] == "inbound"
+    query3 = (
+        LinkQuery().relation(RelationType("parent_of")).direction(Direction.INBOUND.value).limit(5)
+    )
+    assert query3.to_dict()["relation"] == RelationType("parent_of")
+    assert query3.to_dict()["direction"] == Direction.INBOUND.value
     assert query3.to_dict()["limit"] == 5
 
     # Test actual execution method, which should fail until implemented

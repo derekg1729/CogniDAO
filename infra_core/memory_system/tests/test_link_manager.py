@@ -63,13 +63,15 @@ def valid_block_ids():
 def test_create_link_basic(link_manager, valid_block_ids):
     """Test basic link creation works."""
     link = link_manager.create_link(
-        from_id=valid_block_ids["block1"], to_id=valid_block_ids["block2"], relation="related_to"
+        from_id=valid_block_ids["block1"],
+        to_id=valid_block_ids["block2"],
+        relation=RelationType("related_to"),
     )
 
     # Verify returned BlockLink
     assert isinstance(link, BlockLink)
     assert link.to_id == valid_block_ids["block2"]
-    assert link.relation == "related_to"
+    assert link.relation == RelationType("related_to")
     assert link.priority == 0
     assert link.link_metadata is None
     assert link.created_by is None
@@ -83,7 +85,7 @@ def test_create_link_with_metadata(link_manager, valid_block_ids):
     link = link_manager.create_link(
         from_id=valid_block_ids["block1"],
         to_id=valid_block_ids["block2"],
-        relation="related_to",
+        relation=RelationType("related_to"),
         priority=5,
         link_metadata=metadata,
         created_by="test-user",
@@ -100,7 +102,7 @@ def test_create_link_validation_error_invalid_id(link_manager):
     """Test that creating a link with invalid UUID raises a VALIDATION_ERROR."""
     with pytest.raises(ValueError) as exc_info:
         link_manager.create_link(
-            from_id="not-a-valid-uuid", to_id=str(uuid.uuid4()), relation="related_to"
+            from_id="not-a-valid-uuid", to_id=str(uuid.uuid4()), relation=RelationType("related_to")
         )
     assert "invalid UUID" in str(exc_info.value).lower()
 
@@ -122,7 +124,9 @@ def test_create_link_duplicate(link_manager, valid_block_ids):
     """Test that creating a duplicate link raises a VALIDATION_ERROR."""
     # First creation should succeed
     link_manager.create_link(
-        from_id=valid_block_ids["block1"], to_id=valid_block_ids["block2"], relation="related_to"
+        from_id=valid_block_ids["block1"],
+        to_id=valid_block_ids["block2"],
+        relation=RelationType("related_to"),
     )
 
     # Second creation with same composite key should raise
@@ -130,7 +134,7 @@ def test_create_link_duplicate(link_manager, valid_block_ids):
         link_manager.create_link(
             from_id=valid_block_ids["block1"],
             to_id=valid_block_ids["block2"],
-            relation="related_to",
+            relation=RelationType("related_to"),
         )
     assert exc_info.value == LinkError.VALIDATION_ERROR
 
@@ -140,12 +144,16 @@ def test_cycle_detection_blocked_by(link_manager, valid_block_ids):
     """Test cycle detection for blocked_by relation."""
     # Create A -> B (A is blocked by B)
     link_manager.create_link(
-        from_id=valid_block_ids["block1"], to_id=valid_block_ids["block2"], relation="is_blocked_by"
+        from_id=valid_block_ids["block1"],
+        to_id=valid_block_ids["block2"],
+        relation=RelationType("is_blocked_by"),
     )
 
     # Create B -> C (B is blocked by C)
     link_manager.create_link(
-        from_id=valid_block_ids["block2"], to_id=valid_block_ids["block3"], relation="is_blocked_by"
+        from_id=valid_block_ids["block2"],
+        to_id=valid_block_ids["block3"],
+        relation=RelationType("is_blocked_by"),
     )
 
     # Try to create C -> A (C is blocked by A) - would create a cycle
@@ -153,7 +161,7 @@ def test_cycle_detection_blocked_by(link_manager, valid_block_ids):
         link_manager.create_link(
             from_id=valid_block_ids["block3"],
             to_id=valid_block_ids["block1"],
-            relation="is_blocked_by",
+            relation=RelationType("is_blocked_by"),
         )
     assert exc_info.value == LinkError.CYCLE_DETECTED
 
@@ -163,12 +171,16 @@ def test_delete_link(link_manager, valid_block_ids):
     """Test link deletion."""
     # Create a link
     link_manager.create_link(
-        from_id=valid_block_ids["block1"], to_id=valid_block_ids["block2"], relation="related_to"
+        from_id=valid_block_ids["block1"],
+        to_id=valid_block_ids["block2"],
+        relation=RelationType("related_to"),
     )
 
     # Delete the link
     result = link_manager.delete_link(
-        from_id=valid_block_ids["block1"], to_id=valid_block_ids["block2"], relation="related_to"
+        from_id=valid_block_ids["block1"],
+        to_id=valid_block_ids["block2"],
+        relation=RelationType("related_to"),
     )
 
     # Verify deletion succeeded
@@ -183,13 +195,19 @@ def test_delete_links_for_block(link_manager, valid_block_ids):
     """Test deleting all links for a block."""
     # Create links in both directions
     link_manager.create_link(
-        from_id=valid_block_ids["block1"], to_id=valid_block_ids["block2"], relation="related_to"
+        from_id=valid_block_ids["block1"],
+        to_id=valid_block_ids["block2"],
+        relation=RelationType("related_to"),
     )
     link_manager.create_link(
-        from_id=valid_block_ids["block2"], to_id=valid_block_ids["block1"], relation="related_to"
+        from_id=valid_block_ids["block2"],
+        to_id=valid_block_ids["block1"],
+        relation=RelationType("related_to"),
     )
     link_manager.create_link(
-        from_id=valid_block_ids["block1"], to_id=valid_block_ids["block3"], relation="mentions"
+        from_id=valid_block_ids["block1"],
+        to_id=valid_block_ids["block3"],
+        relation=RelationType("mentions"),
     )
 
     # Delete all links for block1

@@ -3,7 +3,13 @@ from typing import List, Optional, Dict, Any
 import logging
 import uuid
 
-from infra_core.memory_system.link_manager import LinkManager, LinkError, LinkQuery, BlockLink
+from infra_core.memory_system.link_manager import (
+    LinkManager,
+    LinkError,
+    LinkQuery,
+    BlockLink,
+    Direction,
+)
 from infra_core.memory_system.schemas.common import RelationType
 from services.web_api.models import ErrorResponse
 
@@ -200,6 +206,13 @@ async def get_links_from(
                 status_code=400, detail="Invalid UUID format: block_id must be a valid UUID string"
             )
 
+        # Validate direction if provided
+        if direction:
+            try:
+                direction = Direction.from_string(direction).value
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
         # Build query with provided filters
         query = LinkQuery()
         if relation:
@@ -265,6 +278,13 @@ async def get_links_to(
             raise HTTPException(
                 status_code=400, detail="Invalid UUID format: block_id must be a valid UUID string"
             )
+
+        # Validate direction if provided
+        if direction:
+            try:
+                direction = Direction.from_string(direction).value
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
 
         # Build query with provided filters
         query = LinkQuery()
