@@ -1,0 +1,185 @@
+{
+    "type": "Task",
+    "status": "todo",
+    "project": "memory-system-refactoring",
+    "name": "Refactor LinkManager for Single Responsibility",
+    "phase": "Code Quality Improvements",
+    "description": "Extract single-responsibility components from the monolithic link_manager.py file (currently ~1000 lines) into separate files while maintaining the same external behavior and ensuring all tests pass. This refactoring will improve code readability, testability, and prepare for a future SQL implementation.",
+    "implementation_details": {
+        "target_files": [
+            "infra_core/memory_system/link_manager.py",
+            "infra_core/memory_system/link_manager/__init__.py",
+            "infra_core/memory_system/link_manager/base.py",
+            "infra_core/memory_system/link_manager/index.py",
+            "infra_core/memory_system/link_manager/validators.py",
+            "infra_core/memory_system/link_manager/impl_in_memory.py"
+        ],
+        "dependencies": [
+            "Existing LinkManager implementation with tests passing",
+            "ExecutableLinkManager in pm_executable_links.py"
+        ],
+        "schema_migrations": []
+    },
+    "current_status": {
+        "summary": "The current link_manager.py is a monolithic file containing multiple responsibilities: graph logic, persistence, validation, and PM-specific concepts. We need to refactor it into separate components without changing external behavior.",
+        "blockers": [],
+        "next_steps": [
+            "Create link_manager directory and __init__.py",
+            "Extract enums, errors, and base classes to base.py",
+            "Extract LinkIndex to index.py with no PM defaults",
+            "Extract validation helpers to validators.py",
+            "Extract InMemoryLinkManager to impl_in_memory.py"
+        ],
+        "completion_percentage": 0
+    },
+    "action_items": [
+        {
+            "status": "todo",
+            "description": "Create directory structure and __init__.py",
+            "details": "Create infra_core/memory_system/link_manager/ directory with __init__.py that re-exports all public symbols"
+        },
+        {
+            "status": "todo",
+            "description": "Extract LinkErrorType, LinkError, Direction, and LinkQueryResult to base.py",
+            "details": "Move the pure data/enum classes to base.py without any implementation dependencies"
+        },
+        {
+            "status": "todo",
+            "description": "Extract LinkQuery to base.py",
+            "details": "Move LinkQuery builder class with all query methods to base.py"
+        },
+        {
+            "status": "todo",
+            "description": "Extract LinkManager abstract base class to base.py",
+            "details": "Move the abstract interface definition without any implementation details"
+        },
+        {
+            "status": "todo",
+            "description": "Extract LinkIndex to index.py",
+            "details": "Move LinkIndex class to index.py and make get_ready_tasks accept explicit relation parameter instead of using PM default"
+        },
+        {
+            "status": "todo",
+            "description": "Create validators.py with UUID and relation validation",
+            "details": "Extract _validate_uuid and _validate_relation helpers as standalone functions"
+        },
+        {
+            "status": "todo",
+            "description": "Extract InMemoryLinkManager to impl_in_memory.py",
+            "details": "Move implementation and refactor to use the extracted validators"
+        },
+        {
+            "status": "todo",
+            "description": "Update __init__.py to re-export all public components",
+            "details": "Ensure backward compatibility with existing import paths"
+        },
+        {
+            "status": "todo",
+            "description": "Remove PM-specific constants and comments",
+            "details": "Remove references to CANONICAL_DEPENDENCY_RELATION and other PM-specific concepts from the generic code"
+        },
+        {
+            "status": "todo",
+            "description": "Run tests to verify the refactoring",
+            "details": "Ensure all existing unit tests pass with the refactored code"
+        },
+        {
+            "status": "nice-to-have",
+            "description": "Create SQLLinkManager skeleton",
+            "details": "Implement a basic skeleton for SQLLinkManager that imports the same base/validators"
+        },
+        {
+            "status": "nice-to-have",
+            "description": "Add mypy type-check for the new sub-package",
+            "details": "Ensure proper type annotations throughout the refactored code"
+        }
+    ],
+    "success_criteria": [
+        {
+            "status": "todo",
+            "description": "All existing unit tests pass"
+        },
+        {
+            "status": "todo",
+            "description": "base.py is under 200 lines of code"
+        },
+        {
+            "status": "todo",
+            "description": "index.py is under 250 lines and contains no PM defaults"
+        },
+        {
+            "status": "todo",
+            "description": "impl_in_memory.py is under 400 lines, focused purely on in-memory storage"
+        },
+        {
+            "status": "todo",
+            "description": "ExecutableLinkManager continues to compile with no changes"
+        },
+        {
+            "status": "todo",
+            "description": "No PM-specific constants remain in the generic modules"
+        }
+    ],
+    "MVP_requirements": [
+        "Split link_manager.py into single-responsibility files",
+        "Ensure backward compatibility with existing import paths",
+        "Remove PM-specific references from generic components",
+        "Maintain test coverage"
+    ],
+    "detailed_refactor_steps": [
+        {
+            "file": "infra_core/memory_system/link_manager/__init__.py",
+            "content": "Re-export all public symbols to maintain backward compatibility",
+            "imports": [
+                "from .base import LinkManager, LinkQuery, LinkQueryResult, Direction, LinkError, LinkErrorType",
+                "from .index import LinkIndex",
+                "from .impl_in_memory import InMemoryLinkManager"
+            ]
+        },
+        {
+            "file": "infra_core/memory_system/link_manager/base.py",
+            "content": "Pure LinkManager ABC, LinkQuery, LinkQueryResult, Direction, LinkError, LinkErrorType",
+            "steps": [
+                "Remove PM-specific imports like CANONICAL_DEPENDENCY_RELATION",
+                "Keep all abstract method signatures in LinkManager ABC",
+                "Move LinkQuery implementation without changes",
+                "Move enum and error classes without changes"
+            ]
+        },
+        {
+            "file": "infra_core/memory_system/link_manager/index.py",
+            "content": "LinkIndex implementation for in-memory adjacency lists and graph traversal",
+            "steps": [
+                "Move LinkIndex class with all methods",
+                "Change get_ready_tasks to require explicit relation parameter",
+                "Keep all internal data structures and algorithms intact",
+                "Remove any PM defaults or domain-specific logic"
+            ]
+        },
+        {
+            "file": "infra_core/memory_system/link_manager/validators.py",
+            "content": "Helper functions for UUID and relation validation",
+            "steps": [
+                "Extract _validate_uuid and _validate_relation as standalone functions",
+                "Import RelationType from relation_registry",
+                "Keep validation logic identical to ensure consistent behavior"
+            ]
+        },
+        {
+            "file": "infra_core/memory_system/link_manager/impl_in_memory.py",
+            "content": "InMemoryLinkManager implementation using LinkIndex",
+            "steps": [
+                "Move InMemoryLinkManager with all methods",
+                "Refactor to use standalone validators instead of class methods",
+                "Keep core graph operations like has_cycle and topo_sort",
+                "Import LinkIndex from index.py",
+                "Import validation functions from validators.py"
+            ]
+        }
+    ],
+    "notes": [
+        "This refactoring does not change any behavior, only improves code organization",
+        "The existing import paths should continue to work via __init__.py re-exports",
+        "The SQLLinkManager implementation is out of scope for this task and is marked as nice-to-have"
+    ]
+}
