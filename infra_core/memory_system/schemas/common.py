@@ -3,24 +3,11 @@ Common models shared across different schema types.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Literal, Optional, get_args
+from typing import Any, Dict, Optional, get_args
 from pydantic import BaseModel, Field, validator, constr
 
-# Canonical relation types defined for links between MemoryBlocks
-RelationType = Literal[
-    "related_to",
-    "subtask_of",
-    "depends_on",
-    "child_of",
-    "mentions",
-    "parent_of",
-    "belongs_to_epic",
-    "epic_contains",
-    "blocks",
-    "is_blocked_by",
-    "bug_affects",
-    "has_bug",
-]
+# Import RelationType from relation_registry instead of defining it here
+from infra_core.memory_system.relation_registry import RelationType
 
 # Canonical UUID-v4 pattern for MemoryBlock IDs
 BlockIdType = constr(
