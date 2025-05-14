@@ -37,7 +37,9 @@ ExecutionPhaseLiteral = Literal[
 PriorityLiteral = Literal["P0", "P1", "P2", "P3", "P4", "P5"]
 
 # UUID pattern for IDs
-BlockIdType = constr(pattern=r"^[a-f0-9-]{36}$")
+BlockIdType = constr(
+    pattern=r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", strip_whitespace=True
+)
 
 
 class ExecutableMetadata(BaseMetadata):
@@ -63,6 +65,7 @@ class ExecutableMetadata(BaseMetadata):
         "released",
         "done",
         "archived",
+        "blocked",
     }
 
     # Common fields for all executable metadata

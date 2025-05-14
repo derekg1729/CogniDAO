@@ -166,7 +166,7 @@ def test_blocked_by_uuid_format():
         )
 
     assert "String should match pattern" in str(excinfo.value)
-    assert "^[a-f0-9-]{36}$" in str(excinfo.value)
+    assert "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$" in str(excinfo.value)
 
 
 def test_priority_literal():

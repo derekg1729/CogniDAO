@@ -172,13 +172,15 @@ def test_create_task_memory_block_minimal_input(mock_core_create_block, mock_mem
     mock_core_create_block.return_value = mock_core_output
 
     minimal_input = CreateTaskMemoryBlockInput(
-        title="Setup Project", description="Initial project setup and configuration."
+        title="Setup Project",
+        description="Initial project setup and configuration.",
+        acceptance_criteria=["Project can be successfully built"],
     )
+
     result = create_task_memory_block(minimal_input, mock_memory_bank)
 
     assert result.success is True
     assert result.id == "min-task-id"
-
     mock_core_create_block.assert_called_once()
     call_args, _ = mock_core_create_block.call_args
     created_core_input: CoreCreateMemoryBlockInput = call_args[0]
@@ -196,7 +198,8 @@ def test_create_task_memory_block_minimal_input(mock_core_create_block, mock_mem
     assert "action_items" in metadata
     assert "acceptance_criteria" in metadata
     assert len(metadata["action_items"]) == 0
-    assert len(metadata["acceptance_criteria"]) == 0
+    assert len(metadata["acceptance_criteria"]) == 1
+    assert metadata["acceptance_criteria"][0] == "Project can be successfully built"
 
 
 @patch(

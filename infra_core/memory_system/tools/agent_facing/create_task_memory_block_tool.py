@@ -5,17 +5,18 @@ This tool provides a simplified interface for agents to create task blocks,
 ensuring correct type, metadata structure, and schema validation.
 """
 
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 import logging
 
-from ...schemas.memory_block import ConfidenceScore
 from ...schemas.common import BlockLink
+from ...schemas.memory_block import ConfidenceScore
 from ...schemas.metadata.common.executable import (
     PriorityLiteral,
     WorkStatusLiteral,
     ExecutionPhaseLiteral,
+    BlockIdType,
 )
 from ..base.cogni_tool import CogniTool
 from ..memory_core.create_memory_block_tool import (
@@ -62,13 +63,12 @@ class CreateTaskMemoryBlockInput(BaseModel):
         default_factory=list, description="Specific actions needed to complete this task."
     )
     acceptance_criteria: List[str] = Field(
-        default_factory=list,
-        description="Criteria that must be met for this task to be considered complete.",
+        ..., description="Criteria that must be met for this task to be considered complete."
     )
     expected_artifacts: List[str] = Field(
         default_factory=list, description="Expected deliverables or artifacts to be produced."
     )
-    blocked_by: List[str] = Field(
+    blocked_by: List[BlockIdType] = Field(
         default_factory=list,
         description="IDs of items that must be completed before this one can start.",
     )
@@ -97,7 +97,7 @@ class CreateTaskMemoryBlockInput(BaseModel):
 
     # Optional phase and implementation details
     phase: Optional[str] = Field(None, description="Project phase this task belongs to.")
-    implementation_details: Optional[dict] = Field(
+    implementation_details: Optional[Dict[str, Any]] = Field(
         None, description="Technical details for implementation (files, endpoints, etc.)"
     )
 
@@ -118,6 +118,13 @@ class CreateTaskMemoryBlockInput(BaseModel):
     links: Optional[List[BlockLink]] = Field(
         default_factory=list, description="Optional links to other blocks."
     )
+
+    @model_validator(mode="after")
+    def validate_execution_phase(self) -> "CreateTaskMemoryBlockInput":
+        """Validate that execution_phase is only set when status is 'in_progress'."""
+        if self.execution_phase is not None and self.status != "in_progress":
+            raise ValueError("execution_phase can only be set when status is 'in_progress'")
+        return self
 
 
 class CreateTaskMemoryBlockOutput(CoreCreateMemoryBlockOutput):
@@ -156,7 +163,7 @@ def create_task_memory_block(
         "action_items": input_data.action_items,
         "acceptance_criteria": input_data.acceptance_criteria,
         "expected_artifacts": input_data.expected_artifacts,
-        "blocked_by": input_data.blocked_by,
+        "blocked_by": list(input_data.blocked_by),
         # Agent framework fields
         "tool_hints": input_data.tool_hints,
         "role_hint": input_data.role_hint,

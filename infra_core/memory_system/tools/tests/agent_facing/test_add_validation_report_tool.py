@@ -45,6 +45,8 @@ def sample_memory_block(sample_block_id):
             "description": "Test task description",
             "status": "in_progress",
             "acceptance_criteria": ["Criterion 1 should pass", "Criterion 2 should pass"],
+            "x_agent_id": "test_agent",  # Required by TaskMetadata validation
+            "completed": False,
         },
         created_by="test_agent",
         created_at=datetime.now(),
@@ -73,17 +75,24 @@ def sample_validation_input(sample_block_id):
 
 
 @patch("infra_core.memory_system.tools.agent_facing.add_validation_report_tool.uuid.UUID")
-def test_validate_uuid_format(mock_uuid_validate, sample_validation_input):
+def test_validate_uuid_format(mock_uuid_validate):
     """Test that UUID validation is performed."""
     # Setup
     mock_uuid_validate.side_effect = None  # No exception means validation passes
 
-    # Execute - this should not raise validation error
-    result = sample_validation_input.ensure_uuid_format()
+    # Create input with a valid UUID format
+    valid_uuid = "12345678-1234-1234-1234-123456789012"
+
+    # Execute
+    input_obj = AddValidationReportInput(
+        block_id=valid_uuid,
+        results=[ValidationResultInput(criterion="Test criterion", status="pass")],
+        validated_by="test_agent",
+    )
 
     # Assert
-    assert result is sample_validation_input
-    mock_uuid_validate.assert_called_once_with(sample_validation_input.block_id)
+    assert input_obj.block_id == valid_uuid
+    mock_uuid_validate.assert_called_once_with(valid_uuid)
 
 
 @patch("infra_core.memory_system.tools.agent_facing.add_validation_report_tool.uuid.UUID")
@@ -97,6 +106,7 @@ def test_invalid_uuid_format(mock_uuid_validate):
         AddValidationReportInput(
             block_id="not-a-valid-uuid",
             results=[ValidationResultInput(criterion="Test criterion", status="pass")],
+            validated_by="validator_agent",
         )
 
     # Assert
@@ -122,11 +132,13 @@ def test_add_validation_report_success(
     assert result.validation_summary["pass"] == 2
     assert result.validation_summary["fail"] == 0
     assert result.validation_summary["total"] == 2
+    assert result.updated_metadata is not None
 
     # Verify metadata was updated correctly
     mock_memory_bank.update_memory_block.assert_called_once()
     updated_block = mock_memory_bank.update_memory_block.call_args[0][0]
     assert updated_block.metadata["status"] == "done"
+    assert updated_block.metadata["completed"] is True
     assert "validation_report" in updated_block.metadata
     validation_report = updated_block.metadata["validation_report"]
     assert validation_report["validated_by"] == "validator_agent"
@@ -179,22 +191,49 @@ def test_add_validation_report_with_failing_criteria(
             ),
         ],
         validated_by="validator_agent",
-        mark_as_done=True,  # Even though we request to mark as done, it shouldn't if any fail
+        mark_as_done=True,  # This should now cause an error because we have failing criteria
     )
 
     # Execute
     result = add_validation_report(input_with_failure, mock_memory_bank)
 
     # Assert
-    assert result.success is True
-    assert result.status_updated is False  # Shouldn't be marked as done with failing criteria
-    assert result.validation_summary["pass"] == 1
-    assert result.validation_summary["fail"] == 1
+    assert result.success is False
+    assert (
+        result.error
+        == "Cannot mark as done when there are failing validation results. Fix failures or set mark_as_done=False."
+    )
+    assert result.validation_summary == {"pass": 1, "fail": 1, "total": 2}
 
-    # Verify status wasn't changed but report was added
-    updated_block = mock_memory_bank.update_memory_block.call_args[0][0]
-    assert updated_block.metadata["status"] == "in_progress"  # Original status preserved
-    assert "validation_report" in updated_block.metadata
+    # Check that update was not called because we returned early
+    mock_memory_bank.update_memory_block.assert_not_called()
+
+    # Now try with mark_as_done=False which should succeed
+    input_without_marking_done = AddValidationReportInput(
+        block_id=sample_block_id,
+        results=[
+            ValidationResultInput(
+                criterion="Criterion 1 should pass",
+                status="pass",
+            ),
+            ValidationResultInput(
+                criterion="Criterion 2 should pass", status="fail", notes="This criterion failed"
+            ),
+        ],
+        validated_by="validator_agent",
+        mark_as_done=False,  # Don't mark as done, just record the validation results
+    )
+
+    # Reset mock
+    mock_memory_bank.update_memory_block.reset_mock()
+
+    # Execute again
+    result = add_validation_report(input_without_marking_done, mock_memory_bank)
+
+    # This time it should succeed
+    assert result.success is True
+    assert result.status_updated is False
+    assert mock_memory_bank.update_memory_block.called
 
 
 def test_block_not_found(mock_memory_bank, sample_validation_input):
@@ -209,6 +248,35 @@ def test_block_not_found(mock_memory_bank, sample_validation_input):
     assert result.success is False
     assert "not found" in result.error
     assert mock_memory_bank.update_memory_block.call_count == 0  # Should not attempt to update
+
+
+def test_existing_validation_report(mock_memory_bank, sample_memory_block, sample_validation_input):
+    """Test error handling when block already has a validation report."""
+    # Setup - add a validation report to the block with valid results
+    sample_memory_block.metadata["validation_report"] = {
+        "validated_by": "previous_agent",
+        "timestamp": "2025-01-01T00:00:00.000000",
+        "results": [
+            {"criterion": "Previous criterion", "status": "pass", "notes": "Already validated"}
+        ],
+    }
+    mock_memory_bank.get_memory_block.return_value = sample_memory_block
+
+    # Execute - without force flag
+    sample_validation_input.force = False
+    result = add_validation_report(sample_validation_input, mock_memory_bank)
+
+    # Assert
+    assert result.success is False
+    assert "already exists" in result.error
+    assert "force=True" in result.error
+
+    # Now try with force flag
+    sample_validation_input.force = True
+    result = add_validation_report(sample_validation_input, mock_memory_bank)
+
+    # Should succeed with force flag
+    assert result.success is True
 
 
 def test_non_executable_block_type(mock_memory_bank, sample_validation_input):
@@ -269,3 +337,4 @@ def test_add_validation_report_tool_schema():
     assert "results" in properties
     assert "validated_by" in properties
     assert "mark_as_done" in properties
+    assert "force" in properties
