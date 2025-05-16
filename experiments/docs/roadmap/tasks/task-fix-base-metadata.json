@@ -20,7 +20,7 @@
         {
             "id": "define_base_user_metadata",
             "description": "Create `infra_core/memory_system/schemas/metadata/base_user.py`: Define `BaseUserMetadata(BaseMetadata)` with `title: str = Field(..., description=\"Short, descriptive title of the memory block\")`, `description: Optional[str] = Field(None, description=\"Detailed explanation or summary of the block's contents\")`, `owner: Optional[str] = Field(None, description=\"User ID of the block's primary owner\")`",
-            "status": "[ ]",
+            "status": "[x]",
             "files": [
                 "infra_core/memory_system/schemas/metadata/base_user.py"
             ],
@@ -29,7 +29,7 @@
         {
             "id": "update_executable_metadata_inheritance",
             "description": "Modify `infra_core/memory_system/schemas/metadata/common/executable.py`: Change `ExecutableMetadata` to inherit from `BaseUserMetadata` instead of `BaseMetadata`",
-            "status": "[ ]",
+            "status": "[x]",
             "files": [
                 "infra_core/memory_system/schemas/metadata/common/executable.py"
             ]
@@ -37,7 +37,7 @@
         {
             "id": "migrate_task_metadata",
             "description": "Modify `infra_core/memory_system/schemas/metadata/task.py`: Remove `title`, `description`, and `assignee` fields (to be replaced by inherited `title`, `description`, `owner`)",
-            "status": "[ ]",
+            "status": "[x]",
             "files": [
                 "infra_core/memory_system/schemas/metadata/task.py"
             ]
@@ -45,7 +45,7 @@
         {
             "id": "migrate_project_metadata",
             "description": "Modify `infra_core/memory_system/schemas/metadata/project.py`: Remove `name` (use inherited `title`), `description`, and `owner` fields",
-            "status": "[ ]",
+            "status": "[x]",
             "files": [
                 "infra_core/memory_system/schemas/metadata/project.py"
             ]
@@ -53,7 +53,7 @@
         {
             "id": "migrate_epic_metadata",
             "description": "Modify `infra_core/memory_system/schemas/metadata/epic.py`: Remove `name` (use inherited `title`), `description`, and `owner` fields",
-            "status": "[ ]",
+            "status": "[x]",
             "files": [
                 "infra_core/memory_system/schemas/metadata/epic.py"
             ]
@@ -61,7 +61,7 @@
         {
             "id": "migrate_doc_metadata",
             "description": "Modify `infra_core/memory_system/schemas/metadata/doc.py`: Change inheritance to `BaseUserMetadata`. Remove its own `title` field. Ensure `description` and `owner` are covered by inheritance.",
-            "status": "[ ]",
+            "status": "[x]",
             "files": [
                 "infra_core/memory_system/schemas/metadata/doc.py"
             ]
@@ -69,7 +69,7 @@
         {
             "id": "migrate_bug_metadata",
             "description": "Modify `infra_core/memory_system/schemas/metadata/bug.py`: Remove `title`, `description`, and `reporter` fields (to be replaced by inherited `title`, `description`, `owner`)",
-            "status": "[ ]",
+            "status": "[x]",
             "files": [
                 "infra_core/memory_system/schemas/metadata/bug.py"
             ]
@@ -77,23 +77,41 @@
         {
             "id": "update_schema_versions",
             "description": "Update `SCHEMA_VERSIONS` in `infra_core/memory_system/schemas/registry.py` for `task`, `project`, `epic`, `doc`, `bug` due to breaking changes.",
-            "status": "[ ]",
+            "status": "[x]",
             "files": [
                 "infra_core/memory_system/schemas/registry.py"
             ]
         },
         {
             "id": "verify_tests_registry",
-            "description": "Review and update tests in `infra_core/memory_system/tests/test_registry.py` to ensure schema resolution tests are still valid after changes.",
-            "status": "[ ]",
+            "description": "Review and update tests in `infra_core/memory_system/tests/test_registry.py` and `experiments/tests/test_registry.py` to ensure schema resolution and version tests are still valid after changes.",
+            "status": "[x]",
             "files": [
-                "infra_core/memory_system/tests/test_registry.py"
+                "infra_core/memory_system/tests/test_registry.py",
+                "experiments/tests/test_registry.py"
+            ]
+        },
+        {
+            "id": "verify_tests_metadata_units",
+            "description": "Review and update unit tests for individual metadata types (`test_epic_bug.py`, `test_type_specific_status.py`) to use new field names (`title`, `owner`) and structure.",
+            "status": "[x]",
+            "files": [
+                "infra_core/memory_system/schemas/metadata/tests/test_epic_bug.py",
+                "infra_core/memory_system/schemas/metadata/tests/test_type_specific_status.py"
+            ]
+        },
+        {
+            "id": "verify_tests_dolt_schema_manager",
+            "description": "Review and update tests in `infra_core/memory_system/tests/test_dolt_schema_manager.py` related to metadata validation.",
+            "status": "[x]",
+            "files": [
+                "infra_core/memory_system/tests/test_dolt_schema_manager.py"
             ]
         },
         {
             "id": "verify_tests_block_router",
             "description": "Review and update tests in `tests/services/web_api/test_blocks_router.py`: Adjust test data payloads and assertions for affected block types (`Task`, `Project`, `Epic`, `Doc`, `Bug`) to reflect new metadata structure.",
-            "status": "[ ]",
+            "status": "[x]",
             "files": [
                 "tests/services/web_api/test_blocks_router.py"
             ]
@@ -101,7 +119,7 @@
         {
             "id": "review_schema_registration_script",
             "description": "Review `infra_core/memory_system/scripts/register_schemas.py` to ensure `base_user.py` is implicitly or explicitly imported if necessary. (Base classes usually don't need direct registration).",
-            "status": "[ ]",
+            "status": "[x]",
             "files": [
                 "infra_core/memory_system/scripts/register_schemas.py"
             ]

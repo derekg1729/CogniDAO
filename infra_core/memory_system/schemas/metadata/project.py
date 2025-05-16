@@ -41,11 +41,6 @@ class ProjectMetadata(ExecutableMetadata):
         "archived",
     }
 
-    owner: str = Field(..., description="User ID of the project owner/lead")
-    name: str = Field(..., description="Short, descriptive name of the project")
-    description: str = Field(
-        ..., description="Detailed description of the project purpose and goals"
-    )
     priority: Optional[PriorityLiteral] = Field(
         None, description="Priority level of the project (P0 highest, P5 lowest)"
     )

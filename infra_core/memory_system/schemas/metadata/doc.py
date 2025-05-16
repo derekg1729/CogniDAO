@@ -7,17 +7,16 @@ from datetime import datetime
 from pydantic import Field
 
 # Import BaseMetadata
-from .base import BaseMetadata
+from .base_user import BaseUserMetadata
 from ..registry import register_metadata
 
 
-class DocMetadata(BaseMetadata):
+class DocMetadata(BaseUserMetadata):
     """
     Metadata schema for MemoryBlocks of type "doc".
     Basic structure for documentation blocks.
     """
 
-    title: str = Field(..., description="Title of the document")
     audience: Optional[str] = Field(
         None, description="Intended audience for the document (e.g., 'developers', 'users')"
     )

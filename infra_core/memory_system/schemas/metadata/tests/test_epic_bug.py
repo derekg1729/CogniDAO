@@ -17,12 +17,12 @@ def test_epic_metadata_instantiation():
     epic = EpicMetadata(
         x_agent_id="agent_123",
         owner="user_456",
-        name="Test Epic",
+        title="Test Epic",
         description="A test epic for unit tests",
         acceptance_criteria=["Test criterion"],
     )
     assert epic.owner == "user_456"
-    assert epic.name == "Test Epic"
+    assert epic.title == "Test Epic"
     assert epic.description == "A test epic for unit tests"
     assert epic.status == "backlog"  # Default value
 
@@ -32,7 +32,7 @@ def test_epic_metadata_full():
     epic = EpicMetadata(
         x_agent_id="agent_123",
         owner="user_456",
-        name="Test Epic",
+        title="Test Epic",
         description="A test epic for unit tests",
         status="in_progress",
         start_date="2023-01-01T00:00:00Z",
@@ -70,7 +70,7 @@ def test_epic_metadata_status_completion_sync():
     epic = EpicMetadata(
         x_agent_id="agent_123",
         owner="user_456",
-        name="Test Epic",
+        title="Test Epic",
         description="A test epic for unit tests",
         status="in_progress",
         completed=True,
@@ -83,7 +83,7 @@ def test_epic_metadata_status_completion_sync():
     epic2 = EpicMetadata(
         x_agent_id="agent_123",
         owner="user_456",
-        name="Test Epic",
+        title="Test Epic",
         description="A test epic for unit tests",
         status="done",
         completed=False,
@@ -100,7 +100,7 @@ def test_epic_metadata_validation():
         EpicMetadata(
             x_agent_id="agent_123",
             owner="user_456",
-            name="Test Epic",
+            title="Test Epic",
             description="A test epic for unit tests",
             progress_percent=101.0,  # Invalid: > 100
             acceptance_criteria=["Test criterion"],
@@ -110,7 +110,7 @@ def test_epic_metadata_validation():
         EpicMetadata(
             x_agent_id="agent_123",
             owner="user_456",
-            name="Test Epic",
+            title="Test Epic",
             description="A test epic for unit tests",
             progress_percent=-1.0,  # Invalid: < 0
             acceptance_criteria=["Test criterion"],
@@ -121,7 +121,7 @@ def test_epic_metadata_validation():
         EpicMetadata(
             x_agent_id="agent_123",
             owner="user_456",
-            name="Test Epic",
+            title="Test Epic",
             description="A test epic for unit tests",
             status="done",  # Requires validation_report
             acceptance_criteria=["Test criterion"],
@@ -132,12 +132,12 @@ def test_bug_metadata_instantiation():
     """Test that BugMetadata can be instantiated with required fields."""
     bug = BugMetadata(
         x_agent_id="agent_123",
-        reporter="user_456",
+        owner="user_456",
         title="Test Bug",
         description="A test bug for unit tests",
         acceptance_criteria=["Test criterion"],
     )
-    assert bug.reporter == "user_456"
+    assert bug.owner == "user_456"
     assert bug.title == "Test Bug"
     assert bug.description == "A test bug for unit tests"
     assert bug.status == "backlog"  # Default value
@@ -147,7 +147,7 @@ def test_bug_metadata_full():
     """Test that BugMetadata can be instantiated with all fields."""
     bug = BugMetadata(
         x_agent_id="agent_123",
-        reporter="user_456",
+        owner="user_456",
         title="Test Bug",
         description="A test bug for unit tests",
         assignee="user_789",
@@ -187,7 +187,7 @@ def test_bug_metadata_validation():
     with pytest.raises(ValidationError):
         BugMetadata(
             x_agent_id="agent_123",
-            reporter="user_456",
+            owner="user_456",
             title="Test Bug",
             description="A test bug for unit tests",
             severity="not_a_valid_severity",  # Invalid severity
@@ -198,7 +198,7 @@ def test_bug_metadata_validation():
     with pytest.raises(ValidationError):
         BugMetadata(
             x_agent_id="agent_123",
-            reporter="user_456",
+            owner="user_456",
             title="Test Bug",
             description="A test bug for unit tests",
             confidence_score={"human": 1.5},  # Invalid: > 1
@@ -209,7 +209,7 @@ def test_bug_metadata_validation():
     with pytest.raises(ValidationError):
         BugMetadata(
             x_agent_id="agent_123",
-            reporter="user_456",
+            owner="user_456",
             title="Test Bug",
             description="A test bug for unit tests",
             status="done",  # Requires validation_report since we now use 'done' instead of 'fixed'

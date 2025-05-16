@@ -41,9 +41,6 @@ class TaskMetadata(ExecutableMetadata):
         "done",
     }
 
-    assignee: Optional[str] = Field(None, description="User ID of the person assigned to this task")
-    title: str = Field(..., description="Short, descriptive title of the task")
-    description: str = Field(..., description="Detailed description of what the task involves")
     priority: Optional[PriorityLiteral] = Field(
         None, description="Priority level of the task (P0 highest, P5 lowest)"
     )

@@ -55,7 +55,7 @@ def test_project_allowed_status():
     project = ProjectMetadata(
         x_agent_id="agent-123",
         owner="user-456",
-        name="Test Project",
+        title="Test Project",
         description="This is a test project",
         acceptance_criteria=["Criterion 1"],
         status="in_progress",
@@ -67,7 +67,7 @@ def test_project_allowed_status():
         ProjectMetadata(
             x_agent_id="agent-123",
             owner="user-456",
-            name="Test Project",
+            title="Test Project",
             description="This is a test project",
             acceptance_criteria=["Criterion 1"],
             status="invalid_status",  # Not in ALLOWED_STATUS
@@ -88,7 +88,7 @@ def test_epic_allowed_status():
     epic = EpicMetadata(
         x_agent_id="agent-123",
         owner="user-456",
-        name="Test Epic",
+        title="Test Epic",
         description="This is a test epic",
         acceptance_criteria=["Criterion 1"],
         status="in_progress",
@@ -100,7 +100,7 @@ def test_epic_allowed_status():
         EpicMetadata(
             x_agent_id="agent-123",
             owner="user-456",
-            name="Test Epic",
+            title="Test Epic",
             description="This is a test epic",
             acceptance_criteria=["Criterion 1"],
             status="invalid_status",  # Not in ALLOWED_STATUS
@@ -120,7 +120,7 @@ def test_bug_allowed_status():
     # Create a bug with a valid status
     bug = BugMetadata(
         x_agent_id="agent-123",
-        reporter="user-456",
+        owner="user-456",
         title="Test Bug",
         description="This is a test bug",
         acceptance_criteria=["Criterion 1"],
@@ -132,7 +132,7 @@ def test_bug_allowed_status():
     with pytest.raises(ValidationError) as excinfo:
         BugMetadata(
             x_agent_id="agent-123",
-            reporter="user-456",
+            owner="user-456",
             title="Test Bug",
             description="This is a test bug",
             acceptance_criteria=["Criterion 1"],
@@ -179,7 +179,7 @@ def test_bug_severity_validation():
     # Create a bug with valid severity
     bug = BugMetadata(
         x_agent_id="agent-123",
-        reporter="user-456",
+        owner="user-456",
         title="Test Bug",
         description="This is a test bug",
         acceptance_criteria=["Criterion 1"],
@@ -191,7 +191,7 @@ def test_bug_severity_validation():
     with pytest.raises(ValidationError) as excinfo:
         BugMetadata(
             x_agent_id="agent-123",
-            reporter="user-456",
+            owner="user-456",
             title="Test Bug",
             description="This is a test bug",
             acceptance_criteria=["Criterion 1"],

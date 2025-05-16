@@ -51,9 +51,9 @@ class BugMetadata(ExecutableMetadata):
     }
 
     # Required fields
-    reporter: str
-    title: str
-    description: str
+    # reporter: str # Remove
+    # title: str # Remove
+    # description: str # Remove
 
     # Optional fields
     assignee: Optional[str] = None

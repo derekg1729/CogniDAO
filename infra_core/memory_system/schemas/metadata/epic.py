@@ -42,9 +42,9 @@ class EpicMetadata(ExecutableMetadata):
     }
 
     # Required fields
-    owner: str
-    name: str
-    description: str
+    # owner: str
+    # name: str
+    # description: str
 
     # Optional fields
     start_date: Optional[datetime] = None

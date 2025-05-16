@@ -36,7 +36,7 @@ def sample_epic_input_data():
     """Create a sample input for testing CreateEpicMemoryBlockInput with all fields."""
     return {
         # Core epic fields
-        "name": "Memory System Overhaul",
+        "title": "Memory System Overhaul",
         "description": "Comprehensive updates to improve memory system reliability and capabilities",
         "owner": "user_1234",
         # Status and planning fields
@@ -118,7 +118,7 @@ def test_create_epic_memory_block_success(
 
     # Verify key metadata fields
     metadata = created_core_input.metadata
-    assert metadata["name"] == sample_epic_input.name
+    assert metadata["title"] == sample_epic_input.title
     assert metadata["description"] == sample_epic_input.description
     assert metadata["owner"] == sample_epic_input.owner
     assert metadata["status"] == sample_epic_input.status
@@ -158,7 +158,7 @@ def test_create_epic_memory_block_minimal_input(mock_core_create_block, mock_mem
     mock_core_create_block.return_value = mock_core_output
 
     minimal_input = CreateEpicMemoryBlockInput(
-        name="Minimal Epic",
+        title="Minimal Epic",
         description="A minimal epic description",
         owner="user_minimal",
         acceptance_criteria=["Epic meets minimal requirements"],
@@ -175,7 +175,7 @@ def test_create_epic_memory_block_minimal_input(mock_core_create_block, mock_mem
 
     assert created_core_input.type == "epic"
     assert created_core_input.text == "A minimal epic description"
-    assert metadata["name"] == "Minimal Epic"
+    assert metadata["title"] == "Minimal Epic"
     assert metadata["description"] == "A minimal epic description"
     assert metadata["owner"] == "user_minimal"
     assert metadata["x_tool_id"] == "CreateEpicMemoryBlockTool"
@@ -202,7 +202,7 @@ def test_create_epic_memory_block_validation(mock_core_create_block, mock_memory
 
     # Test valid values
     valid_input = CreateEpicMemoryBlockInput(
-        name="Valid Progress Epic",
+        title="Valid Progress Epic",
         description="Testing progress validation",
         owner="user_test",
         acceptance_criteria=["Validation works properly"],
@@ -215,7 +215,7 @@ def test_create_epic_memory_block_validation(mock_core_create_block, mock_memory
     # Test invalid values would be caught by Pydantic validators
     with pytest.raises(ValueError):
         CreateEpicMemoryBlockInput(
-            name="Invalid Progress Epic",
+            title="Invalid Progress Epic",
             description="Testing progress validation",
             owner="user_test",
             acceptance_criteria=["Validation works properly"],
@@ -277,7 +277,7 @@ def test_create_epic_memory_block_tool_schema():
     properties = schema["parameters"]["properties"]
 
     # Verify key fields are in the schema
-    assert "name" in properties
+    assert "title" in properties
     assert "description" in properties
     assert "owner" in properties
     assert "status" in properties

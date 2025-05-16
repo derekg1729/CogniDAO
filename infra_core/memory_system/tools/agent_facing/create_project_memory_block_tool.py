@@ -142,7 +142,7 @@ def create_project_memory_block(
     # Prepare metadata for the 'project' block
     project_specific_metadata = {
         # Required fields
-        "name": input_data.name,
+        "title": input_data.name,
         "description": input_data.description,
         "owner": input_data.owner,
         # Project-specific optional fields

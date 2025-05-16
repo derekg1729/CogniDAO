@@ -8,7 +8,7 @@ that are shared across Task, Bug, Project, and Epic metadata models.
 from typing import List, Optional, Literal, ClassVar, Set
 from pydantic import Field, validator, model_validator
 
-from ..base import BaseMetadata
+from ..base_user import BaseUserMetadata
 from .validation import ValidationReport
 from ....schemas.common import BlockIdType
 
@@ -38,7 +38,7 @@ ExecutionPhaseLiteral = Literal[
 PriorityLiteral = Literal["P0", "P1", "P2", "P3", "P4", "P5"]
 
 
-class ExecutableMetadata(BaseMetadata):
+class ExecutableMetadata(BaseUserMetadata):
     """
     Mixin class for metadata models that represent executable work items.
 

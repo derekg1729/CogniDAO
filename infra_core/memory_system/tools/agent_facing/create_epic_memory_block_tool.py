@@ -31,7 +31,7 @@ class CreateEpicMemoryBlockInput(BaseModel):
     """Input model for creating an 'epic' type memory block."""
 
     # Core epic fields
-    name: str = Field(..., description="Short, descriptive name of the epic.")
+    title: str = Field(..., description="Short, descriptive title of the epic.")
     description: str = Field(..., description="Detailed description of the epic purpose and scope.")
     owner: str = Field(..., description="User ID of the epic owner/lead.")
 
@@ -126,12 +126,12 @@ def create_epic_memory_block(
     """
     Create an 'epic' type memory block with structured metadata.
     """
-    logger.debug(f"Attempting to create 'epic' memory block with name: {input_data.name}")
+    logger.debug(f"Attempting to create 'epic' memory block with title: {input_data.title}")
 
     # Prepare metadata for the 'epic' block
     epic_specific_metadata = {
         # Required fields
-        "name": input_data.name,
+        "title": input_data.title,
         "description": input_data.description,
         "owner": input_data.owner,
         # Epic-specific optional fields

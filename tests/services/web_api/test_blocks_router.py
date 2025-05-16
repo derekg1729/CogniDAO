@@ -328,6 +328,7 @@ def create_valid_task_payload() -> Dict[str, Any]:
             "x_agent_id": "test-runner",
             "title": "Test Task Title",
             "description": "Valid task metadata for testing",
+            "owner": "test_owner_id",
             "status": "backlog",  # Updated from 'todo' to 'backlog' to match new schema
             # Other fields from TaskMetadata are optional or have defaults
             "acceptance_criteria": ["Test passes"],  # Required by ExecutableMetadata
