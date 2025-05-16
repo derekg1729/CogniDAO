@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+
+# Dependencies for StructuredMemoryBank & LlamaMemory
+# These are based on imports found in infra_core/memory_system/
+# Exact versions might need to be aligned with your project's existing dependencies
+doltpy
+llama-index
+chromadb
+llama-index-vector-stores-chroma
+llama-index-embeddings-huggingface
+# sentence-transformers is often a peer dependency for HuggingFace embeddings in LlamaIndex
+sentence-transformers 
