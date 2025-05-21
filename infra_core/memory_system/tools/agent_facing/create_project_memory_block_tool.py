@@ -139,6 +139,16 @@ def create_project_memory_block(
     """
     logger.debug(f"Attempting to create 'project' memory block with name: {input_data.name}")
 
+    # Additional validation for owner field
+    if not input_data.owner or input_data.owner.strip() == "":
+        error_msg = "Project owner cannot be null or empty"
+        logger.error(error_msg)
+        return CreateProjectMemoryBlockOutput(
+            success=False,
+            error=error_msg,
+            timestamp=datetime.now(),
+        )
+
     # Prepare metadata for the 'project' block
     project_specific_metadata = {
         # Required fields

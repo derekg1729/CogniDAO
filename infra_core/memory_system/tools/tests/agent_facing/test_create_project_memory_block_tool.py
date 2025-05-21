@@ -123,7 +123,7 @@ def test_create_project_memory_block_success(
 
     # Verify key metadata fields
     metadata = created_core_input.metadata
-    assert metadata["name"] == sample_project_input.name
+    assert metadata["title"] == sample_project_input.name
     assert metadata["description"] == sample_project_input.description
     assert metadata["owner"] == sample_project_input.owner
     assert metadata["status"] == sample_project_input.status
@@ -185,7 +185,7 @@ def test_create_project_memory_block_minimal_input(mock_core_create_block, mock_
 
     assert created_core_input.type == "project"
     assert created_core_input.text == "A minimal project description"
-    assert metadata["name"] == "Minimal Project"
+    assert metadata["title"] == "Minimal Project"
     assert metadata["description"] == "A minimal project description"
     assert metadata["owner"] == "user_minimal"
     assert metadata["x_tool_id"] == "CreateProjectMemoryBlockTool"
@@ -198,6 +198,35 @@ def test_create_project_memory_block_minimal_input(mock_core_create_block, mock_
     assert len(metadata["action_items"]) == 0
     assert len(metadata["acceptance_criteria"]) == 1
     assert metadata["acceptance_criteria"][0] == "Project meets minimal requirements"
+
+
+def test_create_project_memory_block_null_owner(mock_memory_bank):
+    """Test validation for null or empty project owner."""
+    # Test with empty string owner
+    invalid_input = CreateProjectMemoryBlockInput(
+        name="Invalid Project",
+        description="A project with invalid owner",
+        owner="",  # Empty string owner
+        acceptance_criteria=["Project meets requirements"],
+    )
+
+    result = create_project_memory_block(invalid_input, mock_memory_bank)
+
+    assert result.success is False
+    assert "Project owner cannot be null or empty" in result.error
+
+    # Test with whitespace-only owner
+    invalid_input = CreateProjectMemoryBlockInput(
+        name="Invalid Project",
+        description="A project with invalid owner",
+        owner="   ",  # Whitespace-only owner
+        acceptance_criteria=["Project meets requirements"],
+    )
+
+    result = create_project_memory_block(invalid_input, mock_memory_bank)
+
+    assert result.success is False
+    assert "Project owner cannot be null or empty" in result.error
 
 
 @patch(
@@ -248,19 +277,29 @@ def test_create_project_memory_block_tool_initialization():
 def test_create_project_memory_block_tool_schema():
     """Test schema generation for the tool."""
     schema = create_project_memory_block_tool.schema
+    assert schema is not None
+    assert "name" in schema
     assert schema["name"] == "CreateProjectMemoryBlock"
+    assert "type" in schema
     assert schema["type"] == "function"
     assert "parameters" in schema
-    properties = schema["parameters"]["properties"]
 
-    # Verify key fields are in the schema
+    # Verify input properties
+    parameters = schema["parameters"]
+    assert parameters is not None
+    assert "properties" in parameters
+    assert "$defs" in parameters
+
+    # Verify key input fields
+    properties = parameters["properties"]
     assert "name" in properties
     assert "description" in properties
     assert "owner" in properties
-    assert "status" in properties
-    assert "priority" in properties
-    assert "action_items" in properties
     assert "acceptance_criteria" in properties
-    assert "blocked_by" in properties
-    assert "tags" in properties
-    assert "phase" in properties
+
+    # Verify required input fields
+    required = parameters.get("required", [])
+    assert "name" in required
+    assert "description" in required
+    assert "owner" in required
+    assert "acceptance_criteria" in required

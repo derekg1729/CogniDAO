@@ -1,51 +1,36 @@
 {
     "type": "Task",
     "status": "in-progress",
-    "name": "Run CogniTools MCP server using host-mounted Dolt memory",
+    "name": "Run CogniTools MCP server using MCP Python SDK and fastmcp",
     "project": "cogni-tools-mcp",
     "phase": "MVP",
-    "description": "Set up and run the Cogni MCP server in Docker, using the host's existing Dolt database directory (`data/memory_dolt`) as a mounted volume. This allows the MCP service to interact with the live structured memory system without requiring Dolt initialization logic in the image.",
+    "description": "Set up and run the Cogni MCP server using the official MCP Python SDK (https://github.com/modelcontextprotocol/python-sdk), leveraging fastmcp and uv for local development. Integrate the StructuredMemoryBank with Dolt, and expose memory tools as MCP tools.",
     "acceptance_criteria": [
-        "Docker container starts successfully and binds to port 8000",
+        "Server starts successfully using fastmcp and uv",
         "Service reads and writes to the host-mounted Dolt directory (`data/memory_dolt`)",
-        "HTTP tool calls successfully persist and query memory blocks",
-        "No schema initialization or dolt branch logic is embedded in the image"
+        "MCP tool calls successfully persist and query memory blocks",
+        "No custom FastAPI boilerplate; use SDK idioms"
     ],
     "implementation_details": {
-        "dockerfile": {
-            "path": "Dockerfile",
-            "changes": [
-                {
-                    "action": "ADD",
-                    "content": "RUN apt-get update && apt-get install -y dolt && rm -rf /var/lib/apt/lists/*",
-                    "reason": "Install Dolt CLI for container to access Dolt data"
-                },
-                {
-                    "action": "REMOVE",
-                    "pattern": "RUN dolt init.*initialize_dolt_db.*",
-                    "reason": "Remove DB initialization; we use host DB"
-                },
-                {
-                    "action": "ADD",
-                    "content": "ENV COGNI_DOLT_DIR=/data/memory_dolt",
-                    "reason": "Expose environment variable for memory system to locate Dolt repo"
-                }
-            ]
-        },
-        "docker_run_command": "docker run -d --name cogni-mcp -p 8000:8000 -v $(pwd)/data/memory_dolt:/data/memory_dolt cogni-mcp:latest",
+        "requirements": [
+            "Add `mcp` to requirements.txt (from PyPI or install via uv)",
+            "Add dependencies for StructuredMemoryBank and Dolt"
+        ],
+        "server_entrypoint": "Use `from mcp.server.fastmcp import fastmcp` as the main app",
+        "tool_registration": "Register memory tools (e.g., CreateProjectMemoryBlock) as MCP tools using the fastmcp API",
         "env_vars": {
-            "DOLT_DIR": "/data/memory_dolt"
+            "COGNI_DOLT_DIR": "data/memory_dolt"
         },
-        "memory_adapter_config": "Ensure the memory system reads DOLT_DIR from the environment and passes it to StructuredMemoryBank or Dolt adapter",
+        "run_command": "uvicorn mcp.server.fastmcp:fastmcp --host 0.0.0.0 --port 8001",
         "validation": [
             {
                 "type": "http",
-                "command": "curl -s http://localhost:8000/healthz",
+                "command": "curl -s http://localhost:8001/healthz",
                 "expect": "200 OK with JSON response"
             },
             {
-                "type": "tool_call",
-                "command": "curl -X POST http://localhost:8000/tools/CreateProjectMemoryBlock -H \"Content-Type: application/json\" -d '{\"name\":\"MVP Test\",\"description\":\"Testing direct Dolt mount\",\"owner\":\"dev\",\"acceptance_criteria\":[\"verify persistence\"]}'",
+                "type": "mcp_tool_call",
+                "command": "Use MCP client or HTTP POST to /tools/CreateProjectMemoryBlock",
                 "expect": "Memory block created and stored in Dolt"
             },
             {
@@ -56,156 +41,40 @@
         ]
     },
     "detailed_implementation_plan": {
-        "phase_1_basic_fastapi_setup": {
-            "title": "Phase 1: Basic FastAPI Server Setup",
+        "phase_1_sdk_setup": {
+            "title": "Phase 1: SDK and fastmcp Setup",
             "steps": [
-                {
-                    "action": "Create Directory Structure",
-                    "status": "in-progress",
-                    "details": [
-                        "services/mcp_server/app/",
-                        "services/mcp_server/app/api/",
-                        "services/mcp_server/app/core/",
-                        "services/mcp_server/tests/"
-                    ]
-                },
-                {
-                    "action": "Initial FastAPI Application",
-                    "file": "services/mcp_server/app/mcp_server.py",
-                    "status": "completed",
-                    "details": [
-                        "Rename main.py to mcp_server.py.",
-                        "Set up a basic FastAPI application.",
-                        "Implement a /healthz endpoint."
-                    ]
-                },
-                {
-                    "action": "Configuration",
-                    "file": "services/mcp_server/app/core/config.py",
-                    "status": "completed",
-                    "details": [
-                        "Define a Pydantic Settings model.",
-                        "Enable .env file support (e.g., using pydantic-settings) for COGNI_DOLT_DIR and other potential settings, allowing local overrides."
-                    ]
-                },
-                {
-                    "action": "StructuredMemoryBank Integration",
-                    "location": "e.g., in services/mcp_server/app/core/dependencies.py or within mcp_server.py for MVP",
-                    "status": "completed",
-                    "details": [
-                        "Instantiate StructuredMemoryBank early in the application lifecycle (e.g., as a global instance or a reusable dependency).",
-                        "Use the COGNI_DOLT_DIR from the configuration settings for its initialization. This will help validate the Dolt path configuration at startup."
-                    ]
-                }
+                "Install MCP SDK: `uv pip install mcp`",
+                "Create a new server entrypoint using `from mcp.server.fastmcp import fastmcp`",
+                "Register memory tool handlers as MCP tools"
             ]
         },
-        "phase_2_memory_tool_endpoints": {
-            "title": "Phase 2: Memory Tool Endpoints",
+        "phase_2_structured_memory_integration": {
+            "title": "Phase 2: StructuredMemoryBank Integration",
             "steps": [
-                {
-                    "action": "Identify Memory Tools",
-                    "status": "completed",
-                    "details": [
-                        "Review the capabilities of StructuredMemoryBank to determine which actions (e.g., create, read, update, delete operations for various metadata types) should be exposed as API endpoints.",
-                        "Start with CreateProjectMemoryBlock as per the task."
-                    ]
-                },
-                {
-                    "action": "Define Pydantic Models (Co-located with Route Handlers for MVP)",
-                    "status": "completed",
-                    "details": [
-                        "For each API endpoint, define Pydantic models for request and response bodies.",
-                        "Initially, place these models directly within the same file as their corresponding route handlers (e.g., services/mcp_server/app/api/endpoints/memory_tools.py).",
-                        "FastAPI will automatically use these for request validation, response serialization, and generating the OpenAPI schema."
-                    ]
-                },
-                {
-                    "action": "Implement API Endpoints",
-                    "file": "e.g., services/mcp_server/app/api/endpoints/memory_tools.py",
-                    "status": "completed",
-                    "details": [
-                        "Create FastAPI routers (e.g., APIRouter) for grouping related memory tool endpoints.",
-                        "Implement endpoint logic: receive requests, call StructuredMemoryBank methods, return responses."
-                    ]
-                },
-                {
-                    "action": "Update mcp_server.py",
-                    "status": "completed",
-                    "details": [
-                        "Include the newly created routers in the main FastAPI application instance so their endpoints are registered."
-                    ]
-                }
+                "Initialize StructuredMemoryBank using COGNI_DOLT_DIR",
+                "Wire up tool handlers to call StructuredMemoryBank methods"
             ]
         },
-        "phase_3_dockerization": {
-            "title": "Phase 3: Dockerization",
+        "phase_3_validation": {
+            "title": "Phase 3: Validation",
             "steps": [
-                {
-                    "action": "Create services/mcp_server/Dockerfile",
-                    "status": "todo",
-                    "details": [
-                        "Base it on an official Python image (e.g., python:3.11-slim).",
-                        "Set a working directory (e.g., /app).",
-                        "Copy requirements.txt and install dependencies.",
-                        "Copy the services/mcp_server/app directory into the image (e.g., to /app/app).",
-                        "Install dolt CLI as specified in the task file.",
-                        "Set the COGNI_DOLT_DIR environment variable (e.g., ENV COGNI_DOLT_DIR /data/memory_dolt).",
-                        "Expose the application port (e.g., EXPOSE 8001).",
-                        "Define the CMD to run the FastAPI application using Uvicorn: CMD [\"uvicorn\", \"app.mcp_server:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8001\"]."
-                    ]
-                },
-                {
-                    "action": "Create services/mcp_server/.dockerignore",
-                    "status": "todo",
-                    "details": [
-                        "Include common Python ignores (__pycache__, *.pyc, .venv, etc.) and any local development files (.env)."
-                    ]
-                },
-                {
-                    "action": "Create services/mcp_server/requirements.txt",
-                    "status": "todo",
-                    "details": [
-                        "List necessary Python packages: fastapi, uvicorn[standard], pydantic, pydantic-settings, and any specific dependencies for StructuredMemoryBank or Dolt interaction if not already part of a shared library."
-                    ]
-                },
-                {
-                    "action": "Create services/mcp_server/.env.example",
-                    "status": "todo",
-                    "details": [
-                        "Provide an example: COGNI_DOLT_DIR=../data/memory_dolt (adjust path for local non-Docker runs)."
-                    ]
-                }
+                "Run the server with uv and fastmcp",
+                "Call healthz endpoint and tool endpoints",
+                "Verify Dolt persistence"
             ]
         },
-        "phase_4_testing_and_validation": {
-            "title": "Phase 4: Testing and Validation",
+        "phase_4_dockerization": {
+            "title": "Phase 4: Dockerization (Optional, after local validation)",
             "steps": [
-                {
-                    "action": "Unit Tests (services/mcp_server/tests/)",
-                    "status": "todo",
-                    "details": [
-                        "Test configuration loading (core/config.py).",
-                        "Test API endpoint logic (mocking StructuredMemoryBank interactions to isolate endpoint behavior).",
-                        "Test Pydantic model validation (if custom validators are added)."
-                    ]
-                },
-                {
-                    "action": "Integration/Validation Steps",
-                    "status": "todo",
-                    "details": [
-                        "Build the Docker image: docker build -t cogni-mcp:latest ./services/mcp_server",
-                        "Run the container with the host-mounted Dolt directory: docker run -d --name cogni-mcp -p 8001:8001 -v $(pwd)/data/memory_dolt:/data/memory_dolt -e COGNI_DOLT_DIR=\"/data/memory_dolt\" cogni-mcp:latest",
-                        "Health Check: curl -s http://localhost:8001/healthz (expect 200 OK).",
-                        "OpenAPI Schema Check: curl -s http://localhost:8001/openapi.json (expect valid JSON schema, verify tool routes are present).",
-                        "Tool Call (Example: CreateProjectMemoryBlock): Use curl as specified in task-mvp-dolt-mcp.json to create a memory block (update port if directly specified in task).",
-                        "Data Persistence Check: Use dolt sql -q \"SELECT COUNT(*) FROM memory_block\" --repo $(pwd)/data/memory_dolt (or the relevant table for projects) to verify the block was written."
-                    ]
-                }
+                "Create Dockerfile using uv as entrypoint",
+                "Mount Dolt directory as volume"
             ]
         }
     },
     "notes": [
-        "This task focuses on the fastest path to verifying MCP ↔ Dolt integration using existing repo state.",
-        "Future tasks will address schema migration, branching, and multiple service coordination."
+        "This approach uses the official MCP Python SDK for maximum compatibility and minimum boilerplate.",
+        "Dockerization is deferred until after local development is validated.",
+        "See https://github.com/modelcontextprotocol/python-sdk for reference."
     ]
 }

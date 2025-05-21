@@ -1,50 +1,112 @@
-from fastapi import FastAPI
-from contextlib import asynccontextmanager
+import os
+import sys
+import logging
+from pathlib import Path
 
+from mcp.server.fastmcp import FastMCP
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
-from .core.config import settings
-from .api.endpoints import memory_tools
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup: Initialize StructuredMemoryBank and store in app state
-    print(f"Initializing StructuredMemoryBank with Dolt path: {settings.COGNI_DOLT_DIR}")
-    print(f"Chroma path: {settings.CHROMA_PATH}, Collection: {settings.CHROMA_COLLECTION_NAME}")
-    try:
-        app.state.memory_bank = StructuredMemoryBank(
-            dolt_db_path=settings.COGNI_DOLT_DIR,
-            chroma_path=settings.CHROMA_PATH,
-            chroma_collection=settings.CHROMA_COLLECTION_NAME,
-        )
-        print("StructuredMemoryBank initialized successfully.")
-    except Exception as e:
-        print(f"Error initializing StructuredMemoryBank: {e}")
-        # Optionally, re-raise or handle to prevent app startup if critical
-        app.state.memory_bank = None  # Ensure it's None if initialization fails
-    yield
-    # Shutdown: Clean up resources if any (not strictly needed for SMB in this MVP)
-    print("Shutting down MCP server.")
-
-
-app = FastAPI(
-    title="Cogni MCP Server",
-    version="0.1.0",
-    description="MCP Server for Cogni Tools, enabling interaction with the Memory System.",
-    lifespan=lifespan,
+from infra_core.memory_system.tools.agent_facing.get_memory_block_tool import (
+    get_memory_block_tool,
+)
+from infra_core.memory_system.tools.agent_facing.create_project_memory_block_tool import (
+    create_project_memory_block_tool,
 )
 
-app.include_router(memory_tools.router)
+# Configure logging
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    stream=sys.stdout,  # Use stdout for unified JSON-friendly output
+)
+
+logger = logging.getLogger(__name__)
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent.parent.parent
+sys.path.append(str(project_root))
 
 
-@app.get("/healthz", tags=["Health"])
+# Initialize StructuredMemoryBank using environment variable
+COGNI_DOLT_DIR = "/Users/derek/dev/cogni/data/memory_dolt"
+CHROMA_PATH = "/Users/derek/dev/cogni/data/memory_chroma"
+CHROMA_COLLECTION_NAME = os.environ.get("CHROMA_COLLECTION_NAME", "cogni_mcp_collection")
+
+# # Ensure directories exist
+# os.makedirs(COGNI_DOLT_DIR, exist_ok=True)
+# os.makedirs(CHROMA_PATH, exist_ok=True)
+
+try:
+    # Initialize memory bank
+    memory_bank = StructuredMemoryBank(
+        dolt_db_path=COGNI_DOLT_DIR,
+        chroma_path=CHROMA_PATH,
+        chroma_collection=CHROMA_COLLECTION_NAME,
+    )
+except Exception as e:
+    logger.error(f"Failed to initialize StructuredMemoryBank: {e}")
+    logger.error("Please run init_dolt_schema.py to initialize the Dolt database")
+    sys.exit(1)
+
+# Create a FastMCP server instance with a specific name
+mcp = FastMCP("cogni-memory")
+
+
+# Register the CreateProjectMemoryBlock tool
+@mcp.tool("CreateProjectMemoryBlock")
+async def create_project_memory_block(input):
+    """Create a new project memory block
+
+    Args:
+        name: Name of the project
+        description: Description of the project
+        owner: Owner of the project
+        acceptance_criteria: List of acceptance criteria for the project
+    """
+    try:
+        result = create_project_memory_block_tool(input, memory_bank=memory_bank)
+        return result
+    except Exception as e:
+        logger.error(f"Error creating project memory block: {e}")
+        return {"error": str(e)}
+
+
+# Register the GetMemoryBlock tool
+@mcp.tool("GetMemoryBlock")
+async def get_memory_block(input):
+    """Get a memory block by ID
+
+    Args:
+        block_id: ID of the memory block to retrieve
+    """
+    try:
+        result = get_memory_block_tool(input, memory_bank=memory_bank)
+        return result
+    except Exception as e:
+        logger.error(f"Error getting memory block: {e}")
+        return {"error": str(e)}
+
+
+# Register a health check tool
+@mcp.tool("HealthCheck")
 async def health_check():
-    """Perform a health check."""
-    if hasattr(app.state, "memory_bank") and app.state.memory_bank is not None:
-        # Could add a more specific check to memory_bank if it has a status method
-        return {"status": "ok", "memory_bank_initialized": True}
+    """Check if the memory bank is initialized"""
     return {
         "status": "ok",
-        "memory_bank_initialized": False,
-        "reason": "Memory bank not initialized or initialization failed.",
+        "memory_bank_initialized": memory_bank is not None,
+        "dolt_path": COGNI_DOLT_DIR,
+        "chroma_path": CHROMA_PATH,
     }
+
+
+# initial JSON for local MCP server:
+#  "cogni-mcp": {
+#       "command": "uv --directory /Users/derek/dev/cogni/services/mcp_server run app/mcp_server.py",
+#       "env": {
+#         "CHROMA_COLLECTION_NAME": "cogni_mcp_collection"
+#       }
+#     }
+
+
+# When this file is executed directly, use the MCP CLI
+if __name__ == "__main__":
+    mcp.run()

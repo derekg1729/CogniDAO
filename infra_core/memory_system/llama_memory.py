@@ -5,6 +5,8 @@ from llama_index.core import StorageContext, VectorStoreIndex, load_index_from_s
 from llama_index.core.schema import NodeWithScore  # Added import for return type
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core.graph_stores.simple import SimpleGraphStore
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.core.settings import Settings
 from typing import List, Optional
 
 # Local schema import (assuming it will exist)
@@ -48,6 +50,12 @@ class LlamaMemory:
         self.vector_store = None
         self.graph_store = None
         self._is_in_memory = self.chroma_path == IN_MEMORY_PATH
+
+        # Set up local embedding model instead of OpenAI
+        logging.info("Setting up local HuggingFace embedding model")
+        embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en-v1.5")
+        Settings.embed_model = embed_model
+        logging.info("Local embedding model configured")
 
         if not self._is_in_memory:
             self.graph_store_path = os.path.join(self.chroma_path, DEFAULT_GRAPH_STORE_FILENAME)
