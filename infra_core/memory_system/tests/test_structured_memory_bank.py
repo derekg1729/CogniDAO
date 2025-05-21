@@ -390,11 +390,21 @@ class TestStructuredMemoryBank:
             created_at=datetime.datetime.now(),
             updated_at=datetime.datetime.now(),
         )
+        # Add a block specifically for the unrelated query test
+        unrelated_block = MemoryBlock(
+            id="query-block-animal",
+            type="knowledge",
+            text="Foxes have bushy tails and are quick animals that hunt at night.",
+            tags=["animal", "fox"],
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+        )
 
         create_success1 = memory_bank_instance.create_memory_block(block1_data)
         create_success2 = memory_bank_instance.create_memory_block(block2_data)
         create_success3 = memory_bank_instance.create_memory_block(block3_data)
-        assert create_success1 and create_success2 and create_success3, (
+        create_success4 = memory_bank_instance.create_memory_block(unrelated_block)
+        assert create_success1 and create_success2 and create_success3 and create_success4, (
             "Failed to create blocks for semantic query test"
         )
         time.sleep(1)  # Give indexing a bit more time after creates
@@ -419,12 +429,16 @@ class TestStructuredMemoryBank:
                 f"Expected block 2 to be the most relevant result, but got {results[0].id}"
             )
 
-        # Query for something completely different
-        unrelated_results = memory_bank_instance.query_semantic("unrelated pizza topic", top_k=1)
-        assert unrelated_results is not None
-        # Check that the specific relevant block (block 2) was NOT returned for the unrelated query
-        assert not any(block.id == "query-block-2" for block in unrelated_results), (
-            "Unrelated query unexpectedly returned the block related to semantic search"
+        # --- Test with a query focused on a different topic (animals) ---
+        animal_query = "foxes and animals with bushy tails"
+        animal_results = memory_bank_instance.query_semantic(animal_query, top_k=1)
+
+        assert animal_results is not None, "animal query returned None"
+        assert len(animal_results) > 0, "animal query did not return any results"
+
+        # The fox/animal block should be the top result for the animal query
+        assert animal_results[0].id == "query-block-animal", (
+            f"Expected animal block to be the most relevant result for animal query, but got {animal_results[0].id}"
         )
 
     def test_get_blocks_by_tags(self, memory_bank_instance: StructuredMemoryBank):

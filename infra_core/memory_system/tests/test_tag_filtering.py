@@ -5,8 +5,8 @@ Test file to verify if tag filtering works properly with core-document tags.
 
 import logging
 from infra_core.memory_system.dolt_reader import read_memory_blocks_by_tags
-from infra_core.memory_system.llama_memory import LlamaMemory
-from infra_core.constants import MEMORY_DOLT_ROOT, MEMORY_CHROMA_ROOT
+from infra_core.memory_system.llama_memory import LlamaMemory, IN_MEMORY_PATH
+from infra_core.constants import MEMORY_DOLT_ROOT
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(name)s - %(levelname)s - %(message)s")
@@ -36,12 +36,19 @@ def test_llamaindex_query_by_tags():
     """Test querying LlamaIndex by tags."""
     logger.info("=== Testing LlamaIndex query by tags ===")
 
-    # Initialize LlamaMemory - convert PosixPath to string
-    llama_memory = LlamaMemory(chroma_path=str(MEMORY_CHROMA_ROOT))
+    # Use in-memory ChromaDB to avoid dimension conflicts with persistent collection
+    llama_memory = LlamaMemory(chroma_path=IN_MEMORY_PATH, collection_name="test_tags_collection")
+
+    # First, index the core documents from Dolt to ensure there's something to query
+    blocks = read_memory_blocks_by_tags(MEMORY_DOLT_ROOT, ["core-document"])
+    assert len(blocks) > 0, "No core documents found in Dolt!"
+
+    # Add blocks to the in-memory collection
+    for block in blocks:
+        logger.info(f"Adding block {block.id} with tags {block.tags}")
+        llama_memory.add_block(block)
 
     # Perform a query for "philosophy" with filter for "core-document"
-    # Note: LlamaIndex doesn't directly support tag filtering in queries,
-    # so we need to post-filter the results
     query_results = llama_memory.query_vector_store("philosophy core", top_k=10)
 
     logger.info(f"Query returned {len(query_results)} results")
@@ -73,8 +80,10 @@ def test_reindex_core_docs():
 
     logger.info(f"Found {len(blocks)} core documents in Dolt")
 
-    # 2. Initialize LlamaMemory - convert PosixPath to string
-    llama_memory = LlamaMemory(chroma_path=str(MEMORY_CHROMA_ROOT))
+    # 2. Use in-memory ChromaDB to avoid dimension conflicts
+    llama_memory = LlamaMemory(
+        chroma_path=IN_MEMORY_PATH, collection_name="test_reindex_collection"
+    )
 
     # 3. Add each document to LlamaIndex
     for block in blocks:
