@@ -20,7 +20,7 @@ RUN dolt config --global --add user.email "cogni-api@example.com" && \
 # Copy requirements file from its new location into /app/
 COPY services/web_api/requirements.api.txt ./requirements.api.txt
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.api.txt
+    pip install -r requirements.api.txt
 
 # Copy data directories from project root into /app/data/
 COPY ./data/memory_dolt /app/data/memory_dolt/
