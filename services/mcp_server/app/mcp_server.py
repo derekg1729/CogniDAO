@@ -11,6 +11,9 @@ from infra_core.memory_system.tools.agent_facing.get_memory_block_tool import (
 from infra_core.memory_system.tools.agent_facing.create_project_memory_block_tool import (
     create_project_memory_block_tool,
 )
+from infra_core.memory_system.tools.agent_facing.create_work_item_tool import (
+    create_work_item_tool,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -49,6 +52,26 @@ except Exception as e:
 
 # Create a FastMCP server instance with a specific name
 mcp = FastMCP("cogni-memory")
+
+
+# Register the CreateWorkItem tool
+@mcp.tool("CreateWorkItem")
+async def create_work_item(input):
+    """Create a new work item (project, epic, task, or bug)
+
+    Args:
+        type: Type of work item to create (project, epic, task, or bug)
+        title: Title of the work item
+        description: Description of the work item
+        owner: Owner or assignee of the work item
+        acceptance_criteria: List of acceptance criteria for the work item
+    """
+    try:
+        result = create_work_item_tool(input, memory_bank=memory_bank)
+        return result
+    except Exception as e:
+        logger.error(f"Error creating work item: {e}")
+        return {"error": str(e)}
 
 
 # Register the CreateProjectMemoryBlock tool

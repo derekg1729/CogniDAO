@@ -67,7 +67,6 @@ class ProjectMetadata(ExecutableMetadata):
     success_criteria: Optional[List[Dict[str, Union[str, List[str]]]]] = Field(
         default_factory=list, description="List of measurable outcomes that define project success"
     )
-    completed: bool = Field(False, description="Whether the project is marked as complete")
     design_decisions: Optional[Dict[str, str]] = Field(
         default_factory=dict, description="Key design decisions and rationales for the project"
     )
@@ -95,7 +94,6 @@ class ProjectMetadata(ExecutableMetadata):
                     "success_criteria": [
                         {"phase_1": ["BlockLink as source of truth for relationships"]}
                     ],
-                    "completed": False,
                     "acceptance_criteria": [
                         "All tests pass for block links",
                         "Link-first approach properly documented",

@@ -40,7 +40,6 @@ def test_epic_metadata_full():
         priority="P1",
         progress_percent=25.0,
         tags=["feature", "infrastructure"],
-        completed=False,
         acceptance_criteria=["Criterion 1", "Criterion 2"],
         action_items=["Step 1", "Step 2"],
         tool_hints=["python", "git"],
@@ -51,7 +50,6 @@ def test_epic_metadata_full():
     assert epic.priority == "P1"
     assert epic.progress_percent == 25.0
     assert epic.tags == ["feature", "infrastructure"]
-    assert not epic.completed
     assert len(epic.acceptance_criteria) == 2
     assert len(epic.action_items) == 2
     assert len(epic.tool_hints) == 2
@@ -59,38 +57,35 @@ def test_epic_metadata_full():
 
 
 def test_epic_metadata_status_completion_sync():
-    """Test that status and completion are properly synchronized."""
+    """Test that status and validation report are properly synchronized."""
     # Create a validation report for testing
     validation_report = ValidationReport(
         validated_by="agent_123",
         results=[ValidationResult(criterion="Test criterion", status="pass")],
     )
 
-    # Test that setting completed=True changes status to 'done'
+    # Test that setting status to 'done' requires a validation report
     epic = EpicMetadata(
         x_agent_id="agent_123",
         owner="user_456",
         title="Test Epic",
         description="A test epic for unit tests",
-        status="in_progress",
-        completed=True,
+        status="done",
         acceptance_criteria=["Test criterion"],
         validation_report=validation_report,
     )
     assert epic.status == "done"
 
-    # Test that setting status='done' changes completed to True
-    epic2 = EpicMetadata(
-        x_agent_id="agent_123",
-        owner="user_456",
-        title="Test Epic",
-        description="A test epic for unit tests",
-        status="done",
-        completed=False,
-        acceptance_criteria=["Test criterion"],
-        validation_report=validation_report,
-    )
-    assert epic2.completed is True
+    # Test that a validation report is required for 'done' status
+    with pytest.raises(ValidationError):
+        EpicMetadata(
+            x_agent_id="agent_123",
+            owner="user_456",
+            title="Test Epic",
+            description="A test epic for unit tests",
+            status="done",
+            acceptance_criteria=["Test criterion"],
+        )
 
 
 def test_epic_metadata_validation():

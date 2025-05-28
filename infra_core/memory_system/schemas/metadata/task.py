@@ -60,7 +60,6 @@ class TaskMetadata(ExecutableMetadata):
         default_factory=dict,
         description="Technical details for implementation (files, endpoints, etc.)",
     )
-    completed: bool = Field(False, description="Whether the task is marked as complete")
     current_status: Optional[str] = Field(
         None, description="Detailed description of current implementation state"
     )
@@ -94,7 +93,6 @@ class TaskMetadata(ExecutableMetadata):
                         "All validation rules pass",
                         "Circular dependencies are prevented",
                     ],
-                    "completed": False,
                 }
             ]
         }

@@ -1,0 +1,45 @@
+{
+  "bug_report": {
+    "id": "mcp-error-handling-bug",
+    "title": "MCP Response Error Handling Bug",
+    "description": "Error states from tool responses are not properly reflected in MCP protocol responses",
+    "severity": "high",
+    "status": "confirmed",
+    "details": {
+      "problem": "When a tool returns success=false in its response, the MCP wrapper incorrectly sets isError=false in the protocol response",
+      "impact": "Clients (Claude, etc.) incorrectly interpret error responses as successful ones, leading to misleading UI feedback and incorrect agent behavior",
+      "affected_tools": [
+        "CreateWorkItem",
+        "GetMemoryBlock",
+        "All other MCP tools that can return error states"
+      ],
+      "reproduction": {
+        "steps": [
+          "Call any MCP tool with invalid parameters (e.g., CreateWorkItem with invalid metadata)",
+          "Observe the tool correctly returns JSON with success=false",
+          "Note that MCP response incorrectly has isError=false"
+        ],
+        "example_input": {
+          "type": "task",
+          "title": "Test Task",
+          "description": "This is a test task",
+          "owner": "cogni_agent",
+          "acceptance_criteria": ["It works"]
+        },
+        "expected_response": {
+          "content": [{"type": "text", "text": "{\"success\": false, \"error\": \"Validation error\"}"}],
+          "isError": true
+        },
+        "actual_response": {
+          "content": [{"type": "text", "text": "{\"success\": false, \"error\": \"Validation error\"}"}],
+          "isError": false
+        }
+      }
+    },
+    "root_cause": "The FastMCP wrapper in the Python SDK doesn't properly translate the success field from CogniTool responses into the appropriate isError flag in the MCP protocol response",
+    "fix_recommendation": "The MCP handler for each tool should explicitly set isError=not result.success when returning a CallToolResult",
+    "test_validation": "Tests should verify that when a tool returns success=false, the MCP response has isError=true",
+    "priority": "high",
+    "reported_date": "2025-05-27"
+  }
+}

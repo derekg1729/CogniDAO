@@ -4,7 +4,7 @@ Epic metadata schema for MemoryBlocks of type "epic".
 
 from typing import List, Optional, ClassVar, Set
 from datetime import datetime
-from pydantic import field_validator, model_validator
+from pydantic import field_validator
 
 # Import ExecutableMetadata
 from .common.executable import ExecutableMetadata, PriorityLiteral
@@ -52,7 +52,6 @@ class EpicMetadata(ExecutableMetadata):
     priority: Optional[PriorityLiteral] = None
     progress_percent: Optional[float] = None
     tags: Optional[List[str]] = None
-    completed: bool = False
 
     @field_validator("progress_percent")
     def validate_progress_percent(cls, v):
@@ -60,15 +59,6 @@ class EpicMetadata(ExecutableMetadata):
         if v is not None and (v < 0 or v > 100):
             raise ValueError(f"Invalid progress percentage: {v}. Must be between 0 and 100.")
         return v
-
-    @model_validator(mode="after")
-    def check_completed_status(self):
-        """Ensure that if completed is True, status is set to done."""
-        if self.completed and self.status != "done":
-            self.status = "done"
-        elif self.status == "done" and not self.completed:
-            self.completed = True
-        return self
 
     model_config = {
         "json_schema_extra": {
@@ -85,7 +75,6 @@ class EpicMetadata(ExecutableMetadata):
                     "priority": "P1",
                     "progress_percent": 35.0,
                     "tags": ["memory", "reliability", "infrastructure"],
-                    "completed": False,
                     "acceptance_criteria": [
                         "All memory system components pass integration tests",
                         "Performance benchmarks show 50% improvement",
