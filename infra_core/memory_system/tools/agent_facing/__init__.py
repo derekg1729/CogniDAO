@@ -9,11 +9,8 @@ from .create_doc_memory_block_tool import create_doc_memory_block_tool
 from .query_doc_memory_block_tool import query_doc_memory_block_tool
 from .get_memory_block_tool import get_memory_block_tool
 from .log_interaction_block_tool import log_interaction_block_tool
-from .create_task_memory_block_tool import create_task_memory_block_tool
 from .add_validation_report_tool import add_validation_report_tool
-from .create_project_memory_block_tool import create_project_memory_block_tool
-from .create_epic_memory_block_tool import create_epic_memory_block_tool
-from .create_bug_memory_block_tool import create_bug_memory_block_tool
+from .create_work_item_tool import create_work_item_tool
 from .update_task_status_tool import update_task_status_tool
 
 # Export all tools to make them available
@@ -22,10 +19,7 @@ __all__ = [
     "query_doc_memory_block_tool",
     "get_memory_block_tool",
     "log_interaction_block_tool",
-    "create_task_memory_block_tool",
     "add_validation_report_tool",
-    "create_project_memory_block_tool",
-    "create_epic_memory_block_tool",
-    "create_bug_memory_block_tool",
+    "create_work_item_tool",
     "update_task_status_tool",
 ]

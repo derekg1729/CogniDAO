@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 """
-Script to test the CreateTaskMemoryBlockTool with data from an existing task.
+Script to test the CreateWorkItem tool with data from an existing task.
 """
 
 import sys
 
-from infra_core.memory_system.tools.agent_facing.create_task_memory_block_tool import (
-    CreateTaskMemoryBlockInput,
-    create_task_memory_block,
+from infra_core.memory_system.tools.agent_facing.create_work_item_tool import (
+    CreateWorkItemInput,
+    create_work_item,
 )
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 
@@ -21,12 +21,13 @@ def main():
     )
 
     # Create task input based on project management schema task
-    task_input = CreateTaskMemoryBlockInput(
+    task_input = CreateWorkItemInput(
+        type="task",
         title="Implement CreateProjectMemoryBlockTool",
         description="Create an agent-facing tool for project creation with ExecutableMetadata fields to support the project management schema.",
         status="backlog",
         priority="P1",
-        assignee="cogni_agent",
+        owner="cogni_agent",
         # Planning fields
         action_items=[
             "Create input model based on ProjectMetadata schema",
@@ -56,12 +57,11 @@ def main():
         # Creation metadata
         created_by="test_script",
         source_file="task-support-project-management-schemas.json",
-        tags=["memory-system", "tools", "project-management"],
     )
 
     # Call the tool function
-    print("Creating task memory block...")
-    result = create_task_memory_block(task_input, memory_bank)
+    print("Creating task...")
+    result = create_work_item(task_input, memory_bank)
 
     # Display results
     if result.success:

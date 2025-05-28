@@ -46,7 +46,6 @@ def sample_memory_block(sample_block_id):
             "status": "in_progress",
             "acceptance_criteria": ["Criterion 1 should pass", "Criterion 2 should pass"],
             "x_agent_id": "test_agent",  # Required by TaskMetadata validation
-            "completed": False,
         },
         created_by="test_agent",
         created_at=datetime.now(),
@@ -138,7 +137,6 @@ def test_add_validation_report_success(
     mock_memory_bank.update_memory_block.assert_called_once()
     updated_block = mock_memory_bank.update_memory_block.call_args[0][0]
     assert updated_block.metadata["status"] == "done"
-    assert updated_block.metadata["completed"] is True
     assert "validation_report" in updated_block.metadata
     validation_report = updated_block.metadata["validation_report"]
     assert validation_report["validated_by"] == "validator_agent"

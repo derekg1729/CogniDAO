@@ -8,9 +8,6 @@ from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 from infra_core.memory_system.tools.agent_facing.get_memory_block_tool import (
     get_memory_block_tool,
 )
-from infra_core.memory_system.tools.agent_facing.create_project_memory_block_tool import (
-    create_project_memory_block_tool,
-)
 from infra_core.memory_system.tools.agent_facing.create_work_item_tool import (
     create_work_item_tool,
 )
@@ -71,25 +68,6 @@ async def create_work_item(input):
         return result
     except Exception as e:
         logger.error(f"Error creating work item: {e}")
-        return {"error": str(e)}
-
-
-# Register the CreateProjectMemoryBlock tool
-@mcp.tool("CreateProjectMemoryBlock")
-async def create_project_memory_block(input):
-    """Create a new project memory block
-
-    Args:
-        name: Name of the project
-        description: Description of the project
-        owner: Owner of the project
-        acceptance_criteria: List of acceptance criteria for the project
-    """
-    try:
-        result = create_project_memory_block_tool(input, memory_bank=memory_bank)
-        return result
-    except Exception as e:
-        logger.error(f"Error creating project memory block: {e}")
         return {"error": str(e)}
 
 

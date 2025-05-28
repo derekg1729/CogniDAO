@@ -120,19 +120,18 @@ def update_task_status(
         # Update the status
         task_metadata.status = input_data.status
 
-        # Handle the completed flag consistency
-        if input_data.status == "done":
-            # When setting to 'done', check for validation report
-            if not task_metadata.validation_report and not input_data.force:
-                return UpdateTaskStatusOutput(
-                    success=False,
-                    block_id=block.id,
-                    previous_status=previous_status,
-                    error="Cannot set status to 'done' without a validation report. Add a validation report first or use force=True.",
-                )
-            task_metadata.completed = True
-        elif input_data.status in ["backlog", "ready", "in_progress", "review"]:
-            task_metadata.completed = False
+        # When setting to 'done', check for validation report
+        if (
+            input_data.status == "done"
+            and not task_metadata.validation_report
+            and not input_data.force
+        ):
+            return UpdateTaskStatusOutput(
+                success=False,
+                block_id=block.id,
+                previous_status=previous_status,
+                error="Cannot set status to 'done' without a validation report. Add a validation report first or use force=True.",
+            )
 
         # Handle execution_phase
         if input_data.status == "in_progress":

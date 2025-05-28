@@ -400,7 +400,6 @@ class TestDoltSchemaManager:
                 "description": "A test project",
                 "status": "backlog",
                 "owner": "test_owner",
-                "completed": False,
                 "acceptance_criteria": ["Test criterion"],
             }
 
@@ -423,7 +422,6 @@ class TestDoltSchemaManager:
             invalid_metadata = {
                 "description": "Only description provided",
                 "status": "backlog",
-                "completed": False,
             }
 
             # Validate metadata

@@ -40,7 +40,6 @@ def task_memory_block():
             "description": "Sample task description",
             "status": "backlog",
             "acceptance_criteria": ["Criterion 1", "Criterion 2"],
-            "completed": False,
         },
         created_at=datetime.now(),
         updated_at=datetime.now(),
@@ -68,7 +67,6 @@ def test_update_task_status_success(mock_memory_bank, task_memory_block):
     assert result.new_status == "in_progress"
     assert "execution_phase" in result.updated_metadata
     assert result.updated_metadata["execution_phase"] == "implementing"
-    assert result.updated_metadata["completed"] is False
 
     # Verify call to update_memory_block was made
     mock_memory_bank.update_memory_block.assert_called_once()
@@ -121,7 +119,6 @@ def test_update_task_status_to_done(mock_memory_bank, task_memory_block):
     # Assert
     assert result.success is True
     assert result.new_status == "done"
-    assert result.updated_metadata["completed"] is True
     assert result.updated_metadata["execution_phase"] is None
 
 
@@ -165,7 +162,6 @@ def test_update_task_status_to_done_force(mock_memory_bank, task_memory_block):
     # Assert
     assert result.success is True
     assert result.new_status == "done"
-    assert result.updated_metadata["completed"] is True
 
 
 def test_update_task_status_no_change(mock_memory_bank, task_memory_block):

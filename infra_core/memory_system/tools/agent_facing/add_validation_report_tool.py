@@ -185,8 +185,6 @@ def add_validation_report(
 
         if input_data.mark_as_done and fail_count == 0:
             metadata_obj.status = "done"
-            # Setting completed flag to maintain invariant between status and completed
-            metadata_obj.completed = True
             status_updated = True
 
         # Update the block with the new metadata

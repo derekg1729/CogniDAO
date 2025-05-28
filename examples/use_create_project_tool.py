@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Script to test the CreateProjectMemoryBlockTool with data from the CogniCodeIndexingSystem-POC project.
+Script to test the CreateWorkItem tool with data from the CogniCodeIndexingSystem-POC project.
 """
 
 import sys
@@ -10,9 +10,9 @@ from datetime import datetime
 # Add the project root to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from infra_core.memory_system.tools.agent_facing.create_project_memory_block_tool import (
-    CreateProjectMemoryBlockInput,
-    create_project_memory_block,
+from infra_core.memory_system.tools.agent_facing.create_work_item_tool import (
+    CreateWorkItemInput,
+    create_work_item,
 )
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 
@@ -44,8 +44,9 @@ def main():
     ]
 
     # Create project input based on the POC project JSON
-    project_input = CreateProjectMemoryBlockInput(
-        name="CogniCodeIndexingSystem-POC",
+    project_input = CreateWorkItemInput(
+        type="project",
+        title="CogniCodeIndexingSystem-POC",
         description="Proof-of-concept for parsing and semantically indexing AI system code into CodeBlocks within the CogniMemory graph. CodeBlocks will be linked to MemoryBlocks and governed by the same primitives as memory: versioned commits, semantic links, agent reflection, and DAO approval.",
         owner="cogni_agent",
         status="backlog",
@@ -55,7 +56,7 @@ def main():
         # Planning fields
         acceptance_criteria=success_criteria,
         # Additional fields for project
-        tags=["code-indexing", "memory-system", "proof-of-concept"],
+        labels=["code-indexing", "memory-system", "proof-of-concept"],
         phase="Planning",
         implementation_flow=implementation_flow,
         # Agent framework compatibility
@@ -69,8 +70,8 @@ def main():
     )
 
     # Call the tool function
-    print("Creating project memory block...")
-    result = create_project_memory_block(project_input, memory_bank)
+    print("Creating project...")
+    result = create_work_item(project_input, memory_bank)
 
     # Display results
     if result.success:
