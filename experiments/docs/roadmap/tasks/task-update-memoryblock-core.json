@@ -1,0 +1,209 @@
+{
+    "type": "task",
+    "schema_version": 4,
+    "text": "Implement comprehensive UpdateMemoryBlockCore tool with patch-based updates and concurrency safety",
+    "tags": [
+        "memory-system",
+        "tools",
+        "core",
+        "concurrency",
+        "patches",
+        "validation"
+    ],
+    "metadata": {
+        "title": "UpdateMemoryBlockCore: Patch-Based Memory Block Updates",
+        "description": "Implement a robust UpdateMemoryBlockCore tool that supports patch-based updates, concurrency safety via optimistic locking, comprehensive validation, and proper error handling for memory block modifications.",
+        "status": "in_progress",
+        "priority": "P1",
+        "assignee": "cogni_agent",
+        "estimate_hours": 12,
+        "story_points": 8,
+        "acceptance_criteria": [
+            "Tool supports both patch-based and full replacement updates",
+            "Implements optimistic locking with block_version/timestamp checks",
+            "Validates links against relation registry",
+            "Handles text re-indexing in LlamaIndex when content changes",
+            "Returns machine-readable error codes for programmatic handling",
+            "Maintains atomic transactions with proper rollback",
+            "Includes comprehensive test coverage for all update scenarios",
+            "Logs structured data for observability"
+        ],
+        "action_items": [
+            "Phase 1: Enhance input model with concurrency controls and patch support",
+            "Phase 2: Implement patch parsing and application logic",
+            "Phase 3: Add comprehensive validation pipeline",
+            "Phase 4: Integrate with memory bank and handle re-indexing",
+            "Phase 5: Create agent-facing wrapper tool",
+            "Phase 6: Add comprehensive test suite"
+        ],
+        "expected_artifacts": [
+            "infra_core/memory_system/tools/memory_core/update_memory_block_core.py",
+            "infra_core/memory_system/tools/agent_facing/update_memory_block_tool.py",
+            "infra_core/memory_system/tools/tests/memory_core/test_update_memory_block_core.py",
+            "infra_core/memory_system/tools/tests/agent_facing/test_update_memory_block_tool.py"
+        ],
+        "blocked_by": [],
+        "labels": [
+            "concurrency",
+            "patches",
+            "validation",
+            "core-tool",
+            "memory-system"
+        ],
+        "tool_hints": [
+            "code_editor",
+            "pytest",
+            "git"
+        ],
+        "role_hint": "developer",
+        "current_status": "Working on comprehensive revision based on manager feedback. Initial basic version implemented, now addressing concurrency safety, patch support, and enhanced validation."
+    },
+    "manager_feedback": {
+        "overall_assessment": "good‑foundation_needs_revision",
+        "critical_issues": [
+            {
+                "category": "feature_gap",
+                "severity": "high",
+                "issue": "No concurrency safety - concurrent edits can silently clobber each other",
+                "solution": "Add optimistic locking with block_version/timestamp checks"
+            },
+            {
+                "category": "scalability",
+                "severity": "high",
+                "issue": "Text updates require full replacement, exploding token usage",
+                "solution": "Support unified diff patches for text and JSON Patch for structured fields"
+            },
+            {
+                "category": "data_integrity",
+                "severity": "medium",
+                "issue": "No link validation or block_version incrementing",
+                "solution": "Add link validation and proper versioning"
+            }
+        ]
+    },
+    "workflow_steps": [
+        "1. Retrieve current block via GetMemoryBlock with version info",
+        "2. Validate concurrency controls (block_version/timestamp)",
+        "3. Parse and apply patches: unified-diff for text; JSON Patch for structured fields",
+        "4. Validate all changes: metadata schema, link registry, constraints",
+        "5. Increment block_version and update timestamps",
+        "6. Persist atomically with re-indexing if text changed",
+        "7. Return updated block + diff summary with structured error codes"
+    ],
+    "design_principles": [
+        "Minimise context: send only patches, not whole objects",
+        "Use familiar formats: unified diff, JSON Patch RFC-6902",
+        "Fail-fast validation with detailed error reporting",
+        "Atomic versioning with optimistic locking",
+        "Cap text patch size at ~1k lines for performance",
+        "Structured logging for observability"
+    ],
+    "implementation_strategy": {
+        "phase_1": {
+            "title": "Enhanced Input/Output Models",
+            "tasks": [
+                "Add concurrency control fields: previous_block_version, if_match_timestamp",
+                "Add patch support fields: text_patch, structured_patch",
+                "Add metadata fields: author, change_note, agent_id, session_id",
+                "Create comprehensive error code enum",
+                "Update output model with diff_summary and error_code"
+            ],
+            "validation": "Input model validates patch formats and concurrency fields",
+            "status": "todo"
+        },
+        "phase_2": {
+            "title": "Patch Parsing and Application",
+            "tasks": [
+                "Implement unified diff parsing and application for text",
+                "Implement RFC-6902 JSON Patch parsing for structured fields",
+                "Add fallback to full replacement when patches not provided",
+                "Handle patch size limits and chunking for large changes",
+                "Add patch validation and error reporting"
+            ],
+            "validation": "Patches apply correctly with proper error handling",
+            "status": "todo"
+        },
+        "phase_3": {
+            "title": "Comprehensive Validation Pipeline",
+            "tasks": [
+                "Add optimistic locking validation (version/timestamp checks)",
+                "Implement link validation against relation registry",
+                "Add tag length validation after merging",
+                "Enhance metadata validation with detailed error messages",
+                "Add block_version incrementing logic"
+            ],
+            "validation": "All validation scenarios handled with appropriate errors",
+            "status": "todo"
+        },
+        "phase_4": {
+            "title": "Memory Bank Integration",
+            "tasks": [
+                "Enhance StructuredMemoryBank.update_memory_block for version checks",
+                "Add re-indexing logic when text content changes",
+                "Implement atomic transaction handling with rollback",
+                "Add structured logging with contextual identifiers",
+                "Return detailed diff summaries"
+            ],
+            "validation": "Atomic updates work with proper re-indexing and logging",
+            "status": "todo"
+        },
+        "phase_5": {
+            "title": "Agent-Facing Tool Wrapper",
+            "tasks": [
+                "Create agent-facing UpdateMemoryBlockTool",
+                "Add convenience methods for common update patterns",
+                "Implement CogniTool wrapper for MCP registration",
+                "Add tool to agent_facing/__init__.py exports"
+            ],
+            "validation": "Agent-facing tool works through MCP interface",
+            "status": "todo"
+        },
+        "phase_6": {
+            "title": "Comprehensive Testing",
+            "tasks": [
+                "Test concurrency scenarios with version conflicts",
+                "Test patch application for text and structured fields",
+                "Test validation pipeline edge cases",
+                "Test re-indexing and atomic rollback scenarios",
+                "Test error code generation and structured logging",
+                "Add performance tests for large patch scenarios"
+            ],
+            "validation": "All tests pass with full coverage",
+            "status": "todo"
+        }
+    },
+    "technical_specifications": {
+        "concurrency_model": "optimistic_locking",
+        "patch_formats": {
+            "text": "unified_diff",
+            "structured": "json_patch_rfc6902",
+            "simple_structured": "json_merge_patch"
+        },
+        "error_codes": [
+            "BLOCK_NOT_FOUND",
+            "VERSION_CONFLICT",
+            "VALIDATION_ERROR",
+            "PATCH_PARSE_ERROR",
+            "LINK_VALIDATION_ERROR",
+            "PERSISTENCE_FAILURE",
+            "RE_INDEX_FAILURE",
+            "UNKNOWN_ERROR"
+        ],
+        "performance_limits": {
+            "max_text_patch_lines": 1000,
+            "max_structured_patch_ops": 100,
+            "max_tags_after_merge": 20
+        }
+    },
+    "dependencies": {
+        "internal": [
+            "StructuredMemoryBank.update_memory_block enhancement",
+            "Link validation utilities",
+            "Patch parsing libraries"
+        ],
+        "external": [
+            "jsonpatch library for RFC-6902 support",
+            "difflib for unified diff parsing"
+        ]
+    }
+}
