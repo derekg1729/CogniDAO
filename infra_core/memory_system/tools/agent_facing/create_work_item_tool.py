@@ -177,9 +177,7 @@ def create_work_item(input_data: CreateWorkItemInput, memory_bank) -> CreateWork
     }
 
     # Add type-specific fields
-    if input_data.type in ["project", "epic"]:
-        metadata["owner"] = input_data.owner
-    elif input_data.type in ["task", "bug"]:
+    if input_data.owner is not None:
         metadata["assignee"] = input_data.owner
 
     if input_data.execution_phase and input_data.type in ["task", "bug"]:

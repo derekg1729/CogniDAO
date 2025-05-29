@@ -66,6 +66,7 @@ class ExecutableMetadata(BaseUserMetadata):
 
     # Common fields for all executable metadata
     status: WorkStatusLiteral = Field("backlog", description="Top-level workflow state")
+    assignee: Optional[str] = Field(None, description="Assignee or owner of this work item")
 
     # Planning fields (pre-execution)
     tool_hints: List[str] = Field(

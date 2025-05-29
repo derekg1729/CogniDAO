@@ -56,7 +56,6 @@ class BugMetadata(ExecutableMetadata):
     # description: str # Remove
 
     # Optional fields
-    assignee: Optional[str] = None
     priority: Optional[PriorityLiteral] = None
     severity: Optional[str] = None
     version_found: Optional[str] = None
