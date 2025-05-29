@@ -8,7 +8,7 @@ UpdateMemoryBlockTool for the actual updates.
 
 from typing import Optional, List, Literal
 from datetime import datetime
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 import logging
 
 from ...schemas.common import BlockLink, BlockIdType
@@ -103,12 +103,9 @@ class UpdateWorkItemInput(BaseModel):
     agent_id: str = Field("cogni_agent", description="Agent identifier")
     change_note: Optional[str] = Field(None, description="Note explaining the update")
 
-    @model_validator(mode="after")
-    def validate_execution_phase(self) -> "UpdateWorkItemInput":
-        """Validate that execution_phase is only set when status is 'in_progress'."""
-        if self.execution_phase is not None and self.status != "in_progress":
-            raise ValueError("execution_phase can only be set when status is 'in_progress'")
-        return self
+    # Note: execution_phase validation is handled automatically in tool logic:
+    # - When status != "in_progress", execution_phase is automatically cleared
+    # - This prevents validation errors during status transitions
 
 
 class UpdateWorkItemOutput(UpdateMemoryBlockToolOutput):
@@ -226,6 +223,16 @@ def update_work_item(input_data: UpdateWorkItemInput, memory_bank) -> UpdateWork
         # Execution phase (only for tasks and bugs)
         if input_data.execution_phase is not None and work_item_type in ["task", "bug"]:
             metadata_updates["execution_phase"] = input_data.execution_phase
+
+        # Handle execution_phase clearing when status changes away from "in_progress"
+        if input_data.status is not None and work_item_type in ["task", "bug"]:
+            if input_data.status == "in_progress":
+                # If moving to in_progress, execution_phase can be set (already handled above)
+                # If no execution_phase provided but one exists, keep the existing one
+                pass
+            else:
+                # If not in_progress, execution_phase should be None (automatically clear)
+                metadata_updates["execution_phase"] = None
 
         # Add tool identifier to track updates
         metadata_updates["x_tool_id"] = "UpdateWorkItemTool"
