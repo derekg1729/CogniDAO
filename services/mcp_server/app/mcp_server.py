@@ -21,6 +21,8 @@ from infra_core.memory_system.tools.agent_facing.update_work_item_tool import (
     update_work_item_tool,
     UpdateWorkItemInput,
 )
+from infra_core.memory_system.link_manager import InMemoryLinkManager
+from infra_core.memory_system.pm_executable_links import ExecutableLinkManager
 
 # Configure logging
 logging.basicConfig(
@@ -52,6 +54,11 @@ try:
         chroma_path=CHROMA_PATH,
         chroma_collection=CHROMA_COLLECTION_NAME,
     )
+
+    # Initialize LinkManager components
+    link_manager = InMemoryLinkManager()
+    pm_links = ExecutableLinkManager(link_manager)
+
 except Exception as e:
     logger.error(f"Failed to initialize StructuredMemoryBank: {e}")
     logger.error("Please run init_dolt_schema.py to initialize the Dolt database")
@@ -172,18 +179,23 @@ async def update_work_item(input):
 class HealthCheckOutput:
     """Simple health check output."""
 
-    def __init__(self, healthy: bool, memory_bank_status: str):
+    def __init__(self, healthy: bool, memory_bank_status: str, link_manager_status: str):
         self.healthy = healthy
         self.memory_bank_status = memory_bank_status
+        self.link_manager_status = link_manager_status
 
 
 # Register a health check tool
 @mcp.tool("HealthCheck")
 async def health_check():
     """Check if the memory bank is initialized"""
+    memory_bank_ok = memory_bank is not None
+    link_manager_ok = link_manager is not None and pm_links is not None
+
     return HealthCheckOutput(
-        healthy=memory_bank is not None,
-        memory_bank_status="initialized" if memory_bank is not None else "not_initialized",
+        healthy=memory_bank_ok and link_manager_ok,
+        memory_bank_status="initialized" if memory_bank_ok else "not_initialized",
+        link_manager_status="initialized" if link_manager_ok else "not_initialized",
     )
 
 
