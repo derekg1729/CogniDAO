@@ -2,12 +2,14 @@ import os
 import sys
 import logging
 from pathlib import Path
+from datetime import datetime
 
 from mcp.server.fastmcp import FastMCP
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 from infra_core.memory_system.tools.agent_facing.get_memory_block_tool import (
     get_memory_block_tool,
     GetMemoryBlockInput,
+    GetMemoryBlockOutput,
 )
 from infra_core.memory_system.tools.agent_facing.create_work_item_tool import (
     create_work_item_tool,
@@ -93,19 +95,40 @@ async def create_work_item(input):
 # Register the GetMemoryBlock tool
 @mcp.tool("GetMemoryBlock")
 async def get_memory_block(input):
-    """Get a memory block by ID
+    """Get memory blocks by ID(s) or filter by type/tags/metadata
 
-    Args:
-        block_id: ID of the memory block to retrieve
+    Block Retrieval by ID(s):
+        block_ids: List of IDs of the memory blocks to retrieve (even single ID as list)
+
+    Filtered Block Retrieval (specify at least one):
+        type_filter: Filter by block type (knowledge, task, project, doc, interaction, bug, epic)
+        tag_filters: List of tags to filter by (all must match)
+        metadata_filters: Metadata key-value pairs to filter by (exact matches)
+        limit: Maximum number of results to return (1-100)
+
+    Output always contains 'blocks' array (0 to N blocks), even for single ID lookup.
+    Cannot specify both block_ids and filtering parameters.
     """
     try:
         # Parse dict input into Pydantic model
-        parsed_input = GetMemoryBlockInput(**input)
-        result = get_memory_block_tool(parsed_input, memory_bank=memory_bank)
-        return result
+        input_data = GetMemoryBlockInput(**input)
+
+        # Execute the tool function
+        result = get_memory_block_tool(
+            memory_bank=memory_bank, **input_data.model_dump(exclude_none=True)
+        )
+
+        # Return the complete result
+        return result.model_dump(mode="json")
+
     except Exception as e:
-        logger.error(f"Error getting memory block: {e}")
-        return {"error": str(e)}
+        logger.error(f"Error in GetMemoryBlock MCP tool: {e}")
+        return GetMemoryBlockOutput(
+            success=False,
+            blocks=[],
+            error=f"Error retrieving memory blocks: {str(e)}",
+            timestamp=datetime.now(),
+        ).model_dump(mode="json")
 
 
 # Register the UpdateMemoryBlock tool

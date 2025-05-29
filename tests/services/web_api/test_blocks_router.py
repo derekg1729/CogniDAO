@@ -211,10 +211,10 @@ def test_get_all_blocks_bank_exception(client_with_mock_bank, mock_memory_bank):
 @patch("services.web_api.routes.blocks_router.get_memory_block_tool")
 def test_get_block_success(mock_get_block_tool, client_with_mock_bank, sample_memory_block):
     """Test successful retrieval of a specific memory block by ID."""
-    # Configure mock to return success output
+    # Configure mock to return success output with new consistent API
     mock_output = GetMemoryBlockOutput(
         success=True,
-        block=sample_memory_block,
+        blocks=[sample_memory_block],  # New consistent API - always a list
         error=None,
         timestamp=datetime.datetime.utcnow(),
     )
@@ -243,10 +243,10 @@ def test_get_block_success(mock_get_block_tool, client_with_mock_bank, sample_me
 @patch("services.web_api.routes.blocks_router.get_memory_block_tool")
 def test_get_block_not_found(mock_get_block_tool, client_with_mock_bank):
     """Test retrieval of a non-existent memory block by ID."""
-    # Configure mock to return not found output
+    # Configure mock to return not found output with new consistent API
     mock_output = GetMemoryBlockOutput(
         success=False,
-        block=None,
+        blocks=[],  # Empty list when not found
         error="Memory block with ID 'non-existent-id' not found.",
         timestamp=datetime.datetime.utcnow(),
     )
@@ -268,10 +268,10 @@ def test_get_block_not_found(mock_get_block_tool, client_with_mock_bank):
 @patch("services.web_api.routes.blocks_router.get_memory_block_tool")
 def test_get_block_error(mock_get_block_tool, client_with_mock_bank):
     """Test error handling when retrieving a memory block encounters an error."""
-    # Configure mock to return an error output
+    # Configure mock to return an error output with new consistent API
     mock_output = GetMemoryBlockOutput(
         success=False,
-        block=None,
+        blocks=[],  # Empty list on error
         error="Database connection error",
         timestamp=datetime.datetime.utcnow(),
     )

@@ -91,23 +91,102 @@ async def test_get_memory_block_success(temp_memory_bank):
         create_result = await create_work_item(create_input)
         assert create_result.success is True
 
-        # Now get the created block
-        result = await get_memory_block({"block_id": create_result.id})
+        # Now get the created block using new API format
+        result = await get_memory_block({"block_ids": [create_result.id]})
 
-        assert result.success is True
-        assert result.block is not None
-        assert result.block.id == create_result.id
+        assert result["success"] is True
+        assert len(result["blocks"]) == 1
+        assert result["blocks"][0]["id"] == create_result.id
+        assert result["error"] is None
 
 
 @pytest.mark.asyncio
 async def test_get_memory_block_error(sample_block_id, temp_memory_bank):
     """Test memory block retrieval error handling."""
     with patch("services.mcp_server.app.mcp_server.memory_bank", temp_memory_bank):
-        result = await get_memory_block({"block_id": sample_block_id})
+        result = await get_memory_block({"block_ids": [sample_block_id]})
 
-        assert result.success is False
-        assert result.error is not None
-        assert "not found" in result.error
+        assert result["success"] is False
+        assert len(result["blocks"]) == 0
+        assert "not found" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_get_memory_block_filtering(temp_memory_bank):
+    """Test the new filtering functionality in GetMemoryBlock."""
+    with patch("services.mcp_server.app.mcp_server.memory_bank", temp_memory_bank):
+        # Create multiple work items of different types
+        task_input = {
+            "type": "task",
+            "title": "Test Task",
+            "description": "A test task",
+            "acceptance_criteria": ["Complete task"],
+            "tags": ["urgent", "test"],
+        }
+        bug_input = {
+            "type": "bug",
+            "title": "Test Bug",
+            "description": "A test bug",
+            "acceptance_criteria": ["Fix bug"],
+            "tags": ["critical", "test"],
+        }
+
+        # Create the items
+        task_result = await create_work_item(task_input)
+        bug_result = await create_work_item(bug_input)
+
+        assert task_result.success is True
+        assert bug_result.success is True
+
+        # Test 1: Filter by type "task"
+        filter_result = await get_memory_block({"type_filter": "task"})
+        assert filter_result["success"] is True
+        assert len(filter_result["blocks"]) >= 1  # At least our created task
+        assert all(block["type"] == "task" for block in filter_result["blocks"])
+
+        # Test 2: Filter by type "bug"
+        filter_result = await get_memory_block({"type_filter": "bug"})
+        assert filter_result["success"] is True
+        assert len(filter_result["blocks"]) >= 1  # At least our created bug
+        assert all(block["type"] == "bug" for block in filter_result["blocks"])
+
+        # Test 3: Filter by tags
+        filter_result = await get_memory_block({"tag_filters": ["test"]})
+        assert filter_result["success"] is True
+        assert len(filter_result["blocks"]) >= 2  # At least task and bug
+        assert all("test" in block["tags"] for block in filter_result["blocks"])
+
+        # Test 4: Combined filtering (type + tags)
+        filter_result = await get_memory_block({"type_filter": "task", "tag_filters": ["urgent"]})
+        assert filter_result["success"] is True
+        assert len(filter_result["blocks"]) >= 1
+        assert all(
+            block["type"] == "task" and "urgent" in block["tags"]
+            for block in filter_result["blocks"]
+        )
+
+        # Test 5: Limit results
+        filter_result = await get_memory_block({"type_filter": "task", "limit": 1})
+        assert filter_result["success"] is True
+        assert len(filter_result["blocks"]) == 1
+        assert filter_result["blocks"][0]["type"] == "task"
+
+
+@pytest.mark.asyncio
+async def test_get_memory_block_validation_errors(temp_memory_bank):
+    """Test validation errors for GetMemoryBlock filtering."""
+    with patch("services.mcp_server.app.mcp_server.memory_bank", temp_memory_bank):
+        # Test 1: Both block_ids and filtering parameters (should fail)
+        result = await get_memory_block({"block_ids": ["test-id"], "type_filter": "task"})
+        assert "error" in result
+        assert "Cannot specify both block_ids and filtering parameters" in str(result["error"])
+
+        # Test 2: Neither block_ids nor filtering parameters (should fail)
+        result = await get_memory_block({})
+        assert "error" in result
+        assert "Must specify either block_ids OR at least one filtering parameter" in str(
+            result["error"]
+        )
 
 
 # Test UpdateMemoryBlock tool
