@@ -7,9 +7,19 @@ from mcp.server.fastmcp import FastMCP
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 from infra_core.memory_system.tools.agent_facing.get_memory_block_tool import (
     get_memory_block_tool,
+    GetMemoryBlockInput,
 )
 from infra_core.memory_system.tools.agent_facing.create_work_item_tool import (
     create_work_item_tool,
+    CreateWorkItemInput,
+)
+from infra_core.memory_system.tools.agent_facing.update_memory_block_tool import (
+    update_memory_block_tool,
+    UpdateMemoryBlockToolInput,
+)
+from infra_core.memory_system.tools.agent_facing.update_work_item_tool import (
+    update_work_item_tool,
+    UpdateWorkItemInput,
 )
 
 # Configure logging
@@ -64,7 +74,9 @@ async def create_work_item(input):
         acceptance_criteria: List of acceptance criteria for the work item
     """
     try:
-        result = create_work_item_tool(input, memory_bank=memory_bank)
+        # Parse dict input into Pydantic model
+        parsed_input = CreateWorkItemInput(**input)
+        result = create_work_item_tool(parsed_input, memory_bank=memory_bank)
         return result
     except Exception as e:
         logger.error(f"Error creating work item: {e}")
@@ -80,23 +92,99 @@ async def get_memory_block(input):
         block_id: ID of the memory block to retrieve
     """
     try:
-        result = get_memory_block_tool(input, memory_bank=memory_bank)
+        # Parse dict input into Pydantic model
+        parsed_input = GetMemoryBlockInput(**input)
+        result = get_memory_block_tool(parsed_input, memory_bank=memory_bank)
         return result
     except Exception as e:
         logger.error(f"Error getting memory block: {e}")
         return {"error": str(e)}
 
 
+# Register the UpdateMemoryBlock tool
+@mcp.tool("UpdateMemoryBlock")
+async def update_memory_block(input):
+    """Update an existing memory block
+
+    Args:
+        block_id: ID of the memory block to update
+        text: Updated text content
+        state: Updated state (draft, published, archived)
+        visibility: Updated visibility (internal, public, restricted)
+        tags: Updated tags
+        metadata: Updated metadata
+        links: Updated block links
+        merge_tags: Whether to merge or replace tags
+        merge_metadata: Whether to merge or replace metadata
+        merge_links: Whether to merge or replace links
+        author: Who is making the update
+        agent_id: Agent identifier
+        change_note: Note explaining the update
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = UpdateMemoryBlockToolInput(**input)
+        result = update_memory_block_tool(parsed_input, memory_bank=memory_bank)
+        return result
+    except Exception as e:
+        logger.error(f"Error updating memory block: {e}")
+        return {"error": str(e)}
+
+
+# Register the UpdateWorkItem tool
+@mcp.tool("UpdateWorkItem")
+async def update_work_item(input):
+    """Update an existing work item (project, epic, task, or bug)
+
+    Args:
+        block_id: ID of the work item to update
+        title: Updated title of the work item
+        description: Updated description of the work item
+        status: Updated status of the work item
+        priority: Updated priority level
+        owner: Updated owner or assignee
+        acceptance_criteria: Updated criteria for completion
+        action_items: Updated action items
+        expected_artifacts: Updated expected deliverables
+        story_points: Updated story points
+        estimate_hours: Updated time estimate
+        tags: Updated tags
+        labels: Updated labels
+        execution_phase: Updated execution phase (only for in_progress status)
+        state: Updated state of the block
+        visibility: Updated visibility level
+        merge_tags: Whether to merge or replace tags
+        merge_metadata: Whether to merge or replace metadata
+        author: Who is making the update
+        agent_id: Agent identifier
+        change_note: Note explaining the update
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = UpdateWorkItemInput(**input)
+        result = update_work_item_tool(parsed_input, memory_bank=memory_bank)
+        return result
+    except Exception as e:
+        logger.error(f"Error updating work item: {e}")
+        return {"error": str(e)}
+
+
+class HealthCheckOutput:
+    """Simple health check output."""
+
+    def __init__(self, healthy: bool, memory_bank_status: str):
+        self.healthy = healthy
+        self.memory_bank_status = memory_bank_status
+
+
 # Register a health check tool
 @mcp.tool("HealthCheck")
 async def health_check():
     """Check if the memory bank is initialized"""
-    return {
-        "status": "ok",
-        "memory_bank_initialized": memory_bank is not None,
-        "dolt_path": COGNI_DOLT_DIR,
-        "chroma_path": CHROMA_PATH,
-    }
+    return HealthCheckOutput(
+        healthy=memory_bank is not None,
+        memory_bank_status="initialized" if memory_bank is not None else "not_initialized",
+    )
 
 
 # initial JSON for local MCP server:
