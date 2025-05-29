@@ -12,23 +12,26 @@
             "infra_core/memory_system/link_manager/base.py",
             "infra_core/memory_system/link_manager/index.py",
             "infra_core/memory_system/link_manager/validators.py",
-            "infra_core/memory_system/link_manager/impl_in_memory.py"
+            "infra_core/memory_system/link_manager/impl_in_memory.py",
+            "infra_core/memory_system/link_manager/link_validation.py"
         ],
         "dependencies": [
             "Existing LinkManager implementation with tests passing",
-            "ExecutableLinkManager in pm_executable_links.py"
+            "ExecutableLinkManager in pm_executable_links.py",
+            "Current scattered link validation in update_memory_block_core.py and relation_helpers.py"
         ],
         "schema_migrations": []
     },
     "current_status": {
-        "summary": "The current link_manager.py is a monolithic file containing multiple responsibilities: graph logic, persistence, validation, and PM-specific concepts. We need to refactor it into separate components without changing external behavior.",
+        "summary": "The current link_manager.py is a monolithic file containing multiple responsibilities: graph logic, persistence, validation, and PM-specific concepts. Additionally, link validation logic is scattered across multiple tools rather than centralized. We need to refactor it into separate components and centralize validation without changing external behavior.",
         "blockers": [],
         "next_steps": [
             "Create link_manager directory and __init__.py",
             "Extract enums, errors, and base classes to base.py",
             "Extract LinkIndex to index.py with no PM defaults",
             "Extract validation helpers to validators.py",
-            "Extract InMemoryLinkManager to impl_in_memory.py"
+            "Extract InMemoryLinkManager to impl_in_memory.py",
+            "Centralize link validation logic into link_validation.py"
         ],
         "completion_percentage": 0
     },
@@ -70,13 +73,23 @@
         },
         {
             "status": "todo",
+            "description": "Centralize link validation into link_validation.py",
+            "details": "Move _validate_links_simple from update_memory_block_core.py and create comprehensive LinkValidator class that consolidates block existence checks, relation validation, and link structure validation. Replace scattered validation calls with centralized service."
+        },
+        {
+            "status": "todo",
             "description": "Update __init__.py to re-export all public components",
-            "details": "Ensure backward compatibility with existing import paths"
+            "details": "Ensure backward compatibility with existing import paths including new LinkValidator"
         },
         {
             "status": "todo",
             "description": "Remove PM-specific constants and comments",
             "details": "Remove references to CANONICAL_DEPENDENCY_RELATION and other PM-specific concepts from the generic code"
+        },
+        {
+            "status": "todo",
+            "description": "Update tools to use centralized link validation",
+            "details": "Replace direct validation calls in update_memory_block_core.py and other tools with LinkValidator service"
         },
         {
             "status": "todo",
@@ -113,15 +126,24 @@
         },
         {
             "status": "todo",
+            "description": "link_validation.py provides comprehensive LinkValidator with standardized error responses"
+        },
+        {
+            "status": "todo",
             "description": "ExecutableLinkManager continues to compile with no changes"
         },
         {
             "status": "todo",
             "description": "No PM-specific constants remain in the generic modules"
+        },
+        {
+            "status": "todo",
+            "description": "No scattered link validation logic remains in tools - all validation uses LinkValidator"
         }
     ],
     "MVP_requirements": [
         "Split link_manager.py into single-responsibility files",
+        "Centralize all link validation logic into LinkValidator service",
         "Ensure backward compatibility with existing import paths",
         "Remove PM-specific references from generic components",
         "Maintain test coverage"
@@ -133,7 +155,8 @@
             "imports": [
                 "from .base import LinkManager, LinkQuery, LinkQueryResult, Direction, LinkError, LinkErrorType",
                 "from .index import LinkIndex",
-                "from .impl_in_memory import InMemoryLinkManager"
+                "from .impl_in_memory import InMemoryLinkManager",
+                "from .link_validation import LinkValidator"
             ]
         },
         {
@@ -166,6 +189,18 @@
             ]
         },
         {
+            "file": "infra_core/memory_system/link_manager/link_validation.py",
+            "content": "Centralized LinkValidator service for comprehensive link validation",
+            "steps": [
+                "Create LinkValidator class with validate_links method",
+                "Move _validate_links_simple logic from update_memory_block_core.py",
+                "Integrate with existing relation_helpers.py and block_validation.py",
+                "Add comprehensive error codes and structured responses",
+                "Support batch validation for performance",
+                "Provide caching for repeated validation calls within request scope"
+            ]
+        },
+        {
             "file": "infra_core/memory_system/link_manager/impl_in_memory.py",
             "content": "InMemoryLinkManager implementation using LinkIndex",
             "steps": [
@@ -173,13 +208,42 @@
                 "Refactor to use standalone validators instead of class methods",
                 "Keep core graph operations like has_cycle and topo_sort",
                 "Import LinkIndex from index.py",
-                "Import validation functions from validators.py"
+                "Import validation functions from validators.py",
+                "Integrate with LinkValidator for comprehensive validation"
             ]
         }
     ],
+    "centralized_validation_requirements": {
+        "purpose": "Consolidate scattered link validation logic into a single, reusable service",
+        "current_state": "Link validation is spread across update_memory_block_core.py (_validate_links_simple), relation_helpers.py (relation validation), and block_validation.py (existence checks)",
+        "target_state": "Single LinkValidator service that provides comprehensive validation with standardized error responses",
+        "validation_features": [
+            "Block existence validation using efficient bulk checks",
+            "Relation type validation and alias resolution",
+            "Link structure validation (required fields, format)",
+            "Circular reference detection",
+            "Performance limits and batch processing",
+            "Structured error responses with specific error codes",
+            "Request-scoped caching for repeated validations"
+        ],
+        "error_codes": [
+            "INVALID_BLOCK_ID_FORMAT",
+            "TARGET_BLOCK_NOT_FOUND",
+            "INVALID_RELATION_TYPE",
+            "CIRCULAR_REFERENCE_DETECTED",
+            "VALIDATION_BATCH_TOO_LARGE",
+            "LINK_STRUCTURE_INVALID"
+        ],
+        "integration_points": [
+            "update_memory_block_core.py: Replace _validate_links_simple",
+            "create_block_link_tool.py: Use for relation validation",
+            "Any other tools that validate links before persistence"
+        ]
+    },
     "notes": [
         "This refactoring does not change any behavior, only improves code organization",
         "The existing import paths should continue to work via __init__.py re-exports",
-        "The SQLLinkManager implementation is out of scope for this task and is marked as nice-to-have"
+        "The SQLLinkManager implementation is out of scope for this task and is marked as nice-to-have",
+        "Centralized validation addresses manager feedback from UpdateMemoryBlockCore task about scattered validation logic"
     ]
 }
