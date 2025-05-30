@@ -11,7 +11,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 import logging
 
-from ...schemas.common import BlockLink, BlockIdType
+from ...schemas.common import BlockIdType
 from ..base.cogni_tool import CogniTool
 from ..memory_core.update_memory_block_core import update_memory_block_core
 from ..memory_core.update_memory_block_models import (
@@ -45,7 +45,6 @@ class UpdateMemoryBlockToolInput(BaseModel):
     )
     tags: Optional[List[str]] = Field(None, description="Tags to set or merge with existing tags")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Metadata fields to update")
-    links: Optional[List[BlockLink]] = Field(None, description="Block links to set or merge")
 
     # Patch-based updates
     text_patch: Optional[str] = Field(
@@ -64,9 +63,6 @@ class UpdateMemoryBlockToolInput(BaseModel):
     )
     merge_metadata: bool = Field(
         True, description="Whether to merge with existing metadata (true) or replace it (false)"
-    )
-    merge_links: bool = Field(
-        True, description="Whether to merge with existing links (true) or replace them (false)"
     )
 
     # Agent context
@@ -129,8 +125,6 @@ def update_memory_block_tool(
             visibility=input_data.visibility,
             tags=input_data.tags,
             metadata=input_data.metadata,
-            source_file=input_data.source_file,
-            confidence=input_data.confidence,
             previous_block_version=input_data.previous_block_version,
             text_patch=input_data.text_patch,
             structured_patch=input_data.structured_patch,
@@ -184,7 +178,7 @@ def update_memory_block_tool(
 # Create the CogniTool instance
 update_memory_block_tool_instance = CogniTool(
     name="UpdateMemoryBlock",
-    description="Update memory blocks with text, metadata, links, and patch support",
+    description="Update memory blocks with text, metadata, and patch support",
     input_model=UpdateMemoryBlockToolInput,
     output_model=UpdateMemoryBlockToolOutput,
     function=update_memory_block_tool,

@@ -11,7 +11,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field, model_validator
 import logging
 
-from ...schemas.common import BlockLink, BlockIdType
+from ...schemas.common import BlockIdType
 from ...schemas.metadata.common.executable import (
     PriorityLiteral,
     WorkStatusLiteral,
@@ -90,13 +90,11 @@ class UpdateWorkItemInput(BaseModel):
     visibility: Optional[Literal["internal", "public", "restricted"]] = Field(
         None, description="Updated visibility level"
     )
-    links: Optional[List[BlockLink]] = Field(None, description="Updated block links")
 
     # Update behavior
     merge_tags: bool = Field(True, description="Whether to merge or replace tags")
     merge_labels: bool = Field(True, description="Whether to merge or replace labels")
     merge_metadata: bool = Field(True, description="Whether to merge or replace metadata")
-    merge_links: bool = Field(True, description="Whether to merge or replace links")
 
     # Agent context
     author: str = Field("agent", description="Who is making the update")
@@ -251,7 +249,6 @@ def update_work_item(input_data: UpdateWorkItemInput, memory_bank) -> UpdateWork
             metadata=metadata_updates if metadata_updates else None,
             merge_tags=input_data.merge_tags,
             merge_metadata=input_data.merge_metadata,
-            merge_links=input_data.merge_links,
             author=input_data.author,
             agent_id=input_data.agent_id,
             change_note=input_data.change_note,
