@@ -73,12 +73,12 @@ def ensure_block_exists(block_id: str, memory_bank, raise_error: bool = True) ->
 
     # Check memory bank
     try:
-        # Use exists_block if available (more efficient than get_block)
+        # Use exists_block if available (more efficient than get_memory_block)
         if hasattr(memory_bank, "exists_block"):
             exists = memory_bank.exists_block(block_id)
         else:
-            # Fall back to get_block (will fetch full block)
-            block = memory_bank.get_block(block_id)
+            # Fall back to get_memory_block (will fetch full block)
+            block = memory_bank.get_memory_block(block_id)
             exists = block is not None
 
         # Cache result

@@ -373,23 +373,26 @@ async def test_full_workflow_simulation(temp_memory_bank):
         update_result = await update_work_item(update_input)
         assert update_result.success is True
 
-        # Get the work item
-        get_input = {"block_id": created_id}
+        # Get the work item - use correct API format
+        get_input = {"block_ids": [created_id]}
 
         get_result = await get_memory_block(get_input)
-        assert get_result.success is True
-        assert get_result.block.id == created_id
+        # get_memory_block returns a dict now
+        assert get_result["success"] is True
+        assert len(get_result["blocks"]) == 1
+        assert get_result["blocks"][0]["id"] == created_id
 
 
 @pytest.mark.asyncio
 async def test_memory_bank_connection_error(temp_memory_bank):
     """Test handling of memory bank connection issues."""
     with patch("services.mcp_server.app.mcp_server.memory_bank", temp_memory_bank):
-        # Test with non-existent block ID
-        result = await get_memory_block({"block_id": str(uuid.uuid4())})
+        # Test with non-existent block ID - use correct API format
+        result = await get_memory_block({"block_ids": [str(uuid.uuid4())]})
 
-        assert result.success is False
-        assert result.error is not None
+        # get_memory_block returns a dict now
+        assert result["success"] is False
+        assert result["error"] is not None
 
 
 @pytest.mark.asyncio
@@ -407,16 +410,17 @@ async def test_concurrent_tool_calls(temp_memory_bank):
         assert create_result.success is True
         test_id = create_result.id
 
-        # Create multiple concurrent tasks
+        # Create multiple concurrent tasks - use correct API format
         tasks = []
         for i in range(5):
-            task = get_memory_block({"block_id": test_id})
+            task = get_memory_block({"block_ids": [test_id]})
             tasks.append(task)
 
         # Run all tasks concurrently
         results = await asyncio.gather(*tasks)
 
-        # All should succeed
+        # All should succeed - handle dict returns
         for result in results:
-            assert result.success is True
-            assert result.block.id == test_id
+            assert result["success"] is True
+            assert len(result["blocks"]) == 1
+            assert result["blocks"][0]["id"] == test_id

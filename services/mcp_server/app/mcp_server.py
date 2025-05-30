@@ -25,6 +25,10 @@ from infra_core.memory_system.tools.agent_facing.update_work_item_tool import (
 )
 from infra_core.memory_system.link_manager import InMemoryLinkManager
 from infra_core.memory_system.pm_executable_links import ExecutableLinkManager
+from infra_core.memory_system.tools.agent_facing.create_block_link_tool import (
+    create_block_link_agent,
+    CreateBlockLinkAgentInput,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -60,6 +64,9 @@ try:
     # Initialize LinkManager components
     link_manager = InMemoryLinkManager()
     pm_links = ExecutableLinkManager(link_manager)
+
+    # Attach link_manager to memory_bank for tool access
+    memory_bank.link_manager = link_manager
 
 except Exception as e:
     logger.error(f"Failed to initialize StructuredMemoryBank: {e}")
@@ -197,6 +204,41 @@ async def update_work_item(input):
     except Exception as e:
         logger.error(f"Error updating work item: {e}")
         return {"error": str(e)}
+
+
+# Register the CreateBlockLink tool
+@mcp.tool("CreateBlockLink")
+async def create_block_link(input):
+    """Create a link between memory blocks, enabling task dependencies, parent-child relationships, and other connections
+
+    Args:
+        source_block_id: ID of the source block (the 'from' block)
+        target_block_id: ID of the target block (the 'to' block)
+        relation: Type of relationship between blocks (e.g., 'depends_on', 'is_blocked_by', 'child_of')
+        bidirectional: Whether to create the inverse relationship automatically (default: False)
+        priority: Priority of the link (higher numbers = more important, default: 0)
+        metadata: Additional metadata about the link (optional)
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = CreateBlockLinkAgentInput(**input)
+
+        # Call the agent-facing tool function
+        result = await create_block_link_agent(
+            source_block_id=parsed_input.source_block_id,
+            target_block_id=parsed_input.target_block_id,
+            relation=parsed_input.relation,
+            bidirectional=parsed_input.bidirectional,
+            priority=parsed_input.priority,
+            metadata=parsed_input.metadata,
+            memory_bank=memory_bank,
+        )
+
+        # Return result in appropriate format for MCP
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error creating block link: {e}")
+        return {"success": False, "message": "Failed to create block link", "error_details": str(e)}
 
 
 class HealthCheckOutput:

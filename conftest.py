@@ -40,38 +40,43 @@ def mock_memory_bank():
 # === Temporary Database Fixtures for MCP Server Tests ===
 
 
-@pytest.fixture(scope="function")
-def temp_dolt_db(tmp_path):
+@pytest.fixture(scope="module")
+def temp_dolt_db(tmp_path_factory):
     """Create a temporary Dolt database for MCP server testing."""
     from infra_core.memory_system.initialize_dolt import initialize_dolt_db
 
-    db_path = tmp_path / "test_mcp_dolt_db"
+    db_path = tmp_path_factory.mktemp("test_mcp_dolt_db")
     assert initialize_dolt_db(str(db_path)), "Failed to initialize test Dolt DB"
     return str(db_path)
 
 
-@pytest.fixture(scope="function")
-def temp_chroma_db(tmp_path):
+@pytest.fixture(scope="module")
+def temp_chroma_db(tmp_path_factory):
     """Create a temporary ChromaDB for MCP server testing."""
-    chroma_path = tmp_path / "test_mcp_chroma"
-    chroma_path.mkdir(exist_ok=True)
+    chroma_path = tmp_path_factory.mktemp("test_mcp_chroma")
     return str(chroma_path)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def temp_memory_bank(temp_dolt_db, temp_chroma_db):
     """Create a StructuredMemoryBank using temporary databases for MCP server testing."""
     from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
     from infra_core.memory_system.dolt_schema_manager import register_all_metadata_schemas
-    
+    from infra_core.memory_system.link_manager import InMemoryLinkManager
+
     # Register schemas in the temporary database
     register_all_metadata_schemas(temp_dolt_db)
-    
+
     bank = StructuredMemoryBank(
         dolt_db_path=temp_dolt_db,
         chroma_path=temp_chroma_db,
         chroma_collection="test_mcp_collection",
     )
+
+    # Attach link_manager for CreateBlockLink tests
+    link_manager = InMemoryLinkManager()
+    bank.link_manager = link_manager
+
     return bank
 
 

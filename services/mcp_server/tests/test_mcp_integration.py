@@ -43,11 +43,11 @@ async def test_complete_workflow_task_lifecycle(temp_memory_bank):
         created_id = create_result.id
 
         # Step 2: Get the created task
-        get_input = {"block_id": created_id}
+        get_input = {"block_ids": [created_id]}
         get_result = await get_memory_block(get_input)
-        assert get_result.success is True
-        assert get_result.block is not None
-        assert get_result.block.id == created_id
+        assert get_result["success"] is True
+        assert len(get_result["blocks"]) == 1
+        assert get_result["blocks"][0]["id"] == created_id
 
         # Step 3: Update the task with content changes (avoid status change for now)
         update_input = {
@@ -65,10 +65,10 @@ async def test_complete_workflow_task_lifecycle(temp_memory_bank):
         assert "metadata" in update_result.fields_updated  # Metadata fields updated
 
         # Step 4: Verify the update by getting the block again
-        final_get_input = {"block_id": created_id}
+        final_get_input = {"block_ids": [created_id]}
         final_get_result = await get_memory_block(final_get_input)
-        assert final_get_result.success is True
-        assert final_get_result.block.metadata["title"] == "Updated Integration Test Task"
+        assert final_get_result["success"] is True
+        assert final_get_result["blocks"][0]["metadata"]["title"] == "Updated Integration Test Task"
 
 
 @pytest.mark.asyncio
@@ -88,10 +88,10 @@ async def test_memory_block_update_workflow(temp_memory_bank):
         created_id = create_result.id
 
         # Step 2: Get the created block
-        get_input = {"block_id": created_id}
+        get_input = {"block_ids": [created_id]}
         get_result = await get_memory_block(get_input)
-        assert get_result.success is True
-        assert get_result.block.id == created_id
+        assert get_result["success"] is True
+        assert get_result["blocks"][0]["id"] == created_id
 
         # Step 3: Update the block content
         update_input = {
@@ -113,10 +113,10 @@ async def test_error_handling_workflow(temp_memory_bank):
     with patch("services.mcp_server.app.mcp_server.memory_bank", temp_memory_bank):
         # Test getting non-existent block
         non_existent_id = str(uuid.uuid4())
-        get_input = {"block_id": non_existent_id}
+        get_input = {"block_ids": [non_existent_id]}
         get_result = await get_memory_block(get_input)
-        assert get_result.success is False
-        assert "not found" in get_result.error
+        assert get_result["success"] is False
+        assert "not found" in get_result["error"]
 
         # Test updating non-existent block
         update_input = {
@@ -165,15 +165,15 @@ async def test_concurrent_operations(temp_memory_bank):
         # Now get all the created blocks concurrently
         get_tasks = []
         for result in create_results:
-            get_input = {"block_id": result.id}
+            get_input = {"block_ids": [result.id]}
             get_tasks.append(get_memory_block(get_input))
 
         get_results = await asyncio.gather(*get_tasks)
 
         # Verify all get operations succeeded
         for i, result in enumerate(get_results):
-            assert result.success is True
-            assert result.block is not None
+            assert result["success"] is True
+            assert len(result["blocks"]) == 1
 
 
 @pytest.mark.asyncio
