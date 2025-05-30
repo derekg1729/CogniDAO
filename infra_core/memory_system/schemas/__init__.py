@@ -11,18 +11,16 @@ from .memory_block import MemoryBlock
 from .common import BlockLink, ConfidenceScore, RelationType, NodeSchemaRecord
 
 # Import registry
-from .registry import (
-    get_metadata_model,
-    get_all_metadata_models,
-    validate_metadata
-)
+from .registry import get_metadata_model, get_all_metadata_models, validate_metadata
 
 # Import all metadata models
 from .metadata import (
     ProjectMetadata,
     TaskMetadata,
     DocMetadata,
-    KnowledgeMetadata
+    KnowledgeMetadata,
+    EpicMetadata,
+    BugMetadata,
 )
 
 # For backward compatibility
@@ -30,17 +28,19 @@ TYPE_METADATA_MAP = get_all_metadata_models()
 
 # Export key types
 __all__ = [
-    'MemoryBlock',
-    'BlockLink',
-    'ConfidenceScore',
-    'RelationType',
-    'NodeSchemaRecord',
-    'get_metadata_model',
-    'get_all_metadata_models',
-    'validate_metadata',
-    'ProjectMetadata',
-    'TaskMetadata', 
-    'DocMetadata',
-    'KnowledgeMetadata',
-    'TYPE_METADATA_MAP',
-] 
+    "MemoryBlock",
+    "BlockLink",
+    "ConfidenceScore",
+    "RelationType",
+    "NodeSchemaRecord",
+    "get_metadata_model",
+    "get_all_metadata_models",
+    "validate_metadata",
+    "ProjectMetadata",
+    "TaskMetadata",
+    "DocMetadata",
+    "KnowledgeMetadata",
+    "EpicMetadata",
+    "BugMetadata",
+    "TYPE_METADATA_MAP",
+]

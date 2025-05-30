@@ -1,0 +1,212 @@
+{
+    "type": "Task",
+    "status": "completed",
+    "project": "memory-system-tools",
+    "name": "Implement Block Link Creation Tools",
+    "phase": "Tool Enhancement",
+    "description": "Develop dedicated tools for creating links between memory blocks, enabling agents to establish relationships between blocks directly. This will support knowledge graph construction and rich relationship modeling while maintaining data integrity through validation, cycle detection, and referential integrity checks.",
+    "implementation_details": {
+        "target_files": [
+            "infra_core/memory_system/tools/memory_core/create_block_link_tool.py",
+            "infra_core/memory_system/tools/agent_facing/create_block_link_tool.py",
+            "infra_core/memory_system/tools/helpers/block_validation.py",
+            "infra_core/memory_system/tools/helpers/relation_helpers.py",
+            "infra_core/memory_system/tests/tools/test_create_block_link_tool.py",
+            "docs/links.md"
+        ],
+        "dependencies": [
+            "LinkManager implementation",
+            "Existing memory block creation tools",
+            "relation_registry.py with INVERSE_RELATIONS and RELATION_ALIASES",
+            "import-time validation in relation_registry"
+        ],
+        "schema_migrations": []
+    },
+    "current_status": {
+        "summary": "✅ COMPLETED: Block link creation tools implementation is complete with all 12 tests passing. Core and agent-facing tools implemented with proper relation handling, bidirectional link support, friendly error messages, and comprehensive documentation.",
+        "blockers": [],
+        "next_steps": [
+            "Create follow-up ticket for project tool enhancements"
+        ],
+        "completion_percentage": 100
+    },
+    "action_items": [
+        {
+            "status": "completed",
+            "description": "Implement block existence validation helper",
+            "details": "Created reusable helper function ensure_block_exists() in block_validation.py that cheaply verifies block existence"
+        },
+        {
+            "status": "completed",
+            "description": "Implement relation alias resolution",
+            "details": "Created helper that converts from user-friendly relation names to canonical RelationType values using RELATION_ALIASES"
+        },
+        {
+            "status": "completed",
+            "description": "Create Core CreateBlockLink Tool",
+            "details": "Implemented a memory_core tool that proxies to LinkManager.create_link() or bulk_upsert() for bidirectional links"
+        },
+        {
+            "status": "completed",
+            "description": "Create Agent-Facing CreateBlockLink Tool",
+            "details": "Implemented a simplified interface with friendly field names, handling relation aliases and providing clean error messages"
+        },
+        {
+            "status": "completed",
+            "description": "Write comprehensive tests for link creation",
+            "details": "Created test cases covering: happy path, invalid UUIDs, unknown relations, duplicate links, and bidirectional links. All 12 tests are passing."
+        },
+        {
+            "status": "completed",
+            "description": "Write documentation for link creation",
+            "details": "✅ Completed /docs/links.md with comprehensive examples, agent usage guide, relation types, error handling, and implementation details. Documentation includes copy-paste examples for basic links, bidirectional links, metadata, and covers all supported relation types."
+        },
+        {
+            "status": "todo",
+            "description": "Create follow-up ticket for project tool enhancements",
+            "details": "Open a separate ticket for enhancing project/task tools to use semantic relationship fields"
+        }
+    ],
+    "success_criteria": [
+        {
+            "status": "completed",
+            "description": "Core tool creates one or two links with full validation via LinkManager"
+        },
+        {
+            "status": "completed",
+            "description": "Agent-facing tool shields agents from RelationType literals (aliases + human names allowed)"
+        },
+        {
+            "status": "completed",
+            "description": "/docs/links.md shows copy-paste example that passes CI test"
+        },
+        {
+            "status": "completed",
+            "description": "Tests in infra_core/memory_system/tests/ all pass"
+        },
+        {
+            "status": "completed",
+            "description": "Block existence verification is efficient (cached or optimized DB query)"
+        },
+        {
+            "status": "completed",
+            "description": "Error messages from agent-facing tool are clear and actionable"
+        }
+    ],
+    "MVP_requirements": [
+        "Block existence validation helper function",
+        "Core CreateBlockLink tool using LinkManager",
+        "Agent-facing CreateBlockLink tool with friendly interfaces",
+        "Documentation with examples",
+        "Test coverage for success and failure cases"
+    ],
+    "detailed_implementation_steps": [
+        {
+            "file": "infra_core/memory_system/tools/helpers/block_validation.py",
+            "content": "Helper function to validate block existence efficiently",
+            "implementation": [
+                "Create ensure_block_exists(block_id, memory_bank) function that checks if block exists",
+                "Implement caching to avoid repeated lookups for the same block ID",
+                "Handle invalid UUID format separately from non-existent blocks",
+                "Return bool or raise specific exception with clear message"
+            ]
+        },
+        {
+            "file": "infra_core/memory_system/tools/helpers/relation_helpers.py",
+            "content": "Helper functions for working with relations",
+            "implementation": [
+                "Create resolve_relation_alias(relation) function that uses RELATION_ALIASES",
+                "Create get_inverse_relation(relation) function that uses INVERSE_RELATIONS",
+                "Add validation for bidirectional relations (check if inverse exists)",
+                "Add human-readable relation name mapping"
+            ]
+        },
+        {
+            "file": "infra_core/memory_system/tools/memory_core/create_block_link_tool.py",
+            "model_fields": [
+                "from_id: BlockIdType",
+                "to_id: BlockIdType",
+                "relation: RelationType",
+                "priority: Optional[int] = 0",
+                "link_metadata: Optional[Dict[str, Any]] = None",
+                "created_by: Optional[str] = None",
+                "is_bidirectional: bool = False"
+            ],
+            "implementation": [
+                "Import LinkManager and ensure_block_exists helper",
+                "Validate both blocks exist before attempting link creation",
+                "For is_bidirectional=False, directly use LinkManager.create_link",
+                "For is_bidirectional=True, calculate inverse relation and use LinkManager.bulk_upsert",
+                "Return created link(s)",
+                "Handle and wrap LinkError with clear messages"
+            ]
+        },
+        {
+            "file": "infra_core/memory_system/tools/agent_facing/create_block_link_tool.py",
+            "model_fields": [
+                "source_block_id: str = Field(..., description=\"ID of the source/from block\")",
+                "target_block_id: str = Field(..., description=\"ID of the target/to block\")",
+                "relation: str = Field(..., description=\"Type of relationship between blocks (e.g., 'related_to', 'depends_on', 'blocked_by')\")",
+                "description: Optional[str] = Field(None, description=\"Optional description of the relationship\")",
+                "bidirectional: bool = Field(False, description=\"Whether to create links in both directions automatically\")",
+                "priority: Optional[int] = Field(0, description=\"Priority of the link (higher = more important)\")"
+            ],
+            "implementation": [
+                "Convert relation to canonical RelationType using helpers",
+                "Add metadata with description if provided",
+                "Call core tool with is_bidirectional flag",
+                "Catch LinkError and convert to user-friendly messages",
+                "Check bidirectional flag against allowed relations from INVERSE_RELATIONS",
+                "Return success with created link IDs or clear error message"
+            ]
+        },
+        {
+            "file": "infra_core/memory_system/tests/tools/test_create_block_link_tool.py",
+            "test_cases": [
+                "test_create_simple_link_success: Create a basic link between two existing blocks",
+                "test_create_bidirectional_link: Create bidirectional links and verify both directions",
+                "test_relation_alias_without_bidirectional: Test alias resolution (e.g., 'blocked_by' → is_blocked_by) with bidirectional=False",
+                "test_invalid_block_id: Test with non-existent or invalid block IDs",
+                "test_unknown_relation: Test with an invalid relation type",
+                "test_duplicate_link: Test creating the same link twice",
+                "test_bidirectional_self_loop: Test that bidirectional self-loops are rejected",
+                "test_relation_alias_resolution: Test that relation aliases are correctly resolved"
+            ]
+        },
+        {
+            "file": "docs/links.md",
+            "content": "Documentation for link creation",
+            "sections": [
+                "Overview of link types and their meaning",
+                "How to create links with code examples",
+                "Common error scenarios and how to handle them",
+                "Guidelines for choosing the right relationship type",
+                "Examples for common use cases (parent/child, dependency, etc.)"
+            ]
+        }
+    ],
+    "risk_mitigation": [
+        {
+            "risk": "Cycle detection performance with bidirectional links",
+            "mitigation": "Use LinkManager.bulk_upsert for bidirectional links to allow efficient batch validation"
+        },
+        {
+            "risk": "SQL migration impact",
+            "mitigation": "Ensure core tool relies exclusively on LinkManager interface with no direct DB calls"
+        },
+        {
+            "risk": "Unclear error messages",
+            "mitigation": "Define clear mapping from LinkError types to user-friendly messages in agent-facing tool"
+        },
+        {
+            "risk": "Inefficient block validation",
+            "mitigation": "Implement request-scoped caching for block existence checks to minimize DB calls"
+        }
+    ],
+    "notes": [
+        "This task focuses on the core link creation functionality; enhancing project/task tools will be addressed in a follow-up task",
+        "The block existence validation helper could potentially be reused across many tools",
+        "Only allow bidirectional flag for relations that have defined inverses in INVERSE_RELATIONS",
+        "Always use bulk_upsert for bidirectional links to ensure atomicity and reduce cycle checking overhead"
+    ]
+}

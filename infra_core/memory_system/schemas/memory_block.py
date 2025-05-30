@@ -21,8 +21,8 @@ class MemoryBlock(BaseModel):
         default_factory=lambda: str(uuid.uuid4()),
         description="Globally unique ID for this memory block",
     )
-    type: Literal["knowledge", "task", "project", "doc", "interaction", "log"] = Field(
-        ..., description="Block type used to determine structure and relationships"
+    type: Literal["knowledge", "task", "project", "doc", "interaction", "log", "epic", "bug"] = (
+        Field(..., description="Block type used to determine structure and relationships")
     )
     schema_version: Optional[int] = Field(
         None,

@@ -11,8 +11,9 @@ authors = [
 ]
 dependencies = [
     "crewai>=0.1,<0.2",
-    "llama-index>=0.10,<0.11",
-    "doltpy"
+    "llama-index>=0.10,<=0.12.32",
+    "doltpy",
+    "rpds-py"
 ]
 requires-python = ">=3.9"
 
@@ -26,3 +27,8 @@ exclude = ["build", "dist", ".venv", "__pycache__"]
 [tool.ruff.lint]
 select = ["E", "F"]        # Enable basic style + logical error checks
 ignore = ["E501"]          # Ignore line length for now 
+
+[tool.uv.workspace]
+members = [
+    "services/mcp_server",
+]

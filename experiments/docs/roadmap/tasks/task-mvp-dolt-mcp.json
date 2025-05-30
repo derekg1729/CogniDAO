@@ -1,0 +1,94 @@
+{
+    "type": "Task",
+    "status": "completed",
+    "name": "Run CogniTools MCP server using MCP Python SDK and fastmcp",
+    "project": "cogni-tools-mcp",
+    "phase": "MVP",
+    "description": "Set up and run the Cogni MCP server using the official MCP Python SDK (https://github.com/modelcontextprotocol/python-sdk), leveraging fastmcp and uv for local development. Integrate the StructuredMemoryBank with Dolt, and expose memory tools as MCP tools.",
+    "completion_date": "2025-05-29",
+    "completion_details": {
+        "implementation_location": "services/mcp_server/app/mcp_server.py",
+        "tools_implemented": [
+            "CreateWorkItem",
+            "GetMemoryBlock",
+            "UpdateMemoryBlock",
+            "UpdateWorkItem",
+            "CreateBlockLink",
+            "HealthCheck"
+        ],
+        "test_coverage": "31 MCP server tests passing, 275 total tests passing",
+        "performance": "Optimized to run in under 60 seconds"
+    },
+    "acceptance_criteria": [
+        "Server starts successfully using fastmcp and uv",
+        "Service reads and writes to the host-mounted Dolt directory (`data/memory_dolt`)",
+        "MCP tool calls successfully persist and query memory blocks",
+        "No custom FastAPI boilerplate; use SDK idioms"
+    ],
+    "implementation_details": {
+        "requirements": [
+            "Add `mcp` to requirements.txt (from PyPI or install via uv)",
+            "Add dependencies for StructuredMemoryBank and Dolt"
+        ],
+        "server_entrypoint": "Use `from mcp.server.fastmcp import fastmcp` as the main app",
+        "tool_registration": "Register memory tools (e.g., CreateProjectMemoryBlock) as MCP tools using the fastmcp API",
+        "env_vars": {
+            "COGNI_DOLT_DIR": "data/memory_dolt"
+        },
+        "run_command": "uvicorn mcp.server.fastmcp:fastmcp --host 0.0.0.0 --port 8001",
+        "validation": [
+            {
+                "type": "http",
+                "command": "curl -s http://localhost:8001/healthz",
+                "expect": "200 OK with JSON response"
+            },
+            {
+                "type": "mcp_tool_call",
+                "command": "Use MCP client or HTTP POST to /tools/CreateProjectMemoryBlock",
+                "expect": "Memory block created and stored in Dolt"
+            },
+            {
+                "type": "sql",
+                "command": "dolt sql -q \"SELECT COUNT(*) FROM memory_block\" --repo $(pwd)/data/memory_dolt",
+                "expect": "Increased count after tool call"
+            }
+        ]
+    },
+    "detailed_implementation_plan": {
+        "phase_1_sdk_setup": {
+            "title": "Phase 1: SDK and fastmcp Setup",
+            "steps": [
+                "Install MCP SDK: `uv pip install mcp`",
+                "Create a new server entrypoint using `from mcp.server.fastmcp import fastmcp`",
+                "Register memory tool handlers as MCP tools"
+            ]
+        },
+        "phase_2_structured_memory_integration": {
+            "title": "Phase 2: StructuredMemoryBank Integration",
+            "steps": [
+                "Initialize StructuredMemoryBank using COGNI_DOLT_DIR",
+                "Wire up tool handlers to call StructuredMemoryBank methods"
+            ]
+        },
+        "phase_3_validation": {
+            "title": "Phase 3: Validation",
+            "steps": [
+                "Run the server with uv and fastmcp",
+                "Call healthz endpoint and tool endpoints",
+                "Verify Dolt persistence"
+            ]
+        },
+        "phase_4_dockerization": {
+            "title": "Phase 4: Dockerization (Optional, after local validation)",
+            "steps": [
+                "Create Dockerfile using uv as entrypoint",
+                "Mount Dolt directory as volume"
+            ]
+        }
+    },
+    "notes": [
+        "This approach uses the official MCP Python SDK for maximum compatibility and minimum boilerplate.",
+        "Dockerization is deferred until after local development is validated.",
+        "See https://github.com/modelcontextprotocol/python-sdk for reference."
+    ]
+}

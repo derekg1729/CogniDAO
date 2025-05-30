@@ -1,0 +1,125 @@
+{
+    "type": "task",
+    "schema_version": 4,
+    "text": "Implement unified CreateWorkItem MCP tool and remove code duplication",
+    "tags": [
+        "memory-system",
+        "tools",
+        "refactor",
+        "DRY",
+        "cleanup"
+    ],
+    "metadata": {
+        "title": "Unify Work Item Creation and Remove Duplication",
+        "description": "Implement a unified CreateWorkItem MCP tool supporting multiple work item types while systematically removing code duplication. Start by cleaning up MCP server code, then create a unified tool that leverages existing infrastructure, and finally clean up redundant specialized tools.",
+        "status": "done",
+        "priority": "P1",
+        "assignee": "cogni_agent",
+        "estimate_hours": 8,
+        "story_points": 4,
+        "acceptance_criteria": [
+            "Unused REST API code is completely removed from MCP server",
+            "New CreateWorkItem tool accepts a required 'type' parameter with valid values: 'project', 'epic', 'task', 'bug'",
+            "Tool properly handles type-specific metadata based on work item type",
+            "Existing specialized tools are updated to use the new unified tool",
+            "No code duplication between work item creation tools",
+            "All tests pass after each implementation phase",
+            "MCP server runs correctly with the updated code"
+        ],
+        "action_items": [
+            "Phase 1: Remove unused REST API code from MCP server",
+            "Phase 2: Create agent-facing CreateWorkItem tool that directly uses create_memory_block",
+            "Phase 3: Update specialized work item tools to use the new unified tool",
+            "Run tests after each phase to ensure everything works"
+        ],
+        "expected_artifacts": [
+            "infra_core/memory_system/tools/agent_facing/create_work_item_tool.py",
+            "Updates to specialized work item creation tools",
+            "Update to services/mcp_server/app/mcp_server.py",
+            "Removal of services/mcp_server/app/api/endpoints/memory_tools.py"
+        ],
+        "blocked_by": [],
+        "labels": [
+            "refactoring",
+            "DRY",
+            "MCP-tools",
+            "cleanup"
+        ],
+        "tool_hints": [
+            "code_editor",
+            "git"
+        ],
+        "role_hint": "developer",
+        "current_status": "All phases completed. The unified CreateWorkItem tool has been implemented and successfully replaces all specialized work item creation tools. Additionally, we removed the redundant 'completed' field from all metadata models, simplifying status management to rely solely on the 'status' field. All tests are passing and the MCP server runs correctly with the updated code.",
+        "implementation_details": {
+            "files_modified": [
+                "infra_core/memory_system/tools/agent_facing/__init__.py",
+                "services/mcp_server/app/mcp_server.py",
+                "examples/use_create_project_tool.py",
+                "examples/use_create_task_tool.py",
+                "infra_core/memory_system/tools/agent_facing/add_validation_report_tool.py",
+                "infra_core/memory_system/tools/agent_facing/update_task_status_tool.py",
+                "infra_core/memory_system/tools/tests/agent_facing/test_add_validation_report_tool.py",
+                "infra_core/memory_system/tools/tests/agent_facing/test_update_task_status_tool.py",
+                "infra_core/memory_system/tests/test_dolt_schema_manager.py"
+            ],
+            "files_removed": [
+                "infra_core/memory_system/tools/agent_facing/create_bug_memory_block_tool.py",
+                "infra_core/memory_system/tools/agent_facing/create_epic_memory_block_tool.py",
+                "infra_core/memory_system/tools/agent_facing/create_project_memory_block_tool.py",
+                "infra_core/memory_system/tools/agent_facing/create_task_memory_block_tool.py",
+                "infra_core/memory_system/tools/tests/agent_facing/test_create_bug_memory_block_tool.py",
+                "infra_core/memory_system/tools/tests/agent_facing/test_create_epic_memory_block_tool.py",
+                "infra_core/memory_system/tools/tests/agent_facing/test_create_project_memory_block_tool.py",
+                "infra_core/memory_system/tools/tests/agent_facing/test_create_task_memory_block_tool.py"
+            ],
+            "files_created": [
+                "infra_core/memory_system/tools/agent_facing/create_work_item_tool.py",
+                "infra_core/memory_system/tools/tests/agent_facing/test_create_work_item_tool.py"
+            ]
+        },
+        "implementation_strategy": {
+            "phase_1": {
+                "title": "Remove Unused REST API Code",
+                "steps": [
+                    "Identify and remove REST API endpoint code in services/mcp_server/app/api/",
+                    "Verify MCP server still runs correctly after removal",
+                    "Commit changes after validation"
+                ],
+                "validation": "MCP server starts and serves tools correctly",
+                "status": "completed"
+            },
+            "phase_2": {
+                "title": "Create Unified CreateWorkItem Tool",
+                "steps": [
+                    "Create agent-facing CreateWorkItem tool that directly uses create_memory_block",
+                    "Implement proper handling of different work item types",
+                    "Add the tool to the MCP server",
+                    "Test the tool with all supported work item types"
+                ],
+                "validation": "New tool successfully creates all types of work items",
+                "status": "completed"
+            },
+            "phase_3": {
+                "title": "Clean Up Specialized Work Item Tools",
+                "steps": [
+                    "Update specialized tools to use the new unified tool",
+                    "Remove duplicate code while maintaining backward compatibility",
+                    "Run all existing tests to ensure everything still works"
+                ],
+                "validation": "All tests pass with the updated code structure",
+                "status": "completed"
+            },
+            "phase_4": {
+                "title": "Final Testing and Documentation",
+                "steps": [
+                    "Run comprehensive test suite",
+                    "Update documentation to reflect the new unified tool",
+                    "Clean up any remaining duplication or unused code"
+                ],
+                "validation": "MCP server works correctly with all changes",
+                "status": "completed"
+            }
+        }
+    }
+}

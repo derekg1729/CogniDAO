@@ -19,6 +19,7 @@ from .routes import health as health_router
 from .routes import chat as chat_router
 from .routes import blocks_router
 from .routes import schemas_router
+from .routes import links_router
 
 # Set up logger for this app module
 logger = logging.getLogger(__name__)
@@ -72,6 +73,7 @@ app.include_router(health_router.router)
 app.include_router(chat_router.router, prefix="/api/v1")
 app.include_router(blocks_router.router, prefix="/api/v1")
 app.include_router(schemas_router.router, prefix="/api/v1")
+app.include_router(links_router.router, prefix="/api/v1")
 
 
 # Add redirects from old paths to new paths for backward compatibility

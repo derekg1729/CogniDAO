@@ -1,0 +1,148 @@
+{
+    "type": "Task",
+    "status": "todo",
+    "priority": "P1",
+    "severity": "moderate",
+    "name": "Introduce BaseUserMetadata with BaseMetadata inheritance",
+    "project": "memory-system-tools",
+    "phase": "Schema Standardization",
+    "role_hint": "backend-developer",
+    "description": "Create a new shared metadata base class `BaseUserMetadata` that standardizes user-facing fields like `title`, `description`, and `owner`, and inherits from `BaseMetadata` to retain system-level field consistency. This allows unified field access across all work item types while preserving core metadata behavior.",
+    "acceptance_criteria": [
+        "BaseUserMetadata inherits from BaseMetadata (not BaseModel)",
+        "title, description, and owner are standardized across all block types via BaseUserMetadata",
+        "All work item metadata classes (Task, Project, Epic, Bug, Doc) inherit relevant fields from BaseUserMetadata through ExecutableMetadata or directly",
+        "System fields (x_*) remain untouched and managed in BaseMetadata",
+        "Validation rules and OpenAPI generation continue to work as before (or are updated/created)",
+        "Schema versions for affected types (Task, Project, Epic, Bug, Doc) are incremented"
+    ],
+    "action_items": [
+        {
+            "id": "define_base_user_metadata",
+            "description": "Create `infra_core/memory_system/schemas/metadata/base_user.py`: Define `BaseUserMetadata(BaseMetadata)` with `title: str = Field(..., description=\"Short, descriptive title of the memory block\")`, `description: Optional[str] = Field(None, description=\"Detailed explanation or summary of the block's contents\")`, `owner: Optional[str] = Field(None, description=\"User ID of the block's primary owner\")`",
+            "status": "[x]",
+            "files": [
+                "infra_core/memory_system/schemas/metadata/base_user.py"
+            ],
+            "content": "```python\nfrom infra_core.memory_system.schemas.metadata.base import BaseMetadata\nfrom pydantic import Field\nfrom typing import Optional\n\nclass BaseUserMetadata(BaseMetadata):\n    \"\"\"\n    User-defined metadata fields shared across MemoryBlock types.\n    Inherits system-level fields from BaseMetadata.\n    \"\"\"\n    title: str = Field(..., description=\"Short, descriptive title of the memory block\")\n    description: Optional[str] = Field(None, description=\"Detailed explanation or summary of the block's contents\")\n    owner: Optional[str] = Field(None, description=\"User ID of the block's primary owner\")\n\n    class Config:\n        extra = \"forbid\"\n```"
+        },
+        {
+            "id": "update_executable_metadata_inheritance",
+            "description": "Modify `infra_core/memory_system/schemas/metadata/common/executable.py`: Change `ExecutableMetadata` to inherit from `BaseUserMetadata` instead of `BaseMetadata`",
+            "status": "[x]",
+            "files": [
+                "infra_core/memory_system/schemas/metadata/common/executable.py"
+            ]
+        },
+        {
+            "id": "migrate_task_metadata",
+            "description": "Modify `infra_core/memory_system/schemas/metadata/task.py`: Remove `title`, `description`, and `assignee` fields (to be replaced by inherited `title`, `description`, `owner`)",
+            "status": "[x]",
+            "files": [
+                "infra_core/memory_system/schemas/metadata/task.py"
+            ]
+        },
+        {
+            "id": "migrate_project_metadata",
+            "description": "Modify `infra_core/memory_system/schemas/metadata/project.py`: Remove `name` (use inherited `title`), `description`, and `owner` fields",
+            "status": "[x]",
+            "files": [
+                "infra_core/memory_system/schemas/metadata/project.py"
+            ]
+        },
+        {
+            "id": "migrate_epic_metadata",
+            "description": "Modify `infra_core/memory_system/schemas/metadata/epic.py`: Remove `name` (use inherited `title`), `description`, and `owner` fields",
+            "status": "[x]",
+            "files": [
+                "infra_core/memory_system/schemas/metadata/epic.py"
+            ]
+        },
+        {
+            "id": "migrate_doc_metadata",
+            "description": "Modify `infra_core/memory_system/schemas/metadata/doc.py`: Change inheritance to `BaseUserMetadata`. Remove its own `title` field. Ensure `description` and `owner` are covered by inheritance.",
+            "status": "[x]",
+            "files": [
+                "infra_core/memory_system/schemas/metadata/doc.py"
+            ]
+        },
+        {
+            "id": "migrate_bug_metadata",
+            "description": "Modify `infra_core/memory_system/schemas/metadata/bug.py`: Remove `title`, `description`, and `reporter` fields (to be replaced by inherited `title`, `description`, `owner`)",
+            "status": "[x]",
+            "files": [
+                "infra_core/memory_system/schemas/metadata/bug.py"
+            ]
+        },
+        {
+            "id": "update_schema_versions",
+            "description": "Update `SCHEMA_VERSIONS` in `infra_core/memory_system/schemas/registry.py` for `task`, `project`, `epic`, `doc`, `bug` due to breaking changes.",
+            "status": "[x]",
+            "files": [
+                "infra_core/memory_system/schemas/registry.py"
+            ]
+        },
+        {
+            "id": "verify_tests_registry",
+            "description": "Review and update tests in `infra_core/memory_system/tests/test_registry.py` and `experiments/tests/test_registry.py` to ensure schema resolution and version tests are still valid after changes.",
+            "status": "[x]",
+            "files": [
+                "infra_core/memory_system/tests/test_registry.py",
+                "experiments/tests/test_registry.py"
+            ]
+        },
+        {
+            "id": "verify_tests_metadata_units",
+            "description": "Review and update unit tests for individual metadata types (`test_epic_bug.py`, `test_type_specific_status.py`) to use new field names (`title`, `owner`) and structure.",
+            "status": "[x]",
+            "files": [
+                "infra_core/memory_system/schemas/metadata/tests/test_epic_bug.py",
+                "infra_core/memory_system/schemas/metadata/tests/test_type_specific_status.py"
+            ]
+        },
+        {
+            "id": "verify_tests_dolt_schema_manager",
+            "description": "Review and update tests in `infra_core/memory_system/tests/test_dolt_schema_manager.py` related to metadata validation.",
+            "status": "[x]",
+            "files": [
+                "infra_core/memory_system/tests/test_dolt_schema_manager.py"
+            ]
+        },
+        {
+            "id": "verify_tests_block_router",
+            "description": "Review and update tests in `tests/services/web_api/test_blocks_router.py`: Adjust test data payloads and assertions for affected block types (`Task`, `Project`, `Epic`, `Doc`, `Bug`) to reflect new metadata structure.",
+            "status": "[x]",
+            "files": [
+                "tests/services/web_api/test_blocks_router.py"
+            ]
+        },
+        {
+            "id": "review_schema_registration_script",
+            "description": "Review `infra_core/memory_system/scripts/register_schemas.py` to ensure `base_user.py` is implicitly or explicitly imported if necessary. (Base classes usually don't need direct registration).",
+            "status": "[x]",
+            "files": [
+                "infra_core/memory_system/scripts/register_schemas.py"
+            ]
+        },
+        {
+            "id": "address_missing_test_and_openapi_generation",
+            "description": "Investigate and address missing `infra_core/tests/schemas` directory and `openapi/generate_openapi.py` script. This may involve creating these, finding alternatives, or deferring if out of scope for this task.",
+            "status": "[ ]",
+            "files": [
+                "infra_core/tests/schemas",
+                "openapi/generate_openapi.py"
+            ]
+        }
+    ],
+    "labels": [
+        "schema-design",
+        "field-standardization",
+        "inheritance",
+        "backend"
+    ],
+    "tool_hints": [
+        "Avoid redefining `title` or `name` in subclasses once `BaseUserMetadata` is in use",
+        "Ensure field ordering does not conflict with existing frontend renderers",
+        "Retain backwards compatibility through block migration logic where needed"
+    ]
+}

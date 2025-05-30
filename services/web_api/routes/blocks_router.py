@@ -92,7 +92,7 @@ async def get_block(request: Request, block_id: str) -> MemoryBlock:
 
     # 2. Call the tool function
     try:
-        # Call the tool with block_id parameter directly
+        # Call the tool with block_id parameter directly - the convenience function converts to block_ids internally
         output = get_memory_block_tool(block_id=block_id, memory_bank=memory_bank)
     except Exception as e:
         # Catch unexpected errors during the tool execution itself
@@ -103,10 +103,10 @@ async def get_block(request: Request, block_id: str) -> MemoryBlock:
         )
 
     # 3. Handle the output from the tool
-    if output.success and output.block:
+    if output.success and len(output.blocks) > 0:
         # Return the block with caching headers
         return JSONResponse(
-            content=output.block.model_dump(mode="json"),
+            content=output.blocks[0].model_dump(mode="json"),
             headers={"Cache-Control": "max-age=3600, public"},  # Cache for 1 hour
         )
     else:

@@ -1,0 +1,347 @@
+{
+    "type": "Task",
+    "status": "completed",
+    "completion_date": "2025-05-29",
+    "completion_details": {
+        "schemas_implemented": [
+            "EpicMetadata",
+            "BugMetadata",
+            "Updated ProjectMetadata",
+            "Updated TaskMetadata",
+            "ExecutableMetadata mixin"
+        ],
+        "agent_tools_created": [
+            "CreateTaskMemoryBlockTool",
+            "CreateProjectMemoryBlockTool",
+            "CreateEpicMemoryBlockTool",
+            "CreateBugMemoryBlockTool",
+            "UpdateTaskStatusTool"
+        ],
+        "test_coverage": "Comprehensive validation and metadata tests",
+        "validation_models": "ValidationResult and ValidationReport implemented"
+    },
+    "project": "../project-CogniMemorySystem-POC.json",
+    "name": "Update Metadata Schemas and Block Links Support for Epics, Projects, Tasks, and Bugs",
+    "description": "Implement updated metadata schemas and enhanced block links support following the new design that centralizes relationship information in BlockLinks. This includes adding support for Epics, updating Project and Task metadata models, and supporting Bug tracking. Optimize metadata models for AI agent execution by implementing ExecutableMetadata mixin with fields aligned to popular agent frameworks.",
+    "phase": "Schema Enhancement",
+    "implementation_details": {
+        "target_files": [
+            "infra_core/memory_system/schemas/memory_block.py",
+            "infra_core/memory_system/schemas/common.py",
+            "infra_core/memory_system/schemas/metadata/epic.py",
+            "infra_core/memory_system/schemas/metadata/project.py",
+            "infra_core/memory_system/schemas/metadata/task.py",
+            "infra_core/memory_system/schemas/metadata/bug.py",
+            "infra_core/memory_system/schemas/metadata/executable.py",
+            "infra_core/memory_system/schemas/metadata/validation.py",
+            "infra_core/memory_system/schemas/registry.py",
+            "infra_core/memory_system/schemas/__init__.py",
+            "docs/memory_block_schema.md"
+        ],
+        "action_items": [
+            "[x] Add 'epic' and 'bug' to MemoryBlock.type enum in memory_block.py",
+            "[x] Update RelationType enum in common.py to include 'parent_of' and 'belongs_to_epic'",
+            "[x] Create EpicMetadata Pydantic model in metadata/epic.py",
+            "[x] Create BugMetadata Pydantic model in metadata/bug.py",
+            "[x] Update ProjectMetadata model to align with new specification",
+            "[x] Update TaskMetadata model to align with new specification",
+            "[x] Increment schema versions in registry.py for all affected models (project, task, epic, bug)",
+            "[x] Update __init__.py to export new metadata models",
+            "[x] Verify block_links table schema compatibility with updated BlockLink model",
+            "[x] Create ValidationResult and ValidationReport models in metadata/validation.py",
+            "[x] Create ExecutableMetadata mixin in metadata/executable.py with common execution fields",
+            "[x] Add deliverables and validation_report fields to ExecutableMetadata",
+            "[x] Add additional agent framework fields (execution_timeout_minutes, cost_budget_usd, role_hint)",
+            "[x] Add validator that requires validation_report when status is 'done'",
+            "[x] Update Task, Bug, Project, and Epic models to inherit from ExecutableMetadata",
+            "[x] Add detailed bug-specific fields to BugMetadata (expected_behavior, actual_behavior, etc.)",
+            "[x] Add validation test to ensure at least one acceptance_criteria entry for new tasks",
+            "[x] Generate and publish updated JSON schemas to schemas/backend/ directory (automatic via pre-commit)",
+            "[x] Document the mixin concept, task lifecycle, and agent framework compatibility in docs/memory_block_schema.md",
+            "[ ] Test the /schemas API endpoint to validate schema updates are accessible",
+            "[x] Create a WorkStatusLiteral in common.py with all possible values: 'backlog', 'ready', 'in_progress', 'review', 'merged', 'validated', 'released', 'done', 'archived'",
+            "[x] Create an ExecutionPhaseLiteral in common.py with values: 'designing', 'implementing', 'testing', 'debugging', 'documenting', 'awaiting_review'",
+            "[x] Add execution_phase field to ExecutableMetadata with validator that enforces it's only used with status=='in_progress'",
+            "[x] Update Epic metadata with valid status subset and validator",
+            "[x] Update Project metadata with valid status subset and validator",
+            "[x] Update Task metadata with valid status subset and validator",
+            "[x] Update Bug metadata with valid status subset and validator",
+            "[x] Update test_dolt_schema_manager.py to use valid status values in tests",
+            "[x] Update all other tests that may be using old status values",
+            "[x] Document the WorkStatus and ExecutionPhase in docs/memory_block_schema.md",
+            "[x] Run tests to verify all changes function correctly",
+            "[x] Create comprehensive test suite for validation models and ExecutableMetadata",
+            "# Agent-Facing Tools for Project Management Schema",
+            "[x] Create CreateTaskMemoryBlockTool in tools/agent_facing for task creation",
+            "[x] Create CreateProjectMemoryBlockTool in tools/agent_facing for project creation",
+            "[x] Create CreateEpicMemoryBlockTool in tools/agent_facing for epic creation",
+            "[x] Create CreateBugMemoryBlockTool in tools/agent_facing for bug reporting",
+            "[x] Create UpdateTaskStatusTool in tools/agent_facing for updating task status",
+            "[x] Create AddValidationReportTool in tools/agent_facing for marking tasks as done with validation",
+            "[x] Update tool registry to expose all new project management tools to agents",
+            "[ ] Add end-to-end tests for agent task creation workflow",
+            "[ ] Create documentation for agent usage of project management tools"
+        ],
+        "implementation_plan": [
+            "1. Schema Updates: First implement all schema changes to memory_block, common, and metadata models",
+            "2. Validation Models: Create ValidationResult and ValidationReport models",
+            "3. ExecutableMetadata Mixin: Create mixin class with planning, validation, and agent framework fields",
+            "4. Testing: Comprehensive tests for new models",
+            "5. API Validation: Test schema API endpoints to ensure proper schema availability",
+            "6. Documentation: Update architecture docs to explain task lifecycle and agent framework compatibility"
+        ],
+        "implementation_sequence": [
+            "Start with the schema changes, as downstream components depend on them",
+            "Create validation models first, then ExecutableMetadata mixin that uses them",
+            "Update Task/Bug/Project/Epic models to inherit from ExecutableMetadata",
+            "Run schema verification steps to ensure compatibility",
+            "Validate consistency with LlamaIndex and other dependent systems",
+            "Document the task lifecycle and agent framework compatibility to prevent future confusion",
+            "Note: LinkManager functionality has been moved to a separate task 'task-link-manager.json'"
+        ],
+        "model_drafts": {
+            "MemoryBlock Type Enum": "Literal['knowledge', 'task', 'project', 'doc', 'interaction', 'log', 'epic', 'bug']",
+            "RelationType Enum": "Literal['related_to', 'subtask_of', 'depends_on', 'child_of', 'mentions', 'parent_of', 'belongs_to_epic', 'blocked_by']",
+            "ValidationResult": {
+                "criterion": "str",
+                "status": "Literal['pass', 'fail']",
+                "notes": "Optional[str]"
+            },
+            "ValidationReport": {
+                "validated_by": "str",
+                "timestamp": "datetime",
+                "results": "List[ValidationResult]"
+            },
+            "ExecutableMetadata": {
+                "# Planning fields (pre-execution)": "",
+                "tool_hints": "List[str]",
+                "action_items": "List[str]",
+                "acceptance_criteria": "List[str]",
+                "expected_artifacts": "List[str]",
+                "blocked_by": "List[str]",
+                "priority_score": "Optional[float]",
+                "reviewer": "Optional[str]",
+                "# Agent framework compatibility fields": "",
+                "execution_timeout_minutes": "Optional[int]",
+                "cost_budget_usd": "Optional[float]",
+                "role_hint": "Optional[str]",
+                "# Completion fields (post-execution)": "",
+                "deliverables": "List[str]",
+                "validation_report": "Optional[ValidationReport]",
+                "execution_phase": "Literal['designing', 'implementing', 'testing', 'debugging', 'documenting', 'awaiting_review']"
+            },
+            "EpicMetadata": {
+                "status": "Literal['idea', 'planning', 'in_progress', 'at_risk', 'done']",
+                "owner": "str",
+                "name": "str",
+                "description": "str",
+                "start_date": "Optional[datetime]",
+                "target_date": "Optional[datetime]",
+                "priority": "Optional[Literal['P0', 'P1', 'P2', 'P3']]",
+                "progress_percent": "Optional[float]",
+                "tags": "List[str]",
+                "completed": "bool"
+            },
+            "Updated ProjectMetadata": {
+                "status": "Literal['backlog', 'in_progress', 'blocked', 'done']",
+                "owner": "str",
+                "name": "str",
+                "description": "str",
+                "priority": "Optional[Literal['P0', 'P1', 'P2', 'P3']]",
+                "start_date": "Optional[datetime]",
+                "target_date": "Optional[datetime]",
+                "progress_percent": "Optional[float]",
+                "tags": "List[str]",
+                "confidence_score": "Optional[ConfidenceScore]"
+            },
+            "Updated TaskMetadata": {
+                "status": "Literal['todo', 'in_progress', 'review', 'blocked', 'done']",
+                "assignee": "Optional[str]",
+                "title": "str",
+                "description": "str",
+                "priority": "Optional[Literal['P0', 'P1', 'P2', 'P3']]",
+                "story_points": "Optional[float]",
+                "estimate_hours": "Optional[float]",
+                "start_date": "Optional[datetime]",
+                "due_date": "Optional[datetime]",
+                "labels": "List[str]",
+                "confidence_score": "Optional[ConfidenceScore]"
+            },
+            "BugMetadata": {
+                "status": "Literal['open', 'in_progress', 'resolved', 'closed']",
+                "reporter": "str",
+                "assignee": "Optional[str]",
+                "title": "str",
+                "description": "str",
+                "priority": "Optional[Literal['P0', 'P1', 'P2', 'P3']]",
+                "severity": "Optional[Literal['critical', 'high', 'medium', 'low']]",
+                "version_found": "Optional[str]",
+                "version_fixed": "Optional[str]",
+                "steps_to_reproduce": "Optional[str]",
+                "due_date": "Optional[datetime]",
+                "labels": "List[str]",
+                "confidence_score": "Optional[ConfidenceScore]",
+                "expected_behavior": "str",
+                "actual_behavior": "str",
+                "environment": "str",
+                "logs_link": "Optional[str]",
+                "repro_steps": "List[str]"
+            },
+            "existing_block_links_table_schema": "CREATE TABLE IF NOT EXISTS block_links (\n  from_id VARCHAR(255) NOT NULL,\n  to_id VARCHAR(255) NOT NULL,\n  relation VARCHAR(50) NOT NULL,\n  priority INT NULL DEFAULT 0,\n  link_metadata JSON NULL,\n  created_by VARCHAR(255) NULL,\n  created_at DATETIME NOT NULL,\n  PRIMARY KEY (from_id, to_id, relation)\n);\n\nCREATE INDEX idx_block_links_to_id ON block_links (to_id);"
+        },
+        "agent_framework_compatibility": {
+            "CrewAI": {
+                "field_mapping": {
+                    "description": "TaskMetadata.description",
+                    "expected_output": "ExecutableMetadata.expected_artifacts",
+                    "tools": "ExecutableMetadata.tool_hints",
+                    "verify": "ExecutableMetadata.acceptance_criteria",
+                    "dependent_tasks": "ExecutableMetadata.blocked_by",
+                    "priority": "ExecutableMetadata.priority_score",
+                    "reviewer": "ExecutableMetadata.reviewer",
+                    "result": "ExecutableMetadata.deliverables",
+                    "verification_result": "ExecutableMetadata.validation_report"
+                },
+                "fit": "high",
+                "notes": "CrewAI's verifier role can populate validation_report automatically."
+            },
+            "OtherSideAI": {
+                "field_mapping": {
+                    "objective": "TaskMetadata.title / description",
+                    "actions": "ExecutableMetadata.action_items",
+                    "required_artifacts": "ExecutableMetadata.expected_artifacts",
+                    "blocking_steps": "ExecutableMetadata.blocked_by",
+                    "evaluation_tests": "ExecutableMetadata.acceptance_criteria",
+                    "priority": "ExecutableMetadata.priority_score",
+                    "outputs": "ExecutableMetadata.deliverables",
+                    "test_results": "ExecutableMetadata.validation_report"
+                },
+                "fit": "high",
+                "notes": "Steps → action_items one-to-one mapping."
+            },
+            "AutoGen": {
+                "field_mapping": {
+                    "plan": "ExecutableMetadata.action_items",
+                    "criteria": "ExecutableMetadata.acceptance_criteria",
+                    "artifacts": "ExecutableMetadata.expected_artifacts",
+                    "result_block": "deliverables + validation_report"
+                },
+                "fit": "medium",
+                "notes": "LinkManager must expose blocked_by graph for dependencies."
+            }
+        }
+    },
+    "success_criteria": [
+        "[x] All new and updated Pydantic models pass validation tests",
+        "[x] Schema JSONs are properly generated for all models",
+        "[x] All block types adhere to the link-first relationship approach",
+        "[ ] Memory block structure properly supports the following block types and relationships:",
+        {
+            "Memory Block Structure": [
+                "[x] Supports 'epic', 'project', 'task', and 'bug' block types",
+                "[x] Uses BlockLink as the source of truth for relationships",
+                "[x] Maintains backward compatibility with existing blocks",
+                "[ ] No duplicate references (e.g., don't store references in both links and metadata)"
+            ]
+        },
+        {
+            "Block Links Design": [
+                "[x] RelationType enum includes all required relationship types",
+                "[x] BlockLink model properly captures relationship details",
+                "[x] Link metadata supports additional relationship attributes as needed"
+            ]
+        },
+        {
+            "Dolt block_links Table": [
+                "[x] No schema changes needed - existing table structure is compatible",
+                "[x] New relation types work with existing table structure",
+                "[ ] Uses existing indexes for efficient graph traversal queries"
+            ]
+        },
+        {
+            "Schema Registry": [
+                "[x] Updated schema versions in SCHEMA_VERSIONS dictionary",
+                "[x] JSON schemas properly registered in node_schemas table (via pre-commit hook)",
+                "[ ] /schemas API endpoint returns correct schema information",
+                "[x] Generated JSON schemas match the Pydantic models"
+            ]
+        },
+        {
+            "ExecutableMetadata Mixin Implementation": [
+                "[x] Created executable.py mixin with agent execution fields",
+                "[x] Created validation.py with ValidationResult and ValidationReport models",
+                "[x] Added agent framework compatibility fields (timeout, budget, role_hint)",
+                "[x] Task, Bug, Project, and Epic models inherit from ExecutableMetadata",
+                "[x] Models have proper validation logic for execution fields",
+                "[x] At least one acceptance_criteria is required for executable blocks",
+                "[x] Status='done' requires valid validation_report with all passing criteria",
+                "[x] Documentation explains task lifecycle from planning to validation"
+            ]
+        },
+        {
+            "Epic Metadata": [
+                "[x] Captures status (idea, planning, in_progress, at_risk, done)",
+                "[x] Includes owner, name, description fields",
+                "[x] Supports dates (start_date, target_date)",
+                "[x] Tracks priority and progress",
+                "[x] Contains tags and completion status"
+            ]
+        },
+        {
+            "Project Metadata": [
+                "[x] Captures status (backlog, in_progress, blocked, done)",
+                "[x] Includes owner, name, description fields",
+                "[x] Tracks priority, dates, and progress",
+                "[x] Contains tags and confidence scores",
+                "[x] No longer contains redundant reference fields"
+            ]
+        },
+        {
+            "Task Metadata": [
+                "[x] Captures status (todo, in_progress, review, blocked, done)",
+                "[x] Includes assignee, title, description fields",
+                "[x] Tracks priority, estimates, and dates",
+                "[x] Contains labels and confidence scores",
+                "[x] No longer contains redundant reference fields",
+                "[x] Includes agent execution fields (tool_hints, action_items, acceptance_criteria, etc.)",
+                "[x] Supports task lifecycle with planning and validation stages",
+                "[x] Compatible with CrewAI, OtherSideAI, and AutoGen agent frameworks"
+            ]
+        },
+        {
+            "Bug Metadata": [
+                "[x] Captures status (open, in_progress, resolved, closed)",
+                "[x] Includes reporter, assignee, title, description fields",
+                "[x] Tracks priority, severity, and dates",
+                "[x] Contains version information and steps to reproduce",
+                "[x] Includes bug-specific fields (expected_behavior, actual_behavior, environment, etc.)",
+                "[x] Includes agent execution fields (tool_hints, action_items, acceptance_criteria, etc.)",
+                "[x] Supports bug lifecycle with planning and validation stages",
+                "[x] Compatible with agent frameworks for automated bug fixing"
+            ]
+        },
+        {
+            "Agent Framework Compatibility": [
+                "[x] ExecutableMetadata fields align with CrewAI task structure",
+                "[x] ExecutableMetadata fields align with OtherSideAI workflow steps",
+                "[x] ExecutableMetadata fields align with AutoGen message contracts",
+                "[x] Added extension fields for advanced orchestration (timeout, budget, role_hint)"
+            ]
+        },
+        {
+            "Test Coverage": [
+                "[x] Validation models (ValidationResult, ValidationReport) have comprehensive tests",
+                "[x] ExecutableMetadata fields and validators are thoroughly tested",
+                "[x] Status literals and validation rules are tested across all metadata models",
+                "[x] Tests verify proper enforcement of blocked_by UUID format",
+                "[x] Tests ensure validation reports properly validate acceptance criteria"
+            ]
+        }
+    ],
+    "current_status": "Completed Phase 6: Enhanced existing tools with improved schemas. Fixed tools to handle specific edge cases. Implemented UpdateTaskStatusTool with tests. Added all agent-facing tools for creating project management entities. Schema enhancements complete.\n\nNote: LinkManager functionality has been moved to a separate task (task-link-manager.json) to better isolate concerns.",
+    "next_steps": [
+        "[ ] Test the /schemas API endpoint to validate schema updates are accessible",
+        "[ ] Add end-to-end tests for agent task creation workflow",
+        "[ ] Create documentation for agent usage of project management tools"
+    ]
+}

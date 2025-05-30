@@ -40,7 +40,7 @@ def test_get_schema_latest_and_specific_version():
     assert data_latest["title"] == "TaskMetadata"
     assert data_latest["type"] == "object"
     assert "properties" in data_latest
-    assert "project" in data_latest["properties"]
+    assert "title" in data_latest["properties"]
 
     # Check for required metadata fields
     assert "$id" in data_latest

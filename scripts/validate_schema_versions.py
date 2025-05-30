@@ -98,6 +98,8 @@ def get_modified_metadata_files() -> list[str]:
             and not Path(f).name.startswith("__init__")
             # Exclude test files from schema version validation
             and not Path(f).name.startswith("test_")
+            # Exclude common directory (contains mixins and utilities, not block types)
+            and "/common/" not in f
         ]
 
         return modified_files

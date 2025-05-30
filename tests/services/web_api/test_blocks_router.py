@@ -211,10 +211,10 @@ def test_get_all_blocks_bank_exception(client_with_mock_bank, mock_memory_bank):
 @patch("services.web_api.routes.blocks_router.get_memory_block_tool")
 def test_get_block_success(mock_get_block_tool, client_with_mock_bank, sample_memory_block):
     """Test successful retrieval of a specific memory block by ID."""
-    # Configure mock to return success output
+    # Configure mock to return success output with new consistent API
     mock_output = GetMemoryBlockOutput(
         success=True,
-        block=sample_memory_block,
+        blocks=[sample_memory_block],  # New consistent API - always a list
         error=None,
         timestamp=datetime.datetime.utcnow(),
     )
@@ -243,10 +243,10 @@ def test_get_block_success(mock_get_block_tool, client_with_mock_bank, sample_me
 @patch("services.web_api.routes.blocks_router.get_memory_block_tool")
 def test_get_block_not_found(mock_get_block_tool, client_with_mock_bank):
     """Test retrieval of a non-existent memory block by ID."""
-    # Configure mock to return not found output
+    # Configure mock to return not found output with new consistent API
     mock_output = GetMemoryBlockOutput(
         success=False,
-        block=None,
+        blocks=[],  # Empty list when not found
         error="Memory block with ID 'non-existent-id' not found.",
         timestamp=datetime.datetime.utcnow(),
     )
@@ -268,10 +268,10 @@ def test_get_block_not_found(mock_get_block_tool, client_with_mock_bank):
 @patch("services.web_api.routes.blocks_router.get_memory_block_tool")
 def test_get_block_error(mock_get_block_tool, client_with_mock_bank):
     """Test error handling when retrieving a memory block encounters an error."""
-    # Configure mock to return an error output
+    # Configure mock to return an error output with new consistent API
     mock_output = GetMemoryBlockOutput(
         success=False,
-        block=None,
+        blocks=[],  # Empty list on error
         error="Database connection error",
         timestamp=datetime.datetime.utcnow(),
     )
@@ -320,16 +320,18 @@ def test_get_block_exception(mock_get_block_tool, client_with_mock_bank):
 
 # Helper to create a valid task block payload
 def create_valid_task_payload() -> Dict[str, Any]:
+    """Create a valid task block creation payload for testing."""
     return {
         "type": "task",
         "text": "Test task block creation",
         "metadata": {
             "x_agent_id": "test-runner",
-            "project": "TestProject",
-            "name": "Test Task Name",
+            "title": "Test Task Title",
             "description": "Valid task metadata for testing",
-            "status": "todo",
+            "owner": "test_owner_id",
+            "status": "backlog",  # Updated from 'todo' to 'backlog' to match new schema
             # Other fields from TaskMetadata are optional or have defaults
+            "acceptance_criteria": ["Test passes"],  # Required by ExecutableMetadata
         },
         "tags": ["test", "post"],
     }
@@ -385,7 +387,7 @@ def test_create_block_success(
         # Ensure the captured block has the input data
         assert block_arg.type == payload["type"]
         assert block_arg.text == payload["text"]
-        assert block_arg.metadata["name"] == payload["metadata"]["name"]
+        assert block_arg.metadata["title"] == payload["metadata"]["title"]
         return True  # Simulate success
 
     mock_memory_bank.create_memory_block.side_effect = capture_block_and_succeed
@@ -413,7 +415,7 @@ def test_create_block_success(
     assert response_data["id"] == created_block_instance_capture.id
     assert response_data["type"] == payload["type"]
     assert response_data["text"] == payload["text"]
-    assert response_data["metadata"]["name"] == payload["metadata"]["name"]
+    assert response_data["metadata"]["title"] == payload["metadata"]["title"]
 
 
 def test_create_block_invalid_metadata(
@@ -421,9 +423,7 @@ def test_create_block_invalid_metadata(
 ):
     """Test block creation failure due to invalid metadata for the type."""
     payload = create_valid_task_payload()
-    del payload["metadata"][
-        "project"
-    ]  # Make metadata invalid (project is required for TaskMetadata)
+    del payload["metadata"]["title"]  # Make metadata invalid (title is required for TaskMetadata)
 
     response = client_with_mock_bank.post("/api/blocks", json=payload)
 
@@ -434,7 +434,7 @@ def test_create_block_invalid_metadata(
     assert "Input validation failed: Metadata validation failed for type 'task'" in response.text
     # Ensure the specific field causing issues is mentioned (from Pydantic error details)
     assert (
-        "Field required" in response.text or "'project'" in response.text
+        "Field required" in response.text or "'title'" in response.text
     )  # Pydantic's error for missing field
     mock_memory_bank.create_memory_block.assert_not_called()
 

@@ -3,11 +3,16 @@ Common models shared across different schema types.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Literal, Optional, get_args
-from pydantic import BaseModel, Field, validator
+from typing import Any, Dict, Optional, get_args
+from pydantic import BaseModel, Field, validator, constr
 
-# Canonical relation types defined for links between MemoryBlocks
-RelationType = Literal["related_to", "subtask_of", "depends_on", "child_of", "mentions"]
+# Import RelationType from relation_registry instead of defining it here
+from infra_core.memory_system.relation_registry import RelationType
+
+# Canonical UUID-v4 pattern for MemoryBlock IDs
+BlockIdType = constr(
+    pattern=r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", strip_whitespace=True
+)
 
 
 class BlockLink(BaseModel):
