@@ -1,10 +1,24 @@
 {
     "type": "Task",
-    "status": "in-progress",
+    "status": "completed",
     "name": "Run CogniTools MCP server using MCP Python SDK and fastmcp",
     "project": "cogni-tools-mcp",
     "phase": "MVP",
     "description": "Set up and run the Cogni MCP server using the official MCP Python SDK (https://github.com/modelcontextprotocol/python-sdk), leveraging fastmcp and uv for local development. Integrate the StructuredMemoryBank with Dolt, and expose memory tools as MCP tools.",
+    "completion_date": "2025-05-29",
+    "completion_details": {
+        "implementation_location": "services/mcp_server/app/mcp_server.py",
+        "tools_implemented": [
+            "CreateWorkItem",
+            "GetMemoryBlock",
+            "UpdateMemoryBlock",
+            "UpdateWorkItem",
+            "CreateBlockLink",
+            "HealthCheck"
+        ],
+        "test_coverage": "31 MCP server tests passing, 275 total tests passing",
+        "performance": "Optimized to run in under 60 seconds"
+    },
     "acceptance_criteria": [
         "Server starts successfully using fastmcp and uv",
         "Service reads and writes to the host-mounted Dolt directory (`data/memory_dolt`)",

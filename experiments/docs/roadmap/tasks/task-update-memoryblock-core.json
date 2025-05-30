@@ -13,7 +13,18 @@
     "metadata": {
         "title": "UpdateMemoryBlockCore: Patch-Based Memory Block Updates",
         "description": "Implement a robust UpdateMemoryBlockCore tool that supports patch-based updates, concurrency safety via optimistic locking, comprehensive validation, and proper error handling for memory block modifications.",
-        "status": "in_progress",
+        "status": "completed",
+        "completion_date": "2025-05-29",
+        "completion_details": {
+            "mcp_integration": "Fully integrated into services/mcp_server/app/mcp_server.py",
+            "artifacts_implemented": [
+                "update_memory_block_core.py",
+                "update_memory_block_models.py",
+                "update_memory_block_tool.py",
+                "Comprehensive test coverage"
+            ],
+            "features": "Patch-based updates, validation, error handling"
+        },
         "priority": "P1",
         "assignee": "cogni_agent",
         "estimate_hours": 8,

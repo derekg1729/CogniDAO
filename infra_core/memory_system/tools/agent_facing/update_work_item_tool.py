@@ -8,7 +8,7 @@ UpdateMemoryBlockTool for the actual updates.
 
 from typing import Optional, List, Literal
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 import logging
 
 from ...schemas.common import BlockLink, BlockIdType
@@ -103,9 +103,12 @@ class UpdateWorkItemInput(BaseModel):
     agent_id: str = Field("cogni_agent", description="Agent identifier")
     change_note: Optional[str] = Field(None, description="Note explaining the update")
 
-    # Note: execution_phase validation is handled automatically in tool logic:
-    # - When status != "in_progress", execution_phase is automatically cleared
-    # - This prevents validation errors during status transitions
+    @model_validator(mode="after")
+    def validate_execution_phase(self) -> "UpdateWorkItemInput":
+        """Validate that execution_phase is only set when status is 'in_progress'."""
+        if self.execution_phase is not None and self.status != "in_progress":
+            raise ValueError("execution_phase can only be set when status is 'in_progress'")
+        return self
 
 
 class UpdateWorkItemOutput(UpdateMemoryBlockToolOutput):
