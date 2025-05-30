@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS memory_blocks (
     block_version INT NULL DEFAULT 1,
     tags JSON NOT NULL,
     metadata JSON NOT NULL,
-    links JSON NOT NULL,
     source_file VARCHAR(255) NULL,
     source_uri VARCHAR(255) NULL,
     confidence JSON NULL,

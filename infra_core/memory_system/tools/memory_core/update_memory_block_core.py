@@ -161,25 +161,7 @@ def update_memory_block_core(
                     log_context,
                 )
 
-        # 8. Validate links if updated using existing helper
-        if "links" in updated_fields and input_data.links:
-            try:
-                link_validation_error = _validate_links_simple(input_data.links, memory_bank)
-                if link_validation_error:
-                    return _create_error_response(
-                        UpdateErrorCode.LINK_VALIDATION_ERROR,
-                        f"Link validation failed: {link_validation_error}",
-                        timestamp,
-                        start_time,
-                        log_context,
-                    )
-            except Exception as e:
-                logger.warning(
-                    f"Link validation helper failed: {str(e)}", extra={"context": log_context}
-                )
-                # Continue without link validation for now
-
-        # 9. Validate tag constraints (max 20 after merge)
+        # 8. Validate tag constraints (max 20 after merge)
         if "tags" in updated_fields and updated_block_data.get("tags"):
             if len(updated_block_data["tags"]) > 20:
                 return _create_error_response(
@@ -190,7 +172,7 @@ def update_memory_block_core(
                     log_context,
                 )
 
-        # 10. Persist using memory bank's atomic update
+        # 9. Persist using memory bank's atomic update
         success = memory_bank.update_memory_block(updated_block)
 
         processing_time = (datetime.now() - start_time).total_seconds() * 1000
@@ -336,11 +318,6 @@ def _apply_all_updates(
             else:
                 updated_block_data["metadata"] = input_data.metadata
             updated_fields.append("metadata")
-
-        # Handle links replacement
-        if input_data.links is not None:
-            updated_block_data["links"] = input_data.links
-            updated_fields.append("links")
 
         return {
             "success": True,

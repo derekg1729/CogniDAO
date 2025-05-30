@@ -34,7 +34,8 @@ sys.path.insert(0, str(project_root))
 DOLTPY_AVAILABLE = importlib.util.find_spec("doltpy") is not None
 
 # Local imports
-from infra_core.memory_system.schemas.memory_block import MemoryBlock, BlockLink, ConfidenceScore  # noqa: E402
+from infra_core.memory_system.schemas.memory_block import MemoryBlock, ConfidenceScore  # noqa: E402
+from infra_core.memory_system.schemas.common import BlockLink  # noqa: E402
 from infra_core.memory_system.scripts.sync_dolt_to_llamaindex import sync_dolt_to_llamaindex  # noqa: E402
 
 

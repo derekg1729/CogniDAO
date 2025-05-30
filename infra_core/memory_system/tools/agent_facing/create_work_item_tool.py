@@ -200,7 +200,6 @@ def create_work_item(input_data: CreateWorkItemInput, memory_bank) -> CreateWork
         visibility=input_data.visibility,
         confidence=input_data.confidence,
         created_by=input_data.created_by,
-        links=input_data.links,
     )
 
     try:

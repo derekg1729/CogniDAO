@@ -7,7 +7,7 @@ from datetime import datetime
 import uuid
 from pydantic import BaseModel, Field, field_validator
 
-from .common import BlockLink, ConfidenceScore
+from .common import ConfidenceScore
 
 
 class MemoryBlock(BaseModel):
@@ -43,9 +43,6 @@ class MemoryBlock(BaseModel):
     )
     metadata: Dict[str, Any] = Field(
         default_factory=dict, description="Custom metadata based on block type"
-    )
-    links: List[BlockLink] = Field(
-        default_factory=list, description="Directed outgoing edges connecting this block to others"
     )
     source_file: Optional[str] = Field(None, description="Optional source markdown or file name")
     source_uri: Optional[str] = Field(None, description="Optional source link or Logseq block URI")

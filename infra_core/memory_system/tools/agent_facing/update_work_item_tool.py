@@ -244,12 +244,11 @@ def update_work_item(input_data: UpdateWorkItemInput, memory_bank) -> UpdateWork
         core_input = UpdateMemoryBlockToolInput(
             block_id=input_data.block_id,
             previous_block_version=input_data.previous_block_version,
-            text=input_data.description,  # Description goes into text field
+            text=input_data.description,
             state=input_data.state,
             visibility=input_data.visibility,
             tags=input_data.tags,
             metadata=metadata_updates if metadata_updates else None,
-            links=input_data.links,
             merge_tags=input_data.merge_tags,
             merge_metadata=input_data.merge_metadata,
             merge_links=input_data.merge_links,
