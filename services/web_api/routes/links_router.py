@@ -27,10 +27,13 @@ def get_link_manager(request: Request):
             logger.error("Memory bank not available in app state")
             raise HTTPException(status_code=500, detail="Memory bank service unavailable")
 
-        # The LinkManager should be accessible via the memory_bank
-        # This will need to be implemented once the concrete LinkManager class exists
-        # For now, raise an error as the implementation isn't complete
-        raise HTTPException(status_code=501, detail="LinkManager not yet implemented")
+        # Get the LinkManager from the memory_bank
+        link_manager = getattr(memory_bank, "link_manager", None)
+        if not link_manager:
+            logger.error("LinkManager not available on memory bank")
+            raise HTTPException(status_code=500, detail="LinkManager service unavailable")
+
+        return link_manager
     except AttributeError:
         logger.error("Memory bank not configured on app state")
         raise HTTPException(status_code=500, detail="Memory bank not configured")
@@ -98,8 +101,11 @@ async def create_link(
 
     except LinkError as e:
         # Convert LinkError to appropriate HTTP response
-        error_detail = {"code": e.code, "message": str(e)}
+        error_detail = {"code": e.error_type.value, "message": str(e)}
         raise HTTPException(status_code=e.http_status, detail=error_detail)
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is (for validation errors)
+        raise
     except ValueError as e:
         # Handle validation errors
         raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
@@ -157,6 +163,9 @@ async def delete_link(
                 detail=f"Link not found between {from_id} and {to_id} with relation {relation}",
             )
 
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is (for validation errors)
+        raise
     except ValueError as e:
         # Handle validation errors
         raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
@@ -232,6 +241,9 @@ async def get_links_from(
 
         return result.links
 
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is (for validation errors)
+        raise
     except ValueError as e:
         # Handle validation errors
         raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
@@ -307,6 +319,9 @@ async def get_links_to(
 
         return result.links
 
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is (for validation errors)
+        raise
     except ValueError as e:
         # Handle validation errors
         raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
@@ -349,6 +364,9 @@ async def delete_links_for_block(
 
         return {"success": True, "message": f"Deleted {count} links for block {block_id}"}
 
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is (for validation errors)
+        raise
     except ValueError as e:
         # Handle validation errors
         raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")

@@ -13,6 +13,7 @@ from services.web_api.models import ErrorResponse
 
 # Import memory components
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
+from infra_core.memory_system.sql_link_manager import SQLLinkManager
 
 # Import routers
 from .routes import health as health_router
@@ -46,6 +47,12 @@ async def lifespan(app: FastAPI):
             chroma_collection=CHROMA_COLLECTION,
         )
         logger.info("🧠 StructuredMemoryBank initialized.")
+
+        # Initialize and attach SQLLinkManager
+        link_manager = SQLLinkManager(DOLT_DB_PATH)
+        memory_bank_instance.link_manager = link_manager
+        logger.info("🔗 SQLLinkManager initialized and attached to memory bank.")
+
         app.state.memory_bank = memory_bank_instance
         logger.info("🧠 Memory bank attached to app.state")
     except Exception as client_e:

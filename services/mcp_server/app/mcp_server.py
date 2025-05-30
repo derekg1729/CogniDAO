@@ -6,6 +6,7 @@ from datetime import datetime
 
 from mcp.server.fastmcp import FastMCP
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
+from infra_core.memory_system.sql_link_manager import SQLLinkManager
 from infra_core.memory_system.tools.agent_facing.get_memory_block_tool import (
     get_memory_block_tool,
     GetMemoryBlockInput,
@@ -23,7 +24,6 @@ from infra_core.memory_system.tools.agent_facing.update_work_item_tool import (
     update_work_item_tool,
     UpdateWorkItemInput,
 )
-from infra_core.memory_system.link_manager import InMemoryLinkManager
 from infra_core.memory_system.pm_executable_links import ExecutableLinkManager
 from infra_core.memory_system.tools.agent_facing.create_block_link_tool import (
     create_block_link_agent,
@@ -61,8 +61,8 @@ try:
         chroma_collection=CHROMA_COLLECTION_NAME,
     )
 
-    # Initialize LinkManager components
-    link_manager = InMemoryLinkManager()
+    # Initialize LinkManager components with SQL backend
+    link_manager = SQLLinkManager(COGNI_DOLT_DIR)
     pm_links = ExecutableLinkManager(link_manager)
 
     # Attach link_manager to memory_bank for tool access
