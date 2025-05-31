@@ -95,14 +95,14 @@ class TestDoltReader:
     @patch(DOLT_PATCH_TARGET)
     def test_read_basic_block(self, MockDolt):
         """Test reading a single block with basic fields."""
-        # Configure mock Dolt instance and its sql method for Property-Schema Split
+        # Configure mock Dolt instance and its sql method for Property-Schema Split with batch optimization
         mock_repo = MagicMock()
 
         # First call: memory_blocks table returns the block data
-        # Second call: block_properties table returns empty list (no properties for basic test)
+        # Second call: batch block_properties query returns empty list (no properties for basic test)
         mock_repo.sql.side_effect = [
             {"rows": [SAMPLE_ROW_BASIC]},  # memory_blocks query
-            {"rows": []},  # block_properties query (empty for basic test)
+            {"rows": []},  # batch block_properties query (empty for basic test)
         ]
         MockDolt.return_value = mock_repo
 
@@ -124,8 +124,10 @@ class TestDoltReader:
         assert isinstance(block.created_at, datetime)
         assert isinstance(block.updated_at, datetime)
 
-        # Verify Dolt connection and 2 SQL queries (Property-Schema Split)
-        assert MockDolt.call_count == 2  # Two Dolt instances created
+        # Verify Dolt connection and 2 SQL queries (Property-Schema Split with batch optimization)
+        assert (
+            MockDolt.call_count == 2
+        )  # Two Dolt instances created (one for memory_blocks, one for batch properties)
         assert mock_repo.sql.call_count == 2  # Two SQL calls made
 
         # Check first query (memory_blocks)
@@ -137,14 +139,15 @@ class TestDoltReader:
         assert "AS OF 'MAIN'" in sql_query  # Check default branch
         assert first_call_kwargs["result_format"] == "json"
 
-        # Check second query (block_properties)
+        # Check second query (batch block_properties) - now uses IN clause for batch optimization
         second_call_args, second_call_kwargs = mock_repo.sql.call_args_list[1]
         assert "query" in second_call_kwargs
         sql_query2 = second_call_kwargs["query"].upper()
         assert "SELECT" in sql_query2
         assert "FROM BLOCK_PROPERTIES" in sql_query2
         assert "AS OF 'MAIN'" in sql_query2
-        assert "WHERE BLOCK_ID = 'BASIC-001'" in sql_query2
+        assert "WHERE BLOCK_ID IN ('BASIC-001')" in sql_query2  # Batch query with IN clause
+        assert "ORDER BY BLOCK_ID, PROPERTY_NAME" in sql_query2  # Batch ordering
         assert second_call_kwargs["result_format"] == "json"
 
     @patch(DOLT_PATCH_TARGET)
@@ -190,7 +193,7 @@ class TestDoltReader:
         mock_repo = MagicMock()
         mock_repo.sql.side_effect = [
             {"rows": [SAMPLE_ROW_FULL]},  # memory_blocks query
-            {"rows": mock_properties},  # block_properties query with the metadata
+            {"rows": mock_properties},  # batch block_properties query with the metadata
         ]
         MockDolt.return_value = mock_repo
 
@@ -217,9 +220,10 @@ class TestDoltReader:
 
     @patch(DOLT_PATCH_TARGET)
     def test_read_multiple_blocks(self, MockDolt):
-        """Test reading multiple blocks."""
+        """Test reading multiple blocks with batch optimization."""
         # Create mock property data for the full block only (basic block has no properties)
-        mock_properties_full = [
+        # With batch optimization, all properties are returned in one query
+        mock_properties_all = [
             {
                 "block_id": "full-002",
                 "property_name": "status",
@@ -256,11 +260,10 @@ class TestDoltReader:
         ]
 
         mock_repo = MagicMock()
-        # 3 calls: 1 memory_blocks + 2 block_properties (one per block)
+        # With batch optimization: only 2 calls total (1 memory_blocks + 1 batch properties)
         mock_repo.sql.side_effect = [
             {"rows": [SAMPLE_ROW_BASIC, SAMPLE_ROW_FULL]},  # memory_blocks query
-            {"rows": []},  # block_properties query for basic-001 (empty)
-            {"rows": mock_properties_full},  # block_properties query for full-002
+            {"rows": mock_properties_all},  # batch block_properties query for all blocks
         ]
         MockDolt.return_value = mock_repo
 
@@ -271,15 +274,22 @@ class TestDoltReader:
         assert blocks[0].id == "basic-001"
         assert blocks[1].id == "full-002"
 
+        # Verify batch query optimization: only 2 SQL calls instead of 3
+        assert mock_repo.sql.call_count == 2
+
+        # Check the batch properties query includes both block IDs
+        second_call_args, second_call_kwargs = mock_repo.sql.call_args_list[1]
+        sql_query2 = second_call_kwargs["query"].upper()
+        assert "WHERE BLOCK_ID IN ('BASIC-001', 'FULL-002')" in sql_query2
+
     @patch(DOLT_PATCH_TARGET)
     def test_read_with_json_decode_error(self, MockDolt, caplog):
         """Test that blocks with invalid metadata in old format are handled gracefully."""
         mock_repo = MagicMock()
-        # Property-Schema Split: Need side_effect for multiple calls
+        # Property-Schema Split with batch optimization: 2 calls instead of 3
         mock_repo.sql.side_effect = [
             {"rows": [SAMPLE_ROW_BASIC, SAMPLE_ROW_BAD_JSON_STRUCTURE]},  # memory_blocks query
-            {"rows": []},  # block_properties query for basic-001 (empty)
-            {"rows": []},  # block_properties query for bad-json-003 (empty)
+            {"rows": []},  # batch block_properties query (empty for both blocks)
         ]
         MockDolt.return_value = mock_repo
 
@@ -292,6 +302,9 @@ class TestDoltReader:
         assert blocks[0].id == "basic-001"
         assert blocks[1].id == "bad-json-003"
         assert blocks[1].metadata == {}  # Empty metadata since properties table is empty
+
+        # Verify batch optimization: only 2 SQL calls
+        assert mock_repo.sql.call_count == 2
 
     @patch(DOLT_PATCH_TARGET)
     def test_read_with_pydantic_validation_error(self, MockDolt, caplog):
@@ -575,12 +588,10 @@ class TestDoltReader:
 
         with patch(DOLT_PATCH_TARGET) as MockDolt:
             mock_repo = MagicMock()
-            # Property-Schema Split: Need side_effect for multiple calls (1 + 3 properties calls)
+            # Property-Schema Split with batch optimization: 2 calls instead of 4 (1 memory_blocks + 1 batch properties)
             mock_repo.sql.side_effect = [
                 {"rows": sample_rows_mixed_embeddings},  # memory_blocks query
-                {"rows": []},  # block_properties for block-with-embedding-001
-                {"rows": []},  # block_properties for block-without-embedding-002
-                {"rows": []},  # block_properties for block-with-embedding-003
+                {"rows": []},  # batch block_properties query (empty for all blocks)
             ]
             MockDolt.return_value = mock_repo
 
@@ -605,3 +616,14 @@ class TestDoltReader:
             assert blocks[2].embedding is not None
             assert len(blocks[2].embedding) == 384
             assert blocks[2].embedding == embedding2
+
+            # Verify batch optimization: only 2 SQL calls instead of 4
+            assert mock_repo.sql.call_count == 2
+
+            # Check that all block IDs are included in batch query
+            second_call_args, second_call_kwargs = mock_repo.sql.call_args_list[1]
+            sql_query2 = second_call_kwargs["query"].upper()
+            assert (
+                "WHERE BLOCK_ID IN ('BLOCK-WITH-EMBEDDING-001', 'BLOCK-WITHOUT-EMBEDDING-002', 'BLOCK-WITH-EMBEDDING-003')"
+                in sql_query2
+            )
