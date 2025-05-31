@@ -727,3 +727,77 @@ class TestIntegrationScenarios:
         finally:
             if hasattr(app.state, "memory_bank"):
                 delattr(app.state, "memory_bank")
+
+
+class TestGetAllLinks:
+    """Test GET /api/v1/links endpoint."""
+
+    def test_get_all_links_success(
+        self, client, mock_memory_bank, mock_link_manager, sample_block_links
+    ):
+        """Test successful retrieval of all links."""
+        mock_result = LinkQueryResult(links=sample_block_links, next_cursor=None)
+        mock_link_manager.get_all_links.return_value = mock_result
+
+        setattr(app.state, "memory_bank", mock_memory_bank)
+        try:
+            response = client.get("/api/v1/links")
+
+            assert response.status_code == 200
+            response_data = response.json()
+            assert len(response_data) == 2
+            assert response_data[0]["to_id"] == "target-1"
+            assert response_data[0]["relation"] == "depends_on"
+            assert response_data[1]["to_id"] == "target-2"
+            assert response_data[1]["relation"] == "is_blocked_by"
+
+            mock_link_manager.get_all_links.assert_called_once()
+        finally:
+            if hasattr(app.state, "memory_bank"):
+                delattr(app.state, "memory_bank")
+
+    def test_get_all_links_with_relation_filter(
+        self, client, mock_memory_bank, mock_link_manager, sample_block_links
+    ):
+        """Test getting all links with relation filter."""
+        filtered_links = [sample_block_links[0]]  # Only first link
+        mock_result = LinkQueryResult(links=filtered_links, next_cursor=None)
+        mock_link_manager.get_all_links.return_value = mock_result
+
+        setattr(app.state, "memory_bank", mock_memory_bank)
+        try:
+            response = client.get(
+                "/api/v1/links",
+                params={
+                    "relation": "depends_on",
+                    "limit": 50,
+                },
+            )
+
+            assert response.status_code == 200
+            response_data = response.json()
+            assert len(response_data) == 1
+            assert response_data[0]["relation"] == "depends_on"
+
+            mock_link_manager.get_all_links.assert_called_once()
+        finally:
+            if hasattr(app.state, "memory_bank"):
+                delattr(app.state, "memory_bank")
+
+    def test_get_all_links_empty_result(self, client, mock_memory_bank, mock_link_manager):
+        """Test getting all links when no links exist."""
+        mock_result = LinkQueryResult(links=[], next_cursor=None)
+        mock_link_manager.get_all_links.return_value = mock_result
+
+        setattr(app.state, "memory_bank", mock_memory_bank)
+        try:
+            response = client.get("/api/v1/links")
+
+            assert response.status_code == 200
+            response_data = response.json()
+            assert len(response_data) == 0
+
+            mock_link_manager.get_all_links.assert_called_once()
+        finally:
+            if hasattr(app.state, "memory_bank"):
+                delattr(app.state, "memory_bank")

@@ -38,6 +38,50 @@ def get_link_manager(request: Request):
         raise HTTPException(status_code=500, detail="Memory bank not configured")
 
 
+@router.get(
+    "/links",
+    response_model=List[BlockLink],
+    summary="Get all links",
+    description="Retrieves all links in the system, with optional filtering by relation type.",
+    responses={
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+    },
+)
+async def get_all_links(
+    request: Request,
+    relation: Optional[RelationType] = None,
+    limit: int = 100,
+    cursor: Optional[str] = None,
+    link_manager: LinkManager = Depends(get_link_manager),
+) -> List[BlockLink]:
+    """
+    Retrieves all links in the system.
+
+    Parameters:
+    - relation: Optional filter by relation type
+    - limit: Maximum number of results to return (default: 100)
+    - cursor: Optional pagination cursor
+    """
+    try:
+        # Build query with provided filters
+        query = LinkQuery()
+        if relation:
+            query = query.relation(relation)
+        query = query.limit(limit)
+        if cursor:
+            query = query.cursor(cursor)
+
+        # Get all links
+        result = link_manager.get_all_links(query=query)
+
+        return result.links
+
+    except Exception as e:
+        # Log unexpected errors
+        logger.exception(f"Unexpected error retrieving all links: {e}")
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
+
 @router.post(
     "/links",
     response_model=BlockLink,

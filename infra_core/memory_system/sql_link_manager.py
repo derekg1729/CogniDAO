@@ -522,3 +522,59 @@ class SQLLinkManager(LinkManager):
         self.repo.sql(query=delete_query)
 
         return len(links_to_process)
+
+    def get_all_links(self, query: Optional[LinkQuery] = None) -> LinkQueryResult:
+        """
+        Get all links in the system.
+
+        Args:
+            query: Optional query parameters for filtering
+
+        Returns:
+            LinkQueryResult containing all matching links
+        """
+        # Default query if none provided
+        if query is None:
+            query = LinkQuery()
+
+        query_dict = query.to_dict()
+        relation = query_dict.get("relation")
+        limit = query_dict.get("limit", 100)
+        # cursor = query_dict.get("cursor")  # TODO: Implement pagination
+
+        # Build SQL query
+        where_clauses = []
+
+        if relation:
+            where_clauses.append(f"relation = {_escape_sql_string(relation)}")
+
+        where_clause = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+        sql_query = f"""
+        SELECT from_id, to_id, relation, priority, link_metadata, created_by, created_at
+        FROM block_links 
+        {where_clause}
+        ORDER BY priority DESC, created_at DESC
+        LIMIT {limit}
+        """
+
+        result = self.repo.sql(query=sql_query, result_format="json")
+
+        links = []
+        if result and "rows" in result:
+            for row in result["rows"]:
+                link = BlockLink(
+                    from_id=row["from_id"],
+                    to_id=row["to_id"],
+                    relation=row["relation"],
+                    priority=row.get("priority", 0),
+                    link_metadata=row.get("link_metadata"),
+                    created_by=row.get("created_by"),
+                    created_at=datetime.fromisoformat(row["created_at"])
+                    if row.get("created_at")
+                    else None,
+                )
+                links.append(link)
+
+        # TODO: Implement pagination with cursor
+        return LinkQueryResult(links=links, next_cursor=None)
