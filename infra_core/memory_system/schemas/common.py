@@ -4,7 +4,7 @@ Common models shared across different schema types.
 
 from datetime import datetime
 from typing import Any, Dict, Optional, get_args, Literal
-from pydantic import BaseModel, Field, validator, constr
+from pydantic import BaseModel, Field, validator, constr, model_validator
 
 # Import RelationType from relation_registry instead of defining it here
 from infra_core.memory_system.relation_registry import RelationType
@@ -103,3 +103,30 @@ class BlockProperty(BaseModel):
     updated_at: datetime = Field(
         default_factory=datetime.now, description="When this property was last updated"
     )
+
+    @model_validator(mode="after")
+    def validate_exactly_one_value_column(self):
+        """
+        Enforce CHECK constraint: exactly one of (property_value_text, property_value_number, property_value_json)
+        must be not-NULL.
+
+        This fails early before hitting the Dolt database, keeping invariants consistent.
+        """
+        text_val = self.property_value_text
+        number_val = self.property_value_number
+        json_val = self.property_value_json
+
+        # Count how many values are not None
+        non_null_count = sum(1 for val in [text_val, number_val, json_val] if val is not None)
+
+        if non_null_count == 0:
+            raise ValueError(
+                "Exactly one of property_value_text, property_value_number, or property_value_json must be not-NULL"
+            )
+        elif non_null_count > 1:
+            raise ValueError(
+                f"Only one property value column can be not-NULL, but found {non_null_count} non-NULL values: "
+                f"text={text_val is not None}, number={number_val is not None}, json={json_val is not None}"
+            )
+
+        return self

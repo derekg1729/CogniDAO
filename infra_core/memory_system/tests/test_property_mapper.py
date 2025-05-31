@@ -5,6 +5,8 @@ Tests for PropertyMapper utility class.
 from datetime import datetime
 from enum import Enum
 from uuid import uuid4
+import pytest
+from pydantic import ValidationError
 
 from infra_core.memory_system.property_mapper import PropertyMapper
 from infra_core.memory_system.schemas.common import BlockProperty
@@ -466,3 +468,98 @@ class TestPropertyMapper:
         # Problem field should be handled gracefully
         # (In this case, invalid datetime should be returned as string)
         assert metadata["problem_field"] == "invalid-date-string"
+
+    def test_block_property_check_constraint_validator(self):
+        """Test the Pydantic validator that enforces the CHECK constraint."""
+        block_id = str(uuid4())
+        now = datetime.now()
+
+        # Test valid cases - exactly one value column populated
+
+        # Valid: only text value
+        prop = BlockProperty(
+            block_id=block_id,
+            property_name="test_text",
+            property_type="text",
+            property_value_text="test value",
+            is_computed=False,
+            created_at=now,
+            updated_at=now,
+        )
+        assert prop.property_value_text == "test value"
+        assert prop.property_value_number is None
+        assert prop.property_value_json is None
+
+        # Valid: only number value
+        prop = BlockProperty(
+            block_id=block_id,
+            property_name="test_number",
+            property_type="number",
+            property_value_number=42.5,
+            is_computed=False,
+            created_at=now,
+            updated_at=now,
+        )
+        assert prop.property_value_number == 42.5
+        assert prop.property_value_text is None
+        assert prop.property_value_json is None
+
+        # Valid: only json value
+        prop = BlockProperty(
+            block_id=block_id,
+            property_name="test_json",
+            property_type="json",
+            property_value_json={"key": "value"},
+            is_computed=False,
+            created_at=now,
+            updated_at=now,
+        )
+        assert prop.property_value_json == {"key": "value"}
+        assert prop.property_value_text is None
+        assert prop.property_value_number is None
+
+        # Test invalid cases - zero values
+        with pytest.raises(ValidationError) as exc_info:
+            BlockProperty(
+                block_id=block_id,
+                property_name="test_empty",
+                property_type="text",
+                # All value columns are None/missing
+                is_computed=False,
+                created_at=now,
+                updated_at=now,
+            )
+        assert (
+            "Exactly one of property_value_text, property_value_number, or property_value_json must be not-NULL"
+            in str(exc_info.value)
+        )
+
+        # Test invalid cases - multiple values
+        with pytest.raises(ValidationError) as exc_info:
+            BlockProperty(
+                block_id=block_id,
+                property_name="test_multiple",
+                property_type="text",
+                property_value_text="text value",
+                property_value_number=42.0,  # Both text and number populated
+                is_computed=False,
+                created_at=now,
+                updated_at=now,
+            )
+        assert "Only one property value column can be not-NULL" in str(exc_info.value)
+
+        # Test invalid cases - all three values
+        with pytest.raises(ValidationError) as exc_info:
+            BlockProperty(
+                block_id=block_id,
+                property_name="test_all_three",
+                property_type="json",
+                property_value_text="text value",
+                property_value_number=42.0,
+                property_value_json={"key": "value"},  # All three populated
+                is_computed=False,
+                created_at=now,
+                updated_at=now,
+            )
+        assert "Only one property value column can be not-NULL" in str(exc_info.value)
+        assert "found 3 non-NULL values" in str(exc_info.value)
