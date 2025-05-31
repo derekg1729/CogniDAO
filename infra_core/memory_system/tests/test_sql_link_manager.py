@@ -306,7 +306,10 @@ class TestSQLLinkManager:
         # Query backlinks
         backlinks = sql_link_manager.links_to(child_block.id)
         assert len(backlinks.links) == 1
-        assert backlinks.links[0].to_id == parent_block.id  # Source becomes target in backlinks
+        assert (
+            backlinks.links[0].from_id == parent_block.id
+        )  # Source block that links TO our target
+        assert backlinks.links[0].to_id == child_block.id  # Target block we queried for
         assert backlinks.links[0].relation == "contains"
 
     def test_validation_errors(self, sql_link_manager):

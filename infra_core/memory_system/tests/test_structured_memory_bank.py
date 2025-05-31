@@ -81,7 +81,9 @@ def sample_memory_block() -> MemoryBlock:
         text="This is a test memory block.",
         tags=["test", "fixture"],
         metadata={"source": "pytest"},
-        links=[BlockLink(to_id="related-block-002", relation="related_to")],
+        links=[
+            BlockLink(from_id="test-block-001", to_id="related-block-002", relation="related_to")
+        ],
         confidence=ConfidenceScore(human=0.9),
     )
 

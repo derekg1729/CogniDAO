@@ -885,7 +885,7 @@ class StructuredMemoryBank:
                 logger.info(f"Found {len(result['rows'])} forward links for block {block_id}")
                 for row in result["rows"]:
                     # Convert SQL results to BlockLink objects
-                    link = BlockLink(to_id=row["to_id"], relation=row["relation"])
+                    link = BlockLink(from_id=block_id, to_id=row["to_id"], relation=row["relation"])
                     forward_links.append(link)
             else:
                 logger.info(f"No forward links found for block {block_id}")
@@ -936,10 +936,11 @@ class StructuredMemoryBank:
             if result and "rows" in result and result["rows"]:
                 logger.info(f"Found {len(result['rows'])} backlinks for block {block_id}")
                 for row in result["rows"]:
-                    # BlockLink constructor expects to_id, so we need to adjust
-                    # when creating from backlinks table data
+                    # BlockLink constructor expects both from_id and to_id
+                    # For backlinks, the from_id comes from the database row, and to_id is our target block
                     link = BlockLink(
-                        to_id=row["from_id"],  # The "from" block is our target for backlinks
+                        from_id=row["from_id"],
+                        to_id=block_id,  # The block we're getting backlinks to
                         relation=row["relation"],
                     )
                     backlinks.append(link)

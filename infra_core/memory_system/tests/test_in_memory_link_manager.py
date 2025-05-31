@@ -298,6 +298,7 @@ def test_topo_sort_detects_cycles(link_manager, valid_block_ids):
 
     # Create a mock BlockLink for the cycle link
     cycle_link = BlockLink(
+        from_id=valid_block_ids["block2"],
         to_id=valid_block_ids["block1"],
         relation="is_blocked_by",
         priority=0,

@@ -315,8 +315,8 @@ def test_validate_links_simple_success(mock_memory_bank):
             mock_resolve.return_value = "depends_on"
 
             links = [
-                BlockLink(to_id="target-1", relation="depends_on"),
-                BlockLink(to_id="target-2", relation="related_to"),
+                BlockLink(from_id="source-block", to_id="target-1", relation="depends_on"),
+                BlockLink(from_id="source-block", to_id="target-2", relation="related_to"),
             ]
 
             result = _validate_links_simple(links, mock_memory_bank)

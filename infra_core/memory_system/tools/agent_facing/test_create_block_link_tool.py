@@ -26,9 +26,8 @@ from infra_core.memory_system.tools.helpers.block_validation import clear_block_
 # Helper function to create a mock block link
 def create_mock_block_link(from_id: str, to_id: str, relation: str) -> BlockLink:
     """Create a mock BlockLink for testing."""
-    # Note: BlockLink doesn't store from_id as a property directly
-    # In tests, we need to add it as an attribute to check later
     link = BlockLink(
+        from_id=from_id,
         to_id=to_id,
         relation=relation,
         priority=0,

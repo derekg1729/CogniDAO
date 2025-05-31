@@ -63,7 +63,8 @@ def test_sql_link_manager_with_temp_db(temp_dolt_db):
     # F2: Verify backlinks API shows the relationship
     links_to_child = sql_link_manager.links_to(child_id)
     assert len(links_to_child.links) == 1
-    assert links_to_child.links[0].to_id == parent_id  # Source becomes target in backlinks
+    assert links_to_child.links[0].from_id == parent_id  # Source block that links TO our target
+    assert links_to_child.links[0].to_id == child_id  # Target block we queried for
     assert links_to_child.links[0].relation == "contains"
 
     # Verify parent/child columns were updated
