@@ -47,6 +47,10 @@ class CreateWorkItemInput(BaseModel):
         "backlog", description="Current status of the work item"
     )
     priority: Optional[PriorityLiteral] = Field(None, description="Priority level of the work item")
+    ordering: Optional[int] = Field(
+        None,
+        description="Implementation order within a project or epic (lower numbers = higher priority)",
+    )
 
     # Planning and tracking fields
     acceptance_criteria: List[str] = Field(
@@ -156,6 +160,7 @@ def create_work_item(input_data: CreateWorkItemInput, memory_bank) -> CreateWork
         "description": input_data.description,
         "status": input_data.status,
         "priority": input_data.priority,
+        "ordering": input_data.ordering,
         # Planning fields
         "acceptance_criteria": input_data.acceptance_criteria,
         "action_items": input_data.action_items,

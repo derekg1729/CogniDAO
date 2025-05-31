@@ -52,6 +52,10 @@ class UpdateWorkItemInput(BaseModel):
     priority: Optional[PriorityLiteral] = Field(
         None, description="Updated priority level of the work item"
     )
+    ordering: Optional[int] = Field(
+        None,
+        description="Updated implementation order within a project or epic (lower numbers = higher priority)",
+    )
     owner: Optional[str] = Field(None, description="Updated owner or assignee")
 
     # Planning and tracking fields
@@ -183,6 +187,8 @@ def update_work_item(input_data: UpdateWorkItemInput, memory_bank) -> UpdateWork
                 metadata_updates["validation_report"] = validation_report
         if input_data.priority is not None:
             metadata_updates["priority"] = input_data.priority
+        if input_data.ordering is not None:
+            metadata_updates["ordering"] = input_data.ordering
 
         # Owner/assignee field (depends on work item type)
         if input_data.owner is not None:
