@@ -11,6 +11,14 @@ MEMORY_BANKS_ROOT = BASE_DIR / "data" / "memory_banks"
 
 # Define memory system data paths
 MEMORY_DOLT_ROOT = BASE_DIR / "data" / "memory_dolt"
+
+# Property-Schema Split Database (new implementation with block_properties table)
+# Can be overridden with COGNI_PROPERTY_SCHEMA_DB_PATH environment variable for rollback safety
+_DEFAULT_PROPERTY_SCHEMA_DOLT_PATH = BASE_DIR / "data" / "blocks" / "memory_dolt"
+PROPERTY_SCHEMA_DOLT_ROOT = Path(
+    os.getenv("COGNI_PROPERTY_SCHEMA_DB_PATH", str(_DEFAULT_PROPERTY_SCHEMA_DOLT_PATH))
+)
+
 MEMORY_CHROMA_ROOT = BASE_DIR / "data" / "memory_chroma"
 
 # Define the directory for agent-specific files like thoughts

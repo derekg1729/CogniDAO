@@ -61,11 +61,10 @@ def temp_chroma_db(tmp_path_factory):
 def temp_memory_bank(temp_dolt_db, temp_chroma_db):
     """Create a StructuredMemoryBank using temporary databases for MCP server testing."""
     from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
-    from infra_core.memory_system.dolt_schema_manager import register_all_metadata_schemas
     from infra_core.memory_system.link_manager import InMemoryLinkManager
 
-    # Register schemas in the temporary database
-    register_all_metadata_schemas(temp_dolt_db)
+    # Note: temp_dolt_db fixture already calls initialize_dolt_db which creates
+    # all tables including block_properties, so no additional schema setup needed
 
     bank = StructuredMemoryBank(
         dolt_db_path=temp_dolt_db,
