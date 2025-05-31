@@ -15,7 +15,7 @@ sys.path.append(str(project_root))
 
 try:
     from infra_core.memory_system.schemas.memory_block import MemoryBlock
-    from infra_core.memory_system.schemas.common import BlockLink
+    from infra_core.memory_system.schemas.common import BlockLink, NodeSchemaRecord
     from infra_core.constants import MEMORY_DOLT_ROOT
     from pydantic import BaseModel
 except ImportError as e:
@@ -129,11 +129,6 @@ def generate_table_schema(model: Type[BaseModel], table_name: str) -> str:
     columns = []
     primary_keys = []
 
-    # Special handling for block_links table
-    if table_name == "block_links":
-        columns.append("    from_id VARCHAR(255) NOT NULL")
-        primary_keys.append("from_id")
-
     for field_name, field in model.model_fields.items():
         field_type = field.annotation
         sql_type = get_sql_type(field_type, field_name)
@@ -177,7 +172,7 @@ def generate_table_schema(model: Type[BaseModel], table_name: str) -> str:
             columns.append(f"    {field_name} {sql_type} {null_constraint} {default}".rstrip())
 
         # Track primary key fields for BlockLinks
-        if table_name == "block_links" and field_name in ["to_id", "relation"]:
+        if table_name == "block_links" and field_name in ["from_id", "to_id", "relation"]:
             primary_keys.append(field_name)
 
     # Add constraints for MemoryBlocks
@@ -192,11 +187,35 @@ def generate_table_schema(model: Type[BaseModel], table_name: str) -> str:
 
     # Add composite primary key for BlockLinks
     if table_name == "block_links" and primary_keys:
-        columns.append(f"    PRIMARY KEY ({', '.join(primary_keys)})")
+        # Ensure proper ordering: from_id, to_id, relation
+        ordered_keys = []
+        if "from_id" in primary_keys:
+            ordered_keys.append("from_id")
+        if "to_id" in primary_keys:
+            ordered_keys.append("to_id")
+        if "relation" in primary_keys:
+            ordered_keys.append("relation")
+        columns.append(f"    PRIMARY KEY ({', '.join(ordered_keys)})")
 
     # Create the table statement
     columns_str = ",\n".join(columns)
     return f"CREATE TABLE IF NOT EXISTS {table_name} (\n{columns_str}\n);"
+
+
+def generate_block_proofs_table() -> str:
+    """Generate the block_proofs table schema.
+
+    This table doesn't have a Pydantic model since it's an infrastructure table,
+    so we define it directly based on the working schema.
+    """
+    return """CREATE TABLE IF NOT EXISTS block_proofs (
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    block_id VARCHAR(255) NOT NULL,
+    commit_hash VARCHAR(255) NOT NULL,
+    operation VARCHAR(10) NOT NULL CHECK (operation IN ('create', 'update', 'delete')),
+    timestamp DATETIME NOT NULL,
+    INDEX block_id_idx (block_id)
+);"""
 
 
 def generate_schema_file(output_path: Path) -> None:
@@ -220,6 +239,12 @@ def generate_schema_file(output_path: Path) -> None:
     # Generate schema for BlockLink
     schema_statements.append("\n" + generate_table_schema(BlockLink, "block_links"))
     schema_statements.append("\nCREATE INDEX idx_block_links_to_id ON block_links (to_id);")
+
+    # Generate schema for NodeSchemaRecord
+    schema_statements.append("\n" + generate_table_schema(NodeSchemaRecord, "node_schemas"))
+
+    # Generate schema for block_proofs (infrastructure table)
+    schema_statements.append("\n" + generate_block_proofs_table())
 
     # Write to file
     with open(output_path, "w") as f:
