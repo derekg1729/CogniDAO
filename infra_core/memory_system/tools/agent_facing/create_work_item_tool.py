@@ -47,6 +47,10 @@ class CreateWorkItemInput(BaseModel):
         "backlog", description="Current status of the work item"
     )
     priority: Optional[PriorityLiteral] = Field(None, description="Priority level of the work item")
+    ordering: Optional[int] = Field(
+        None,
+        description="Implementation order within a project or epic (lower numbers = higher priority)",
+    )
 
     # Planning and tracking fields
     acceptance_criteria: List[str] = Field(
@@ -72,9 +76,6 @@ class CreateWorkItemInput(BaseModel):
     # Additional fields
     tags: List[str] = Field(
         default_factory=list, description="Tags for categorizing this work item"
-    )
-    labels: List[str] = Field(
-        default_factory=list, description="Labels for categorizing this work item"
     )
 
     # Agent framework fields
@@ -159,6 +160,7 @@ def create_work_item(input_data: CreateWorkItemInput, memory_bank) -> CreateWork
         "description": input_data.description,
         "status": input_data.status,
         "priority": input_data.priority,
+        "ordering": input_data.ordering,
         # Planning fields
         "acceptance_criteria": input_data.acceptance_criteria,
         "action_items": input_data.action_items,
@@ -168,7 +170,7 @@ def create_work_item(input_data: CreateWorkItemInput, memory_bank) -> CreateWork
         "story_points": input_data.story_points,
         "estimate_hours": input_data.estimate_hours,
         # Additional fields
-        "labels": input_data.labels,
+        "tags": input_data.tags,
         # Agent framework fields
         "tool_hints": input_data.tool_hints,
         "role_hint": input_data.role_hint,
@@ -200,7 +202,6 @@ def create_work_item(input_data: CreateWorkItemInput, memory_bank) -> CreateWork
         visibility=input_data.visibility,
         confidence=input_data.confidence,
         created_by=input_data.created_by,
-        links=input_data.links,
     )
 
     try:

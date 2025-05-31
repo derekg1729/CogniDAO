@@ -1,79 +1,5 @@
 {
   "$defs": {
-    "BlockLink": {
-      "description": "Defines a directed link between two MemoryBlocks.",
-      "properties": {
-        "to_id": {
-          "description": "ID of the target block in the link",
-          "title": "To Id",
-          "type": "string"
-        },
-        "relation": {
-          "description": "The type of relationship between the blocks",
-          "enum": [
-            "related_to",
-            "subtask_of",
-            "depends_on",
-            "child_of",
-            "mentions"
-          ],
-          "title": "Relation",
-          "type": "string"
-        },
-        "priority": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": 0,
-          "description": "Priority of the link (higher numbers = higher priority)",
-          "title": "Priority"
-        },
-        "link_metadata": {
-          "anyOf": [
-            {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Additional metadata about the link",
-          "title": "Link Metadata"
-        },
-        "created_by": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "ID of the agent/user who created the link",
-          "title": "Created By"
-        },
-        "created_at": {
-          "description": "When the link was created",
-          "format": "date-time",
-          "title": "Created At",
-          "type": "string"
-        }
-      },
-      "required": [
-        "to_id",
-        "relation"
-      ],
-      "title": "BlockLink",
-      "type": "object"
-    },
     "ConfidenceScore": {
       "description": "Represents confidence scores, potentially from human or AI sources.",
       "properties": {
@@ -127,7 +53,9 @@
         "project",
         "doc",
         "interaction",
-        "log"
+        "log",
+        "epic",
+        "bug"
       ],
       "title": "Type",
       "type": "string"
@@ -199,6 +127,25 @@
       "description": "Version number of this block",
       "title": "Block Version"
     },
+    "parent_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "ID of the parent block in the hierarchy (foreign key to memory_blocks.id)",
+      "title": "Parent Id"
+    },
+    "has_children": {
+      "default": false,
+      "description": "Whether this block has child blocks (denormalized for fast lookups)",
+      "title": "Has Children",
+      "type": "boolean"
+    },
     "tags": {
       "description": "Optional tags for filtering, theming, or metadata",
       "items": {
@@ -213,14 +160,6 @@
       "description": "Custom metadata based on block type",
       "title": "Metadata",
       "type": "object"
-    },
-    "links": {
-      "description": "Directed outgoing edges connecting this block to others",
-      "items": {
-        "$ref": "#/$defs/BlockLink"
-      },
-      "title": "Links",
-      "type": "array"
     },
     "source_file": {
       "anyOf": [

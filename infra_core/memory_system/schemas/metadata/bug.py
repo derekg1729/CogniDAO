@@ -5,7 +5,7 @@ Bug metadata schema for MemoryBlocks of type "bug".
 from typing import List, Optional, Dict, ClassVar, Set
 from datetime import datetime
 from enum import Enum
-from pydantic import field_validator
+from pydantic import field_validator, Field
 
 # Import ExecutableMetadata
 from .common.executable import ExecutableMetadata, PriorityLiteral
@@ -62,7 +62,7 @@ class BugMetadata(ExecutableMetadata):
     version_fixed: Optional[str] = None
     steps_to_reproduce: Optional[str] = None
     due_date: Optional[datetime] = None
-    labels: Optional[List[str]] = None
+    tags: List[str] = Field(default_factory=list, description="Tags for categorizing this bug")
     confidence_score: Optional[Dict[str, float]] = None
 
     # Bug-specific detail fields
@@ -108,7 +108,7 @@ class BugMetadata(ExecutableMetadata):
                     "version_found": "1.5.2",
                     "steps_to_reproduce": "1. Create a memory block > 10MB\n2. Process it with process_block()\n3. Observe corruption in output",
                     "due_date": "2024-05-15T00:00:00Z",
-                    "labels": ["memory", "data-integrity", "high-priority"],
+                    "tags": ["memory", "data-integrity", "high-priority"],
                     "confidence_score": {"human": 0.95, "ai": 0.85},
                     "expected_behavior": "Data should be processed correctly without corruption",
                     "actual_behavior": "Processed data is corrupted with random values",

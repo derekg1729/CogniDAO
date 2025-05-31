@@ -34,7 +34,8 @@ sys.path.insert(0, str(project_root))
 DOLTPY_AVAILABLE = importlib.util.find_spec("doltpy") is not None
 
 # Local imports
-from infra_core.memory_system.schemas.memory_block import MemoryBlock, BlockLink, ConfidenceScore  # noqa: E402
+from infra_core.memory_system.schemas.memory_block import MemoryBlock, ConfidenceScore  # noqa: E402
+from infra_core.memory_system.schemas.common import BlockLink  # noqa: E402
 from infra_core.memory_system.scripts.sync_dolt_to_llamaindex import sync_dolt_to_llamaindex  # noqa: E402
 
 
@@ -66,7 +67,7 @@ def create_test_blocks():
             text="This block links to the documentation. The document explains key concepts.",
             tags=["knowledge", "references"],
             metadata={"title": "Knowledge Block 2", "source": "internal"},
-            links=[BlockLink(to_id="test-block-1", relation="related_to")],
+            links=[BlockLink(from_id="test-block-2", to_id="test-block-1", relation="related_to")],
             confidence=ConfidenceScore(ai=0.8, human=0.9),
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
@@ -84,8 +85,8 @@ def create_test_blocks():
             tags=["task", "implementation"],
             metadata={"title": "Task: Implement Sync", "status": "in_progress", "priority": "high"},
             links=[
-                BlockLink(to_id="test-block-1", relation="depends_on"),
-                BlockLink(to_id="test-block-2", relation="related_to"),
+                BlockLink(from_id="test-block-3", to_id="test-block-1", relation="depends_on"),
+                BlockLink(from_id="test-block-3", to_id="test-block-2", relation="related_to"),
             ],
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),

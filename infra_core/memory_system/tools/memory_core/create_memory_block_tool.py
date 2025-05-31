@@ -8,13 +8,12 @@ This tool handles the creation of new memory blocks, including:
 - Indexing in LlamaMemory
 """
 
-from typing import Optional, Dict, Any, Literal, List
+from typing import Optional, Dict, Any, Literal
 from datetime import datetime
 from pydantic import BaseModel, Field, ValidationError, field_validator
 import logging
 
 from ...schemas.memory_block import MemoryBlock, ConfidenceScore
-from ...schemas.common import BlockLink
 from ...schemas.registry import validate_metadata, get_available_node_types
 from ...structured_memory_bank import StructuredMemoryBank
 from ..base.cogni_tool import CogniTool
@@ -49,9 +48,6 @@ class CreateMemoryBlockInput(BaseModel):
     created_by: Optional[str] = Field(
         "agent",  # Default created_by to 'agent'
         description="Optional identifier for creator (agent name or user ID)",
-    )
-    links: Optional[List[BlockLink]] = Field(
-        default_factory=list, description="Optional list of links to other blocks"
     )
 
     @field_validator("type")
@@ -136,7 +132,6 @@ def create_memory_block(
             metadata=input_data.metadata,
             source_file=input_data.source_file,
             confidence=input_data.confidence,
-            links=input_data.links,
             created_by=input_data.created_by,  # Default is now handled by input model
             schema_version=schema_version,
         )

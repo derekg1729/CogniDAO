@@ -16,7 +16,6 @@ from infra_core.memory_system.tools.agent_facing.update_work_item_tool import (
     UpdateWorkItemOutput,
 )
 from infra_core.memory_system.schemas.memory_block import MemoryBlock, ConfidenceScore
-from infra_core.memory_system.schemas.common import BlockLink
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 
 
@@ -204,8 +203,6 @@ def test_update_work_item_multiple_fields(mock_memory_bank, sample_task_block):
     """Test updating multiple work item fields."""
     mock_memory_bank.get_memory_block.return_value = sample_task_block
 
-    new_links = [BlockLink(to_id="related-task", relation="depends_on")]
-
     input_data = UpdateWorkItemInput(
         block_id=sample_task_block.id,
         title="Comprehensive Task Update",
@@ -226,7 +223,6 @@ def test_update_work_item_multiple_fields(mock_memory_bank, sample_task_block):
         cost_budget_usd=100.0,
         state="published",
         visibility="public",
-        links=new_links,
         merge_tags=False,  # Replace tags
         change_note="Comprehensive update with new scope",
     )
@@ -240,7 +236,6 @@ def test_update_work_item_multiple_fields(mock_memory_bank, sample_task_block):
         "tags",
         "state",
         "visibility",
-        "links",
         "block_version",
         "updated_at",
     }

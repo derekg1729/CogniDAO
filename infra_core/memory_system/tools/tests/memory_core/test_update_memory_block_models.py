@@ -40,7 +40,7 @@ def test_update_memory_block_input_minimal_valid():
 
 def test_update_memory_block_input_full_valid():
     """Test fully populated valid input."""
-    links = [BlockLink(to_id="target-1", relation="depends_on")]
+    links = [BlockLink(from_id="source-block", to_id="target-1", relation="depends_on")]
     confidence = ConfidenceScore()
 
     input_data = UpdateMemoryBlockInput(

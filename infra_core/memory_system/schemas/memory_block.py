@@ -7,7 +7,7 @@ from datetime import datetime
 import uuid
 from pydantic import BaseModel, Field, field_validator
 
-from .common import BlockLink, ConfidenceScore
+from .common import ConfidenceScore
 
 
 class MemoryBlock(BaseModel):
@@ -36,6 +36,16 @@ class MemoryBlock(BaseModel):
         None, description="Visibility level of the block"
     )
     block_version: Optional[int] = Field(None, description="Version number of this block")
+
+    # Parent/Child hierarchy fields for Notion-like navigation
+    parent_id: Optional[str] = Field(
+        None,
+        description="ID of the parent block in the hierarchy (foreign key to memory_blocks.id)",
+    )
+    has_children: bool = Field(
+        False, description="Whether this block has child blocks (denormalized for fast lookups)"
+    )
+
     tags: List[str] = Field(
         default_factory=list,
         max_length=20,
@@ -43,9 +53,6 @@ class MemoryBlock(BaseModel):
     )
     metadata: Dict[str, Any] = Field(
         default_factory=dict, description="Custom metadata based on block type"
-    )
-    links: List[BlockLink] = Field(
-        default_factory=list, description="Directed outgoing edges connecting this block to others"
     )
     source_file: Optional[str] = Field(None, description="Optional source markdown or file name")
     source_uri: Optional[str] = Field(None, description="Optional source link or Logseq block URI")
@@ -114,6 +121,17 @@ class MemoryBlock(BaseModel):
             raise ValueError("tags list cannot contain more than 20 items")
         return v
 
+    @field_validator("parent_id")
+    def validate_parent_id(cls, v):
+        """Validate that parent_id is a valid UUID format when provided."""
+        if v is not None:
+            try:
+                # Validate UUID format
+                uuid.UUID(v)
+            except ValueError:
+                raise ValueError("parent_id must be a valid UUID format")
+        return v
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary, excluding embedding for smaller transmission size."""
         result = self.model_dump(exclude={"embedding"} if self.embedding else {})
@@ -126,8 +144,11 @@ class MemoryBlock(BaseModel):
         return result
 
     def __setattr__(self, name, value):
-        """Override __setattr__ to update updated_at when state, visibility, or block_version changes."""
-        if name in ["state", "visibility", "block_version"] and getattr(self, name, None) != value:
+        """Override __setattr__ to update updated_at when state, visibility, block_version, parent_id, or has_children changes."""
+        if (
+            name in ["state", "visibility", "block_version", "parent_id", "has_children"]
+            and getattr(self, name, None) != value
+        ):
             self.updated_at = datetime.now()
         super().__setattr__(name, value)
 

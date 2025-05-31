@@ -19,6 +19,7 @@ class BlockLink(BaseModel):
     """Defines a directed link between two MemoryBlocks."""
 
     to_id: str = Field(..., description="ID of the target block in the link")
+    from_id: str = Field(..., description="ID of the source block in the link")
     relation: RelationType = Field(..., description="The type of relationship between the blocks")
     priority: Optional[int] = Field(
         0, description="Priority of the link (higher numbers = higher priority)"

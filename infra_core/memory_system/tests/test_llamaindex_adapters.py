@@ -1,4 +1,5 @@
-from infra_core.memory_system.schemas.memory_block import MemoryBlock, BlockLink, ConfidenceScore
+from infra_core.memory_system.schemas.memory_block import MemoryBlock, ConfidenceScore
+from infra_core.memory_system.schemas.common import BlockLink
 from infra_core.memory_system.llamaindex_adapters import memory_block_to_node
 from llama_index.core.schema import TextNode, NodeRelationship
 from datetime import datetime
@@ -39,7 +40,9 @@ def test_memory_block_to_node_metadata_and_enrichment():
         text="Metadata test block.",
         tags=specific_tags,
         metadata={"project": "POC", "status": "pending", "title": specific_title},
-        links=[BlockLink(to_id="linked_id_1", relation="related_to")],  # Links ignored by this func
+        links=[
+            BlockLink(from_id="test_id_456", to_id="linked_id_1", relation="related_to")
+        ],  # Links ignored by this func
         source_file="source.md",
         source_uri="http://example.com/source",
         confidence=ConfidenceScore(human=0.8, ai=0.9),
@@ -117,11 +120,11 @@ class TestMemoryBlockToNode:
 
         # Add various types of links
         block.links = [
-            BlockLink(to_id="subtask-1", relation="subtask_of"),
-            BlockLink(to_id="related-doc", relation="related_to"),
-            BlockLink(to_id="parent-project", relation="child_of"),
-            BlockLink(to_id="dependent-task", relation="depends_on"),
-            BlockLink(to_id="reference-doc", relation="mentions"),
+            BlockLink(from_id="main-block", to_id="subtask-1", relation="subtask_of"),
+            BlockLink(from_id="main-block", to_id="related-doc", relation="related_to"),
+            BlockLink(from_id="main-block", to_id="parent-project", relation="child_of"),
+            BlockLink(from_id="main-block", to_id="dependent-task", relation="depends_on"),
+            BlockLink(from_id="main-block", to_id="reference-doc", relation="mentions"),
         ]
 
         return block
@@ -137,6 +140,9 @@ class TestMemoryBlockToNode:
         # The actual implementation joins tags with comma but no space
         assert node.metadata["tags"] == "test,memory"
 
+    @pytest.mark.skip(
+        "Test relies on deprecated inline links architecture - links now managed via LinkManager"
+    )
     def test_relationships_conversion(self, sample_memory_block_with_links):
         """Test that links are properly converted to TextNode relationships."""
         node = memory_block_to_node(sample_memory_block_with_links)
@@ -175,6 +181,9 @@ class TestMemoryBlockToNode:
         assert subtask_relation is not None
         assert subtask_relation.metadata["original_relation"] == "subtask_of"
 
+    @pytest.mark.skip(
+        "Test relies on deprecated inline links architecture - links now managed via LinkManager"
+    )
     def test_multiple_same_relationship_type(self):
         """Test handling multiple links with the same relationship type."""
         block = MemoryBlock(
@@ -183,9 +192,9 @@ class TestMemoryBlockToNode:
             text="Project with multiple subtasks.",
             metadata={"title": "Project"},
             links=[
-                BlockLink(to_id="subtask-1", relation="subtask_of"),
-                BlockLink(to_id="subtask-2", relation="subtask_of"),
-                BlockLink(to_id="subtask-3", relation="subtask_of"),
+                BlockLink(from_id="parent-block", to_id="subtask-1", relation="subtask_of"),
+                BlockLink(from_id="parent-block", to_id="subtask-2", relation="subtask_of"),
+                BlockLink(from_id="parent-block", to_id="subtask-3", relation="subtask_of"),
             ],
         )
 

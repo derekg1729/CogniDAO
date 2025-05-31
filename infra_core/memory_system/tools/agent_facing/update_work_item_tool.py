@@ -11,7 +11,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field, model_validator
 import logging
 
-from ...schemas.common import BlockLink, BlockIdType
+from ...schemas.common import BlockIdType
 from ...schemas.metadata.common.executable import (
     PriorityLiteral,
     WorkStatusLiteral,
@@ -52,6 +52,10 @@ class UpdateWorkItemInput(BaseModel):
     priority: Optional[PriorityLiteral] = Field(
         None, description="Updated priority level of the work item"
     )
+    ordering: Optional[int] = Field(
+        None,
+        description="Updated implementation order within a project or epic (lower numbers = higher priority)",
+    )
     owner: Optional[str] = Field(None, description="Updated owner or assignee")
 
     # Planning and tracking fields
@@ -72,7 +76,6 @@ class UpdateWorkItemInput(BaseModel):
 
     # Additional fields
     tags: Optional[List[str]] = Field(None, description="Updated tags")
-    labels: Optional[List[str]] = Field(None, description="Updated labels")
 
     # Agent framework fields
     tool_hints: Optional[List[str]] = Field(None, description="Updated tool hints")
@@ -90,13 +93,10 @@ class UpdateWorkItemInput(BaseModel):
     visibility: Optional[Literal["internal", "public", "restricted"]] = Field(
         None, description="Updated visibility level"
     )
-    links: Optional[List[BlockLink]] = Field(None, description="Updated block links")
 
     # Update behavior
     merge_tags: bool = Field(True, description="Whether to merge or replace tags")
-    merge_labels: bool = Field(True, description="Whether to merge or replace labels")
     merge_metadata: bool = Field(True, description="Whether to merge or replace metadata")
-    merge_links: bool = Field(True, description="Whether to merge or replace links")
 
     # Agent context
     author: str = Field("agent", description="Who is making the update")
@@ -187,6 +187,8 @@ def update_work_item(input_data: UpdateWorkItemInput, memory_bank) -> UpdateWork
                 metadata_updates["validation_report"] = validation_report
         if input_data.priority is not None:
             metadata_updates["priority"] = input_data.priority
+        if input_data.ordering is not None:
+            metadata_updates["ordering"] = input_data.ordering
 
         # Owner/assignee field (depends on work item type)
         if input_data.owner is not None:
@@ -210,8 +212,8 @@ def update_work_item(input_data: UpdateWorkItemInput, memory_bank) -> UpdateWork
             metadata_updates["estimate_hours"] = input_data.estimate_hours
 
         # Additional fields
-        if input_data.labels is not None:
-            metadata_updates["labels"] = input_data.labels
+        if input_data.tags is not None:
+            metadata_updates["tags"] = input_data.tags
 
         # Agent framework fields
         if input_data.tool_hints is not None:
@@ -244,15 +246,13 @@ def update_work_item(input_data: UpdateWorkItemInput, memory_bank) -> UpdateWork
         core_input = UpdateMemoryBlockToolInput(
             block_id=input_data.block_id,
             previous_block_version=input_data.previous_block_version,
-            text=input_data.description,  # Description goes into text field
+            text=input_data.description,
             state=input_data.state,
             visibility=input_data.visibility,
             tags=input_data.tags,
             metadata=metadata_updates if metadata_updates else None,
-            links=input_data.links,
             merge_tags=input_data.merge_tags,
             merge_metadata=input_data.merge_metadata,
-            merge_links=input_data.merge_links,
             author=input_data.author,
             agent_id=input_data.agent_id,
             change_note=input_data.change_note,

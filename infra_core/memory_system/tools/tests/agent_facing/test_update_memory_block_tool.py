@@ -20,7 +20,6 @@ from infra_core.memory_system.tools.memory_core.update_memory_block_models impor
     UpdateErrorCode,
 )
 from infra_core.memory_system.schemas.memory_block import MemoryBlock, ConfidenceScore
-from infra_core.memory_system.schemas.common import BlockLink
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 
 
@@ -154,29 +153,6 @@ def test_update_memory_block_tool_with_version_check(mock_memory_bank, sample_me
     assert result.success is True
     assert result.previous_version == 5
     assert result.new_version == 6
-
-
-def test_update_memory_block_tool_with_links(mock_memory_bank, sample_memory_block):
-    """Test updating block links through the agent tool."""
-    mock_memory_bank.get_memory_block.return_value = sample_memory_block
-
-    new_links = [
-        BlockLink(to_id="target-1", relation="depends_on"),
-        BlockLink(to_id="target-2", relation="related_to"),
-    ]
-
-    input_data = UpdateMemoryBlockToolInput(
-        block_id=sample_memory_block.id,
-        links=new_links,
-        merge_links=False,  # Replace links
-        author="test_agent",
-        change_note="Updated links",
-    )
-
-    result = update_memory_block_tool(input_data, mock_memory_bank)
-
-    assert result.success is True
-    assert "links" in result.fields_updated
 
 
 # Test patch operations
@@ -401,3 +377,23 @@ def test_update_memory_block_tool_agent_workflow(mock_memory_bank, sample_memory
     # Processing metadata should be available
     assert result.processing_time_ms is not None
     assert result.timestamp is not None
+
+
+def test_update_memory_block_tool_with_tags(mock_memory_bank, sample_memory_block):
+    """Test updating block tags through the agent tool."""
+    mock_memory_bank.get_memory_block.return_value = sample_memory_block
+
+    new_tags = ["updated", "agent-modified", "test"]
+
+    input_data = UpdateMemoryBlockToolInput(
+        block_id=sample_memory_block.id,
+        tags=new_tags,
+        merge_tags=False,  # Replace tags
+        author="test_agent",
+        change_note="Updated tags",
+    )
+
+    result = update_memory_block_tool(input_data, mock_memory_bank)
+
+    assert result.success is True
+    assert "tags" in result.fields_updated

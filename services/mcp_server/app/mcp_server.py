@@ -6,6 +6,7 @@ from datetime import datetime
 
 from mcp.server.fastmcp import FastMCP
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
+from infra_core.memory_system.sql_link_manager import SQLLinkManager
 from infra_core.memory_system.tools.agent_facing.get_memory_block_tool import (
     get_memory_block_tool,
     GetMemoryBlockInput,
@@ -23,11 +24,15 @@ from infra_core.memory_system.tools.agent_facing.update_work_item_tool import (
     update_work_item_tool,
     UpdateWorkItemInput,
 )
-from infra_core.memory_system.link_manager import InMemoryLinkManager
 from infra_core.memory_system.pm_executable_links import ExecutableLinkManager
 from infra_core.memory_system.tools.agent_facing.create_block_link_tool import (
     create_block_link_agent,
     CreateBlockLinkAgentInput,
+)
+from infra_core.memory_system.tools.agent_facing.get_memory_links_tool import (
+    get_memory_links_tool,
+    GetMemoryLinksInput,
+    GetMemoryLinksOutput,
 )
 
 # Configure logging
@@ -61,8 +66,8 @@ try:
         chroma_collection=CHROMA_COLLECTION_NAME,
     )
 
-    # Initialize LinkManager components
-    link_manager = InMemoryLinkManager()
+    # Initialize LinkManager components with SQL backend
+    link_manager = SQLLinkManager(COGNI_DOLT_DIR)
     pm_links = ExecutableLinkManager(link_manager)
 
     # Attach link_manager to memory_bank for tool access
@@ -134,6 +139,40 @@ async def get_memory_block(input):
             success=False,
             blocks=[],
             error=f"Error retrieving memory blocks: {str(e)}",
+            timestamp=datetime.now(),
+        ).model_dump(mode="json")
+
+
+# Register the GetMemoryLinks tool
+@mcp.tool("GetMemoryLinks")
+async def get_memory_links(input):
+    """Get memory links with optional filtering by relation type
+
+    Link Retrieval with Filtering:
+        relation_filter: Optional filter by relation type (e.g., 'depends_on', 'subtask_of')
+        limit: Maximum number of results to return (default: 100, max: 1000)
+        cursor: Optional pagination cursor for retrieving next batch
+
+    Output always contains 'links' array (0 to N links).
+    """
+    try:
+        # Parse dict input into Pydantic model
+        input_data = GetMemoryLinksInput(**input)
+
+        # Execute the tool function
+        result = get_memory_links_tool(
+            memory_bank=memory_bank, **input_data.model_dump(exclude_none=True)
+        )
+
+        # Return the complete result
+        return result.model_dump(mode="json")
+
+    except Exception as e:
+        logger.error(f"Error in GetMemoryLinks MCP tool: {e}")
+        return GetMemoryLinksOutput(
+            success=False,
+            links=[],
+            error=f"Error retrieving memory links: {str(e)}",
             timestamp=datetime.now(),
         ).model_dump(mode="json")
 

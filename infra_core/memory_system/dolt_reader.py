@@ -79,7 +79,7 @@ def read_memory_blocks(db_path: str, branch: str = "main") -> List[MemoryBlock]:
         # Select columns without the '_json' suffix
         query = f"""
         SELECT 
-            id, type, schema_version, text, tags, metadata, links, 
+            id, type, schema_version, text, tags, metadata, 
             source_file, source_uri, confidence, created_by, created_at, updated_at
         FROM memory_blocks 
         AS OF '{branch}'
@@ -177,7 +177,7 @@ def read_memory_block(db_path: str, block_id: str, branch: str = "main") -> Opti
         # Query for a specific block ID (using formatted string)
         query = f"""
         SELECT
-            id, type, schema_version, text, tags, metadata, links,
+            id, type, schema_version, text, tags, metadata, 
             source_file, source_uri, confidence, created_by, created_at, updated_at
         FROM memory_blocks
         AS OF '{branch}'
@@ -280,7 +280,7 @@ def read_memory_blocks_by_tags(
 
         query = f"""
         SELECT
-            id, type, schema_version, text, tags, metadata, links,
+            id, type, schema_version, text, tags, metadata, 
             source_file, source_uri, confidence, created_by, created_at, updated_at
         FROM memory_blocks
         AS OF '{branch}'
@@ -343,7 +343,7 @@ def read_memory_blocks_from_working_set(db_path: str) -> List[MemoryBlock]:
         # No 'AS OF' clause is used, so it queries the working tables.
         query = """
         SELECT
-            id, type, schema_version, text, tags, metadata, links,
+            id, type, schema_version, text, tags, metadata, 
             source_file, source_uri, confidence, created_by, created_at, updated_at,
             state, visibility
         FROM memory_blocks
@@ -362,7 +362,7 @@ def read_memory_blocks_from_working_set(db_path: str) -> List[MemoryBlock]:
                     # Prepare row data for Pydantic model validation.
                     # Pydantic should handle type conversions (e.g., str to datetime, JSON str to dict/list).
                     # Create a copy to avoid modifying the original result row if necessary.
-                    # Fields like 'tags', 'metadata', 'links', 'confidence' might be JSON strings
+                    # Fields like 'tags', 'metadata', 'confidence' might be JSON strings
                     # if not automatically parsed by doltpy with result_format="json".
                     # The MemoryBlock model expects Python dicts/lists for these.
 
@@ -373,7 +373,7 @@ def read_memory_blocks_from_working_set(db_path: str) -> List[MemoryBlock]:
                             continue
 
                         # Explicitly parse potential JSON string fields if not auto-parsed
-                        if key in ["tags", "metadata", "links", "confidence"]:
+                        if key in ["tags", "metadata", "confidence"]:
                             if isinstance(value, str):
                                 try:
                                     parsed_row[key] = json.loads(value)
@@ -444,7 +444,7 @@ if __name__ == "__main__":
                 # Print summary of first few blocks for verification
                 for i, block in enumerate(blocks[:3]):
                     logger.info(
-                        f"  Block {i + 1}: ID={block.id}, Type={block.type}, Text='{block.text[:50]}...' Tags={block.tags}, Links={len(block.links)}"
+                        f"  Block {i + 1}: ID={block.id}, Type={block.type}, Text='{block.text[:50]}...' Tags={block.tags}"
                     )
                 if len(blocks) > 3:
                     logger.info(f"  ... and {len(blocks) - 3} more.")

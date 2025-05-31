@@ -12,7 +12,6 @@ from pydantic import BaseModel, Field, validator
 import json
 
 from ...schemas.memory_block import ConfidenceScore
-from ...schemas.common import BlockLink
 
 
 class UpdateErrorCode(str, Enum):
@@ -86,7 +85,6 @@ class UpdateMemoryBlockInput(BaseModel):
     confidence: Optional[ConfidenceScore] = Field(
         None, description="New confidence scores for the block"
     )
-    links: Optional[List[BlockLink]] = Field(None, description="New list of links to other blocks")
 
     # Control behavior
     merge_metadata: bool = Field(

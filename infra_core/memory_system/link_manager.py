@@ -684,6 +684,22 @@ class LinkManager(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_all_links(self, query: Optional[LinkQuery] = None) -> LinkQueryResult:
+        """
+        Get all links in the system.
+
+        Args:
+            query: Optional query parameters for filtering
+
+        Returns:
+            LinkQueryResult containing all matching links
+
+        Raises:
+            RuntimeError: If operation fails due to database error
+        """
+        pass
+
 
 class InMemoryLinkManager(LinkManager):
     """
@@ -798,6 +814,7 @@ class InMemoryLinkManager(LinkManager):
         # No cycle detected, create the link
         now = self._datetime.now()
         link = BlockLink(
+            from_id=from_id,
             to_id=to_id,
             relation=relation_str,
             priority=priority,
@@ -1210,3 +1227,41 @@ class InMemoryLinkManager(LinkManager):
             del self._links[link_key]
 
         return len(links_to_delete)
+
+    def get_all_links(self, query: Optional[LinkQuery] = None) -> LinkQueryResult:
+        """
+        Get all links in the system.
+
+        Args:
+            query: Optional query parameters for filtering
+
+        Returns:
+            LinkQueryResult containing all matching links
+        """
+        # Default query if none provided
+        if query is None:
+            query = LinkQuery()
+
+        query_dict = query.to_dict()
+        relation = query_dict.get("relation")
+        limit = query_dict.get("limit", 100)
+        # cursor = query_dict.get("cursor")  # TODO: Implement pagination
+
+        results = []
+
+        # Get all links and apply filtering
+        for link_key, link in self._links.items():
+            from_id, to_id, rel = link_key
+            # Apply relation filter if specified
+            if relation is None or rel == relation:
+                results.append(link)
+
+        # Apply limit
+        if len(results) > limit:
+            # TODO: Implement proper pagination with cursor
+            results = results[:limit]
+            next_cursor = str(limit)  # Simple cursor implementation
+        else:
+            next_cursor = None
+
+        return LinkQueryResult(links=results, next_cursor=next_cursor)

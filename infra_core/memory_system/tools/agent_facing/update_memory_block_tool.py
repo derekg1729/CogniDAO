@@ -11,7 +11,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 import logging
 
-from ...schemas.common import BlockLink, BlockIdType
+from ...schemas.common import BlockIdType
 from ..base.cogni_tool import CogniTool
 from ..memory_core.update_memory_block_core import update_memory_block_core
 from ..memory_core.update_memory_block_models import (
@@ -45,7 +45,6 @@ class UpdateMemoryBlockToolInput(BaseModel):
     )
     tags: Optional[List[str]] = Field(None, description="Tags to set or merge with existing tags")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Metadata fields to update")
-    links: Optional[List[BlockLink]] = Field(None, description="Block links to set or merge")
 
     # Patch-based updates
     text_patch: Optional[str] = Field(
@@ -64,9 +63,6 @@ class UpdateMemoryBlockToolInput(BaseModel):
     )
     merge_metadata: bool = Field(
         True, description="Whether to merge with existing metadata (true) or replace it (false)"
-    )
-    merge_links: bool = Field(
-        True, description="Whether to merge with existing links (true) or replace them (false)"
     )
 
     # Agent context
@@ -125,18 +121,16 @@ def update_memory_block_tool(
         core_input = UpdateMemoryBlockInput(
             block_id=input_data.block_id,
             text=input_data.text,
-            metadata=input_data.metadata,
-            tags=input_data.tags,
-            links=input_data.links,
             state=input_data.state,
             visibility=input_data.visibility,
+            tags=input_data.tags,
+            metadata=input_data.metadata,
             previous_block_version=input_data.previous_block_version,
             text_patch=input_data.text_patch,
             structured_patch=input_data.structured_patch,
             patch_type=input_data.patch_type,
-            merge_tags=input_data.merge_tags,
             merge_metadata=input_data.merge_metadata,
-            merge_links=input_data.merge_links,
+            merge_tags=input_data.merge_tags,
             author=input_data.author,
             change_note=input_data.change_note,
         )
@@ -184,7 +178,7 @@ def update_memory_block_tool(
 # Create the CogniTool instance
 update_memory_block_tool_instance = CogniTool(
     name="UpdateMemoryBlock",
-    description="Update memory blocks with text, metadata, links, and patch support",
+    description="Update memory blocks with text, metadata, and patch support",
     input_model=UpdateMemoryBlockToolInput,
     output_model=UpdateMemoryBlockToolOutput,
     function=update_memory_block_tool,

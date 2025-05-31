@@ -63,7 +63,7 @@ def test_python_function_sql():
     # Version that uses AS OF clause (main branch)
     query_with_branch = f"""
     SELECT
-        id, type, schema_version, text, tags, metadata, links,
+        id, type, schema_version, text, tags, metadata,
         source_file, source_uri, confidence, created_by, created_at, updated_at
     FROM memory_blocks
     AS OF '{branch}'
@@ -73,7 +73,7 @@ def test_python_function_sql():
     # Version that queries from working set (no AS OF clause)
     query_working_set = f"""
     SELECT
-        id, type, schema_version, text, tags, metadata, links,
+        id, type, schema_version, text, tags, metadata,
         source_file, source_uri, confidence, created_by, created_at, updated_at
     FROM memory_blocks
     WHERE {full_where_clause}

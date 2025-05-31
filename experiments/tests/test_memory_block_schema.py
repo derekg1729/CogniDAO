@@ -15,7 +15,6 @@ sys.path.insert(0, str(project_root))
 try:
     from infra_core.memory_system.schemas.memory_block import (
         MemoryBlock,
-        BlockLink,
         ConfidenceScore,
     )
 except ImportError as e:
@@ -25,7 +24,6 @@ except ImportError as e:
 def test_memory_block_instantiation():
     """Tests basic instantiation of the MemoryBlock schema with all fields."""
     block_id = "test-id-123"
-    link_to_id = "linked-id-456"
 
     try:
         block = MemoryBlock(
@@ -34,7 +32,7 @@ def test_memory_block_instantiation():
             text="This is a test memory block.",
             tags=["test", "pydantic"],
             metadata={"source": "test_script", "version": 1.0},
-            links=[BlockLink(to_id=link_to_id, relation="related_to")],
+            # Note: links removed - now managed via LinkManager
             source_file="test_file.md",
             source_uri="logseq://graph/page/block-id",
             confidence=ConfidenceScore(human=0.9, ai=0.75),
@@ -49,9 +47,7 @@ def test_memory_block_instantiation():
         assert block.text == "This is a test memory block."
         assert block.tags == ["test", "pydantic"]
         assert block.metadata == {"source": "test_script", "version": 1.0}
-        assert len(block.links) == 1
-        assert block.links[0].to_id == link_to_id
-        assert block.links[0].relation == "related_to"
+        # Note: links assertions removed - links now managed separately
         assert block.source_file == "test_file.md"
         assert block.source_uri == "logseq://graph/page/block-id"
         assert block.confidence.human == 0.9
@@ -80,7 +76,7 @@ def test_memory_block_defaults():
         assert block.text == "Minimal block."
         assert block.tags == []
         assert block.metadata == {}
-        assert block.links == []
+        # Note: links assertion removed - links now managed separately via LinkManager
         assert block.source_file is None
         assert block.source_uri is None
         assert block.confidence is None

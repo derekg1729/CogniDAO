@@ -45,7 +45,7 @@ def sample_memory_blocks_data():
             updated_at=datetime.datetime.utcnow(),
             metadata={"source": "test_fixture"},
             schema_version=1,
-            links=[BlockLink(to_id="block-2", relation="related_to")],
+            links=[BlockLink(from_id="block-1", to_id="block-2", relation="related_to")],
             confidence=ConfidenceScore(ai=0.9),
         ),
         MemoryBlock(

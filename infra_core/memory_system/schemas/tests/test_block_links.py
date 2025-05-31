@@ -36,30 +36,30 @@ def test_relation_types_enum():
 def test_block_link_creation_with_relation_types():
     """Test creating BlockLinks with different relation types."""
     # Test epic relations
-    epic_link = BlockLink(to_id="epic-123", relation="belongs_to_epic")
+    epic_link = BlockLink(from_id="task-456", to_id="epic-123", relation="belongs_to_epic")
     assert epic_link.to_id == "epic-123"
     assert epic_link.relation == "belongs_to_epic"
 
     # Test epic contains relation
-    epic_contains_link = BlockLink(to_id="task-456", relation="epic_contains")
+    epic_contains_link = BlockLink(from_id="epic-123", to_id="task-456", relation="epic_contains")
     assert epic_contains_link.to_id == "task-456"
     assert epic_contains_link.relation == "epic_contains"
 
     # Test bug relations
-    bug_link = BlockLink(to_id="bug-789", relation="has_bug")
+    bug_link = BlockLink(from_id="project-abc", to_id="bug-789", relation="has_bug")
     assert bug_link.to_id == "bug-789"
     assert bug_link.relation == "has_bug"
 
-    bug_affects_link = BlockLink(to_id="project-abc", relation="bug_affects")
+    bug_affects_link = BlockLink(from_id="bug-789", to_id="project-abc", relation="bug_affects")
     assert bug_affects_link.to_id == "project-abc"
     assert bug_affects_link.relation == "bug_affects"
 
     # Test blocking relations
-    blocks_link = BlockLink(to_id="task-def", relation="blocks")
+    blocks_link = BlockLink(from_id="task-abc", to_id="task-def", relation="blocks")
     assert blocks_link.to_id == "task-def"
     assert blocks_link.relation == "blocks"
 
-    blocked_by_link = BlockLink(to_id="task-ghi", relation="is_blocked_by")
+    blocked_by_link = BlockLink(from_id="task-jkl", to_id="task-ghi", relation="is_blocked_by")
     assert blocked_by_link.to_id == "task-ghi"
     assert blocked_by_link.relation == "is_blocked_by"
 
@@ -67,4 +67,4 @@ def test_block_link_creation_with_relation_types():
 def test_block_link_with_invalid_relation():
     """Test that creating a BlockLink with an invalid relation raises an error."""
     with pytest.raises(ValueError):
-        BlockLink(to_id="task-123", relation="invalid_relation_type")
+        BlockLink(from_id="task-456", to_id="task-123", relation="invalid_relation_type")

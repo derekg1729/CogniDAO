@@ -7,7 +7,7 @@ import logging  # Import logging for caplog tests
 
 # Use absolute import path based on project structure and sys.path modification in dolt_reader
 from infra_core.memory_system.dolt_reader import read_memory_blocks
-from infra_core.memory_system.schemas.memory_block import MemoryBlock, BlockLink, ConfidenceScore
+from infra_core.memory_system.schemas.memory_block import MemoryBlock, ConfidenceScore
 
 # Sample data conforming to the structure returned by repo.sql(..., result_format='json')
 # which is typically {'rows': [ {col1: val1, ...}, ... ]}
@@ -17,13 +17,12 @@ SAMPLE_ROW_BASIC = {
     "id": "basic-001",
     "type": "knowledge",
     "schema_version": 1,
-    "text": "Basic block content.",
-    "tags": None,  # Renamed from tags_json
-    "metadata": None,  # Renamed from metadata_json
-    "links": None,  # Renamed from links_json
+    "text": "This is a basic knowledge block.",
+    "tags": [],  # Fixed: actual list instead of JSON string
+    "metadata": {},  # Fixed: actual dict instead of JSON string
     "source_file": None,
     "source_uri": None,
-    "confidence": None,  # Renamed from confidence_json
+    "confidence": None,
     "created_by": "test_runner",
     "created_at": "2023-10-27T10:00:00",
     "updated_at": "2023-10-27T11:00:00",
@@ -35,16 +34,16 @@ SAMPLE_ROW_FULL = {
     "type": "task",
     "schema_version": 2,
     "text": "Full block with all fields populated.",
-    "tags": ["dolt", "test", "full"],  # Renamed and converted from JSON string
+    "tags": ["dolt", "test", "full"],
     "metadata": {
         "status": "pending",
         "priority": 3,
         "assignee": "agent_x",
-    },  # Renamed and converted
-    "links": [{"to_id": "basic-001", "relation": "related_to"}],  # Renamed and converted
+    },
+    # Removed links field as it no longer exists in MemoryBlock
     "source_file": "tests/test_data.txt",
     "source_uri": "file://tests/test_data.txt",
-    "confidence": {"ai": 0.95, "human": 0.7},  # Renamed and converted
+    "confidence": {"ai": 0.95, "human": 0.7},
     "created_by": "test_runner_full",
     "created_at": "2023-10-27T12:00:00",
     "updated_at": "2023-10-27T13:00:00",
@@ -58,31 +57,29 @@ SAMPLE_ROW_BAD_JSON_STRUCTURE = {
     "type": "doc",
     "schema_version": 1,
     "text": "Block with bad data structure in metadata.",
-    "tags": ["valid"],  # Renamed, was valid JSON string
-    "metadata": '{"key": "value", invalid}',  # Renamed, kept invalid string structure to test handling
-    "links": None,  # Renamed
+    "tags": ["valid"],
+    "metadata": '{"key": "value", invalid}',  # Invalid JSON string to test error handling
+    # Removed links field
     "source_file": None,
     "source_uri": None,
-    "confidence": None,  # Renamed
+    "confidence": None,
     "created_by": "test_runner_bad",
     "created_at": "2023-10-27T14:00:00",
     "updated_at": "2023-10-27T15:00:00",
 }
 
 # --- Block Violating Pydantic Schema ---
-# No JSON fields were used here, so only key renames needed if they were present.
-# Assuming keys like 'tags', 'metadata' etc. might be present but None.
 SAMPLE_ROW_BAD_SCHEMA = {
     "id": "bad-schema-004",
     "type": "invalid_type",  # Violates Literal constraint
     "schema_version": 1,
     "text": "Block violating schema.",
-    "tags": None,  # Renamed (assuming it might exist)
-    "metadata": None,  # Renamed (assuming it might exist)
-    "links": None,  # Renamed (assuming it might exist)
+    "tags": None,
+    "metadata": None,
+    # Removed links field
     "source_file": None,
     "source_uri": None,
-    "confidence": None,  # Renamed (assuming it might exist)
+    "confidence": None,
     "created_by": "test_runner_schema",
     "created_at": "2023-10-27T16:00:00",
     "updated_at": "2023-10-27T17:00:00",
@@ -110,13 +107,12 @@ class TestDoltReader:
         assert isinstance(block, MemoryBlock)
         assert block.id == "basic-001"
         assert block.type == "knowledge"
-        assert block.text == "Basic block content."
+        assert block.text == "This is a basic knowledge block."
         assert block.created_by == "test_runner"
         assert block.schema_version == 1
         # Check defaults for optional/JSON fields
         assert block.tags == []
         assert block.metadata == {}
-        assert block.links == []
         assert block.confidence is None
         assert isinstance(block.created_at, datetime)
         assert isinstance(block.updated_at, datetime)
@@ -152,10 +148,6 @@ class TestDoltReader:
         assert block.text == "Full block with all fields populated."
         assert block.tags == ["dolt", "test", "full"]
         assert block.metadata == {"status": "pending", "priority": 3, "assignee": "agent_x"}
-        assert len(block.links) == 1
-        assert isinstance(block.links[0], BlockLink)
-        assert block.links[0].to_id == "basic-001"
-        assert block.links[0].relation == "related_to"
         assert block.source_file == "tests/test_data.txt"
         assert block.source_uri == "file://tests/test_data.txt"
         assert isinstance(block.confidence, ConfidenceScore)

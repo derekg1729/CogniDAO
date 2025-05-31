@@ -152,7 +152,7 @@ def test_bug_metadata_full():
         version_fixed="1.0.1",
         steps_to_reproduce="1. Step one\n2. Step two",
         due_date="2023-12-31T23:59:59Z",
-        labels=["frontend", "ui"],
+        tags=["frontend", "ui"],
         confidence_score={"human": 0.9, "ai": 0.85},
         expected_behavior="The button should be centered",
         actual_behavior="The button is offset to the right",
@@ -169,7 +169,7 @@ def test_bug_metadata_full():
     assert bug.severity == "major"
     assert bug.version_found == "1.0.0"
     assert bug.version_fixed == "1.0.1"
-    assert "frontend" in bug.labels
+    assert "frontend" in bug.tags
     assert bug.confidence_score["human"] == 0.9
     assert bug.expected_behavior == "The button should be centered"
     assert bug.environment == "Production"

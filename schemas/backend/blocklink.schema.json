@@ -6,14 +6,38 @@
       "title": "To Id",
       "type": "string"
     },
+    "from_id": {
+      "description": "ID of the source block in the link",
+      "title": "From Id",
+      "type": "string"
+    },
     "relation": {
       "description": "The type of relationship between the blocks",
       "enum": [
         "related_to",
+        "mentions",
+        "child_of",
+        "parent_of",
+        "duplicate_of",
+        "part_of",
+        "contains",
+        "requires",
+        "provides",
+        "owned_by",
+        "owns",
         "subtask_of",
         "depends_on",
-        "child_of",
-        "mentions"
+        "blocks",
+        "is_blocked_by",
+        "belongs_to_epic",
+        "epic_contains",
+        "bug_affects",
+        "has_bug",
+        "derived_from",
+        "supersedes",
+        "references",
+        "source_of",
+        "cited_by"
       ],
       "title": "Relation",
       "type": "string"
@@ -67,6 +91,7 @@
   },
   "required": [
     "to_id",
+    "from_id",
     "relation"
   ],
   "title": "BlockLink",

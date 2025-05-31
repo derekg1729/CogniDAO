@@ -11,7 +11,6 @@ from pydantic import BaseModel, Field
 import logging
 
 from ...schemas.memory_block import ConfidenceScore
-from ...schemas.common import BlockLink
 from ..base.cogni_tool import CogniTool
 from ..memory_core.create_memory_block_tool import (
     create_memory_block,
@@ -63,9 +62,6 @@ class CreateDocMemoryBlockInput(BaseModel):
     created_by: Optional[str] = Field(
         "agent", description="Identifier for creator (agent name or user ID)."
     )
-    links: Optional[List[BlockLink]] = Field(
-        default_factory=list, description="Optional links to other blocks."
-    )
 
 
 class CreateDocMemoryBlockOutput(CoreCreateMemoryBlockOutput):
@@ -102,13 +98,12 @@ def create_doc_memory_block(
         type="doc",  # Automatically set type to "doc"
         text=input_data.content,
         metadata=final_metadata,
-        source_file=input_data.source_file,
         tags=input_data.tags,
+        source_file=input_data.source_file,
         state=input_data.state,
         visibility=input_data.visibility,
         confidence=input_data.confidence,
         created_by=input_data.created_by,
-        links=input_data.links,
     )
 
     try:

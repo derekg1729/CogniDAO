@@ -1,5 +1,5 @@
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
-from llama_index.core.schema import TextNode, NodeRelationship, RelatedNodeInfo
+from llama_index.core.schema import TextNode, NodeRelationship
 from typing import Dict, Any
 import json  # For serializing complex metadata
 import logging
@@ -123,47 +123,8 @@ def memory_block_to_node(block: MemoryBlock) -> TextNode:
         metadata=metadata,  # Assign the populated metadata
     )
 
-    # --- Handle relationships (Task 2.3) ---
-    if block.links:
-        # Initialize relationships dictionary if needed
-        if not hasattr(node, "relationships") or node.relationships is None:
-            node.relationships = {}
-
-        # Process each link and convert to appropriate NodeRelationship
-        for link in block.links:
-            # Map the relation string to NodeRelationship enum
-            if link.relation in RELATION_TO_NODE_RELATIONSHIP:
-                node_relationship = RELATION_TO_NODE_RELATIONSHIP[link.relation]
-
-                # Create RelatedNodeInfo with original relation in metadata
-                related_node_info = RelatedNodeInfo(
-                    node_id=link.to_id, metadata={"original_relation": link.relation}
-                )
-
-                # Add to the appropriate list in relationships dictionary
-                if node_relationship not in node.relationships:
-                    node.relationships[node_relationship] = []
-
-                node.relationships[node_relationship].append(related_node_info)
-                logger.debug(
-                    f"Added relationship from {block.id} to {link.to_id}: '{link.relation}' → {node_relationship}"
-                )
-            else:
-                # Handle unknown relation type - could default to NEXT or log a warning
-                logger.warning(
-                    f"Unknown relation type '{link.relation}' from {block.id} to {link.to_id}. Defaulting to NEXT."
-                )
-
-                # Default to NEXT for unknown types
-                if NodeRelationship.NEXT not in node.relationships:
-                    node.relationships[NodeRelationship.NEXT] = []
-
-                node.relationships[NodeRelationship.NEXT].append(
-                    RelatedNodeInfo(
-                        node_id=link.to_id,
-                        metadata={"original_relation": link.relation, "unknown_type": True},
-                    )
-                )
+    # Note: Links are now managed through LinkManager and block_links table,
+    # not as inline properties of MemoryBlock objects
 
     return node
 

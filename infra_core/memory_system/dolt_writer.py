@@ -141,15 +141,12 @@ def write_memory_block_to_dolt(
 
         # Manually format values for SQL insertion using the helper function
         # Ensure all relevant columns are included and match the table schema
-        sql_values = {
+        values = {
             "id": _format_sql_value(block.id),
             "type": _format_sql_value(block.type),
             "text": _format_sql_value(block.text),
             "tags": _format_sql_value(block.tags if block.tags is not None else []),
             "metadata": _format_sql_value(block.metadata if block.metadata is not None else {}),
-            "links": _format_sql_value(
-                [link.model_dump() for link in block.links] if block.links is not None else []
-            ),
             "source_file": _format_sql_value(block.source_file),
             "source_uri": _format_sql_value(block.source_uri),
             "confidence": _format_sql_value(block.confidence.model_dump())
@@ -169,12 +166,12 @@ def write_memory_block_to_dolt(
         # Construct the raw SQL query string
         # Include schema_version in the column list and values
         query = f"""
-        REPLACE INTO memory_blocks (id, type, text, tags, metadata, links, source_file,
+        REPLACE INTO memory_blocks (id, type, text, tags, metadata, source_file,
                                    source_uri, confidence, created_by, created_at,
                                    updated_at, embedding, schema_version)
-        VALUES ({sql_values["id"]}, {sql_values["type"]}, {sql_values["text"]}, {sql_values["tags"]}, {sql_values["metadata"]}, {sql_values["links"]}, {sql_values["source_file"]},
-                {sql_values["source_uri"]}, {sql_values["confidence"]}, {sql_values["created_by"]}, {sql_values["created_at"]},
-                {sql_values["updated_at"]}, {sql_values["embedding"]}, {sql_values["schema_version"]});
+        VALUES ({values["id"]}, {values["type"]}, {values["text"]}, {values["tags"]}, {values["metadata"]}, {values["source_file"]},
+                {values["source_uri"]}, {values["confidence"]}, {values["created_by"]}, {values["created_at"]},
+                {values["updated_at"]}, {values["embedding"]}, {values["schema_version"]});
         """
 
         logger.debug(f"Executing manually formatted SQL (WARNING: Risk of SQLi):\n{query}")
@@ -184,28 +181,13 @@ def write_memory_block_to_dolt(
         write_msg = f"Successfully wrote/updated block {block.id} in Dolt working set (using manual formatting)."
         logger.info(write_msg)
 
-        # Write links to block_links table - ensure table exists first
-        try:
-            repo.sql(
-                query="CREATE TABLE IF NOT EXISTS block_links (from_id VARCHAR(255) NOT NULL, to_id VARCHAR(255) NOT NULL, relation VARCHAR(255) NOT NULL, PRIMARY KEY (from_id, to_id, relation), FOREIGN KEY (from_id) REFERENCES memory_blocks(id) ON DELETE CASCADE, FOREIGN KEY (to_id) REFERENCES memory_blocks(id) ON DELETE CASCADE);"
-            )
-            # Now write the links
-            for link in block.links:
-                # Only insert links where target exists (to avoid foreign key constraint errors)
-                check_query = (
-                    f"SELECT 1 FROM memory_blocks WHERE id = {_format_sql_value(link.to_id)};"
-                )
-                check_result = repo.sql(query=check_query, result_format="json")
-                if check_result and "rows" in check_result and check_result["rows"]:
-                    link_query = f"REPLACE INTO block_links (from_id, to_id, relation, created_at) VALUES ({_format_sql_value(block.id)}, {_format_sql_value(link.to_id)}, {_format_sql_value(link.relation)}, {_format_sql_value(datetime.now())});"
-                    repo.sql(query=link_query)
-        except Exception as e:
-            logger.warning(f"Failed to write links for block {block.id}: {e}")
+        # Note: Links are now managed through the LinkManager and block_links table
+        # They are no longer written as part of the MemoryBlock write operation
 
         if auto_commit:
             try:
                 logger.info(f"Auto-committing changes for block {block.id}...")
-                repo.add(["memory_blocks", "block_links"])  # Be specific about both tables
+                repo.add(["memory_blocks"])  # Be specific about the table
 
                 # Check if there are changes that need to be committed
                 status = repo.status()

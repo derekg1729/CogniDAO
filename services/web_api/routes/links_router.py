@@ -7,10 +7,9 @@ from infra_core.memory_system.link_manager import (
     LinkManager,
     LinkError,
     LinkQuery,
-    BlockLink,
     Direction,
 )
-from infra_core.memory_system.schemas.common import RelationType
+from infra_core.memory_system.schemas.common import RelationType, BlockLink
 from services.web_api.models import ErrorResponse
 
 # Setup logger
@@ -27,13 +26,60 @@ def get_link_manager(request: Request):
             logger.error("Memory bank not available in app state")
             raise HTTPException(status_code=500, detail="Memory bank service unavailable")
 
-        # The LinkManager should be accessible via the memory_bank
-        # This will need to be implemented once the concrete LinkManager class exists
-        # For now, raise an error as the implementation isn't complete
-        raise HTTPException(status_code=501, detail="LinkManager not yet implemented")
+        # Get the LinkManager from the memory_bank
+        link_manager = getattr(memory_bank, "link_manager", None)
+        if not link_manager:
+            logger.error("LinkManager not available on memory bank")
+            raise HTTPException(status_code=500, detail="LinkManager service unavailable")
+
+        return link_manager
     except AttributeError:
         logger.error("Memory bank not configured on app state")
         raise HTTPException(status_code=500, detail="Memory bank not configured")
+
+
+@router.get(
+    "/links",
+    response_model=List[BlockLink],
+    summary="Get all links",
+    description="Retrieves all links in the system, with optional filtering by relation type.",
+    responses={
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+    },
+)
+async def get_all_links(
+    request: Request,
+    relation: Optional[RelationType] = None,
+    limit: int = 100,
+    cursor: Optional[str] = None,
+    link_manager: LinkManager = Depends(get_link_manager),
+) -> List[BlockLink]:
+    """
+    Retrieves all links in the system.
+
+    Parameters:
+    - relation: Optional filter by relation type
+    - limit: Maximum number of results to return (default: 100)
+    - cursor: Optional pagination cursor
+    """
+    try:
+        # Build query with provided filters
+        query = LinkQuery()
+        if relation:
+            query = query.relation(relation)
+        query = query.limit(limit)
+        if cursor:
+            query = query.cursor(cursor)
+
+        # Get all links
+        result = link_manager.get_all_links(query=query)
+
+        return result.links
+
+    except Exception as e:
+        # Log unexpected errors
+        logger.exception(f"Unexpected error retrieving all links: {e}")
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
 
 @router.post(
@@ -94,12 +140,16 @@ async def create_link(
             link_metadata=link_metadata,
             created_by=created_by,
         )
+
         return link
 
     except LinkError as e:
         # Convert LinkError to appropriate HTTP response
-        error_detail = {"code": e.code, "message": str(e)}
+        error_detail = {"code": e.error_type.value, "message": str(e)}
         raise HTTPException(status_code=e.http_status, detail=error_detail)
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is (for validation errors)
+        raise
     except ValueError as e:
         # Handle validation errors
         raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
@@ -157,6 +207,9 @@ async def delete_link(
                 detail=f"Link not found between {from_id} and {to_id} with relation {relation}",
             )
 
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is (for validation errors)
+        raise
     except ValueError as e:
         # Handle validation errors
         raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
@@ -232,6 +285,9 @@ async def get_links_from(
 
         return result.links
 
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is (for validation errors)
+        raise
     except ValueError as e:
         # Handle validation errors
         raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
@@ -307,6 +363,9 @@ async def get_links_to(
 
         return result.links
 
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is (for validation errors)
+        raise
     except ValueError as e:
         # Handle validation errors
         raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
@@ -349,6 +408,9 @@ async def delete_links_for_block(
 
         return {"success": True, "message": f"Deleted {count} links for block {block_id}"}
 
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is (for validation errors)
+        raise
     except ValueError as e:
         # Handle validation errors
         raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
