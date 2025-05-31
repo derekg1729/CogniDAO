@@ -18,6 +18,8 @@ from services.mcp_server.app.mcp_server import (
     update_memory_block,
     update_work_item,
     health_check,
+    get_memory_links,
+    create_block_link,
 )
 
 
@@ -424,3 +426,138 @@ async def test_concurrent_tool_calls(temp_memory_bank):
             assert result["success"] is True
             assert len(result["blocks"]) == 1
             assert result["blocks"][0]["id"] == test_id
+
+
+# Test GetMemoryLinks tool
+
+
+@pytest.mark.asyncio
+async def test_get_memory_links_success(temp_memory_bank):
+    """Test successful memory links retrieval."""
+    with patch("services.mcp_server.app.mcp_server.memory_bank", temp_memory_bank):
+        # First create some work items to link
+        task1_input = {
+            "type": "task",
+            "title": "Task 1",
+            "description": "First task",
+            "acceptance_criteria": ["Complete task 1"],
+        }
+        task2_input = {
+            "type": "task",
+            "title": "Task 2",
+            "description": "Second task",
+            "acceptance_criteria": ["Complete task 2"],
+        }
+
+        task1_result = await create_work_item(task1_input)
+        task2_result = await create_work_item(task2_input)
+        assert task1_result.success is True
+        assert task2_result.success is True
+
+        # Create a link between the tasks
+        link_input = {
+            "source_block_id": task1_result.id,
+            "target_block_id": task2_result.id,
+            "relation": "depends_on",
+        }
+        link_result = await create_block_link(link_input)
+        assert link_result["success"] is True
+
+        # Now get all links
+        result = await get_memory_links({})
+
+        assert result["success"] is True
+        assert len(result["links"]) >= 1
+        assert result["error"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_memory_links_filtering(temp_memory_bank):
+    """Test the filtering functionality in GetMemoryLinks."""
+    with patch("services.mcp_server.app.mcp_server.memory_bank", temp_memory_bank):
+        # First create some work items
+        task1_input = {
+            "type": "task",
+            "title": "Task 1",
+            "description": "First task",
+            "acceptance_criteria": ["Complete task 1"],
+        }
+        task2_input = {
+            "type": "task",
+            "title": "Task 2",
+            "description": "Second task",
+            "acceptance_criteria": ["Complete task 2"],
+        }
+        task3_input = {
+            "type": "task",
+            "title": "Task 3",
+            "description": "Third task",
+            "acceptance_criteria": ["Complete task 3"],
+        }
+
+        task1_result = await create_work_item(task1_input)
+        task2_result = await create_work_item(task2_input)
+        task3_result = await create_work_item(task3_input)
+        assert all(r.success for r in [task1_result, task2_result, task3_result])
+
+        # Create different types of links
+        depends_link_input = {
+            "source_block_id": task1_result.id,
+            "target_block_id": task2_result.id,
+            "relation": "depends_on",
+        }
+        subtask_link_input = {
+            "source_block_id": task3_result.id,
+            "target_block_id": task1_result.id,
+            "relation": "subtask_of",
+        }
+
+        depends_link_result = await create_block_link(depends_link_input)
+        subtask_link_result = await create_block_link(subtask_link_input)
+        assert depends_link_result["success"] is True
+        assert subtask_link_result["success"] is True
+
+        # Test 1: Get all links (no filter)
+        all_links_result = await get_memory_links({})
+        assert all_links_result["success"] is True
+        assert len(all_links_result["links"]) >= 2
+
+        # Test 2: Filter by relation "depends_on"
+        filtered_result = await get_memory_links({"relation_filter": "depends_on"})
+        assert filtered_result["success"] is True
+        assert len(filtered_result["links"]) >= 1
+        assert all(link["relation"] == "depends_on" for link in filtered_result["links"])
+
+        # Test 3: Filter by relation "subtask_of"
+        filtered_result = await get_memory_links({"relation_filter": "subtask_of"})
+        assert filtered_result["success"] is True
+        assert len(filtered_result["links"]) >= 1
+        assert all(link["relation"] == "subtask_of" for link in filtered_result["links"])
+
+        # Test 4: Limit results
+        limited_result = await get_memory_links({"limit": 1})
+        assert limited_result["success"] is True
+        assert len(limited_result["links"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_get_memory_links_empty_result(temp_memory_bank):
+    """Test GetMemoryLinks with no links matching a specific filter."""
+    with patch("services.mcp_server.app.mcp_server.memory_bank", temp_memory_bank):
+        # Use a specific relation filter that won't match existing links
+        result = await get_memory_links({"relation_filter": "mentions"})
+
+        assert result["success"] is True
+        assert len(result["links"]) == 0  # No links should match "mentions" relation
+        assert result["error"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_memory_links_error_handling(temp_memory_bank):
+    """Test GetMemoryLinks error handling."""
+    with patch("services.mcp_server.app.mcp_server.memory_bank", temp_memory_bank):
+        # Test with invalid limit (too high)
+        result = await get_memory_links({"limit": 2000})  # Above the 1000 max
+
+        assert "error" in result
+        assert result["success"] is False
