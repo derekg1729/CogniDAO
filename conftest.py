@@ -66,6 +66,23 @@ def temp_memory_bank(temp_dolt_db, temp_chroma_db):
     # Note: temp_dolt_db fixture already calls initialize_dolt_db which creates
     # all tables including block_properties, so no additional schema setup needed
 
+    # Register schemas in the temporary database so schema lookups work
+    from infra_core.memory_system.dolt_schema_manager import DoltSchemaManager
+    from infra_core.memory_system.schemas.registry import get_all_metadata_models, SCHEMA_VERSIONS
+
+    # Import metadata models to trigger registration - this is critical!
+
+    # Create schema manager for the temp database
+    schema_manager = DoltSchemaManager(temp_dolt_db)
+
+    # Register all schemas in the temporary database
+    metadata_models = get_all_metadata_models()
+    for node_type, model_cls in metadata_models.items():
+        version = SCHEMA_VERSIONS[node_type]
+
+        # Register the schema in the temporary database - pass the model class, not the schema dict
+        schema_manager.register_schema(node_type, version, model_cls)
+
     bank = StructuredMemoryBank(
         dolt_db_path=temp_dolt_db,
         chroma_path=temp_chroma_db,
