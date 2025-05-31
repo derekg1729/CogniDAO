@@ -3,7 +3,7 @@ Common models shared across different schema types.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional, get_args
+from typing import Any, Dict, Optional, get_args, Literal
 from pydantic import BaseModel, Field, validator, constr
 
 # Import RelationType from relation_registry instead of defining it here
@@ -71,3 +71,35 @@ class NodeSchemaRecord(BaseModel):
         ..., description="JSON schema output from Pydantic model.model_json_schema()"
     )
     created_at: str = Field(..., description="When this schema version was registered")
+
+
+# Block property record model for storing individual block properties
+class BlockProperty(BaseModel):
+    """Pydantic model for records in the `block_properties` Dolt table."""
+
+    block_id: str = Field(
+        ...,
+        description="ID of the memory block this property belongs to (foreign key to memory_blocks.id)",
+    )
+    property_name: str = Field(
+        ..., description="Name of the property (e.g., 'title', 'status', 'priority')"
+    )
+    property_value_text: Optional[str] = Field(
+        None, description="Text value of the property (for text, bool, date, select types)"
+    )
+    property_value_number: Optional[float] = Field(
+        None, description="Numeric value of the property (for number type)"
+    )
+    property_value_json: Optional[Any] = Field(
+        None, description="JSON value of the property (for json, multi_select types)"
+    )
+    property_type: Literal["text", "number", "json", "bool", "date", "select", "multi_select"] = (
+        Field(..., description="Type of the property value")
+    )
+    is_computed: bool = Field(False, description="Whether this property is computed/AI-generated")
+    created_at: datetime = Field(
+        default_factory=datetime.now, description="When this property was created"
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.now, description="When this property was last updated"
+    )
