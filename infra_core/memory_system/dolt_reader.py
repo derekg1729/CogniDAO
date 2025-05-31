@@ -7,19 +7,15 @@ import sys
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 import json
+from datetime import datetime
 
+from doltpy.cli import Dolt
 from pydantic import ValidationError
 
-# Use the correct import path for doltpy v2+
-try:
-    from doltpy.cli import Dolt
-except ImportError:
-    raise ImportError("doltpy not found. Please install it: pip install doltpy")
-
 # --- Path Setup --- START
-# Ensure the project root is in the Python path for schema imports
+# Must happen before importing local modules
 script_dir = Path(__file__).parent
-project_root_dir = script_dir.parent.parent.parent  # Adjust if structure changes
+project_root_dir = script_dir.parent.parent.parent  # Navigate up THREE levels
 if str(project_root_dir) not in sys.path:
     sys.path.insert(0, str(project_root_dir))
 # --- Path Setup --- END
@@ -27,9 +23,11 @@ if str(project_root_dir) not in sys.path:
 # Import schema using path relative to project root
 try:
     from infra_core.memory_system.schemas.memory_block import MemoryBlock
+    from infra_core.memory_system.schemas.common import BlockProperty
 except ImportError as e:
+    # Add more context to the error message
     raise ImportError(
-        f"Could not import MemoryBlock/related schemas from infra_core/memory_system. "
+        f"Could not import MemoryBlock schema from infra_core/memory_system. "
         f"Project root added to path: {project_root_dir}. Check structure. Error: {e}"
     )
 
@@ -144,40 +142,91 @@ def read_memory_blocks(db_path: str, branch: str = "main") -> List[MemoryBlock]:
     return memory_blocks_list
 
 
+def read_block_properties(db_path: str, block_id: str, branch: str = "main") -> List[BlockProperty]:
+    """
+    Read BlockProperty instances for a specific block from the block_properties table.
+
+    Args:
+        db_path: Path to the Dolt database directory
+        block_id: ID of the block to read properties for
+        branch: The Dolt branch to read from (defaults to 'main')
+
+    Returns:
+        List of BlockProperty instances
+    """
+    logger.debug(f"Reading properties for block {block_id} from branch '{branch}'")
+    repo = Dolt(db_path)
+    escaped_block_id = _escape_sql_string(block_id)
+
+    query = f"""
+    SELECT 
+        block_id, property_name, property_value_text, property_value_number, 
+        property_value_json, property_type, is_computed, created_at, updated_at
+    FROM block_properties
+    AS OF '{branch}'
+    WHERE block_id = {escaped_block_id}
+    """
+
+    logger.debug(f"Executing properties query:\n{query}")
+    result = repo.sql(query=query, result_format="json")
+
+    properties = []
+    if result and "rows" in result and result["rows"]:
+        logger.debug(f"Found {len(result['rows'])} properties for block {block_id}")
+        for row in result["rows"]:
+            try:
+                # Convert datetime strings back to datetime objects if needed
+                if isinstance(row.get("created_at"), str):
+                    row["created_at"] = datetime.fromisoformat(row["created_at"])
+                if isinstance(row.get("updated_at"), str):
+                    row["updated_at"] = datetime.fromisoformat(row["updated_at"])
+
+                prop = BlockProperty.model_validate(row)
+                properties.append(prop)
+            except ValidationError as e:
+                logger.error(
+                    f"Failed to validate property {row.get('property_name', 'unknown')}: {e}"
+                )
+            except Exception as e:
+                logger.error(f"Error processing property row: {e}")
+    else:
+        logger.debug(f"No properties found for block {block_id}")
+
+    return properties
+
+
 def read_memory_block(db_path: str, block_id: str, branch: str = "main") -> Optional[MemoryBlock]:
     """
-    Reads a single MemoryBlock from the specified Dolt database and branch by its ID.
+    Reads a single MemoryBlock from the specified Dolt database using the Property-Schema Split approach.
 
-    Queries the 'memory_blocks' table for a specific ID, parses the row, and
-    validates it into a MemoryBlock Pydantic object.
+    Uses PropertyMapper to compose metadata from the block_properties table instead of reading
+    from a metadata JSON column.
+
+    WARNING: This function constructs SQL queries with block_id manually escaped
+    due to limitations in doltpy.cli.Dolt.sql() (lack of parameterized query support).
+    This carries SQL injection risks if block_id is not sanitized elsewhere.
 
     Args:
         db_path: Path to the Dolt database directory.
-        block_id: The ID of the MemoryBlock to retrieve.
+        block_id: The ID of the block to read.
         branch: The Dolt branch to read from (defaults to 'main').
 
     Returns:
-        A validated MemoryBlock object if found, otherwise None.
+        A validated MemoryBlock object if found, or None if not found/error.
     """
     logger.info(
-        f"Attempting to read MemoryBlock {block_id} from Dolt DB at {db_path} on branch '{branch}'"
+        f"Attempting to read block {block_id} from Dolt DB at {db_path} on branch '{branch}' using Property-Schema Split"
     )
     repo: Optional[Dolt] = None
 
     try:
         repo = Dolt(db_path)
-
-        # Escape block_id for safe insertion into the query string
-        # NOTE: Using manual escaping because doltpy.cli.Dolt.sql() does not
-        # appear to support the 'args' parameter for parameterized SELECT queries,
-        # based on previous TypeErrors. This is less ideal than parameterized queries
-        # but necessary with the current library constraints for reads.
         escaped_block_id = _escape_sql_string(block_id)
 
-        # Query for a specific block ID (using formatted string)
+        # Step 1: Read from memory_blocks table (NO metadata column - Property-Schema Split)
         query = f"""
         SELECT
-            id, type, schema_version, text, tags, metadata, 
+            id, type, schema_version, text, tags, 
             source_file, source_uri, confidence, created_by, created_at, updated_at
         FROM memory_blocks
         AS OF '{branch}'
@@ -194,11 +243,38 @@ def read_memory_block(db_path: str, block_id: str, branch: str = "main") -> Opti
         if result and "rows" in result and result["rows"]:
             row = result["rows"][0]
             logger.info(f"Retrieved row for block ID: {block_id}")
+
+            # Step 2: Read properties and compose metadata using PropertyMapper
+            try:
+                # Import PropertyMapper here to avoid circular imports if needed
+                from infra_core.memory_system.property_mapper import PropertyMapper
+
+                # Read properties from block_properties table
+                properties = read_block_properties(db_path, block_id, branch)
+
+                # Compose metadata from properties
+                metadata_dict = PropertyMapper.compose_metadata(properties)
+                logger.debug(
+                    f"Composed metadata with {len(metadata_dict)} fields for block {block_id}"
+                )
+
+                # Add metadata to the row data
+                row["metadata"] = metadata_dict
+
+            except Exception as prop_e:
+                logger.error(
+                    f"Failed to compose metadata for block {block_id}: {prop_e}", exc_info=True
+                )
+                # Use empty metadata as fallback
+                row["metadata"] = {}
+
             try:
                 # Prepare row data for Pydantic model validation
                 parsed_row: Dict[str, Any] = {k: v for k, v in row.items() if v is not None}
                 memory_block = MemoryBlock.model_validate(parsed_row)
-                logger.info(f"Successfully parsed MemoryBlock {block_id}.")
+                logger.info(
+                    f"Successfully parsed MemoryBlock {block_id} using Property-Schema Split."
+                )
                 return memory_block
 
             except ValidationError as e:

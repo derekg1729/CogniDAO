@@ -35,7 +35,6 @@ CREATE TABLE IF NOT EXISTS memory_blocks (
     parent_id VARCHAR(255) NULL,
     has_children BOOLEAN NOT NULL DEFAULT False,
     tags JSON NOT NULL,
-    metadata JSON NOT NULL,
     source_file VARCHAR(255) NULL,
     source_uri VARCHAR(255) NULL,
     confidence JSON NULL,

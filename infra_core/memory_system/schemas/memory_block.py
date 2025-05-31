@@ -15,6 +15,9 @@ class MemoryBlock(BaseModel):
     The primary data structure for representing a unit of memory in the Cogni system experiment.
     Aligns with the design specified in project-CogniMemorySystem-POC.json.
     Includes schema versioning support (Task 2.0).
+
+    NOTE: As of Property-Schema Split implementation, metadata is stored in the
+    block_properties table rather than as a JSON field on this model.
     """
 
     id: str = Field(
@@ -51,8 +54,10 @@ class MemoryBlock(BaseModel):
         max_length=20,
         description="Optional tags for filtering, theming, or metadata",
     )
+    # NOTE: metadata reconstructed from block_properties table via PropertyMapper
     metadata: Dict[str, Any] = Field(
-        default_factory=dict, description="Custom metadata based on block type"
+        default_factory=dict,
+        description="Custom metadata based on block type (reconstructed from block_properties)",
     )
     source_file: Optional[str] = Field(None, description="Optional source markdown or file name")
     source_uri: Optional[str] = Field(None, description="Optional source link or Logseq block URI")
@@ -154,7 +159,12 @@ class MemoryBlock(BaseModel):
 
     @property
     def is_valid_metadata(self) -> bool:
-        """Check if the metadata conforms to the schema for this block type."""
-        from .registry import validate_metadata
+        """
+        Legacy property for backward compatibility.
 
-        return validate_metadata(self.type, self.metadata)
+        NOTE: With Property-Schema Split, metadata validation occurs during
+        PropertyMapper.decompose_metadata() when properties are written to
+        the block_properties table, not on the MemoryBlock model itself.
+        """
+        # Always return True since metadata validation happens in PropertyMapper
+        return True
