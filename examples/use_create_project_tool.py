@@ -20,7 +20,7 @@ from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 def main():
     # Initialize memory bank with correct paths
     memory_bank = StructuredMemoryBank(
-        dolt_db_path="./data/memory_dolt",
+        dolt_db_path="./data/blocks/memory_dolt",
         chroma_path="./data/memory_chroma",
         chroma_collection="cogni",
     )

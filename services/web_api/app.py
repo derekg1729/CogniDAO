@@ -26,7 +26,7 @@ from .routes import links_router
 logger = logging.getLogger(__name__)
 
 # Define paths for memory and source data (moved from main.py)
-DOLT_DB_PATH = "data/memory_dolt"
+DOLT_DB_PATH = "data/blocks/memory_dolt"
 CHROMA_PATH = "data/memory_chroma"
 CHROMA_COLLECTION = "cogni_memory_poc"
 

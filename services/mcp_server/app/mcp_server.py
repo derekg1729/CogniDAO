@@ -50,7 +50,7 @@ sys.path.append(str(project_root))
 
 
 # Initialize StructuredMemoryBank using environment variable
-COGNI_DOLT_DIR = "/Users/derek/dev/cogni/data/memory_dolt"
+COGNI_DOLT_DIR = "/Users/derek/dev/cogni/data/blocks/memory_dolt"
 CHROMA_PATH = "/Users/derek/dev/cogni/data/memory_chroma"
 CHROMA_COLLECTION_NAME = os.environ.get("CHROMA_COLLECTION_NAME", "cogni_mcp_collection")
 
