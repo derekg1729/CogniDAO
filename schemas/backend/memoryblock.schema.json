@@ -127,6 +127,25 @@
       "description": "Version number of this block",
       "title": "Block Version"
     },
+    "parent_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "ID of the parent block in the hierarchy (foreign key to memory_blocks.id)",
+      "title": "Parent Id"
+    },
+    "has_children": {
+      "default": false,
+      "description": "Whether this block has child blocks (denormalized for fast lookups)",
+      "title": "Has Children",
+      "type": "boolean"
+    },
     "tags": {
       "description": "Optional tags for filtering, theming, or metadata",
       "items": {

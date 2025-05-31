@@ -7,10 +7,9 @@ from infra_core.memory_system.link_manager import (
     LinkManager,
     LinkError,
     LinkQuery,
-    BlockLink,
     Direction,
 )
-from infra_core.memory_system.schemas.common import RelationType
+from infra_core.memory_system.schemas.common import RelationType, BlockLink
 from services.web_api.models import ErrorResponse
 
 # Setup logger
@@ -97,6 +96,7 @@ async def create_link(
             link_metadata=link_metadata,
             created_by=created_by,
         )
+
         return link
 
     except LinkError as e:

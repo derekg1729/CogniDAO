@@ -47,6 +47,7 @@ def sample_block_links():
     """Sample block links for testing."""
     return [
         BlockLink(
+            from_id="source-1",
             to_id="target-1",
             relation="depends_on",
             priority=1,
@@ -55,6 +56,7 @@ def sample_block_links():
             created_by="test_user",
         ),
         BlockLink(
+            from_id="source-2",
             to_id="target-2",
             relation="is_blocked_by",
             priority=2,
@@ -82,6 +84,7 @@ class TestCreateLink:
         """Test successful link creation."""
         # Setup mock
         created_link = BlockLink(
+            from_id=valid_uuids["source"],
             to_id=valid_uuids["target"],
             relation="depends_on",
             priority=1,
@@ -415,6 +418,136 @@ class TestGetLinksTo:
             if hasattr(app.state, "memory_bank"):
                 delattr(app.state, "memory_bank")
 
+    def test_get_links_to_contains_from_id_field(
+        self, client, mock_memory_bank, mock_link_manager, valid_uuids
+    ):
+        """Test that links/to endpoint returns from_id field to identify source blocks.
+
+        This test reproduces the bug where frontend gets 'to_id' but needs 'from_id'
+        to know which blocks are linking TO the target block.
+        """
+        target_block_id = valid_uuids["block_id"]
+        source_block_id = str(uuid.uuid4())
+
+        # Mock a link where source_block_id depends on target_block_id
+        mock_link = BlockLink(
+            from_id=source_block_id,  # The source block that links TO the target
+            to_id=target_block_id,  # The target block we're querying for
+            relation="depends_on",
+            priority=1,
+            link_metadata=None,
+            created_at=datetime.utcnow(),
+            created_by=None,
+        )
+
+        mock_result = LinkQueryResult(links=[mock_link], next_cursor=None)
+        mock_link_manager.links_to.return_value = mock_result
+
+        setattr(app.state, "memory_bank", mock_memory_bank)
+        try:
+            response = client.get(f"/api/v1/links/to/{target_block_id}")
+
+            assert response.status_code == 200
+            response_data = response.json()
+            assert len(response_data) == 1
+
+            link_data = response_data[0]
+
+            # FAILING EXPECTATION: Frontend needs from_id to know source of the link
+            # Currently this will fail because BlockLink schema only has to_id
+            assert "from_id" in link_data, (
+                "Response should contain from_id field for links_to endpoint"
+            )
+            assert link_data["from_id"] == source_block_id, f"from_id should be {source_block_id}"
+
+            # to_id should still be present and be the target block
+            assert "to_id" in link_data, "Response should still contain to_id field"
+            assert link_data["to_id"] == target_block_id, f"to_id should be {target_block_id}"
+
+        finally:
+            if hasattr(app.state, "memory_bank"):
+                delattr(app.state, "memory_bank")
+
+    def test_api_block_link_structure_comprehensive(
+        self, client, mock_memory_bank, mock_link_manager, valid_uuids
+    ):
+        """Comprehensive test of ApiBlockLink structure for both from and to endpoints."""
+        target_block_id = valid_uuids["block_id"]
+        source_block_id = valid_uuids["source"]
+
+        # Test data
+        test_relation = "depends_on"
+        test_priority = 5
+        test_metadata = {"importance": "high"}
+        test_creator = "test-user"
+        test_time = datetime.utcnow()
+
+        # Mock link data
+        mock_link = BlockLink(
+            from_id=source_block_id,  # The source block that links TO the target
+            to_id=target_block_id,  # The target block we're querying for
+            relation=test_relation,
+            priority=test_priority,
+            link_metadata=test_metadata,
+            created_at=test_time,
+            created_by=test_creator,
+        )
+
+        mock_result = LinkQueryResult(links=[mock_link], next_cursor=None)
+        mock_link_manager.links_to.return_value = mock_result
+
+        setattr(app.state, "memory_bank", mock_memory_bank)
+        try:
+            # Test links/to endpoint
+            response = client.get(f"/api/v1/links/to/{target_block_id}")
+            assert response.status_code == 200
+            response_data = response.json()
+            assert len(response_data) == 1
+
+            link_data = response_data[0]
+
+            # Verify all ApiBlockLink fields are present and correct
+            assert link_data["from_id"] == source_block_id, "from_id should identify source block"
+            assert link_data["to_id"] == target_block_id, "to_id should identify target block"
+            assert link_data["relation"] == test_relation
+            assert link_data["priority"] == test_priority
+            assert link_data["link_metadata"] == test_metadata
+            assert link_data["created_by"] == test_creator
+            assert "created_at" in link_data
+
+            # Reset mock for from endpoint test
+            mock_link_from = BlockLink(
+                from_id=source_block_id,  # For links_from, this is the source
+                to_id=target_block_id,  # For links_from, this is correct
+                relation=test_relation,
+                priority=test_priority,
+                link_metadata=test_metadata,
+                created_at=test_time,
+                created_by=test_creator,
+            )
+            mock_result_from = LinkQueryResult(links=[mock_link_from], next_cursor=None)
+            mock_link_manager.links_from.return_value = mock_result_from
+
+            # Test links/from endpoint
+            response_from = client.get(f"/api/v1/links/from/{source_block_id}")
+            assert response_from.status_code == 200
+            response_from_data = response_from.json()
+            assert len(response_from_data) == 1
+
+            link_from_data = response_from_data[0]
+
+            # Verify from endpoint returns correct structure
+            assert link_from_data["from_id"] == source_block_id, (
+                "from_id should be query block for links_from"
+            )
+            assert link_from_data["to_id"] == target_block_id, "to_id should be the target"
+            assert link_from_data["relation"] == test_relation
+            assert link_from_data["priority"] == test_priority
+
+        finally:
+            if hasattr(app.state, "memory_bank"):
+                delattr(app.state, "memory_bank")
+
 
 class TestDeleteLinksForBlock:
     """Test DELETE /api/v1/links/block/{block_id} endpoint."""
@@ -511,6 +644,7 @@ class TestIntegrationScenarios:
         """Test creating, retrieving, and deleting a link."""
         # Create a link that matches our test UUIDs
         created_link = BlockLink(
+            from_id=valid_uuids["source"],
             to_id=valid_uuids["target"],
             relation="depends_on",
             priority=1,

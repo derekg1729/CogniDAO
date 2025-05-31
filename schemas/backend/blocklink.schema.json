@@ -6,6 +6,11 @@
       "title": "To Id",
       "type": "string"
     },
+    "from_id": {
+      "description": "ID of the source block in the link",
+      "title": "From Id",
+      "type": "string"
+    },
     "relation": {
       "description": "The type of relationship between the blocks",
       "enum": [
@@ -86,6 +91,7 @@
   },
   "required": [
     "to_id",
+    "from_id",
     "relation"
   ],
   "title": "BlockLink",

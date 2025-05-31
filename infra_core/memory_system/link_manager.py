@@ -798,6 +798,7 @@ class InMemoryLinkManager(LinkManager):
         # No cycle detected, create the link
         now = self._datetime.now()
         link = BlockLink(
+            from_id=from_id,
             to_id=to_id,
             relation=relation_str,
             priority=priority,

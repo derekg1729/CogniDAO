@@ -14,6 +14,8 @@ All models must inherit from Pydantic's BaseModel.
 from typing import Optional, List, Literal, Dict, Any
 from pydantic import BaseModel, Field
 
+# Import relation types for validation
+
 
 class HistoryMessage(BaseModel):
     """Schema for a single message in the chat history."""

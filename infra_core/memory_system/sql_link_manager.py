@@ -249,6 +249,7 @@ class SQLLinkManager(LinkManager):
 
         # Return the BlockLink object
         return BlockLink(
+            from_id=from_id,
             to_id=to_id,
             relation=relation_str,
             priority=priority,
@@ -362,6 +363,7 @@ class SQLLinkManager(LinkManager):
         if result and "rows" in result:
             for row in result["rows"]:
                 link = BlockLink(
+                    from_id=block_id,
                     to_id=row["to_id"],
                     relation=row["relation"],
                     priority=row.get("priority", 0),
@@ -417,9 +419,10 @@ class SQLLinkManager(LinkManager):
         links = []
         if result and "rows" in result:
             for row in result["rows"]:
-                # For backlinks, we want to show the source as the target
+                # For links pointing TO this block, the from_id is what we get from DB
                 link = BlockLink(
-                    to_id=row["from_id"],  # The source becomes our target for backlinks
+                    from_id=row["from_id"],
+                    to_id=row["to_id"],  # This should be the block_id we queried for
                     relation=row["relation"],
                     priority=row.get("priority", 0),
                     link_metadata=row.get("link_metadata"),
