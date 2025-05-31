@@ -565,3 +565,75 @@ class TestPropertyMapper:
             )
         assert "Only one property value column can be not-NULL" in str(exc_info.value)
         assert "found 3 non-NULL values" in str(exc_info.value)
+
+    # FIX-01 Tests: None value handling
+    def test_fix01_none_field_disappears(self):
+        """FIX-01: Test that None fields are skipped entirely during decomposition."""
+        block_id = str(uuid4())
+        metadata = {"valid_field": "some_value", "none_field": None, "another_valid": 42}
+
+        properties = PropertyMapper.decompose_metadata(block_id, metadata)
+
+        # Should only have 2 properties (None field should be skipped)
+        assert len(properties) == 2
+
+        property_names = {prop.property_name for prop in properties}
+        assert "valid_field" in property_names
+        assert "another_valid" in property_names
+        assert "none_field" not in property_names  # None field should disappear
+
+    def test_fix01_field_value_to_none_deletes_row(self):
+        """FIX-01: Test that changing a field from value to None removes it from properties."""
+        block_id = str(uuid4())
+
+        # Initial metadata with a field
+        initial_metadata = {"field1": "value1", "field2": "value2"}
+        initial_properties = PropertyMapper.decompose_metadata(block_id, initial_metadata)
+        assert len(initial_properties) == 2
+
+        # Updated metadata where field1 becomes None
+        updated_metadata = {"field1": None, "field2": "updated_value2"}
+        updated_properties = PropertyMapper.decompose_metadata(block_id, updated_metadata)
+
+        # Should only have 1 property now (field1 should be deleted by omission)
+        assert len(updated_properties) == 1
+
+        property_names = {prop.property_name for prop in updated_properties}
+        assert "field2" in property_names
+        assert "field1" not in property_names  # field1 should be gone
+
+        # Verify field2 was updated
+        field2_prop = next(prop for prop in updated_properties if prop.property_name == "field2")
+        assert field2_prop.property_value_text == "updated_value2"
+
+    def test_fix01_roundtrip_mixed_none_nonnone(self):
+        """FIX-01: Test round-trip behavior with mixed None and non-None data."""
+        block_id = str(uuid4())
+
+        # Metadata with mixed None and actual values
+        original_metadata = {
+            "string_field": "hello",
+            "none_field": None,
+            "number_field": 123,
+            "another_none": None,
+            "bool_field": True,
+        }
+
+        # Decompose -> Properties
+        properties = PropertyMapper.decompose_metadata(block_id, original_metadata)
+
+        # Should only have 3 properties (None fields skipped)
+        assert len(properties) == 3
+        property_names = {prop.property_name for prop in properties}
+        assert property_names == {"string_field", "number_field", "bool_field"}
+
+        # Compose back -> Metadata
+        recomposed_metadata = PropertyMapper.compose_metadata(properties)
+
+        # Should only contain non-None fields
+        expected_metadata = {"string_field": "hello", "number_field": 123, "bool_field": True}
+        assert recomposed_metadata == expected_metadata
+
+        # None fields should not appear in recomposed metadata
+        assert "none_field" not in recomposed_metadata
+        assert "another_none" not in recomposed_metadata

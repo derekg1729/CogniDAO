@@ -94,8 +94,8 @@ class PropertyMapper:
         }
 
         if value is None:
-            # CR-04 fix: Use empty string instead of None to satisfy CHECK constraint
-            # chk_exactly_one_value_nonnull requires exactly one variant column to be non-NULL
+            # This should not happen now with FIX-01, but keeping for safety
+            # If somehow a None reaches here, store as empty text
             result["property_value_text"] = ""
         elif property_type == "number":
             result["property_value_number"] = float(value)
@@ -188,6 +188,9 @@ class PropertyMapper:
 
         This method handles universal extras support by storing any field as a property.
 
+        FIX-01: Fields with None values are skipped entirely to avoid CHECK constraint
+        violations (chk_exactly_one_value_nonnull requires exactly one non-NULL variant column).
+
         Args:
             block_id: ID of the memory block
             metadata_dict: The metadata dictionary to decompose
@@ -202,6 +205,11 @@ class PropertyMapper:
         for field_name, value in metadata_dict.items():
             # Store all fields, including None values (as empty strings for CHECK constraint)
             # This ensures round-trip compatibility with the tests
+            # FIX-01: Skip None values entirely to avoid CHECK constraint violations
+            if value is None:
+                logger.debug(f"Skipping field '{field_name}' with None value for block {block_id}")
+                continue
+
             try:
                 # Detect appropriate property type
                 property_type = cls.detect_property_type(value)

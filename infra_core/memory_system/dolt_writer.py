@@ -79,10 +79,14 @@ def _escape_sql_string(value: Optional[str]) -> str:
     # Check for dangerous control characters that could be used in attacks
     import re
 
-    if re.search(r"[\x00\x08\x0a\x0d\x09\x1a]", value):
+    # FIX-02: Only block truly dangerous control characters, allow legitimate newlines/tabs
+    # \x00 = null byte (path traversal attacks)
+    # \x08 = backspace (rarely legitimate in SQL)
+    # \x1a = substitute/EOF (can terminate SQL in some contexts)
+    # Allow: \x09 (tab), \x0a (newline), \x0d (carriage return) for legitimate formatting
+    if re.search(r"[\x00\x08\x1a]", value):
         raise ValueError(
-            f"String contains dangerous control characters (null, backspace, newline, "
-            f"carriage return, tab, or substitute): {repr(value)}"
+            f"String contains dangerous control characters (null, backspace, or substitute): {repr(value)}"
         )
 
     # Escape single quotes by doubling them (SQL standard)
