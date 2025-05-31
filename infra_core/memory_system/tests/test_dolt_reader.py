@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 from datetime import datetime
 import logging  # Import logging for caplog tests
+import json
 
 # Use absolute import path based on project structure and sys.path modification in dolt_reader
 from infra_core.memory_system.dolt_reader import read_memory_blocks
@@ -386,3 +387,221 @@ class TestDoltReader:
         # Check for error log message
         assert "Failed to read from Dolt DB" in caplog.text
         assert "SQL execution failed" in caplog.text
+
+    # FIX-03 Tests: Embedding field JSON string handling
+    def test_fix03_embedding_arrives_as_json_string(self):
+        """FIX-03: Test that embedding field is properly parsed when it arrives as JSON string from Dolt."""
+        from infra_core.memory_system.dolt_reader import read_memory_block
+
+        # Create a 384-dimension embedding list (valid size)
+        embedding_list = [0.1 * i for i in range(384)]
+
+        # Mock row data where embedding comes as JSON string (as it would from Dolt)
+        embedding_json_string = json.dumps(embedding_list)
+
+        sample_row_with_embedding = {
+            "id": "embedding-test-001",
+            "type": "knowledge",
+            "schema_version": 1,
+            "text": "Test block with embedding",
+            "state": "published",
+            "visibility": "internal",
+            "block_version": 1,
+            "parent_id": None,
+            "has_children": False,
+            "tags": ["test", "embedding"],
+            "source_file": None,
+            "source_uri": None,
+            "confidence": None,
+            "created_by": "test_runner",
+            "created_at": "2023-10-27T10:00:00",
+            "updated_at": "2023-10-27T11:00:00",
+            "embedding": embedding_json_string,  # This comes as JSON string from Dolt!
+        }
+
+        with patch(DOLT_PATCH_TARGET) as MockDolt:
+            mock_repo = MagicMock()
+            # Property-Schema Split: Need side_effect for multiple calls
+            mock_repo.sql.side_effect = [
+                {"rows": [sample_row_with_embedding]},  # memory_blocks query
+                {"rows": []},  # block_properties query (empty)
+            ]
+            MockDolt.return_value = mock_repo
+
+            db_path = "/fake/path"
+            block = read_memory_block(db_path, "embedding-test-001")
+
+            # Should successfully parse and validate
+            assert block is not None
+            assert block.id == "embedding-test-001"
+            assert block.embedding is not None
+            assert isinstance(block.embedding, list)
+            assert len(block.embedding) == 384
+            assert block.embedding[0] == 0.0
+            assert abs(block.embedding[383] - 38.3) < 1e-10  # Use approximate equality for floats
+
+    def test_fix03_embedding_roundtrip_384_dimensions(self):
+        """FIX-03: Test round-trip of block with 384-dimensional embedding list."""
+        # Note: This test demonstrates the fix concept but uses mocking for simplicity
+        # A full integration test would require complete schema setup
+        from infra_core.memory_system.dolt_reader import read_memory_block
+
+        # Create embedding with exactly 384 dimensions
+        embedding_384 = [0.1 * i for i in range(384)]
+
+        # Mock scenario: block was written to Dolt and now we're reading it back
+        # The embedding comes back as JSON string from Dolt
+        sample_row_roundtrip = {
+            "id": "roundtrip-embedding-001",
+            "type": "knowledge",
+            "schema_version": 1,
+            "text": "Test block for embedding roundtrip",
+            "state": "published",
+            "visibility": "internal",
+            "block_version": 1,
+            "parent_id": None,
+            "has_children": False,
+            "tags": ["test"],
+            "source_file": None,
+            "source_uri": None,
+            "confidence": None,
+            "created_by": "test_runner",
+            "created_at": "2023-10-27T10:00:00",
+            "updated_at": "2023-10-27T11:00:00",
+            "embedding": json.dumps(embedding_384),  # JSON string from Dolt
+        }
+
+        with patch(DOLT_PATCH_TARGET) as MockDolt:
+            mock_repo = MagicMock()
+            # Mock the metadata lookup too
+            mock_repo.sql.side_effect = [
+                {"rows": [sample_row_roundtrip]},  # memory_blocks query
+                {
+                    "rows": [
+                        {
+                            "property_name": "test",
+                            "property_value_text": "embedding_roundtrip",
+                            "property_type": "text",
+                            "property_value_number": None,
+                            "property_value_json": None,
+                            "block_id": "roundtrip-embedding-001",
+                            "is_computed": False,
+                            "created_at": "2023-10-27T10:00:00",
+                            "updated_at": "2023-10-27T11:00:00",
+                        }
+                    ]
+                },  # block_properties query with test metadata
+            ]
+            MockDolt.return_value = mock_repo
+
+            # Read block back
+            read_block = read_memory_block("/fake/path", "roundtrip-embedding-001")
+
+            # Verify embedding round-trip
+            assert read_block is not None
+            assert read_block.embedding is not None
+            assert isinstance(read_block.embedding, list)
+            assert len(read_block.embedding) == 384
+            assert read_block.embedding == embedding_384  # Exact match
+            assert read_block.metadata == {"test": "embedding_roundtrip"}  # Metadata also works
+
+    def test_fix03_multiple_blocks_with_embeddings(self):
+        """FIX-03: Test reading multiple blocks where some have embeddings as JSON strings."""
+        from infra_core.memory_system.dolt_reader import read_memory_blocks
+
+        # Create embedding data
+        embedding1 = [0.1 * i for i in range(384)]
+        embedding2 = [0.2 * i for i in range(384)]
+
+        sample_rows_mixed_embeddings = [
+            {
+                "id": "block-with-embedding-001",
+                "type": "knowledge",
+                "schema_version": 1,
+                "text": "Block with embedding",
+                "state": "published",
+                "visibility": "internal",
+                "block_version": 1,
+                "parent_id": None,
+                "has_children": False,
+                "tags": ["test"],
+                "source_file": None,
+                "source_uri": None,
+                "confidence": None,
+                "created_by": "test_runner",
+                "created_at": "2023-10-27T10:00:00",
+                "updated_at": "2023-10-27T11:00:00",
+                "embedding": json.dumps(embedding1),  # JSON string
+            },
+            {
+                "id": "block-without-embedding-002",
+                "type": "doc",
+                "schema_version": 1,
+                "text": "Block without embedding",
+                "state": "draft",
+                "visibility": "internal",
+                "block_version": 1,
+                "parent_id": None,
+                "has_children": False,
+                "tags": ["test"],
+                "source_file": None,
+                "source_uri": None,
+                "confidence": None,
+                "created_by": "test_runner",
+                "created_at": "2023-10-27T12:00:00",
+                "updated_at": "2023-10-27T13:00:00",
+                "embedding": None,  # No embedding
+            },
+            {
+                "id": "block-with-embedding-003",
+                "type": "task",
+                "schema_version": 1,
+                "text": "Another block with embedding",
+                "state": "published",
+                "visibility": "public",
+                "block_version": 1,
+                "parent_id": None,
+                "has_children": False,
+                "tags": ["test", "embedding"],
+                "source_file": None,
+                "source_uri": None,
+                "confidence": None,
+                "created_by": "test_runner",
+                "created_at": "2023-10-27T14:00:00",
+                "updated_at": "2023-10-27T15:00:00",
+                "embedding": json.dumps(embedding2),  # JSON string
+            },
+        ]
+
+        with patch(DOLT_PATCH_TARGET) as MockDolt:
+            mock_repo = MagicMock()
+            # Property-Schema Split: Need side_effect for multiple calls (1 + 3 properties calls)
+            mock_repo.sql.side_effect = [
+                {"rows": sample_rows_mixed_embeddings},  # memory_blocks query
+                {"rows": []},  # block_properties for block-with-embedding-001
+                {"rows": []},  # block_properties for block-without-embedding-002
+                {"rows": []},  # block_properties for block-with-embedding-003
+            ]
+            MockDolt.return_value = mock_repo
+
+            db_path = "/fake/path"
+            blocks = read_memory_blocks(db_path)
+
+            # All blocks should be successfully parsed
+            assert len(blocks) == 3
+
+            # First block - has embedding
+            assert blocks[0].id == "block-with-embedding-001"
+            assert blocks[0].embedding is not None
+            assert len(blocks[0].embedding) == 384
+            assert blocks[0].embedding == embedding1
+
+            # Second block - no embedding
+            assert blocks[1].id == "block-without-embedding-002"
+            assert blocks[1].embedding is None
+
+            # Third block - has embedding
+            assert blocks[2].id == "block-with-embedding-003"
+            assert blocks[2].embedding is not None
+            assert len(blocks[2].embedding) == 384
+            assert blocks[2].embedding == embedding2

@@ -122,6 +122,26 @@ def read_memory_blocks(db_path: str, branch: str = "main") -> List[MemoryBlock]:
                     # Create a copy to avoid modifying the original result row if necessary.
                     parsed_row: Dict[str, Any] = {k: v for k, v in row.items() if v is not None}
 
+                    # FIX-03: Parse embedding field if it comes as JSON string from Dolt
+                    # (similar to the logic in read_memory_blocks_from_working_set)
+                    for key, value in parsed_row.items():
+                        if value is None:
+                            continue
+
+                        # Handle embedding field specifically
+                        if key == "embedding" and isinstance(value, str):
+                            try:
+                                parsed_row[key] = json.loads(value)
+                                logger.debug(
+                                    f"Successfully parsed embedding JSON string for block {row['id']}"
+                                )
+                            except json.JSONDecodeError:
+                                logger.warning(
+                                    f"Failed to parse JSON string for embedding in block {row['id']}: {value}"
+                                )
+                                # Keep as string if parsing fails, Pydantic might handle or error
+                                parsed_row[key] = value
+
                     # 7. Validate using Pydantic
                     memory_block = MemoryBlock.model_validate(parsed_row)
                     memory_blocks_list.append(memory_block)
@@ -289,6 +309,26 @@ def read_memory_block(db_path: str, block_id: str, branch: str = "main") -> Opti
             try:
                 # Prepare row data for Pydantic model validation
                 parsed_row: Dict[str, Any] = {k: v for k, v in row.items() if v is not None}
+
+                # FIX-03: Parse embedding field if it comes as JSON string from Dolt
+                for key, value in parsed_row.items():
+                    if value is None:
+                        continue
+
+                    # Handle embedding field specifically
+                    if key == "embedding" and isinstance(value, str):
+                        try:
+                            parsed_row[key] = json.loads(value)
+                            logger.debug(
+                                f"Successfully parsed embedding JSON string for block {block_id}"
+                            )
+                        except json.JSONDecodeError:
+                            logger.warning(
+                                f"Failed to parse JSON string for embedding in block {block_id}: {value}"
+                            )
+                            # Keep as string if parsing fails, Pydantic might handle or error
+                            parsed_row[key] = value
+
                 memory_block = MemoryBlock.model_validate(parsed_row)
                 logger.info(
                     f"Successfully parsed MemoryBlock {block_id} using Property-Schema Split."
@@ -419,6 +459,26 @@ def read_memory_blocks_by_tags(
                         row["metadata"] = {}
 
                     parsed_row: Dict[str, Any] = {k: v for k, v in row.items() if v is not None}
+
+                    # FIX-03: Parse embedding field if it comes as JSON string from Dolt
+                    for key, value in parsed_row.items():
+                        if value is None:
+                            continue
+
+                        # Handle embedding field specifically
+                        if key == "embedding" and isinstance(value, str):
+                            try:
+                                parsed_row[key] = json.loads(value)
+                                logger.debug(
+                                    f"Successfully parsed embedding JSON string for block {row['id']}"
+                                )
+                            except json.JSONDecodeError:
+                                logger.warning(
+                                    f"Failed to parse JSON string for embedding in block {row['id']}: {value}"
+                                )
+                                # Keep as string if parsing fails, Pydantic might handle or error
+                                parsed_row[key] = value
+
                     memory_block = MemoryBlock.model_validate(parsed_row)
                     memory_blocks_list.append(memory_block)
                 except ValidationError as e:
