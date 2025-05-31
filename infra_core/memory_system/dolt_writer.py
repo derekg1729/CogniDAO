@@ -62,26 +62,38 @@ logging.basicConfig(
 
 def _escape_sql_string(value: Optional[str]) -> str:
     """
-    Basic manual SQL string escaping.
-    WARNING: This is NOT a robust alternative to parameterized queries
-    and carries the risk of SQL injection if the escaping is inadequate.
+    Manually escape a string for SQL inclusion by wrapping in single quotes and escaping internal quotes.
+
+    WARNING: This is NOT as robust as parameterized queries and carries SQL injection risks.
 
     Args:
-        value: The string to escape for use in SQL, or None.
+        value: The string value to escape.
 
     Returns:
-        A manually escaped string wrapped in single quotes, or 'NULL' if value is None.
+        A single-quoted, escaped string suitable for SQL inclusion.
     """
     if value is None:
         return "NULL"
-    # Basic escape: replace single quotes with double single quotes
-    escaped = value.replace("'", "''")
-    return f"'{escaped}'"
+
+    # CR-05 fix: Block control characters to prevent injection attacks
+    # Check for dangerous control characters that could be used in attacks
+    import re
+
+    if re.search(r"[\x00\x08\x0a\x0d\x09\x1a]", value):
+        raise ValueError(
+            f"String contains dangerous control characters (null, backspace, newline, "
+            f"carriage return, tab, or substitute): {repr(value)}"
+        )
+
+    # Escape single quotes by doubling them (SQL standard)
+    escaped_value = value.replace("'", "''")
+    return f"'{escaped_value}'"
 
 
 def _format_sql_value(value: Optional[Any]) -> str:
     """
-    Manually format a Python value for SQL inclusion.
+    Formats a Python value for safe inclusion in a SQL query string.
+
     WARNING: This is NOT as robust as parameterized queries and carries SQL injection risks.
 
     Args:
@@ -108,6 +120,18 @@ def _format_sql_value(value: Optional[Any]) -> str:
             raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
         json_str = json.dumps(value, default=json_serializer, ensure_ascii=True)
+
+        # CR-03 fix: Check JSON length to avoid silent truncation
+        # MySQL max_packet_size is typically 1MB (1048576 bytes), but we use a conservative limit
+        MAX_JSON_LENGTH = 1048576  # 1MB
+        if len(json_str) > MAX_JSON_LENGTH:
+            logger.warning(
+                f"JSON value exceeds {MAX_JSON_LENGTH} bytes ({len(json_str)} bytes). "
+                f"This may hit Dolt/MySQL JSON length limits. Consider using property_value_text fallback."
+            )
+            # For now, we'll still try to insert it, but log the warning
+            # In the future, PropertyMapper could automatically use property_value_text for large values
+
         return _escape_sql_string(json_str)
     elif isinstance(value, datetime):
         # Format datetime as MySQL-compatible string

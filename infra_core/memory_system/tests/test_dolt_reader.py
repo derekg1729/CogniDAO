@@ -94,9 +94,15 @@ class TestDoltReader:
     @patch(DOLT_PATCH_TARGET)
     def test_read_basic_block(self, MockDolt):
         """Test reading a single block with basic fields."""
-        # Configure mock Dolt instance and its sql method
+        # Configure mock Dolt instance and its sql method for Property-Schema Split
         mock_repo = MagicMock()
-        mock_repo.sql.return_value = {"rows": [SAMPLE_ROW_BASIC]}
+
+        # First call: memory_blocks table returns the block data
+        # Second call: block_properties table returns empty list (no properties for basic test)
+        mock_repo.sql.side_effect = [
+            {"rows": [SAMPLE_ROW_BASIC]},  # memory_blocks query
+            {"rows": []},  # block_properties query (empty for basic test)
+        ]
         MockDolt.return_value = mock_repo
 
         db_path = "/fake/path"
@@ -112,28 +118,79 @@ class TestDoltReader:
         assert block.schema_version == 1
         # Check defaults for optional/JSON fields
         assert block.tags == []
-        assert block.metadata == {}
+        assert block.metadata == {}  # Empty because no properties returned
         assert block.confidence is None
         assert isinstance(block.created_at, datetime)
         assert isinstance(block.updated_at, datetime)
 
-        # Verify Dolt connection and query
-        MockDolt.assert_called_once_with(db_path)
-        mock_repo.sql.assert_called_once()
-        # Check query contains SELECT and AS OF 'main'
-        call_args, call_kwargs = mock_repo.sql.call_args
-        assert "query" in call_kwargs
-        sql_query = call_kwargs["query"].upper()
+        # Verify Dolt connection and 2 SQL queries (Property-Schema Split)
+        assert MockDolt.call_count == 2  # Two Dolt instances created
+        assert mock_repo.sql.call_count == 2  # Two SQL calls made
+
+        # Check first query (memory_blocks)
+        first_call_args, first_call_kwargs = mock_repo.sql.call_args_list[0]
+        assert "query" in first_call_kwargs
+        sql_query = first_call_kwargs["query"].upper()
         assert "SELECT" in sql_query
         assert "FROM MEMORY_BLOCKS" in sql_query
         assert "AS OF 'MAIN'" in sql_query  # Check default branch
-        assert call_kwargs["result_format"] == "json"
+        assert first_call_kwargs["result_format"] == "json"
+
+        # Check second query (block_properties)
+        second_call_args, second_call_kwargs = mock_repo.sql.call_args_list[1]
+        assert "query" in second_call_kwargs
+        sql_query2 = second_call_kwargs["query"].upper()
+        assert "SELECT" in sql_query2
+        assert "FROM BLOCK_PROPERTIES" in sql_query2
+        assert "AS OF 'MAIN'" in sql_query2
+        assert "WHERE BLOCK_ID = 'BASIC-001'" in sql_query2
+        assert second_call_kwargs["result_format"] == "json"
 
     @patch(DOLT_PATCH_TARGET)
     def test_read_block_with_all_fields(self, MockDolt):
         """Test reading a block with all fields populated correctly."""
+        # Create mock property data that will compose to the expected metadata
+        mock_properties = [
+            {
+                "block_id": "full-002",
+                "property_name": "status",
+                "property_type": "text",
+                "property_value_text": "pending",
+                "property_value_number": None,
+                "property_value_json": None,
+                "is_computed": False,
+                "created_at": "2023-10-27T12:00:00",
+                "updated_at": "2023-10-27T12:00:00",
+            },
+            {
+                "block_id": "full-002",
+                "property_name": "priority",
+                "property_type": "number",
+                "property_value_text": None,
+                "property_value_number": 3.0,
+                "property_value_json": None,
+                "is_computed": False,
+                "created_at": "2023-10-27T12:00:00",
+                "updated_at": "2023-10-27T12:00:00",
+            },
+            {
+                "block_id": "full-002",
+                "property_name": "assignee",
+                "property_type": "text",
+                "property_value_text": "agent_x",
+                "property_value_number": None,
+                "property_value_json": None,
+                "is_computed": False,
+                "created_at": "2023-10-27T12:00:00",
+                "updated_at": "2023-10-27T12:00:00",
+            },
+        ]
+
         mock_repo = MagicMock()
-        mock_repo.sql.return_value = {"rows": [SAMPLE_ROW_FULL]}
+        mock_repo.sql.side_effect = [
+            {"rows": [SAMPLE_ROW_FULL]},  # memory_blocks query
+            {"rows": mock_properties},  # block_properties query with the metadata
+        ]
         MockDolt.return_value = mock_repo
 
         db_path = "/fake/path"
@@ -160,8 +217,50 @@ class TestDoltReader:
     @patch(DOLT_PATCH_TARGET)
     def test_read_multiple_blocks(self, MockDolt):
         """Test reading multiple blocks."""
+        # Create mock property data for the full block only (basic block has no properties)
+        mock_properties_full = [
+            {
+                "block_id": "full-002",
+                "property_name": "status",
+                "property_type": "text",
+                "property_value_text": "pending",
+                "property_value_number": None,
+                "property_value_json": None,
+                "is_computed": False,
+                "created_at": "2023-10-27T12:00:00",
+                "updated_at": "2023-10-27T12:00:00",
+            },
+            {
+                "block_id": "full-002",
+                "property_name": "priority",
+                "property_type": "number",
+                "property_value_text": None,
+                "property_value_number": 3.0,
+                "property_value_json": None,
+                "is_computed": False,
+                "created_at": "2023-10-27T12:00:00",
+                "updated_at": "2023-10-27T12:00:00",
+            },
+            {
+                "block_id": "full-002",
+                "property_name": "assignee",
+                "property_type": "text",
+                "property_value_text": "agent_x",
+                "property_value_number": None,
+                "property_value_json": None,
+                "is_computed": False,
+                "created_at": "2023-10-27T12:00:00",
+                "updated_at": "2023-10-27T12:00:00",
+            },
+        ]
+
         mock_repo = MagicMock()
-        mock_repo.sql.return_value = {"rows": [SAMPLE_ROW_BASIC, SAMPLE_ROW_FULL]}
+        # 3 calls: 1 memory_blocks + 2 block_properties (one per block)
+        mock_repo.sql.side_effect = [
+            {"rows": [SAMPLE_ROW_BASIC, SAMPLE_ROW_FULL]},  # memory_blocks query
+            {"rows": []},  # block_properties query for basic-001 (empty)
+            {"rows": mock_properties_full},  # block_properties query for full-002
+        ]
         MockDolt.return_value = mock_repo
 
         db_path = "/fake/path"
@@ -173,34 +272,25 @@ class TestDoltReader:
 
     @patch(DOLT_PATCH_TARGET)
     def test_read_with_json_decode_error(self, MockDolt, caplog):
-        """Test that Pydantic validation errors are logged and skip the invalid row."""
+        """Test that blocks with invalid metadata in old format are handled gracefully."""
         mock_repo = MagicMock()
-        # Return one good row and one with bad metadata (string instead of dict)
-        mock_repo.sql.return_value = {"rows": [SAMPLE_ROW_BASIC, SAMPLE_ROW_BAD_JSON_STRUCTURE]}
+        # Property-Schema Split: Need side_effect for multiple calls
+        mock_repo.sql.side_effect = [
+            {"rows": [SAMPLE_ROW_BASIC, SAMPLE_ROW_BAD_JSON_STRUCTURE]},  # memory_blocks query
+            {"rows": []},  # block_properties query for basic-001 (empty)
+            {"rows": []},  # block_properties query for bad-json-003 (empty)
+        ]
         MockDolt.return_value = mock_repo
 
         db_path = "/fake/path"
-        # Change log level to ERROR since Pydantic errors are logged as ERROR
-        with caplog.at_level(logging.ERROR):
-            blocks = read_memory_blocks(db_path)
+        blocks = read_memory_blocks(db_path)
 
-        # Assert only the valid block was returned
-        assert len(blocks) == 1
-        assert blocks[0].id == "basic-001"  # First block should be fine
-
-        # Assertions for the second block are removed as it's not loaded.
-        # assert blocks[1].id == 'bad-json-003'
-        # assert blocks[1].metadata == {}
-        # assert blocks[1].tags == ["valid"]
-
-        # Check that the Pydantic validation error was logged
-        assert "Pydantic validation failed" in caplog.text
-        assert "Block ID: bad-json-003" in caplog.text
-        assert "metadata" in caplog.text  # Check that the field name is mentioned
-        assert (
-            "Input should be a valid dictionary" in caplog.text
-        )  # Check for Pydantic error message
-        assert "input_type=str" in caplog.text  # Confirm it identified the input type as string
+        # Both blocks should be returned since the Property-Schema Split ignores the old metadata field.
+        # Invalid JSON in the legacy metadata field doesn't cause validation errors anymore.
+        assert len(blocks) == 2
+        assert blocks[0].id == "basic-001"
+        assert blocks[1].id == "bad-json-003"
+        assert blocks[1].metadata == {}  # Empty metadata since properties table is empty
 
     @patch(DOLT_PATCH_TARGET)
     def test_read_with_pydantic_validation_error(self, MockDolt, caplog):
@@ -241,7 +331,11 @@ class TestDoltReader:
     def test_read_query_specific_branch(self, MockDolt):
         """Test querying a specific branch."""
         mock_repo = MagicMock()
-        mock_repo.sql.return_value = {"rows": [SAMPLE_ROW_BASIC]}
+        # Property-Schema Split: Need side_effect for multiple calls
+        mock_repo.sql.side_effect = [
+            {"rows": [SAMPLE_ROW_BASIC]},  # memory_blocks query
+            {"rows": []},  # block_properties query (empty)
+        ]
         MockDolt.return_value = mock_repo
 
         db_path = "/fake/path"
@@ -249,11 +343,15 @@ class TestDoltReader:
         blocks = read_memory_blocks(db_path, branch=branch_name)
 
         assert len(blocks) == 1
-        mock_repo.sql.assert_called_once()
-        call_args, call_kwargs = mock_repo.sql.call_args
-        assert "query" in call_kwargs
-        # Check AS OF clause uses the specified branch
-        assert f"AS OF '{branch_name}'" in call_kwargs["query"]
+        # Property-Schema Split: Expect 2 SQL calls now
+        assert mock_repo.sql.call_count == 2
+
+        # Check that both queries use the specified branch
+        first_call_args, first_call_kwargs = mock_repo.sql.call_args_list[0]
+        assert f"AS OF '{branch_name}'" in first_call_kwargs["query"]
+
+        second_call_args, second_call_kwargs = mock_repo.sql.call_args_list[1]
+        assert f"AS OF '{branch_name}'" in second_call_kwargs["query"]
 
     @patch(DOLT_PATCH_TARGET)
     def test_read_dolt_connection_error(self, MockDolt, caplog):

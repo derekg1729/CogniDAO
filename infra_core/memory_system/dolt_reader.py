@@ -50,12 +50,10 @@ def _escape_sql_string(value: Optional[str]) -> str:
 
 def read_memory_blocks(db_path: str, branch: str = "main") -> List[MemoryBlock]:
     """
-    Reads MemoryBlocks from the specified Dolt database and branch.
+    Reads MemoryBlocks from the specified Dolt database and branch using Property-Schema Split approach.
 
-    Queries the 'memory_blocks' table, parses rows, and validates them into
-    MemoryBlock Pydantic objects. Assumes columns like 'tags', 'metadata', 'links',
-    'confidence' are returned as appropriate Python types (list, dict) by doltpy
-    when using result_format='json'.
+    Uses PropertyMapper to compose metadata from the block_properties table instead of reading
+    from a metadata JSON column (CR-01 fix).
 
     Args:
         db_path: Path to the Dolt database directory.
@@ -64,7 +62,9 @@ def read_memory_blocks(db_path: str, branch: str = "main") -> List[MemoryBlock]:
     Returns:
         A list of validated MemoryBlock objects.
     """
-    logger.info(f"Attempting to read MemoryBlocks from Dolt DB at {db_path} on branch '{branch}'")
+    logger.info(
+        f"Attempting to read MemoryBlocks from Dolt DB at {db_path} on branch '{branch}' using Property-Schema Split"
+    )
     memory_blocks_list: List[MemoryBlock] = []
     repo: Optional[Dolt] = None
 
@@ -72,13 +72,13 @@ def read_memory_blocks(db_path: str, branch: str = "main") -> List[MemoryBlock]:
         # 1. Connect to Dolt repository
         repo = Dolt(db_path)
 
-        # 2. Define the SQL Query (excluding embedding)
+        # 2. Define the SQL Query (NO metadata column, include ALL mandatory columns - CR-01 & CR-02 fix)
         # Use AS OF syntax to query a specific branch/commit
-        # Select columns without the '_json' suffix
         query = f"""
         SELECT 
-            id, type, schema_version, text, tags, metadata, 
-            source_file, source_uri, confidence, created_by, created_at, updated_at
+            id, type, schema_version, text, state, visibility, block_version, 
+            parent_id, has_children, tags, source_file, source_uri, confidence, 
+            created_by, created_at, updated_at, embedding
         FROM memory_blocks 
         AS OF '{branch}'
         """
@@ -92,22 +92,37 @@ def read_memory_blocks(db_path: str, branch: str = "main") -> List[MemoryBlock]:
             logger.info(f"Retrieved {len(result['rows'])} rows from Dolt.")
             for row in result["rows"]:
                 try:
-                    # 5. Prepare row data for Pydantic model validation
-                    # Directly use the dictionary returned by doltpy.
-                    # Pydantic's model_validate should handle type checking,
-                    # conversion (e.g., dict to ConfidenceScore/BlockLink models),
-                    # and validation.
+                    # 5. Compose metadata using PropertyMapper (CR-01 fix)
+                    try:
+                        # Import PropertyMapper here to avoid circular imports if needed
+                        from infra_core.memory_system.property_mapper import PropertyMapper
 
+                        # Read properties from block_properties table
+                        properties = read_block_properties(db_path, row["id"], branch)
+
+                        # Compose metadata from properties
+                        metadata_dict = PropertyMapper.compose_metadata(properties)
+                        logger.debug(
+                            f"Composed metadata with {len(metadata_dict)} fields for block {row['id']}"
+                        )
+
+                        # Add metadata to the row data
+                        row["metadata"] = metadata_dict
+
+                    except Exception as prop_e:
+                        logger.error(
+                            f"Failed to compose metadata for block {row['id']}: {prop_e}",
+                            exc_info=True,
+                        )
+                        # Use empty metadata as fallback
+                        row["metadata"] = {}
+
+                    # 6. Prepare row data for Pydantic model validation
                     # Filter out None values explicitly if needed, though Pydantic usually handles optional fields.
                     # Create a copy to avoid modifying the original result row if necessary.
                     parsed_row: Dict[str, Any] = {k: v for k, v in row.items() if v is not None}
 
-                    # Pydantic v2's model_validate handles the dict -> model conversion,
-                    # including nested models like BlockLink and ConfidenceScore.
-                    # No manual parsing or json.loads needed here if doltpy + result_format='json'
-                    # returns Python objects for JSON columns.
-
-                    # 6. Validate using Pydantic
+                    # 7. Validate using Pydantic
                     memory_block = MemoryBlock.model_validate(parsed_row)
                     memory_blocks_list.append(memory_block)
 
@@ -138,7 +153,9 @@ def read_memory_blocks(db_path: str, branch: str = "main") -> List[MemoryBlock]:
         # Returning empty list on major error for now.
         return []  # Return empty list on error
 
-    logger.info(f"Finished reading. Successfully parsed {len(memory_blocks_list)} MemoryBlocks.")
+    logger.info(
+        f"Finished reading. Successfully parsed {len(memory_blocks_list)} MemoryBlocks using Property-Schema Split."
+    )
     return memory_blocks_list
 
 
@@ -226,8 +243,9 @@ def read_memory_block(db_path: str, block_id: str, branch: str = "main") -> Opti
         # Step 1: Read from memory_blocks table (NO metadata column - Property-Schema Split)
         query = f"""
         SELECT
-            id, type, schema_version, text, tags, 
-            source_file, source_uri, confidence, created_by, created_at, updated_at
+            id, type, schema_version, text, state, visibility, block_version, 
+            parent_id, has_children, tags, source_file, source_uri, confidence, 
+            created_by, created_at, updated_at, embedding
         FROM memory_blocks
         AS OF '{branch}'
         WHERE id = {escaped_block_id}
@@ -305,7 +323,10 @@ def read_memory_blocks_by_tags(
     db_path: str, tags: List[str], match_all: bool = True, branch: str = "main"
 ) -> List[MemoryBlock]:
     """
-    Reads MemoryBlocks from Dolt filtered by tags contained in the 'tags' JSON column.
+    Reads MemoryBlocks from Dolt filtered by tags using Property-Schema Split approach.
+
+    Uses PropertyMapper to compose metadata from the block_properties table instead of reading
+    from a metadata JSON column (CR-01 fix).
 
     WARNING: This function constructs SQL queries with tag values manually formatted
     due to limitations in doltpy.cli.Dolt.sql() (lack of parameterized query support
@@ -326,7 +347,7 @@ def read_memory_blocks_by_tags(
         return []
 
     logger.info(
-        f"Attempting to read MemoryBlocks by tags {tags} (match_all={match_all}) from Dolt DB at {db_path} on branch '{branch}'"
+        f"Attempting to read MemoryBlocks by tags {tags} (match_all={match_all}) from Dolt DB at {db_path} on branch '{branch}' using Property-Schema Split"
     )
     memory_blocks_list: List[MemoryBlock] = []
     repo: Optional[Dolt] = None
@@ -354,10 +375,12 @@ def read_memory_blocks_by_tags(
         full_where_clause = clause_separator.join(where_clauses)
         # --- End WHERE clause construction ---
 
+        # NO metadata column, include ALL mandatory columns (CR-01 & CR-02 fix)
         query = f"""
         SELECT
-            id, type, schema_version, text, tags, metadata, 
-            source_file, source_uri, confidence, created_by, created_at, updated_at
+            id, type, schema_version, text, state, visibility, block_version, 
+            parent_id, has_children, tags, source_file, source_uri, confidence, 
+            created_by, created_at, updated_at, embedding
         FROM memory_blocks
         AS OF '{branch}'
         WHERE {full_where_clause}
@@ -370,6 +393,31 @@ def read_memory_blocks_by_tags(
             logger.info(f"Retrieved {len(result['rows'])} rows matching tags from Dolt.")
             for row in result["rows"]:
                 try:
+                    # Compose metadata using PropertyMapper (CR-01 fix)
+                    try:
+                        # Import PropertyMapper here to avoid circular imports if needed
+                        from infra_core.memory_system.property_mapper import PropertyMapper
+
+                        # Read properties from block_properties table
+                        properties = read_block_properties(db_path, row["id"], branch)
+
+                        # Compose metadata from properties
+                        metadata_dict = PropertyMapper.compose_metadata(properties)
+                        logger.debug(
+                            f"Composed metadata with {len(metadata_dict)} fields for block {row['id']}"
+                        )
+
+                        # Add metadata to the row data
+                        row["metadata"] = metadata_dict
+
+                    except Exception as prop_e:
+                        logger.error(
+                            f"Failed to compose metadata for block {row['id']}: {prop_e}",
+                            exc_info=True,
+                        )
+                        # Use empty metadata as fallback
+                        row["metadata"] = {}
+
                     parsed_row: Dict[str, Any] = {k: v for k, v in row.items() if v is not None}
                     memory_block = MemoryBlock.model_validate(parsed_row)
                     memory_blocks_list.append(memory_block)
@@ -396,19 +444,21 @@ def read_memory_blocks_by_tags(
         return []  # Return empty list on error
 
     logger.info(
-        f"Finished reading by tags. Successfully parsed {len(memory_blocks_list)} MemoryBlocks."
+        f"Finished reading by tags. Successfully parsed {len(memory_blocks_list)} MemoryBlocks using Property-Schema Split."
     )
     return memory_blocks_list
 
 
 def read_memory_blocks_from_working_set(db_path: str) -> List[MemoryBlock]:
     """
-    Reads MemoryBlocks from the working set of the specified Dolt database.
+    Reads MemoryBlocks from the working set of the specified Dolt database using Property-Schema Split approach.
 
-    Queries the 'memory_blocks' table, parses rows, and validates them into
-    MemoryBlock Pydantic objects.
+    Uses PropertyMapper to compose metadata from the block_properties table instead of reading
+    from a metadata JSON column (CR-01 fix).
     """
-    logger.info(f"Attempting to read MemoryBlocks from Dolt DB working set at {db_path}")
+    logger.info(
+        f"Attempting to read MemoryBlocks from Dolt DB working set at {db_path} using Property-Schema Split"
+    )
     memory_blocks_list: List[MemoryBlock] = []
     repo: Optional[Dolt] = None
 
@@ -417,15 +467,14 @@ def read_memory_blocks_from_working_set(db_path: str) -> List[MemoryBlock]:
 
         # Query to select all relevant columns from memory_blocks in the working set.
         # No 'AS OF' clause is used, so it queries the working tables.
+        # NO metadata column, include ALL mandatory columns (CR-01 & CR-02 fix)
         query = """
         SELECT
-            id, type, schema_version, text, tags, metadata, 
-            source_file, source_uri, confidence, created_by, created_at, updated_at,
-            state, visibility
+            id, type, schema_version, text, state, visibility, block_version, 
+            parent_id, has_children, tags, source_file, source_uri, confidence, 
+            created_by, created_at, updated_at, embedding
         FROM memory_blocks
         """
-        # Removed block_version and embedding for now to match ingest script's --no-commit path more closely
-        # and typical Dolt select, can be added if needed and present.
 
         logger.debug(f"Executing SQL query on working set:\\n{query}")
 
@@ -435,13 +484,34 @@ def read_memory_blocks_from_working_set(db_path: str) -> List[MemoryBlock]:
             logger.info(f"Retrieved {len(result['rows'])} rows from Dolt working set.")
             for row_data in result["rows"]:
                 try:
-                    # Prepare row data for Pydantic model validation.
-                    # Pydantic should handle type conversions (e.g., str to datetime, JSON str to dict/list).
-                    # Create a copy to avoid modifying the original result row if necessary.
-                    # Fields like 'tags', 'metadata', 'confidence' might be JSON strings
-                    # if not automatically parsed by doltpy with result_format="json".
-                    # The MemoryBlock model expects Python dicts/lists for these.
+                    # Compose metadata using PropertyMapper (CR-01 fix)
+                    try:
+                        # Import PropertyMapper here to avoid circular imports if needed
+                        from infra_core.memory_system.property_mapper import PropertyMapper
 
+                        # Read properties from block_properties table
+                        properties = read_block_properties(
+                            db_path, row_data["id"], "main"
+                        )  # Working set uses main branch
+
+                        # Compose metadata from properties
+                        metadata_dict = PropertyMapper.compose_metadata(properties)
+                        logger.debug(
+                            f"Composed metadata with {len(metadata_dict)} fields for block {row_data['id']}"
+                        )
+
+                        # Add metadata to the row data
+                        row_data["metadata"] = metadata_dict
+
+                    except Exception as prop_e:
+                        logger.error(
+                            f"Failed to compose metadata for block {row_data['id']}: {prop_e}",
+                            exc_info=True,
+                        )
+                        # Use empty metadata as fallback
+                        row_data["metadata"] = {}
+
+                    # Prepare row data for Pydantic model validation.
                     parsed_row = {}
                     for key, value in row_data.items():
                         if value is None:  # Pydantic handles optional fields being None
@@ -464,12 +534,6 @@ def read_memory_blocks_from_working_set(db_path: str) -> List[MemoryBlock]:
                                 parsed_row[key] = value  # Assume already parsed by doltpy
                         else:
                             parsed_row[key] = value
-
-                    # Ensure all required fields for MemoryBlock are present or handle defaults
-                    # This simplified example assumes most fields are coming from Dolt.
-                    # Add default values here if any are missing from the SELECT but required by MemoryBlock
-                    # and not Optional with a default in the model. For example:
-                    # parsed_row.setdefault('state', 'draft') # If state can be null from DB but required
 
                     memory_block = MemoryBlock.model_validate(parsed_row)
                     memory_blocks_list.append(memory_block)

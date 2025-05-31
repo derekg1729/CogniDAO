@@ -94,7 +94,9 @@ class PropertyMapper:
         }
 
         if value is None:
-            result["property_value_text"] = None
+            # CR-04 fix: Use empty string instead of None to satisfy CHECK constraint
+            # chk_exactly_one_value_nonnull requires exactly one variant column to be non-NULL
+            result["property_value_text"] = ""
         elif property_type == "number":
             result["property_value_number"] = float(value)
         elif property_type in ["json", "multi_select"]:
@@ -129,7 +131,7 @@ class PropertyMapper:
                 str(value.value) if isinstance(value, Enum) else str(value)
             )
         else:  # property_type == "text" or fallback
-            result["property_value_text"] = str(value) if value is not None else None
+            result["property_value_text"] = str(value) if value is not None else ""
 
         return result
 
@@ -172,6 +174,9 @@ class PropertyMapper:
         elif property_type == "select":
             return text_value
         else:  # property_type == "text" or fallback
+            # CR-04 fix: Convert empty string back to None for round-trip compatibility
+            if text_value == "":
+                return None
             return text_value
 
     @classmethod
@@ -195,6 +200,8 @@ class PropertyMapper:
         now = datetime.now()
 
         for field_name, value in metadata_dict.items():
+            # Store all fields, including None values (as empty strings for CHECK constraint)
+            # This ensures round-trip compatibility with the tests
             try:
                 # Detect appropriate property type
                 property_type = cls.detect_property_type(value)

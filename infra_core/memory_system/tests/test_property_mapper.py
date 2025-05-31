@@ -60,9 +60,11 @@ class TestPropertyMapper:
         assert result["property_value_number"] is None
         assert result["property_value_json"] is None
 
-        # None value
+        # None value - CR-04 fix: None is stored as empty string to satisfy CHECK constraint
         result = PropertyMapper.convert_to_variant_value(None, "text")
-        assert result["property_value_text"] is None
+        assert result["property_value_text"] == ""
+        assert result["property_value_number"] is None
+        assert result["property_value_json"] is None
 
         # Boolean values
         result = PropertyMapper.convert_to_variant_value(True, "bool")
