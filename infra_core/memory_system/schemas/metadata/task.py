@@ -50,7 +50,7 @@ class TaskMetadata(ExecutableMetadata):
     )
     start_date: Optional[datetime] = Field(None, description="When work on this task began")
     due_date: Optional[datetime] = Field(None, description="Deadline for completing this task")
-    labels: List[str] = Field(default_factory=list, description="Labels for categorizing this task")
+    tags: List[str] = Field(default_factory=list, description="Tags for categorizing this task")
     confidence_score: Optional[ConfidenceScore] = Field(
         None, description="Confidence scores for this task"
     )
@@ -79,7 +79,7 @@ class TaskMetadata(ExecutableMetadata):
                     "estimate_hours": 6.0,
                     "start_date": "2024-04-20T00:00:00Z",
                     "due_date": "2024-05-05T00:00:00Z",
-                    "labels": ["link-manager", "validation", "technical-debt"],
+                    "tags": ["link-manager", "validation", "technical-debt"],
                     "phase": "Implementation",
                     "implementation_details": {
                         "target_file": "infra_core/memory_system/link_manager.py"

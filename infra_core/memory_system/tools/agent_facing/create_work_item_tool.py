@@ -73,9 +73,6 @@ class CreateWorkItemInput(BaseModel):
     tags: List[str] = Field(
         default_factory=list, description="Tags for categorizing this work item"
     )
-    labels: List[str] = Field(
-        default_factory=list, description="Labels for categorizing this work item"
-    )
 
     # Agent framework fields
     tool_hints: List[str] = Field(
@@ -168,7 +165,7 @@ def create_work_item(input_data: CreateWorkItemInput, memory_bank) -> CreateWork
         "story_points": input_data.story_points,
         "estimate_hours": input_data.estimate_hours,
         # Additional fields
-        "labels": input_data.labels,
+        "tags": input_data.tags,
         # Agent framework fields
         "tool_hints": input_data.tool_hints,
         "role_hint": input_data.role_hint,

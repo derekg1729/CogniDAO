@@ -72,7 +72,6 @@ class UpdateWorkItemInput(BaseModel):
 
     # Additional fields
     tags: Optional[List[str]] = Field(None, description="Updated tags")
-    labels: Optional[List[str]] = Field(None, description="Updated labels")
 
     # Agent framework fields
     tool_hints: Optional[List[str]] = Field(None, description="Updated tool hints")
@@ -93,7 +92,6 @@ class UpdateWorkItemInput(BaseModel):
 
     # Update behavior
     merge_tags: bool = Field(True, description="Whether to merge or replace tags")
-    merge_labels: bool = Field(True, description="Whether to merge or replace labels")
     merge_metadata: bool = Field(True, description="Whether to merge or replace metadata")
 
     # Agent context
@@ -208,8 +206,8 @@ def update_work_item(input_data: UpdateWorkItemInput, memory_bank) -> UpdateWork
             metadata_updates["estimate_hours"] = input_data.estimate_hours
 
         # Additional fields
-        if input_data.labels is not None:
-            metadata_updates["labels"] = input_data.labels
+        if input_data.tags is not None:
+            metadata_updates["tags"] = input_data.tags
 
         # Agent framework fields
         if input_data.tool_hints is not None:

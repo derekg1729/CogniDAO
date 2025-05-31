@@ -4,7 +4,7 @@ Epic metadata schema for MemoryBlocks of type "epic".
 
 from typing import List, Optional, ClassVar, Set
 from datetime import datetime
-from pydantic import field_validator
+from pydantic import field_validator, Field
 
 # Import ExecutableMetadata
 from .common.executable import ExecutableMetadata, PriorityLiteral
@@ -51,7 +51,7 @@ class EpicMetadata(ExecutableMetadata):
     target_date: Optional[datetime] = None
     priority: Optional[PriorityLiteral] = None
     progress_percent: Optional[float] = None
-    tags: Optional[List[str]] = None
+    tags: List[str] = Field(default_factory=list, description="Tags for categorizing this epic")
 
     @field_validator("progress_percent")
     def validate_progress_percent(cls, v):

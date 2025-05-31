@@ -13,6 +13,7 @@ from infra_core.memory_system.tools.agent_facing.create_work_item_tool import (
     CreateWorkItemOutput,
 )
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
+from infra_core.memory_system.schemas.metadata.project import ProjectMetadata
 
 
 @pytest.fixture
@@ -142,3 +143,24 @@ def test_create_work_item_tool_schema():
     assert "title" in schema["parameters"]["properties"]
     assert "description" in schema["parameters"]["properties"]
     assert "owner" in schema["parameters"]["properties"]
+
+
+def test_create_work_item_project_validation_compatibility():
+    """Test to verify CreateWorkItem input data is compatible with ProjectMetadata schema."""
+    # This test verifies that our CreateWorkItem tool input data structure
+    # is compatible with the actual ProjectMetadata schema
+
+    # Test successful creation with valid tags field
+    project_data = ProjectMetadata(
+        x_agent_id="test-agent",
+        title="Test Project",
+        description="Test project description",
+        owner="test_user",
+        acceptance_criteria=["Criterion 1"],
+        tags=["test-tag", "another-tag"],  # This should work fine
+        status="backlog",
+    )
+
+    # Verify the project was created successfully
+    assert project_data.title == "Test Project"
+    assert project_data.tags == ["test-tag", "another-tag"]
