@@ -15,7 +15,7 @@ sys.path.append(str(project_root))
 
 try:
     from infra_core.memory_system.schemas.memory_block import MemoryBlock
-    from infra_core.memory_system.schemas.common import BlockLink, NodeSchemaRecord
+    from infra_core.memory_system.schemas.common import BlockLink, NodeSchemaRecord, BlockProperty
     from infra_core.constants import MEMORY_DOLT_ROOT
     from pydantic import BaseModel
 except ImportError as e:
@@ -50,6 +50,8 @@ FIELD_TYPE_OVERRIDES = {
     "state": "VARCHAR(50)",
     "visibility": "VARCHAR(50)",
     "relation": "VARCHAR(50)",
+    "property_value_text": "TEXT",
+    "property_value_number": "DOUBLE",
 }
 
 # --- Constants --- #
@@ -197,6 +199,17 @@ def generate_table_schema(model: Type[BaseModel], table_name: str) -> str:
             ordered_keys.append("relation")
         columns.append(f"    PRIMARY KEY ({', '.join(ordered_keys)})")
 
+    # Add composite primary key for BlockProperties
+    if table_name == "block_properties":
+        columns.append("    PRIMARY KEY (block_id, property_name)")
+        # Add CHECK constraint to ensure exactly one value column is non-null using CASE syntax
+        columns.append(
+            "    CONSTRAINT chk_exactly_one_value_nonnull CHECK "
+            "( (CASE WHEN property_value_text IS NOT NULL THEN 1 ELSE 0 END + "
+            "CASE WHEN property_value_number IS NOT NULL THEN 1 ELSE 0 END + "
+            "CASE WHEN property_value_json IS NOT NULL THEN 1 ELSE 0 END) = 1 )"
+        )
+
     # Create the table statement
     columns_str = ",\n".join(columns)
     return f"CREATE TABLE IF NOT EXISTS {table_name} (\n{columns_str}\n);"
@@ -242,6 +255,9 @@ def generate_schema_file(output_path: Path) -> None:
 
     # Generate schema for NodeSchemaRecord
     schema_statements.append("\n" + generate_table_schema(NodeSchemaRecord, "node_schemas"))
+
+    # Generate schema for BlockProperty
+    schema_statements.append("\n" + generate_table_schema(BlockProperty, "block_properties"))
 
     # Generate schema for block_proofs (infrastructure table)
     schema_statements.append("\n" + generate_block_proofs_table())

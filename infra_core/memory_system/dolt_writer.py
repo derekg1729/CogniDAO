@@ -1,6 +1,9 @@
 """
 Contains functions for writing MemoryBlock objects to a Dolt database.
 
+This version uses the Property-Schema Split approach, writing metadata as typed
+properties to the block_properties table instead of JSON metadata column.
+
 !!! IMPORTANT SECURITY WARNING !!!
 The current Dolt interaction relies on `doltpy.cli.Dolt.sql()`, which
 DOES NOT SUPPORT parameterized queries (the `args` parameter).
@@ -21,7 +24,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Optional, Tuple, Any, List
+from typing import Optional, Tuple, Any, List, Dict
 from datetime import datetime  # Import datetime directly
 
 # Use the correct import path for doltpy v2+
@@ -38,10 +41,12 @@ if str(project_root_dir) not in sys.path:
 # Import schema using path relative to project root
 try:
     from infra_core.memory_system.schemas.memory_block import MemoryBlock, ConfidenceScore
+    from infra_core.memory_system.schemas.common import BlockProperty
+    from infra_core.memory_system.property_mapper import PropertyMapper
 except ImportError as e:
     # Add more context to the error message
     raise ImportError(
-        f"Could not import MemoryBlock/ConfidenceScore schemas from infra_core/memory_system. "
+        f"Could not import MemoryBlock/ConfidenceScore schemas or PropertyMapper from infra_core/memory_system. "
         f"Project root added to path: {project_root_dir}. Check structure. Error: {e}"
     )
 
@@ -51,56 +56,93 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
-
-# --- Manual Escaping (Reinstated due to doltpy.cli limitation) ---
-# WARNING: These functions are a workaround for the lack of parameterized query support
-# in doltpy.cli.Dolt.sql() and carry SQL injection risks.
+# --- Manual Escaping ---
+# WARNING: Due to lack of parameterized query support in doltpy.cli.Dolt.sql(),
+# we must manually escape values. This is inherently risky.
 
 
 def _escape_sql_string(value: Optional[str]) -> str:
-    """Basic escaping for SQL strings. WARNING: Incomplete security measure."""
+    """
+    Manually escape a string for SQL inclusion by wrapping in single quotes and escaping internal quotes.
+
+    WARNING: This is NOT as robust as parameterized queries and carries SQL injection risks.
+
+    Args:
+        value: The string value to escape.
+
+    Returns:
+        A single-quoted, escaped string suitable for SQL inclusion.
+    """
     if value is None:
         return "NULL"
-    # Replace single quotes with two single quotes
+
+    # CR-05 fix: Block control characters to prevent injection attacks
+    # Check for dangerous control characters that could be used in attacks
+    import re
+
+    # FIX-02: Only block truly dangerous control characters, allow legitimate newlines/tabs
+    # \x00 = null byte (path traversal attacks)
+    # \x08 = backspace (rarely legitimate in SQL)
+    # \x1a = substitute/EOF (can terminate SQL in some contexts)
+    # Allow: \x09 (tab), \x0a (newline), \x0d (carriage return) for legitimate formatting
+    if re.search(r"[\x00\x08\x1a]", value):
+        raise ValueError(
+            f"String contains dangerous control characters (null, backspace, or substitute): {repr(value)}"
+        )
+
+    # Escape single quotes by doubling them (SQL standard)
     escaped_value = value.replace("'", "''")
-    # Basic attempt to escape backslashes as well
-    escaped_value = escaped_value.replace("\\", "\\\\")
     return f"'{escaped_value}'"
 
 
 def _format_sql_value(value: Optional[Any]) -> str:
-    """Formats different Python types into SQL-compatible strings using manual escaping.
-    WARNING: Insecure due to reliance on manual escaping.
+    """
+    Formats a Python value for safe inclusion in a SQL query string.
+
+    WARNING: This is NOT as robust as parameterized queries and carries SQL injection risks.
+
+    Args:
+        value: The value to format for SQL.
+
+    Returns:
+        A string representation suitable for insertion into a SQL query.
     """
     if value is None:
         return "NULL"
-    elif isinstance(value, (int, float)):
-        return str(value)
-    elif isinstance(value, datetime):
-        # Ensure datetime is formatted correctly for SQL (YYYY-MM-DD HH:MM:SS.ffffff)
-        # Remove timezone info if present, as Dolt DATETIME might not handle it directly
-        value_naive = value.replace(tzinfo=None)
-        return f"'{value_naive.isoformat(sep=' ', timespec='microseconds')}'"
     elif isinstance(value, str):
         return _escape_sql_string(value)
+    elif isinstance(value, (int, float)):
+        return str(value)
+    elif isinstance(value, bool):
+        return "1" if value else "0"
     elif isinstance(value, (list, dict)):
-        # Handle nested JSON structures
+        # Serialize to JSON string and then escape
         def json_serializer(obj):
+            """Handle non-serializable objects like datetime."""
             if isinstance(obj, datetime):
                 return obj.isoformat()
-            elif hasattr(obj, "model_dump"):
-                return obj.model_dump()
-            return str(obj)
+            # Add other type handlers as needed
+            raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
-        try:
-            json_str = json.dumps(value, default=json_serializer)
-            return _escape_sql_string(json_str)
-        except (TypeError, ValueError) as e:
-            logger.warning(f"Could not serialize value to JSON, attempting string conversion: {e}")
-            # Fallback to string conversion with escaping if JSON fails
-            return _escape_sql_string(str(value))
+        json_str = json.dumps(value, default=json_serializer, ensure_ascii=True)
+
+        # CR-03 fix: Check JSON length to avoid silent truncation
+        # MySQL max_packet_size is typically 1MB (1048576 bytes), but we use a conservative limit
+        MAX_JSON_LENGTH = 1048576  # 1MB
+        if len(json_str) > MAX_JSON_LENGTH:
+            logger.warning(
+                f"JSON value exceeds {MAX_JSON_LENGTH} bytes ({len(json_str)} bytes). "
+                f"This may hit Dolt/MySQL JSON length limits. Consider using property_value_text fallback."
+            )
+            # For now, we'll still try to insert it, but log the warning
+            # In the future, PropertyMapper could automatically use property_value_text for large values
+
+        return _escape_sql_string(json_str)
+    elif isinstance(value, datetime):
+        # Format datetime as MySQL-compatible string
+        return _escape_sql_string(value.strftime("%Y-%m-%d %H:%M:%S"))
     else:
-        # Fallback for other types, treat as string with escaping
+        # Fallback: convert to string and escape
         return _escape_sql_string(str(value))
 
 
@@ -108,10 +150,11 @@ def _format_sql_value(value: Optional[Any]) -> str:
 
 
 def write_memory_block_to_dolt(
-    block: MemoryBlock, db_path: str, auto_commit: bool = False
+    block: MemoryBlock, db_path: str, auto_commit: bool = False, preserve_nulls: bool = False
 ) -> Tuple[bool, Optional[str]]:
     """
-    Writes a single MemoryBlock object to the specified Dolt database.
+    Writes a single MemoryBlock object to the specified Dolt database using the Property-Schema Split approach.
+    Uses PropertyMapper to decompose metadata into typed properties in the block_properties table.
     Uses REPLACE INTO for idempotency.
 
     WARNING: This function uses manual SQL string formatting due to limitations
@@ -123,6 +166,7 @@ def write_memory_block_to_dolt(
         db_path: Path to the Dolt database directory.
         auto_commit: If True, automatically runs `dolt add` and `dolt commit` after writing.
                     If False, the changes are only in the working set and need to be committed later.
+        preserve_nulls: If True, preserves null values in the metadata.
 
     Returns:
         Tuple[bool, Optional[str]]: A tuple containing:
@@ -131,22 +175,48 @@ def write_memory_block_to_dolt(
     """
     commit_hash: Optional[str] = None
     repo: Optional[Dolt] = None
-    query = ""  # Initialize query string
+    memory_blocks_query = ""
 
     try:
         repo = Dolt(db_path)
         logger.info(
-            f"Attempting to write block {block.id} to Dolt DB at {db_path} using manual SQL formatting."
+            f"Attempting to write block {block.id} to Dolt DB at {db_path} using Property-Schema Split approach."
         )
 
+        # Step 1: Decompose metadata into properties using PropertyMapper
+        try:
+            # Use the actual metadata from the block for Property-Schema Split approach
+            metadata_dict = (
+                block.metadata if hasattr(block, "metadata") and block.metadata is not None else {}
+            )
+
+            properties = PropertyMapper.decompose_metadata(
+                block_id=block.id, metadata_dict=metadata_dict, preserve_nulls=preserve_nulls
+            )
+            logger.debug(
+                f"Decomposed metadata into {len(properties)} properties for block {block.id}"
+            )
+        except Exception as prop_e:
+            logger.error(
+                f"Failed to decompose metadata for block {block.id}: {prop_e}", exc_info=True
+            )
+            return False, None
+
+        # Step 2: Write to memory_blocks table (NO metadata column - Property-Schema Split)
         # Manually format values for SQL insertion using the helper function
-        # Ensure all relevant columns are included and match the table schema
         values = {
             "id": _format_sql_value(block.id),
             "type": _format_sql_value(block.type),
+            "schema_version": _format_sql_value(block.schema_version)
+            if hasattr(block, "schema_version") and block.schema_version is not None
+            else "NULL",
             "text": _format_sql_value(block.text),
+            "state": _format_sql_value(getattr(block, "state", "draft")),
+            "visibility": _format_sql_value(getattr(block, "visibility", "internal")),
+            "block_version": _format_sql_value(getattr(block, "block_version", 1)),
+            "parent_id": _format_sql_value(getattr(block, "parent_id", None)),
+            "has_children": _format_sql_value(getattr(block, "has_children", False)),
             "tags": _format_sql_value(block.tags if block.tags is not None else []),
-            "metadata": _format_sql_value(block.metadata if block.metadata is not None else {}),
             "source_file": _format_sql_value(block.source_file),
             "source_uri": _format_sql_value(block.source_uri),
             "confidence": _format_sql_value(block.confidence.model_dump())
@@ -158,28 +228,52 @@ def write_memory_block_to_dolt(
             "embedding": _format_sql_value(block.embedding)
             if block.embedding is not None
             else "NULL",
-            "schema_version": _format_sql_value(block.schema_version)
-            if hasattr(block, "schema_version") and block.schema_version is not None
-            else "NULL",
         }
 
-        # Construct the raw SQL query string
-        # Include schema_version in the column list and values
-        query = f"""
-        REPLACE INTO memory_blocks (id, type, text, tags, metadata, source_file,
-                                   source_uri, confidence, created_by, created_at,
-                                   updated_at, embedding, schema_version)
-        VALUES ({values["id"]}, {values["type"]}, {values["text"]}, {values["tags"]}, {values["metadata"]}, {values["source_file"]},
-                {values["source_uri"]}, {values["confidence"]}, {values["created_by"]}, {values["created_at"]},
-                {values["updated_at"]}, {values["embedding"]}, {values["schema_version"]});
+        # Construct the memory_blocks SQL query (Property-Schema Split approach)
+        memory_blocks_query = f"""
+        REPLACE INTO memory_blocks (id, type, schema_version, text, state, visibility, 
+                                   block_version, parent_id, has_children, tags,
+                                   source_file, source_uri, confidence, created_by, created_at,
+                                   updated_at, embedding)
+        VALUES ({values["id"]}, {values["type"]}, {values["schema_version"]}, {values["text"]}, 
+                {values["state"]}, {values["visibility"]}, {values["block_version"]}, 
+                {values["parent_id"]}, {values["has_children"]}, {values["tags"]},
+                {values["source_file"]}, {values["source_uri"]}, {values["confidence"]}, 
+                {values["created_by"]}, {values["created_at"]}, {values["updated_at"]}, 
+                {values["embedding"]});
         """
 
-        logger.debug(f"Executing manually formatted SQL (WARNING: Risk of SQLi):\n{query}")
+        logger.debug(f"Executing memory_blocks SQL (WARNING: Risk of SQLi):\n{memory_blocks_query}")
 
-        # Execute the raw SQL query (no args parameter)
-        repo.sql(query=query)
-        write_msg = f"Successfully wrote/updated block {block.id} in Dolt working set (using manual formatting)."
-        logger.info(write_msg)
+        # Execute the memory_blocks query
+        repo.sql(query=memory_blocks_query)
+        logger.info(
+            f"Successfully wrote block {block.id} to memory_blocks table (Property-Schema Split)."
+        )
+
+        # Step 3: Smart property management - diff existing vs new properties
+        # Load existing properties from database
+        existing_properties = _load_existing_properties(db_path, block.id)
+        logger.debug(f"Loaded {len(existing_properties)} existing properties for block {block.id}")
+
+        # Diff existing vs new properties
+        property_changes = _diff_properties(existing_properties, properties)
+        logger.debug(
+            f"Property changes for block {block.id}: "
+            f"{len(property_changes['insert'])} inserts, "
+            f"{len(property_changes['update'])} updates, "
+            f"{len(property_changes['delete'])} deletes"
+        )
+
+        # Apply only the necessary changes
+        if any(property_changes.values()):  # Check if any changes needed
+            if not _apply_property_changes(repo, block.id, property_changes):
+                logger.error(f"Failed to apply property changes for block {block.id}")
+                return False, None
+            logger.info(f"Successfully applied property changes for block {block.id}")
+        else:
+            logger.debug(f"No property changes needed for block {block.id}")
 
         # Note: Links are now managed through the LinkManager and block_links table
         # They are no longer written as part of the MemoryBlock write operation
@@ -187,7 +281,7 @@ def write_memory_block_to_dolt(
         if auto_commit:
             try:
                 logger.info(f"Auto-committing changes for block {block.id}...")
-                repo.add(["memory_blocks"])  # Be specific about the table
+                repo.add(["memory_blocks", "block_properties"])  # Add both tables
 
                 # Check if there are changes that need to be committed
                 status = repo.status()
@@ -221,7 +315,7 @@ def write_memory_block_to_dolt(
                         commit_hash = None
                 else:
                     # Changes need to be committed
-                    commit_msg = f"Write memory block {block.id}"
+                    commit_msg = f"Write memory block {block.id} with properties"
                     repo.commit(commit_msg)
 
                     # Get the commit hash after successful commit
@@ -264,8 +358,8 @@ def write_memory_block_to_dolt(
 
     except Exception as e:
         logger.error(f"Failed to write block {block.id} to Dolt: {e}", exc_info=True)
-        # Log query only if needed for debugging sensitive info
-        # logger.error(f"Failed SQL Query: {query}")
+        # Log queries only if needed for debugging sensitive info
+        # logger.error(f"Failed memory_blocks SQL Query: {memory_blocks_query}")
         return False, None  # Return False for success, None for hash on error
 
 
@@ -402,7 +496,8 @@ def delete_memory_block_from_dolt(
     block_id: str, db_path: str, auto_commit: bool = False
 ) -> Tuple[bool, Optional[str]]:
     """
-    Deletes a single MemoryBlock object from the specified Dolt database by ID.
+    Deletes a single MemoryBlock object from the specified Dolt database by ID using Property-Schema Split approach.
+    Deletes from both memory_blocks and block_properties tables.
 
     WARNING: This function uses manual SQL string formatting for the WHERE clause
     due to limitations in doltpy.cli.Dolt.sql() (lack of parameterized query support).
@@ -422,33 +517,43 @@ def delete_memory_block_from_dolt(
     """
     commit_hash: Optional[str] = None
     repo: Optional[Dolt] = None
-    query = ""  # Initialize query string
+    memory_blocks_query = ""
+    properties_query = ""
+    links_query = ""
 
     try:
         repo = Dolt(db_path)
         logger.info(
-            f"Attempting to delete block {block_id} from Dolt DB at {db_path} using manual SQL formatting."
+            f"Attempting to delete block {block_id} from Dolt DB at {db_path} using Property-Schema Split approach."
         )
 
         # Format the block_id safely for the SQL query
         safe_block_id = _escape_sql_string(block_id)
 
-        # Delete from memory_blocks (will cascade to block_links due to FK constraint)
-        query = f"DELETE FROM memory_blocks WHERE id = {safe_block_id};"
-        logger.debug(f"Executing SQL delete query: {query}")
-        repo.sql(query=query)
+        # Step 1: Delete from block_properties table first (no FK constraints to worry about)
+        properties_query = f"DELETE FROM block_properties WHERE block_id = {safe_block_id};"
+        logger.debug(f"Executing SQL delete query for properties: {properties_query}")
+        repo.sql(query=properties_query)
+        logger.info(
+            f"Successfully deleted properties for block {block_id} from block_properties table (if any existed)."
+        )
+
+        # Step 2: Delete from memory_blocks (will cascade to block_links due to FK constraint if present)
+        memory_blocks_query = f"DELETE FROM memory_blocks WHERE id = {safe_block_id};"
+        logger.debug(f"Executing SQL delete query for memory_blocks: {memory_blocks_query}")
+        repo.sql(query=memory_blocks_query)
         logger.info(
             f"Successfully deleted block {block_id} from memory_blocks table (if it existed)."
         )
 
-        # Explicitly delete from block_links table even though FK should cascade
+        # Step 3: Explicitly delete from block_links table even though FK should cascade
         # This is a safety measure in case the FK constraint is not properly set up
-        link_query = (
+        links_query = (
             f"DELETE FROM block_links WHERE from_id = {safe_block_id} OR to_id = {safe_block_id};"
         )
-        logger.debug(f"Executing SQL delete query for links: {link_query}")
+        logger.debug(f"Executing SQL delete query for links: {links_query}")
         try:
-            repo.sql(query=link_query)
+            repo.sql(query=links_query)
             logger.info(
                 f"Successfully deleted links for block {block_id} from block_links table (if any existed)."
             )
@@ -459,7 +564,9 @@ def delete_memory_block_from_dolt(
         if auto_commit:
             try:
                 logger.info(f"Auto-committing delete for block {block_id}...")
-                repo.add(["memory_blocks", "block_links"])
+                repo.add(
+                    ["memory_blocks", "block_properties", "block_links"]
+                )  # Add all relevant tables
 
                 # Check if there are changes that need to be committed
                 status = repo.status()
@@ -489,7 +596,7 @@ def delete_memory_block_from_dolt(
                         commit_hash = None
                 else:
                     # Changes need to be committed
-                    commit_msg = f"Delete memory block {block_id}"
+                    commit_msg = f"Delete memory block {block_id} and properties"
                     repo.commit(commit_msg)
 
                     # Get the commit hash after successful commit
@@ -528,6 +635,10 @@ def delete_memory_block_from_dolt(
 
     except Exception as e:
         logger.error(f"Failed to delete block {block_id} from Dolt: {e}", exc_info=True)
+        # Log queries only if needed for debugging sensitive info
+        # logger.error(f"Failed memory_blocks query: {memory_blocks_query}")
+        # logger.error(f"Failed properties query: {properties_query}")
+        # logger.error(f"Failed links query: {links_query}")
         return False, None  # Return False for success, None for hash on error
 
 
@@ -575,3 +686,178 @@ if __name__ == "__main__":
             logger.info(f"  dolt sql -q \"SELECT * FROM memory_blocks WHERE id='{test_block.id}'\"")
         else:
             logger.error("Failed to write example block.")
+
+# --- Property Management Helpers ---
+
+
+def _load_existing_properties(db_path: str, block_id: str) -> List[BlockProperty]:
+    """
+    Load existing BlockProperty instances for a block from the database.
+
+    Args:
+        db_path: Path to the Dolt database directory
+        block_id: ID of the block to load properties for
+
+    Returns:
+        List of existing BlockProperty instances (empty list if table doesn't exist or block is new)
+    """
+    try:
+        from infra_core.memory_system.dolt_reader import read_block_properties
+
+        return read_block_properties(db_path, block_id)
+    except Exception as e:
+        # Handle gracefully: table doesn't exist, block doesn't exist, etc.
+        # This naturally makes CREATE operations work by treating them as "no existing properties"
+        logger.debug(f"Could not load existing properties for block {block_id}: {e}")
+        return []
+
+
+def _property_equal(prop1: BlockProperty, prop2: BlockProperty) -> bool:
+    """
+    Compare two BlockProperty instances for equality (ignoring timestamps).
+
+    Args:
+        prop1: First property to compare
+        prop2: Second property to compare
+
+    Returns:
+        True if properties are functionally equal
+    """
+    return (
+        prop1.block_id == prop2.block_id
+        and prop1.property_name == prop2.property_name
+        and prop1.property_type == prop2.property_type
+        and prop1.property_value_text == prop2.property_value_text
+        and prop1.property_value_number == prop2.property_value_number
+        and prop1.property_value_json == prop2.property_value_json
+        and prop1.is_computed == prop2.is_computed
+    )
+
+
+def _diff_properties(
+    existing: List[BlockProperty], new: List[BlockProperty]
+) -> Dict[str, List[BlockProperty]]:
+    """
+    Diff existing and new properties to determine what changes are needed.
+
+    Args:
+        existing: Current properties in the database
+        new: New properties to be stored
+
+    Returns:
+        Dict with 'insert', 'update', and 'delete' lists of properties
+    """
+    # Create lookup maps by property name
+    existing_map = {prop.property_name: prop for prop in existing}
+    new_map = {prop.property_name: prop for prop in new}
+
+    inserts = []
+    updates = []
+    deletes = []
+
+    # Find properties to insert or update
+    for name, new_prop in new_map.items():
+        if name not in existing_map:
+            # New property - insert
+            inserts.append(new_prop)
+        else:
+            existing_prop = existing_map[name]
+            if not _property_equal(existing_prop, new_prop):
+                # Property changed - update
+                updates.append(new_prop)
+
+    # Find properties to delete
+    for name, existing_prop in existing_map.items():
+        if name not in new_map:
+            deletes.append(existing_prop)
+
+    return {"insert": inserts, "update": updates, "delete": deletes}
+
+
+def _apply_property_changes(
+    repo: Dolt, block_id: str, changes: Dict[str, List[BlockProperty]]
+) -> bool:
+    """
+    Apply property changes via batched SQL operations.
+
+    Args:
+        repo: Dolt repository instance
+        block_id: ID of the block being updated
+        changes: Dictionary with 'insert', 'update', 'delete' lists
+
+    Returns:
+        True if all operations succeeded
+    """
+    try:
+        # 1. Handle deletions
+        if changes["delete"]:
+            delete_names = [_format_sql_value(prop.property_name) for prop in changes["delete"]]
+            delete_query = f"""
+            DELETE FROM block_properties 
+            WHERE block_id = {_format_sql_value(block_id)} 
+            AND property_name IN ({", ".join(delete_names)})
+            """
+            logger.debug(f"Executing property deletions: {delete_query}")
+            repo.sql(query=delete_query)
+            logger.debug(f"Deleted {len(changes['delete'])} properties for block {block_id}")
+
+        # 2. Handle updates
+        if changes["update"]:
+            # Use REPLACE INTO for updates (simpler than UPDATE)
+            for prop in changes["update"]:
+                replace_query = f"""
+                REPLACE INTO block_properties (
+                    block_id, property_name, property_value_text, property_value_number,
+                    property_value_json, property_type, is_computed, created_at, updated_at
+                ) VALUES (
+                    {_format_sql_value(prop.block_id)},
+                    {_format_sql_value(prop.property_name)},
+                    {_format_sql_value(prop.property_value_text)},
+                    {_format_sql_value(prop.property_value_number)},
+                    {_format_sql_value(prop.property_value_json)},
+                    {_format_sql_value(prop.property_type)},
+                    {_format_sql_value(prop.is_computed)},
+                    {_format_sql_value(prop.created_at)},
+                    {_format_sql_value(prop.updated_at)}
+                )
+                """
+                logger.debug(f"Executing property update for {prop.property_name}")
+                repo.sql(query=replace_query)
+            logger.debug(f"Updated {len(changes['update'])} properties for block {block_id}")
+
+        # 3. Handle insertions
+        if changes["insert"]:
+            # Batch INSERT for new properties
+            value_tuples = []
+            for prop in changes["insert"]:
+                value_tuple = f"""(
+                    {_format_sql_value(prop.block_id)},
+                    {_format_sql_value(prop.property_name)},
+                    {_format_sql_value(prop.property_value_text)},
+                    {_format_sql_value(prop.property_value_number)},
+                    {_format_sql_value(prop.property_value_json)},
+                    {_format_sql_value(prop.property_type)},
+                    {_format_sql_value(prop.is_computed)},
+                    {_format_sql_value(prop.created_at)},
+                    {_format_sql_value(prop.updated_at)}
+                )"""
+                value_tuples.append(value_tuple)
+
+            insert_query = f"""
+            INSERT INTO block_properties (
+                block_id, property_name, property_value_text, property_value_number,
+                property_value_json, property_type, is_computed, created_at, updated_at
+            ) VALUES {", ".join(value_tuples)}
+            """
+            logger.debug(f"Executing property insertions for {len(changes['insert'])} properties")
+            repo.sql(query=insert_query)
+            logger.debug(f"Inserted {len(changes['insert'])} properties for block {block_id}")
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to apply property changes for block {block_id}: {e}")
+        return False
+
+
+# --- End Property Management Helpers ---

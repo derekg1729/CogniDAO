@@ -252,3 +252,102 @@ class TestDoltWriter:
         assert "unknown column" in error_msg.lower(), (
             f"Error should mention unknown column, got: {error_msg}"
         )
+
+    # FIX-02 Tests: Over-aggressive control character rejection
+    def test_fix02_legitimate_newlines_allowed(self, test_dolt_db_path: Path):
+        """FIX-02: Test that legitimate newlines in text content are allowed."""
+        db_path_str = str(test_dolt_db_path)
+        block_id = "newline-test-001"
+
+        # Text with legitimate newlines (common in code, markdown, etc.)
+        text_with_newlines = "Line 1\nLine 2\nLine 3"
+
+        block = MemoryBlock(
+            id=block_id,
+            type="knowledge",
+            text=text_with_newlines,
+            tags=["test", "newlines"],
+            metadata={"description": "Text with\nnewlines"},
+            links=[],
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+        )
+
+        # This should not raise an exception
+        success, commit_hash = write_memory_block_to_dolt(block, db_path_str, auto_commit=True)
+        assert success, "Failed to write block with legitimate newlines"
+        assert commit_hash is not None
+
+        # Verify data was stored correctly
+        read_back_block = read_memory_block(db_path_str, block_id)
+        assert read_back_block is not None
+        assert read_back_block.text == text_with_newlines
+        assert read_back_block.metadata["description"] == "Text with\nnewlines"
+
+    def test_fix02_legitimate_tabs_allowed(self, test_dolt_db_path: Path):
+        """FIX-02: Test that legitimate tabs in text content are allowed."""
+        db_path_str = str(test_dolt_db_path)
+        block_id = "tab-test-001"
+
+        # Text with legitimate tabs (common in code, formatting)
+        text_with_tabs = "Column1\tColumn2\tColumn3"
+
+        block = MemoryBlock(
+            id=block_id,
+            type="knowledge",
+            text=text_with_tabs,
+            tags=["test", "tabs"],
+            metadata={"code": "if True:\n\treturn 'tabbed'"},
+            links=[],
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+        )
+
+        # This should not raise an exception
+        success, commit_hash = write_memory_block_to_dolt(block, db_path_str, auto_commit=True)
+        assert success, "Failed to write block with legitimate tabs"
+        assert commit_hash is not None
+
+        # Verify data was stored correctly
+        read_back_block = read_memory_block(db_path_str, block_id)
+        assert read_back_block is not None
+        assert read_back_block.text == text_with_tabs
+        assert read_back_block.metadata["code"] == "if True:\n\treturn 'tabbed'"
+
+    def test_fix02_source_code_content_allowed(self, test_dolt_db_path: Path):
+        """FIX-02: Test that source code with mixed newlines and tabs is allowed."""
+        db_path_str = str(test_dolt_db_path)
+        block_id = "source-code-test-001"
+
+        # Realistic source code content
+        source_code = """def example_function():
+\tif True:
+\t\treturn "Hello\nWorld"
+\telse:
+\t\treturn None"""
+
+        block = MemoryBlock(
+            id=block_id,
+            type="knowledge",
+            text=source_code,
+            tags=["source", "code"],
+            metadata={
+                "language": "python",
+                "file_path": "/path/to/file.py",
+                "content": source_code,
+            },
+            links=[],
+            created_at=datetime.datetime.now(),
+            updated_at=datetime.datetime.now(),
+        )
+
+        # This should not raise an exception
+        success, commit_hash = write_memory_block_to_dolt(block, db_path_str, auto_commit=True)
+        assert success, "Failed to write block with source code content"
+        assert commit_hash is not None
+
+        # Verify data was stored correctly
+        read_back_block = read_memory_block(db_path_str, block_id)
+        assert read_back_block is not None
+        assert read_back_block.text == source_code
+        assert read_back_block.metadata["content"] == source_code

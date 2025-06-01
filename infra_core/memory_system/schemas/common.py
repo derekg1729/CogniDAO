@@ -3,8 +3,8 @@ Common models shared across different schema types.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional, get_args
-from pydantic import BaseModel, Field, validator, constr
+from typing import Any, Dict, Optional, get_args, Literal
+from pydantic import BaseModel, Field, validator, constr, model_validator
 
 # Import RelationType from relation_registry instead of defining it here
 from infra_core.memory_system.relation_registry import RelationType
@@ -71,3 +71,65 @@ class NodeSchemaRecord(BaseModel):
         ..., description="JSON schema output from Pydantic model.model_json_schema()"
     )
     created_at: str = Field(..., description="When this schema version was registered")
+
+
+# Block property record model for storing individual block properties
+class BlockProperty(BaseModel):
+    """Pydantic model for records in the `block_properties` Dolt table."""
+
+    block_id: str = Field(
+        ...,
+        description="ID of the memory block this property belongs to (foreign key to memory_blocks.id)",
+    )
+    property_name: str = Field(
+        ..., description="Name of the property (e.g., 'title', 'status', 'priority')"
+    )
+    property_value_text: Optional[str] = Field(
+        None, description="Text value of the property (for text, bool, date, select types)"
+    )
+    property_value_number: Optional[float] = Field(
+        None, description="Numeric value of the property (for number type)"
+    )
+    property_value_json: Optional[Any] = Field(
+        None, description="JSON value of the property (for json, multi_select types)"
+    )
+    property_type: Literal["text", "number", "json", "bool", "date", "select", "multi_select"] = (
+        Field(..., description="Type of the property value")
+    )
+    is_computed: bool = Field(False, description="Whether this property is computed/AI-generated")
+    created_at: datetime = Field(
+        default_factory=datetime.now, description="When this property was created"
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.now, description="When this property was last updated"
+    )
+
+    @model_validator(mode="after")
+    def validate_exactly_one_value_column(self):
+        """
+        Enforce CHECK constraint: exactly one of (property_value_text, property_value_number, property_value_json)
+        must be not-NULL, OR all values can be NULL (for explicit None fields in updates).
+
+        This fails early before hitting the Dolt database, keeping invariants consistent.
+        """
+        text_val = self.property_value_text
+        number_val = self.property_value_number
+        json_val = self.property_value_json
+
+        # Count how many values are not None
+        non_null_count = sum(1 for val in [text_val, number_val, json_val] if val is not None)
+
+        if non_null_count == 0:
+            # Allow all-NULL for explicit None values in preserve_nulls=True updates
+            return self
+        elif non_null_count == 1:
+            # Existing behavior: exactly one non-NULL value
+            return self
+        else:
+            # Invalid: multiple non-NULL values
+            raise ValueError(
+                f"Only one property value column can be not-NULL, but found {non_null_count} non-NULL values: "
+                f"text={text_val is not None}, number={number_val is not None}, json={json_val is not None}"
+            )
+
+        return self

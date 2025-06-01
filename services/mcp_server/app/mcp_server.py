@@ -12,6 +12,11 @@ from infra_core.memory_system.tools.agent_facing.get_memory_block_tool import (
     GetMemoryBlockInput,
     GetMemoryBlockOutput,
 )
+from infra_core.memory_system.tools.agent_facing.get_active_work_items_tool import (
+    get_active_work_items_tool,
+    GetActiveWorkItemsInput,
+    GetActiveWorkItemsOutput,
+)
 from infra_core.memory_system.tools.agent_facing.create_work_item_tool import (
     create_work_item_tool,
     CreateWorkItemInput,
@@ -34,6 +39,11 @@ from infra_core.memory_system.tools.agent_facing.get_memory_links_tool import (
     GetMemoryLinksInput,
     GetMemoryLinksOutput,
 )
+from infra_core.memory_system.tools.agent_facing.get_linked_blocks_tool import (
+    get_linked_blocks_tool,
+    GetLinkedBlocksInput,
+    GetLinkedBlocksOutput,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -50,7 +60,7 @@ sys.path.append(str(project_root))
 
 
 # Initialize StructuredMemoryBank using environment variable
-COGNI_DOLT_DIR = "/Users/derek/dev/cogni/data/memory_dolt"
+COGNI_DOLT_DIR = "/Users/derek/dev/cogni/data/blocks/memory_dolt"
 CHROMA_PATH = "/Users/derek/dev/cogni/data/memory_chroma"
 CHROMA_COLLECTION_NAME = os.environ.get("CHROMA_COLLECTION_NAME", "cogni_mcp_collection")
 
@@ -173,6 +183,78 @@ async def get_memory_links(input):
             success=False,
             links=[],
             error=f"Error retrieving memory links: {str(e)}",
+            timestamp=datetime.now(),
+        ).model_dump(mode="json")
+
+
+# Register the GetActiveWorkItems tool
+@mcp.tool("GetActiveWorkItems")
+async def get_active_work_items(input):
+    """Get work items that are currently active (status='in_progress') with optional filtering
+
+    Args:
+        priority_filter: Optional filter by priority level (P0 highest, P5 lowest)
+        work_item_type_filter: Optional filter by work item type (task, project, epic, bug)
+        limit: Maximum number of results to return (1-100)
+
+    Output contains 'work_items' array sorted by priority (P0 first) then creation date.
+    """
+    try:
+        # Parse dict input into Pydantic model
+        input_data = GetActiveWorkItemsInput(**input)
+
+        # Execute the tool function
+        result = get_active_work_items_tool(
+            memory_bank=memory_bank, **input_data.model_dump(exclude_none=True)
+        )
+
+        # Return the complete result
+        return result.model_dump(mode="json")
+
+    except Exception as e:
+        logger.error(f"Error in GetActiveWorkItems MCP tool: {e}")
+        return GetActiveWorkItemsOutput(
+            success=False,
+            work_items=[],
+            total_count=0,
+            error=f"Error retrieving active work items: {str(e)}",
+            timestamp=datetime.now(),
+        ).model_dump(mode="json")
+
+
+# Register the GetLinkedBlocks tool
+@mcp.tool("GetLinkedBlocks")
+async def get_linked_blocks(input):
+    """Get all blocks linked to a specific block with relationship information
+
+    Args:
+        source_block_id: ID of the source block to find links for
+        relation_filter: Optional filter by specific relation type (e.g., 'subtask_of', 'depends_on')
+        direction_filter: Filter by link direction relative to source block (incoming, outgoing, both)
+        limit: Maximum number of linked blocks to return (1-200)
+
+    Output contains 'linked_blocks' array with full block details and relationship context.
+    """
+    try:
+        # Parse dict input into Pydantic model
+        input_data = GetLinkedBlocksInput(**input)
+
+        # Execute the tool function
+        result = get_linked_blocks_tool(
+            memory_bank=memory_bank, **input_data.model_dump(exclude_none=True)
+        )
+
+        # Return the complete result
+        return result.model_dump(mode="json")
+
+    except Exception as e:
+        logger.error(f"Error in GetLinkedBlocks MCP tool: {e}")
+        return GetLinkedBlocksOutput(
+            success=False,
+            source_block_id=input.get("source_block_id", "unknown"),
+            linked_blocks=[],
+            total_count=0,
+            error=f"Error retrieving linked blocks: {str(e)}",
             timestamp=datetime.now(),
         ).model_dump(mode="json")
 

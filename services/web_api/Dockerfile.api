@@ -23,7 +23,7 @@ RUN pip install --upgrade pip && \
     pip install -r requirements.api.txt
 
 # Copy data directories from project root into /app/data/
-COPY ./data/memory_dolt /app/data/memory_dolt/
+COPY ./data/blocks/memory_dolt /app/data/blocks/memory_dolt/
 COPY ./data/memory_chroma /app/data/memory_chroma/
 
 # Copy infra_core application code

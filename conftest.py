@@ -9,6 +9,7 @@ import pytest
 import sys
 import uuid
 from unittest.mock import MagicMock
+import subprocess
 
 # Ensure project root is in the Python path for test discovery from any location
 project_root = os.path.abspath(os.path.dirname(__file__))
@@ -47,6 +48,24 @@ def temp_dolt_db(tmp_path_factory):
 
     db_path = tmp_path_factory.mktemp("test_mcp_dolt_db")
     assert initialize_dolt_db(str(db_path)), "Failed to initialize test Dolt DB"
+
+    # CRITICAL FIX: Commit the table creation changes so they are visible to all operations
+    try:
+        subprocess.run(
+            ["dolt", "add", "."],
+            cwd=str(db_path),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        subprocess.run(
+            ["dolt", "commit", "-m", "Initial table creation for test database"],
+            cwd=str(db_path),
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        raise Exception(f"Failed to commit table creation in test database: {e}")
+
     return str(db_path)
 
 
@@ -61,11 +80,32 @@ def temp_chroma_db(tmp_path_factory):
 def temp_memory_bank(temp_dolt_db, temp_chroma_db):
     """Create a StructuredMemoryBank using temporary databases for MCP server testing."""
     from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
-    from infra_core.memory_system.dolt_schema_manager import register_all_metadata_schemas
     from infra_core.memory_system.link_manager import InMemoryLinkManager
 
-    # Register schemas in the temporary database
-    register_all_metadata_schemas(temp_dolt_db)
+    # Note: temp_dolt_db fixture already calls initialize_dolt_db which creates
+    # all tables including block_properties, so no additional schema setup needed
+
+    # Register schemas in the temporary database so schema lookups work
+    from infra_core.memory_system.dolt_schema_manager import DoltSchemaManager
+    from infra_core.memory_system.schemas.registry import get_all_metadata_models, SCHEMA_VERSIONS
+
+    # Import metadata models to trigger registration - this is critical!
+
+    # Create schema manager for the temp database
+    schema_manager = DoltSchemaManager(temp_dolt_db)
+
+    # Register all schemas in the temporary database
+    metadata_models = get_all_metadata_models()
+    for node_type, model_cls in metadata_models.items():
+        version = SCHEMA_VERSIONS[node_type]
+
+        # Register the schema in the temporary database - pass the model class, not the schema dict
+        try:
+            result = schema_manager.register_schema(node_type, version, model_cls)
+            print(f"Schema registration for {node_type}: {result}")
+        except Exception as e:
+            print(f"Failed to register schema for {node_type}: {e}")
+            raise
 
     bank = StructuredMemoryBank(
         dolt_db_path=temp_dolt_db,

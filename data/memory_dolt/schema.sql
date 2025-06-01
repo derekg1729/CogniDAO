@@ -9,7 +9,6 @@ CREATE TABLE IF NOT EXISTS memory_blocks (
     parent_id VARCHAR(255) NULL,
     has_children BOOLEAN NOT NULL DEFAULT False,
     tags JSON NOT NULL,
-    metadata JSON NOT NULL,
     source_file VARCHAR(255) NULL,
     source_uri VARCHAR(255) NULL,
     confidence JSON NULL,
@@ -42,6 +41,20 @@ CREATE TABLE IF NOT EXISTS node_schemas (
     schema_version INT NOT NULL,
     json_schema JSON NOT NULL,
     created_at VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS block_properties (
+    block_id VARCHAR(255) NOT NULL,
+    property_name VARCHAR(255) NOT NULL,
+    property_value_text TEXT NULL,
+    property_value_number DOUBLE NULL,
+    property_value_json JSON NULL,
+    property_type VARCHAR(50) NOT NULL,
+    is_computed BOOLEAN NOT NULL DEFAULT False,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    PRIMARY KEY (block_id, property_name),
+    CONSTRAINT chk_exactly_one_value_nonnull CHECK ( (CASE WHEN property_value_text IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN property_value_number IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN property_value_json IS NOT NULL THEN 1 ELSE 0 END) = 1 )
 );
 
 CREATE TABLE IF NOT EXISTS block_proofs (

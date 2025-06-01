@@ -6,7 +6,7 @@ Test file to verify if tag filtering works properly with core-document tags.
 import logging
 from infra_core.memory_system.dolt_reader import read_memory_blocks_by_tags
 from infra_core.memory_system.llama_memory import LlamaMemory, IN_MEMORY_PATH
-from infra_core.constants import MEMORY_DOLT_ROOT
+from infra_core.constants import PROPERTY_SCHEMA_DOLT_ROOT
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(name)s - %(levelname)s - %(message)s")
@@ -18,7 +18,7 @@ def test_dolt_query_by_tags():
     logger.info("=== Testing Dolt query by tags ===")
 
     # Query Dolt for blocks with the "core-document" tag
-    blocks = read_memory_blocks_by_tags(MEMORY_DOLT_ROOT, ["core-document"])
+    blocks = read_memory_blocks_by_tags(PROPERTY_SCHEMA_DOLT_ROOT, ["core-document"])
 
     # Print details for each block
     for i, block in enumerate(blocks):
@@ -40,7 +40,7 @@ def test_llamaindex_query_by_tags():
     llama_memory = LlamaMemory(chroma_path=IN_MEMORY_PATH, collection_name="test_tags_collection")
 
     # First, index the core documents from Dolt to ensure there's something to query
-    blocks = read_memory_blocks_by_tags(MEMORY_DOLT_ROOT, ["core-document"])
+    blocks = read_memory_blocks_by_tags(PROPERTY_SCHEMA_DOLT_ROOT, ["core-document"])
     assert len(blocks) > 0, "No core documents found in Dolt!"
 
     # Add blocks to the in-memory collection
@@ -75,7 +75,7 @@ def test_reindex_core_docs():
     logger.info("=== Testing reindexing core documents ===")
 
     # 1. Get core documents from Dolt
-    blocks = read_memory_blocks_by_tags(MEMORY_DOLT_ROOT, ["core-document"])
+    blocks = read_memory_blocks_by_tags(PROPERTY_SCHEMA_DOLT_ROOT, ["core-document"])
     assert len(blocks) > 0, "No core documents found in Dolt!"
 
     logger.info(f"Found {len(blocks)} core documents in Dolt")
