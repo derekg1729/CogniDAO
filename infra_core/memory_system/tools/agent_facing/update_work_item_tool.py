@@ -242,6 +242,15 @@ def update_work_item(input_data: UpdateWorkItemInput, memory_bank) -> UpdateWork
         # Add tool identifier to track updates
         metadata_updates["x_tool_id"] = "UpdateWorkItemTool"
 
+        # CRITICAL: Ensure required base metadata fields are preserved
+        # If x_agent_id is not in metadata_updates, preserve it from existing block
+        if "x_agent_id" not in metadata_updates and current_block.metadata.get("x_agent_id"):
+            metadata_updates["x_agent_id"] = current_block.metadata["x_agent_id"]
+
+        # Preserve other critical base metadata fields if not being updated
+        if "x_timestamp" not in metadata_updates and current_block.metadata.get("x_timestamp"):
+            metadata_updates["x_timestamp"] = current_block.metadata["x_timestamp"]
+
         # Create the core update input
         core_input = UpdateMemoryBlockToolInput(
             block_id=input_data.block_id,

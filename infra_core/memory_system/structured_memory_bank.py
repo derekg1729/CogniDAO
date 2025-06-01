@@ -429,6 +429,7 @@ class StructuredMemoryBank:
                     block=block,
                     db_path=self.dolt_db_path,
                     auto_commit=False,  # Do not auto-commit, we need atomicity control
+                    preserve_nulls=True,  # Preserve None values for update operations
                 )
 
                 if not dolt_write_success:

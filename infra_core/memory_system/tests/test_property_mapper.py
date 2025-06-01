@@ -520,21 +520,19 @@ class TestPropertyMapper:
         assert prop.property_value_text is None
         assert prop.property_value_number is None
 
-        # Test invalid cases - zero values
-        with pytest.raises(ValidationError) as exc_info:
-            BlockProperty(
-                block_id=block_id,
-                property_name="test_empty",
-                property_type="text",
-                # All value columns are None/missing
-                is_computed=False,
-                created_at=now,
-                updated_at=now,
-            )
-        assert (
-            "Exactly one of property_value_text, property_value_number, or property_value_json must be not-NULL"
-            in str(exc_info.value)
+        # Valid: all NULL values (for explicit None fields in updates)
+        prop = BlockProperty(
+            block_id=block_id,
+            property_name="test_null",
+            property_type="text",
+            # All value columns are None/missing
+            is_computed=False,
+            created_at=now,
+            updated_at=now,
         )
+        assert prop.property_value_text is None
+        assert prop.property_value_number is None
+        assert prop.property_value_json is None
 
         # Test invalid cases - multiple values
         with pytest.raises(ValidationError) as exc_info:
@@ -566,13 +564,13 @@ class TestPropertyMapper:
         assert "Only one property value column can be not-NULL" in str(exc_info.value)
         assert "found 3 non-NULL values" in str(exc_info.value)
 
-    # FIX-01 Tests: None value handling
-    def test_fix01_none_field_disappears(self):
-        """FIX-01: Test that None fields are skipped entirely during decomposition."""
+    # Tests for new preserve_nulls behavior
+    def test_create_omits_none_fields(self):
+        """Test that create operations (preserve_nulls=False) omit None fields entirely."""
         block_id = str(uuid4())
         metadata = {"valid_field": "some_value", "none_field": None, "another_valid": 42}
 
-        properties = PropertyMapper.decompose_metadata(block_id, metadata)
+        properties = PropertyMapper.decompose_metadata(block_id, metadata, preserve_nulls=False)
 
         # Should only have 2 properties (None field should be skipped)
         assert len(properties) == 2
@@ -582,36 +580,32 @@ class TestPropertyMapper:
         assert "another_valid" in property_names
         assert "none_field" not in property_names  # None field should disappear
 
-    def test_fix01_field_value_to_none_deletes_row(self):
-        """FIX-01: Test that changing a field from value to None removes it from properties."""
+    def test_update_preserves_none_fields_as_null(self):
+        """Test that update operations (preserve_nulls=True) preserve None fields as NULL property rows."""
         block_id = str(uuid4())
+        metadata = {"valid_field": "some_value", "none_field": None, "another_valid": 42}
 
-        # Initial metadata with a field
-        initial_metadata = {"field1": "value1", "field2": "value2"}
-        initial_properties = PropertyMapper.decompose_metadata(block_id, initial_metadata)
-        assert len(initial_properties) == 2
+        properties = PropertyMapper.decompose_metadata(block_id, metadata, preserve_nulls=True)
 
-        # Updated metadata where field1 becomes None
-        updated_metadata = {"field1": None, "field2": "updated_value2"}
-        updated_properties = PropertyMapper.decompose_metadata(block_id, updated_metadata)
+        # Should have 3 properties (None field should be preserved as NULL row)
+        assert len(properties) == 3
 
-        # Should only have 1 property now (field1 should be deleted by omission)
-        assert len(updated_properties) == 1
+        property_names = {prop.property_name for prop in properties}
+        assert "valid_field" in property_names
+        assert "another_valid" in property_names
+        assert "none_field" in property_names  # None field should be preserved
 
-        property_names = {prop.property_name for prop in updated_properties}
-        assert "field2" in property_names
-        assert "field1" not in property_names  # field1 should be gone
+        # Find the none_field property and verify it has all NULL variant columns
+        none_prop = next(prop for prop in properties if prop.property_name == "none_field")
+        assert none_prop.property_value_text is None
+        assert none_prop.property_value_number is None
+        assert none_prop.property_value_json is None
+        assert none_prop.property_type == "text"  # arbitrary type for NULL rows
 
-        # Verify field2 was updated
-        field2_prop = next(prop for prop in updated_properties if prop.property_name == "field2")
-        assert field2_prop.property_value_text == "updated_value2"
-
-    def test_fix01_roundtrip_mixed_none_nonnone(self):
-        """FIX-01: Test round-trip behavior with mixed None and non-None data."""
+    def test_roundtrip_create_vs_update_behavior(self):
+        """Test that create and update have different None handling behavior."""
         block_id = str(uuid4())
-
-        # Metadata with mixed None and actual values
-        original_metadata = {
+        metadata = {
             "string_field": "hello",
             "none_field": None,
             "number_field": 123,
@@ -619,21 +613,66 @@ class TestPropertyMapper:
             "bool_field": True,
         }
 
-        # Decompose -> Properties
-        properties = PropertyMapper.decompose_metadata(block_id, original_metadata)
+        # Test create behavior (preserve_nulls=False) - None fields omitted
+        create_properties = PropertyMapper.decompose_metadata(
+            block_id, metadata, preserve_nulls=False
+        )
+        assert len(create_properties) == 3
+        create_property_names = {prop.property_name for prop in create_properties}
+        assert create_property_names == {"string_field", "number_field", "bool_field"}
 
-        # Should only have 3 properties (None fields skipped)
-        assert len(properties) == 3
-        property_names = {prop.property_name for prop in properties}
-        assert property_names == {"string_field", "number_field", "bool_field"}
+        # Test update behavior (preserve_nulls=True) - None fields preserved as NULL rows
+        update_properties = PropertyMapper.decompose_metadata(
+            block_id, metadata, preserve_nulls=True
+        )
+        assert len(update_properties) == 5
+        update_property_names = {prop.property_name for prop in update_properties}
+        assert update_property_names == {
+            "string_field",
+            "none_field",
+            "number_field",
+            "another_none",
+            "bool_field",
+        }
 
-        # Compose back -> Metadata
-        recomposed_metadata = PropertyMapper.compose_metadata(properties)
+        # Verify NULL fields have all variant columns NULL
+        for prop in update_properties:
+            if prop.property_name in ["none_field", "another_none"]:
+                assert prop.property_value_text is None
+                assert prop.property_value_number is None
+                assert prop.property_value_json is None
+                assert prop.property_type == "text"  # arbitrary type for NULL rows
 
-        # Should only contain non-None fields
-        expected_metadata = {"string_field": "hello", "number_field": 123, "bool_field": True}
-        assert recomposed_metadata == expected_metadata
+    def test_setting_field_to_none_in_update_preserves_row(self):
+        """Test that explicitly setting a field to None in an update preserves the row with NULL values."""
+        block_id = str(uuid4())
 
-        # None fields should not appear in recomposed metadata
-        assert "none_field" not in recomposed_metadata
-        assert "another_none" not in recomposed_metadata
+        # Initial metadata with all fields having values
+        initial_metadata = {"field1": "value1", "field2": "value2", "field3": 42}
+        initial_properties = PropertyMapper.decompose_metadata(
+            block_id, initial_metadata, preserve_nulls=False
+        )
+        assert len(initial_properties) == 3
+
+        # Updated metadata where field1 becomes None (explicit nulling)
+        updated_metadata = {"field1": None, "field2": "updated_value2", "field3": 42}
+        updated_properties = PropertyMapper.decompose_metadata(
+            block_id, updated_metadata, preserve_nulls=True
+        )
+
+        # Should still have 3 properties (field1 should be preserved as NULL row)
+        assert len(updated_properties) == 3
+
+        property_names = {prop.property_name for prop in updated_properties}
+        assert "field1" in property_names  # field1 should be preserved
+        assert "field2" in property_names
+        assert "field3" in property_names
+
+        # Verify field1 is NULL and field2 was updated
+        field1_prop = next(prop for prop in updated_properties if prop.property_name == "field1")
+        assert field1_prop.property_value_text is None
+        assert field1_prop.property_value_number is None
+        assert field1_prop.property_value_json is None
+
+        field2_prop = next(prop for prop in updated_properties if prop.property_name == "field2")
+        assert field2_prop.property_value_text == "updated_value2"

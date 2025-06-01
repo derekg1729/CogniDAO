@@ -24,7 +24,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Optional, Tuple, Any, List
+from typing import Optional, Tuple, Any, List, Dict
 from datetime import datetime  # Import datetime directly
 
 # Use the correct import path for doltpy v2+
@@ -41,6 +41,7 @@ if str(project_root_dir) not in sys.path:
 # Import schema using path relative to project root
 try:
     from infra_core.memory_system.schemas.memory_block import MemoryBlock, ConfidenceScore
+    from infra_core.memory_system.schemas.common import BlockProperty
     from infra_core.memory_system.property_mapper import PropertyMapper
 except ImportError as e:
     # Add more context to the error message
@@ -149,7 +150,7 @@ def _format_sql_value(value: Optional[Any]) -> str:
 
 
 def write_memory_block_to_dolt(
-    block: MemoryBlock, db_path: str, auto_commit: bool = False
+    block: MemoryBlock, db_path: str, auto_commit: bool = False, preserve_nulls: bool = False
 ) -> Tuple[bool, Optional[str]]:
     """
     Writes a single MemoryBlock object to the specified Dolt database using the Property-Schema Split approach.
@@ -165,6 +166,7 @@ def write_memory_block_to_dolt(
         db_path: Path to the Dolt database directory.
         auto_commit: If True, automatically runs `dolt add` and `dolt commit` after writing.
                     If False, the changes are only in the working set and need to be committed later.
+        preserve_nulls: If True, preserves null values in the metadata.
 
     Returns:
         Tuple[bool, Optional[str]]: A tuple containing:
@@ -189,8 +191,7 @@ def write_memory_block_to_dolt(
             )
 
             properties = PropertyMapper.decompose_metadata(
-                block_id=block.id,
-                metadata_dict=metadata_dict,
+                block_id=block.id, metadata_dict=metadata_dict, preserve_nulls=preserve_nulls
             )
             logger.debug(
                 f"Decomposed metadata into {len(properties)} properties for block {block.id}"
@@ -229,17 +230,18 @@ def write_memory_block_to_dolt(
             else "NULL",
         }
 
-        # Construct the memory_blocks SQL query (NO metadata column)
+        # Construct the memory_blocks SQL query (Property-Schema Split approach)
         memory_blocks_query = f"""
         REPLACE INTO memory_blocks (id, type, schema_version, text, state, visibility, 
-                                   block_version, parent_id, has_children, tags, 
+                                   block_version, parent_id, has_children, tags,
                                    source_file, source_uri, confidence, created_by, created_at,
                                    updated_at, embedding)
         VALUES ({values["id"]}, {values["type"]}, {values["schema_version"]}, {values["text"]}, 
                 {values["state"]}, {values["visibility"]}, {values["block_version"]}, 
-                {values["parent_id"]}, {values["has_children"]}, {values["tags"]}, 
-                {values["source_file"]}, {values["source_uri"]}, {values["confidence"]}, {values["created_by"]}, 
-                {values["created_at"]}, {values["updated_at"]}, {values["embedding"]});
+                {values["parent_id"]}, {values["has_children"]}, {values["tags"]},
+                {values["source_file"]}, {values["source_uri"]}, {values["confidence"]}, 
+                {values["created_by"]}, {values["created_at"]}, {values["updated_at"]}, 
+                {values["embedding"]});
         """
 
         logger.debug(f"Executing memory_blocks SQL (WARNING: Risk of SQLi):\n{memory_blocks_query}")
@@ -250,56 +252,28 @@ def write_memory_block_to_dolt(
             f"Successfully wrote block {block.id} to memory_blocks table (Property-Schema Split)."
         )
 
-        # Step 3: Delete existing properties for this block to ensure clean state
-        # This ensures REPLACE-like behavior for properties
-        delete_properties_query = (
-            f"DELETE FROM block_properties WHERE block_id = {_format_sql_value(block.id)};"
+        # Step 3: Smart property management - diff existing vs new properties
+        # Load existing properties from database
+        existing_properties = _load_existing_properties(db_path, block.id)
+        logger.debug(f"Loaded {len(existing_properties)} existing properties for block {block.id}")
+
+        # Diff existing vs new properties
+        property_changes = _diff_properties(existing_properties, properties)
+        logger.debug(
+            f"Property changes for block {block.id}: "
+            f"{len(property_changes['insert'])} inserts, "
+            f"{len(property_changes['update'])} updates, "
+            f"{len(property_changes['delete'])} deletes"
         )
-        logger.debug(f"Executing property cleanup SQL: {delete_properties_query}")
-        repo.sql(query=delete_properties_query)
-        logger.debug(f"Cleaned up existing properties for block {block.id}")
 
-        # Step 4: Write properties to block_properties table
-        if properties:
-            # Build batch INSERT for all properties
-            property_values = []
-            for prop in properties:
-                prop_value = {
-                    "block_id": _format_sql_value(prop.block_id),
-                    "property_name": _format_sql_value(prop.property_name),
-                    "property_value_text": _format_sql_value(prop.property_value_text),
-                    "property_value_number": _format_sql_value(prop.property_value_number),
-                    "property_value_json": _format_sql_value(prop.property_value_json),
-                    "property_type": _format_sql_value(prop.property_type),
-                    "is_computed": _format_sql_value(prop.is_computed),
-                    "created_at": _format_sql_value(prop.created_at),
-                    "updated_at": _format_sql_value(prop.updated_at),
-                }
-
-                value_tuple = f"""({prop_value["block_id"]}, {prop_value["property_name"]}, 
-                                   {prop_value["property_value_text"]}, {prop_value["property_value_number"]}, 
-                                   {prop_value["property_value_json"]}, {prop_value["property_type"]}, 
-                                   {prop_value["is_computed"]}, {prop_value["created_at"]}, 
-                                   {prop_value["updated_at"]})"""
-                property_values.append(value_tuple)
-
-            # Create batch INSERT statement
-            properties_query = f"""
-            INSERT INTO block_properties (block_id, property_name, property_value_text, 
-                                        property_value_number, property_value_json, property_type, 
-                                        is_computed, created_at, updated_at)
-            VALUES {", ".join(property_values)};
-            """
-
-            logger.debug(
-                f"Executing properties batch INSERT SQL (WARNING: Risk of SQLi):\n{properties_query}"
-            )
-            repo.sql(query=properties_query)
-            logger.info(
-                f"Successfully wrote {len(properties)} properties for block {block.id} to block_properties table."
-            )
+        # Apply only the necessary changes
+        if any(property_changes.values()):  # Check if any changes needed
+            if not _apply_property_changes(repo, block.id, property_changes):
+                logger.error(f"Failed to apply property changes for block {block.id}")
+                return False, None
+            logger.info(f"Successfully applied property changes for block {block.id}")
         else:
-            logger.info(f"No properties to write for block {block.id} (empty metadata)")
+            logger.debug(f"No property changes needed for block {block.id}")
 
         # Note: Links are now managed through the LinkManager and block_links table
         # They are no longer written as part of the MemoryBlock write operation
@@ -712,3 +686,178 @@ if __name__ == "__main__":
             logger.info(f"  dolt sql -q \"SELECT * FROM memory_blocks WHERE id='{test_block.id}'\"")
         else:
             logger.error("Failed to write example block.")
+
+# --- Property Management Helpers ---
+
+
+def _load_existing_properties(db_path: str, block_id: str) -> List[BlockProperty]:
+    """
+    Load existing BlockProperty instances for a block from the database.
+
+    Args:
+        db_path: Path to the Dolt database directory
+        block_id: ID of the block to load properties for
+
+    Returns:
+        List of existing BlockProperty instances (empty list if table doesn't exist or block is new)
+    """
+    try:
+        from infra_core.memory_system.dolt_reader import read_block_properties
+
+        return read_block_properties(db_path, block_id)
+    except Exception as e:
+        # Handle gracefully: table doesn't exist, block doesn't exist, etc.
+        # This naturally makes CREATE operations work by treating them as "no existing properties"
+        logger.debug(f"Could not load existing properties for block {block_id}: {e}")
+        return []
+
+
+def _property_equal(prop1: BlockProperty, prop2: BlockProperty) -> bool:
+    """
+    Compare two BlockProperty instances for equality (ignoring timestamps).
+
+    Args:
+        prop1: First property to compare
+        prop2: Second property to compare
+
+    Returns:
+        True if properties are functionally equal
+    """
+    return (
+        prop1.block_id == prop2.block_id
+        and prop1.property_name == prop2.property_name
+        and prop1.property_type == prop2.property_type
+        and prop1.property_value_text == prop2.property_value_text
+        and prop1.property_value_number == prop2.property_value_number
+        and prop1.property_value_json == prop2.property_value_json
+        and prop1.is_computed == prop2.is_computed
+    )
+
+
+def _diff_properties(
+    existing: List[BlockProperty], new: List[BlockProperty]
+) -> Dict[str, List[BlockProperty]]:
+    """
+    Diff existing and new properties to determine what changes are needed.
+
+    Args:
+        existing: Current properties in the database
+        new: New properties to be stored
+
+    Returns:
+        Dict with 'insert', 'update', and 'delete' lists of properties
+    """
+    # Create lookup maps by property name
+    existing_map = {prop.property_name: prop for prop in existing}
+    new_map = {prop.property_name: prop for prop in new}
+
+    inserts = []
+    updates = []
+    deletes = []
+
+    # Find properties to insert or update
+    for name, new_prop in new_map.items():
+        if name not in existing_map:
+            # New property - insert
+            inserts.append(new_prop)
+        else:
+            existing_prop = existing_map[name]
+            if not _property_equal(existing_prop, new_prop):
+                # Property changed - update
+                updates.append(new_prop)
+
+    # Find properties to delete
+    for name, existing_prop in existing_map.items():
+        if name not in new_map:
+            deletes.append(existing_prop)
+
+    return {"insert": inserts, "update": updates, "delete": deletes}
+
+
+def _apply_property_changes(
+    repo: Dolt, block_id: str, changes: Dict[str, List[BlockProperty]]
+) -> bool:
+    """
+    Apply property changes via batched SQL operations.
+
+    Args:
+        repo: Dolt repository instance
+        block_id: ID of the block being updated
+        changes: Dictionary with 'insert', 'update', 'delete' lists
+
+    Returns:
+        True if all operations succeeded
+    """
+    try:
+        # 1. Handle deletions
+        if changes["delete"]:
+            delete_names = [_format_sql_value(prop.property_name) for prop in changes["delete"]]
+            delete_query = f"""
+            DELETE FROM block_properties 
+            WHERE block_id = {_format_sql_value(block_id)} 
+            AND property_name IN ({", ".join(delete_names)})
+            """
+            logger.debug(f"Executing property deletions: {delete_query}")
+            repo.sql(query=delete_query)
+            logger.debug(f"Deleted {len(changes['delete'])} properties for block {block_id}")
+
+        # 2. Handle updates
+        if changes["update"]:
+            # Use REPLACE INTO for updates (simpler than UPDATE)
+            for prop in changes["update"]:
+                replace_query = f"""
+                REPLACE INTO block_properties (
+                    block_id, property_name, property_value_text, property_value_number,
+                    property_value_json, property_type, is_computed, created_at, updated_at
+                ) VALUES (
+                    {_format_sql_value(prop.block_id)},
+                    {_format_sql_value(prop.property_name)},
+                    {_format_sql_value(prop.property_value_text)},
+                    {_format_sql_value(prop.property_value_number)},
+                    {_format_sql_value(prop.property_value_json)},
+                    {_format_sql_value(prop.property_type)},
+                    {_format_sql_value(prop.is_computed)},
+                    {_format_sql_value(prop.created_at)},
+                    {_format_sql_value(prop.updated_at)}
+                )
+                """
+                logger.debug(f"Executing property update for {prop.property_name}")
+                repo.sql(query=replace_query)
+            logger.debug(f"Updated {len(changes['update'])} properties for block {block_id}")
+
+        # 3. Handle insertions
+        if changes["insert"]:
+            # Batch INSERT for new properties
+            value_tuples = []
+            for prop in changes["insert"]:
+                value_tuple = f"""(
+                    {_format_sql_value(prop.block_id)},
+                    {_format_sql_value(prop.property_name)},
+                    {_format_sql_value(prop.property_value_text)},
+                    {_format_sql_value(prop.property_value_number)},
+                    {_format_sql_value(prop.property_value_json)},
+                    {_format_sql_value(prop.property_type)},
+                    {_format_sql_value(prop.is_computed)},
+                    {_format_sql_value(prop.created_at)},
+                    {_format_sql_value(prop.updated_at)}
+                )"""
+                value_tuples.append(value_tuple)
+
+            insert_query = f"""
+            INSERT INTO block_properties (
+                block_id, property_name, property_value_text, property_value_number,
+                property_value_json, property_type, is_computed, created_at, updated_at
+            ) VALUES {", ".join(value_tuples)}
+            """
+            logger.debug(f"Executing property insertions for {len(changes['insert'])} properties")
+            repo.sql(query=insert_query)
+            logger.debug(f"Inserted {len(changes['insert'])} properties for block {block_id}")
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to apply property changes for block {block_id}: {e}")
+        return False
+
+
+# --- End Property Management Helpers ---

@@ -155,6 +155,10 @@ class PropertyMapper:
         Returns:
             The converted Python value
         """
+        # Handle the case where all variant columns are NULL (explicit None in updates)
+        if text_value is None and number_value is None and json_value is None:
+            return None
+
         if property_type == "number":
             return number_value
         elif property_type in ["json", "multi_select"]:
@@ -181,20 +185,23 @@ class PropertyMapper:
 
     @classmethod
     def decompose_metadata(
-        cls, block_id: str, metadata_dict: Dict[str, Any], is_computed: bool = False
+        cls,
+        block_id: str,
+        metadata_dict: Dict[str, Any],
+        is_computed: bool = False,
+        preserve_nulls: bool = False,
     ) -> List[BlockProperty]:
         """
         Convert a metadata dictionary to a list of BlockProperty instances.
 
         This method handles universal extras support by storing any field as a property.
 
-        FIX-01: Fields with None values are skipped entirely to avoid CHECK constraint
-        violations (chk_exactly_one_value_nonnull requires exactly one non-NULL variant column).
-
         Args:
             block_id: ID of the memory block
             metadata_dict: The metadata dictionary to decompose
             is_computed: Whether these properties are computed/AI-generated
+            preserve_nulls: If True, fields with None values are preserved as NULL property rows.
+                          If False, fields with None values are skipped entirely.
 
         Returns:
             List of BlockProperty instances ready for database insertion
@@ -203,28 +210,33 @@ class PropertyMapper:
         now = datetime.now()
 
         for field_name, value in metadata_dict.items():
-            # Store all fields, including None values (as empty strings for CHECK constraint)
-            # This ensures round-trip compatibility with the tests
-            # FIX-01: Skip None values entirely to avoid CHECK constraint violations
-            if value is None:
-                logger.debug(f"Skipping field '{field_name}' with None value for block {block_id}")
-                continue
-
             try:
-                # Detect appropriate property type
-                property_type = cls.detect_property_type(value)
+                if value is None:
+                    if not preserve_nulls:
+                        continue  # skip on create / default behaviour
+                    # For preserve_nulls=True, create a property with all variant columns NULL
+                    property_type = "text"  # arbitrary – all variants will be NULL
+                    variant_values = {
+                        "property_value_text": None,
+                        "property_value_number": None,
+                        "property_value_json": None,
+                    }
+                else:
+                    # Existing logic for non-None values
+                    # Detect appropriate property type
+                    property_type = cls.detect_property_type(value)
 
-                # Convert to variant column values
-                variant_values = cls.convert_to_variant_value(value, property_type)
+                    # Convert to variant column values
+                    variant_values = cls.convert_to_variant_value(value, property_type)
 
-                # Check if there was a type fallback during conversion
-                final_property_type = variant_values.pop("fallback_type", property_type)
+                    # Check if there was a type fallback during conversion
+                    property_type = variant_values.pop("fallback_type", property_type)
 
                 # Create BlockProperty instance
                 prop = BlockProperty(
                     block_id=block_id,
                     property_name=field_name,
-                    property_type=final_property_type,
+                    property_type=property_type,
                     is_computed=is_computed,
                     created_at=now,
                     updated_at=now,
