@@ -7,18 +7,19 @@ from typing import Optional, Dict, Literal
 from datetime import datetime
 from pydantic import Field
 
-# Import the base class
-from .base_user import BaseUserMetadata
+# Import the base class - use BaseMetadata since logs don't need user-controlled fields
+from .base import BaseMetadata
 
 # Import for registration
 from ..registry import register_metadata
 
 
-# Inherit from BaseUserMetadata
-class LogMetadata(BaseUserMetadata):
+# Inherit from BaseMetadata (not BaseUserMetadata, since logs don't need title/description/owner)
+class LogMetadata(BaseMetadata):
     """
     Metadata schema for log type MemoryBlocks.
-    Inherits common fields (x_timestamp, x_agent_id, x_tool_id, x_parent_block_id, x_session_id) from BaseUserMetadata.
+    Inherits system fields (x_timestamp, x_agent_id, x_tool_id, x_parent_block_id, x_session_id) from BaseMetadata.
+    Does not include user fields (title, description, owner) since logs are typically system-generated.
     """
 
     # Keep specific fields, renamed for clarity
@@ -36,7 +37,7 @@ class LogMetadata(BaseUserMetadata):
     latency_ms: Optional[float] = Field(
         None, description="Optional end-to-end latency in milliseconds"
     )
-    # session_id is now inherited from BaseUserMetadata as x_session_id
+    # session_id is now inherited from BaseMetadata as x_session_id
     log_level: Optional[Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]] = Field(
         None, description="Severity level of the log entry"
     )
@@ -51,7 +52,7 @@ class LogMetadata(BaseUserMetadata):
         "json_schema_extra": {
             "examples": [
                 {
-                    # Use x_ prefixed fields from BaseUserMetadata
+                    # Use x_ prefixed fields from BaseMetadata
                     "x_timestamp": "2024-03-20T10:30:00Z",
                     "x_agent_id": "task_agent_xyz",
                     "x_tool_id": "codebase_search",

@@ -126,9 +126,7 @@ def create_memory_block_agent(
                 metadata["confidence"] = input_data.confidence
 
         elif input_data.type == "log":
-            # Log-specific fields
-            if input_data.title is not None:
-                metadata["title"] = input_data.title
+            # Log-specific fields - DON'T include title since logs shouldn't need user titles
             if input_data.log_level is not None:
                 metadata["log_level"] = input_data.log_level
             if input_data.component is not None:

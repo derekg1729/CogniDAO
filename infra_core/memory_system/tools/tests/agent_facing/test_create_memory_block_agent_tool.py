@@ -165,7 +165,7 @@ class TestCreateMemoryBlockAgentTool:
 
             # Verify log-specific metadata was properly mapped
             metadata = call_args.metadata
-            assert metadata["title"] == "Agent Search Log"
+            # Note: title is NOT included for log blocks since they shouldn't have user-controlled titles
             assert metadata["log_level"] == "INFO"
             assert metadata["component"] == "search-agent"
             assert metadata["input_text"] == "Search for documentation"
