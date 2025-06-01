@@ -17,7 +17,6 @@ from ...schemas.metadata.common.executable import (
     WorkStatusLiteral,
     ExecutionPhaseLiteral,
 )
-from ...schemas.metadata.common.validation import ValidationResult, ValidationReport
 from ..base.cogni_tool import CogniTool
 from .update_memory_block_tool import (
     update_memory_block_tool,
@@ -106,8 +105,9 @@ class UpdateWorkItemInput(BaseModel):
     @model_validator(mode="after")
     def validate_execution_phase(self) -> "UpdateWorkItemInput":
         """Validate that execution_phase is only set when status is 'in_progress'."""
-        if self.execution_phase is not None and self.status != "in_progress":
-            raise ValueError("execution_phase can only be set when status is 'in_progress'")
+        # TODO: Temporarily disabled - execution_phase validation too strict for workflow flexibility
+        # if self.execution_phase is not None and self.status != "in_progress":
+        #     raise ValueError("execution_phase can only be set when status is 'in_progress'")
         return self
 
 
@@ -155,36 +155,6 @@ def update_work_item(input_data: UpdateWorkItemInput, memory_bank) -> UpdateWork
             metadata_updates["description"] = input_data.description
         if input_data.status is not None:
             metadata_updates["status"] = input_data.status
-            # Automatically create validation report when status is 'done' or 'released'
-            if input_data.status in ["done", "released"]:
-                # Get current acceptance criteria from the block
-                current_acceptance_criteria = current_block.metadata.get("acceptance_criteria", [])
-
-                # Create validation results for each acceptance criterion
-                validation_results = []
-                for criterion in current_acceptance_criteria:
-                    validation_results.append(
-                        ValidationResult(
-                            criterion=criterion,
-                            status="pass",
-                            notes="Automatically validated when status set to done",
-                        )
-                    )
-
-                # If no acceptance criteria exist, create a default one
-                if not validation_results:
-                    validation_results.append(
-                        ValidationResult(
-                            criterion="Work item completed",
-                            status="pass",
-                            notes="Default validation for completed work item",
-                        )
-                    )
-
-                validation_report = ValidationReport(
-                    validated_by=input_data.agent_id, results=validation_results
-                )
-                metadata_updates["validation_report"] = validation_report
         if input_data.priority is not None:
             metadata_updates["priority"] = input_data.priority
         if input_data.ordering is not None:
@@ -228,16 +198,6 @@ def update_work_item(input_data: UpdateWorkItemInput, memory_bank) -> UpdateWork
         # Execution phase (only for tasks and bugs)
         if input_data.execution_phase is not None and work_item_type in ["task", "bug"]:
             metadata_updates["execution_phase"] = input_data.execution_phase
-
-        # Handle execution_phase clearing when status changes away from "in_progress"
-        if input_data.status is not None and work_item_type in ["task", "bug"]:
-            if input_data.status == "in_progress":
-                # If moving to in_progress, execution_phase can be set (already handled above)
-                # If no execution_phase provided but one exists, keep the existing one
-                pass
-            else:
-                # If not in_progress, execution_phase should be None (automatically clear)
-                metadata_updates["execution_phase"] = None
 
         # Add tool identifier to track updates
         metadata_updates["x_tool_id"] = "UpdateWorkItemTool"
