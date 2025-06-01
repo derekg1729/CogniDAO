@@ -44,6 +44,10 @@ from infra_core.memory_system.tools.agent_facing.get_linked_blocks_tool import (
     GetLinkedBlocksInput,
     GetLinkedBlocksOutput,
 )
+from infra_core.memory_system.tools.agent_facing.delete_memory_block_tool import (
+    delete_memory_block_tool,
+    DeleteMemoryBlockToolInput,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -286,6 +290,28 @@ async def update_memory_block(input):
         return result
     except Exception as e:
         logger.error(f"Error updating memory block: {e}")
+        return {"error": str(e)}
+
+
+# Register the DeleteMemoryBlock tool
+@mcp.tool("DeleteMemoryBlock")
+async def delete_memory_block(input):
+    """Delete an existing memory block with dependency validation
+
+    Args:
+        block_id: ID of the memory block to delete
+        validate_dependencies: If True, check for dependent blocks and fail if any exist
+        author: Who is performing the deletion
+        agent_id: Agent identifier for tracking
+        change_note: Optional note explaining the reason for deletion
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = DeleteMemoryBlockToolInput(**input)
+        result = delete_memory_block_tool(parsed_input, memory_bank=memory_bank)
+        return result
+    except Exception as e:
+        logger.error(f"Error deleting memory block: {e}")
         return {"error": str(e)}
 
 
