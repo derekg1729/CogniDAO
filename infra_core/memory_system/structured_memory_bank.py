@@ -230,7 +230,7 @@ class StructuredMemoryBank:
 
         # --- ATOMIC PERSISTENCE PHASE ---
         # Tables to track for commit/rollback
-        tables = ["memory_blocks", "block_links"]
+        tables = ["memory_blocks", "block_properties", "block_links"]
         dolt_write_success = False
         llama_success = False
 
@@ -418,7 +418,7 @@ class StructuredMemoryBank:
 
         # --- ATOMIC PERSISTENCE PHASE ---
         # Tables to track for commit/rollback
-        tables = ["memory_blocks", "block_links"]
+        tables = ["memory_blocks", "block_properties", "block_links"]
         dolt_write_success = False
         llama_success = False
 
@@ -578,7 +578,7 @@ class StructuredMemoryBank:
 
         # --- ATOMIC DELETION PHASE ---
         # Tables to track for commit/rollback
-        tables = ["memory_blocks", "block_links"]
+        tables = ["memory_blocks", "block_properties", "block_links"]
 
         # Step 1: Delete from Dolt without auto-commit
         try:
