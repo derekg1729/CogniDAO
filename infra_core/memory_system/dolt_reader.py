@@ -490,10 +490,12 @@ def read_memory_blocks_by_tags(
         # Build tag filter conditions using JSON operations
         tag_conditions = []
         for tag in tags:
-            # Escape tag for safe SQL injection-resistant usage (still has some risk due to manual SQL building)
-            escaped_tag = _escape_sql_string(tag)
+            # Convert tag to proper JSON string format first, then SQL-escape it
+            # This ensures JSON_CONTAINS gets a valid JSON string like '"core-document"'
+            json_tag = json.dumps(tag)  # Creates proper JSON string with quotes
+            escaped_json_tag = _escape_sql_string(json_tag)
             # Use JSON_CONTAINS to check if the tag is in the JSON array
-            tag_conditions.append(f"JSON_CONTAINS(tags, {escaped_tag})")
+            tag_conditions.append(f"JSON_CONTAINS(tags, {escaped_json_tag})")
 
         if match_all:
             # All tags must be present (AND condition)

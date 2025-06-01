@@ -9,6 +9,7 @@ import pytest
 import sys
 import uuid
 from unittest.mock import MagicMock
+import subprocess
 
 # Ensure project root is in the Python path for test discovery from any location
 project_root = os.path.abspath(os.path.dirname(__file__))
@@ -47,6 +48,24 @@ def temp_dolt_db(tmp_path_factory):
 
     db_path = tmp_path_factory.mktemp("test_mcp_dolt_db")
     assert initialize_dolt_db(str(db_path)), "Failed to initialize test Dolt DB"
+
+    # CRITICAL FIX: Commit the table creation changes so they are visible to all operations
+    try:
+        subprocess.run(
+            ["dolt", "add", "."],
+            cwd=str(db_path),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        subprocess.run(
+            ["dolt", "commit", "-m", "Initial table creation for test database"],
+            cwd=str(db_path),
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        raise Exception(f"Failed to commit table creation in test database: {e}")
+
     return str(db_path)
 
 
@@ -81,7 +100,12 @@ def temp_memory_bank(temp_dolt_db, temp_chroma_db):
         version = SCHEMA_VERSIONS[node_type]
 
         # Register the schema in the temporary database - pass the model class, not the schema dict
-        schema_manager.register_schema(node_type, version, model_cls)
+        try:
+            result = schema_manager.register_schema(node_type, version, model_cls)
+            print(f"Schema registration for {node_type}: {result}")
+        except Exception as e:
+            print(f"Failed to register schema for {node_type}: {e}")
+            raise
 
     bank = StructuredMemoryBank(
         dolt_db_path=temp_dolt_db,
