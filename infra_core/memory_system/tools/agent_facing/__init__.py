@@ -13,6 +13,7 @@ from .log_interaction_block_tool import log_interaction_block_tool
 from .add_validation_report_tool import add_validation_report_tool
 from .create_work_item_tool import create_work_item_tool
 from .update_task_status_tool import update_task_status_tool
+from .get_active_work_items_tool import get_active_work_items_tool
 
 # Export all tools to make them available
 __all__ = [
@@ -24,4 +25,5 @@ __all__ = [
     "add_validation_report_tool",
     "create_work_item_tool",
     "update_task_status_tool",
+    "get_active_work_items_tool",
 ]

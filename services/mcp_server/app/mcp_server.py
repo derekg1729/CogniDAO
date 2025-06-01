@@ -34,6 +34,11 @@ from infra_core.memory_system.tools.agent_facing.get_memory_links_tool import (
     GetMemoryLinksInput,
     GetMemoryLinksOutput,
 )
+from infra_core.memory_system.tools.agent_facing.get_active_work_items_tool import (
+    get_active_work_items_tool,
+    GetActiveWorkItemsInput,
+    GetActiveWorkItemsOutput,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -173,6 +178,41 @@ async def get_memory_links(input):
             success=False,
             links=[],
             error=f"Error retrieving memory links: {str(e)}",
+            timestamp=datetime.now(),
+        ).model_dump(mode="json")
+
+
+# Register the GetActiveWorkItems tool
+@mcp.tool("GetActiveWorkItems")
+async def get_active_work_items(input):
+    """Get work items that are currently active (status='in_progress') with optional filtering
+
+    Args:
+        priority_filter: Optional filter by priority level (P0 highest, P5 lowest)
+        work_item_type_filter: Optional filter by work item type (task, project, epic, bug)
+        limit: Maximum number of results to return (1-100)
+
+    Output contains 'work_items' array sorted by priority (P0 first) then creation date.
+    """
+    try:
+        # Parse dict input into Pydantic model
+        input_data = GetActiveWorkItemsInput(**input)
+
+        # Execute the tool function
+        result = get_active_work_items_tool(
+            memory_bank=memory_bank, **input_data.model_dump(exclude_none=True)
+        )
+
+        # Return the complete result
+        return result.model_dump(mode="json")
+
+    except Exception as e:
+        logger.error(f"Error in GetActiveWorkItems MCP tool: {e}")
+        return GetActiveWorkItemsOutput(
+            success=False,
+            work_items=[],
+            total_count=0,
+            error=f"Error retrieving active work items: {str(e)}",
             timestamp=datetime.now(),
         ).model_dump(mode="json")
 
