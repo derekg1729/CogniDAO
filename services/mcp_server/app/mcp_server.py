@@ -21,6 +21,10 @@ from infra_core.memory_system.tools.agent_facing.create_work_item_tool import (
     create_work_item_tool,
     CreateWorkItemInput,
 )
+from infra_core.memory_system.tools.agent_facing.create_memory_block_agent_tool import (
+    create_memory_block_agent_tool,
+    CreateMemoryBlockAgentInput,
+)
 from infra_core.memory_system.tools.agent_facing.update_memory_block_tool import (
     update_memory_block_tool,
     UpdateMemoryBlockToolInput,
@@ -386,6 +390,35 @@ async def create_block_link(input):
     except Exception as e:
         logger.error(f"Error creating block link: {e}")
         return {"success": False, "message": "Failed to create block link", "error_details": str(e)}
+
+
+# Register the CreateMemoryBlock tool
+@mcp.tool("CreateMemoryBlock")
+async def create_memory_block(input):
+    """Create a new general memory block (doc, knowledge, or log)
+
+    Args:
+        type: Type of memory block to create (doc, knowledge, or log)
+        title: Title of the memory block
+        content: Primary content/text of the memory block
+        audience: Intended audience (doc type only)
+        section: Section or category (doc type only)
+        source: Source of the knowledge (knowledge type only)
+        validity: Validity status (knowledge type only)
+        input_text: Input text from interaction (log type only)
+        output_text: Output text from interaction (log type only)
+        tags: Tags for categorizing this memory block
+        state: Initial state of the block
+        visibility: Visibility level of the block
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = CreateMemoryBlockAgentInput(**input)
+        result = create_memory_block_agent_tool(parsed_input, memory_bank=memory_bank)
+        return result
+    except Exception as e:
+        logger.error(f"Error creating memory block: {e}")
+        return {"error": str(e)}
 
 
 class HealthCheckOutput:

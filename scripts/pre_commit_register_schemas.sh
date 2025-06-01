@@ -6,7 +6,7 @@
 # Note: This runs the get_dolt_db_path logic, but we only care about the path result.
 # If CLI/ENV are set for the user, this hook will respect them.
 
-PYTHON_GET_PATH_CMD='from infra_core.constants import MEMORY_DOLT_ROOT; import os; print(os.getenv("DOLT_DB_PATH", MEMORY_DOLT_ROOT))'
+PYTHON_GET_PATH_CMD='from infra_core.constants import PROPERTY_SCHEMA_DOLT_ROOT; import os; print(os.getenv("DOLT_DB_PATH", PROPERTY_SCHEMA_DOLT_ROOT))'
 DOLT_DB_PATH=$(python -c "$PYTHON_GET_PATH_CMD")
 
 if [ -z "$DOLT_DB_PATH" ]; then
