@@ -1,6 +1,15 @@
 {
   "head": "refs/heads/main",
-  "remotes": {},
+  "remotes": {
+    "origin": {
+      "name": "origin",
+      "url": "https://doltremoteapi.dolthub.com/cogni/cogni-dao-memory",
+      "fetch_specs": [
+        "refs/heads/*:refs/remotes/origin/*"
+      ],
+      "params": {}
+    }
+  },
   "backups": {},
   "branches": {}
 }
