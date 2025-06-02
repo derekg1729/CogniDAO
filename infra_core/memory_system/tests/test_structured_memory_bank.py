@@ -3,7 +3,6 @@ Unit and integration tests for the StructuredMemoryBank class.
 """
 
 import pytest
-import os
 from pathlib import Path
 import time
 import datetime
@@ -41,35 +40,31 @@ MOCK_COLLECTION = "mock_collection"
 @pytest.fixture(scope="module")
 def test_dolt_db_path(tmp_path_factory) -> Path:
     """Creates a temporary directory for a test Dolt database."""
+    # NOTE: This fixture is deprecated - new tests should use the conftest.py fixtures
+    # with dolt_connection_config and memory_bank instead
     db_path = tmp_path_factory.mktemp("test_dolt_db")
     assert initialize_dolt_db(str(db_path)), "Failed to initialize test Dolt DB"
-    # TODO: Consider adding the node_schemas table here if needed for tests
-    # TODO: Consider adding the block_links table here if not done by initialize_dolt_db
     return db_path
 
 
 @pytest.fixture(scope="module")
 def test_chroma_path(tmp_path_factory) -> Path:
     """Creates a temporary directory for test ChromaDB storage."""
+    # NOTE: This fixture is deprecated - new tests should use temp_chroma_path from conftest.py
     return tmp_path_factory.mktemp("test_chroma_storage")
 
 
+# DEPRECATED: This fixture uses the old constructor - use 'memory_bank' from conftest.py instead
 @pytest.fixture(scope="module")
-def memory_bank_instance(test_dolt_db_path: Path, test_chroma_path: Path) -> StructuredMemoryBank:
+def memory_bank_instance(dolt_connection_config, temp_chroma_path) -> StructuredMemoryBank:
     """Provides an initialized StructuredMemoryBank instance for testing."""
-    collection_name = "test_collection"
-    # Ensure Chroma path exists (LlamaMemory init might do this, but being explicit)
-    os.makedirs(test_chroma_path, exist_ok=True)
-
-    bank = StructuredMemoryBank(
-        dolt_db_path=str(test_dolt_db_path),
-        chroma_path=str(test_chroma_path),
-        chroma_collection=collection_name,
+    # Updated to use new MySQL-only constructor via conftest.py fixtures
+    return StructuredMemoryBank(
+        chroma_path=temp_chroma_path,
+        chroma_collection="test_collection",
+        dolt_connection_config=dolt_connection_config,
+        branch="main",
     )
-    assert bank.llama_memory.is_ready(), "LlamaMemory did not initialize correctly in fixture"
-    # TODO: Add basic schema definition to node_schemas if needed for create tests
-    # Example: register_schema(str(test_dolt_db_path), 'test_type', 1, {'title':'Test Schema'})
-    return bank
 
 
 @pytest.fixture
@@ -154,12 +149,21 @@ def memory_bank(mock_llama_memory, mock_dolt_writer, mock_dolt_reader, mock_sche
     mock_repo.commit.return_value = None
     mock_repo.checkout.return_value = None
 
+    # Create mock connection config for the new constructor
+    mock_config = MagicMock()
+    mock_config.host = "localhost"
+    mock_config.port = 3306
+    mock_config.user = "root"
+    mock_config.password = ""
+    mock_config.database = "test_memory_dolt"
+
     # Patch the Dolt class to return our mock repository
     with patch("infra_core.memory_system.structured_memory_bank.Dolt", return_value=mock_repo):
         bank = StructuredMemoryBank(
-            dolt_db_path=MOCK_DOLT_PATH,
             chroma_path=MOCK_CHROMA_PATH,
             chroma_collection=MOCK_COLLECTION,
+            dolt_connection_config=mock_config,
+            branch="main",
         )
         yield bank
 
@@ -168,12 +172,12 @@ def memory_bank(mock_llama_memory, mock_dolt_writer, mock_dolt_reader, mock_sche
 
 
 class TestStructuredMemoryBank:
-    def test_initialization(self, memory_bank_instance: StructuredMemoryBank):
+    def test_initialization(self, integration_memory_bank: StructuredMemoryBank):
         """Tests if the StructuredMemoryBank initializes correctly."""
-        assert memory_bank_instance is not None
-        assert memory_bank_instance.dolt_db_path is not None
-        assert memory_bank_instance.llama_memory is not None
-        assert memory_bank_instance.llama_memory.is_ready()
+        assert integration_memory_bank is not None
+        assert integration_memory_bank.connection_config is not None  # New MySQL-only API
+        assert integration_memory_bank.llama_memory is not None
+        assert integration_memory_bank.llama_memory.is_ready()
 
     def test_create_memory_block(
         self, memory_bank_instance: StructuredMemoryBank, sample_memory_block: MemoryBlock
