@@ -89,8 +89,8 @@ def test_get_schema_version():
     assert get_schema_version("project") == 5
     assert get_schema_version("task") == 5
     assert get_schema_version("doc") == 4
-    assert get_schema_version("knowledge") == 2
-    assert get_schema_version("log") == 2
+    assert get_schema_version("knowledge") == 3
+    assert get_schema_version("log") == 4
     assert get_schema_version("epic") == 3
     assert get_schema_version("bug") == 3
 

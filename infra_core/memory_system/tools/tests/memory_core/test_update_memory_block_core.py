@@ -53,6 +53,7 @@ def sample_existing_block():
         visibility="internal",
         tags=["original", "test"],
         metadata={
+            "title": "Original Knowledge Block",
             "x_agent_id": "test_agent",
             "x_timestamp": "2024-01-01T00:00:00",
             "source": "test_source",
@@ -116,6 +117,7 @@ def test_update_memory_block_success_multiple_fields(mock_memory_bank, sample_ex
         state="published",
         tags=["updated", "published"],
         metadata={
+            "title": "Updated Knowledge Block",
             "x_agent_id": "test_agent",
             "x_timestamp": "2024-01-01T00:00:00",
             "source": "updated_source",
