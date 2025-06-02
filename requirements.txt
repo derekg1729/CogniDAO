@@ -38,7 +38,7 @@ autogen-core
 
 # Dolt
 doltpy
-PyMySQL
+mysql-connector-python  # MySQL connector for Dolt SQL server connections
 
 # Memory & Indexing (May move to separate requirements)
 llama-index

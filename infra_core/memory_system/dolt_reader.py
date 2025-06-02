@@ -1,5 +1,20 @@
 """
-Contains functions for reading MemoryBlock objects from a Dolt database.
+Dolt reader module for accessing memory blocks.
+
+This module provides two approaches for reading data from Dolt:
+1. Legacy file-based access using doltpy.cli.Dolt (will be deprecated)
+2. Remote SQL server access using mysql.connector (recommended)
+
+The DoltMySQLReader class provides MySQL connector-based access to a running
+Dolt SQL server, supporting branch switching and using standard MySQL environment
+variables for configuration.
+
+Environment Variables (used by DoltConnectionConfig):
+- MYSQL_HOST / DB_HOST: Database host (default: localhost)
+- MYSQL_PORT / DB_PORT: Database port (default: 3306)
+- MYSQL_USER / DB_USER: Database user (default: root)
+- MYSQL_PASSWORD / DB_PASSWORD: Database password (default: empty)
+- MYSQL_DATABASE / DB_NAME: Database name (default: memory_dolt)
 """
 
 import logging
@@ -8,9 +23,14 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 import json
 from datetime import datetime
+import os
+from dataclasses import dataclass, field
+import warnings
 
 from doltpy.cli import Dolt
 from pydantic import ValidationError
+import mysql.connector
+from mysql.connector import Error
 
 # --- Path Setup --- START
 # Must happen before importing local modules
@@ -36,6 +56,200 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
+
+
+@dataclass
+class DoltConnectionConfig:
+    """Configuration for connecting to a Dolt SQL server via MySQL connector.
+
+    Uses standard MySQL environment variables with sensible defaults for Dolt.
+    Environment variables checked (in order of precedence):
+    - MYSQL_HOST / DB_HOST -> host
+    - MYSQL_PORT / DB_PORT -> port
+    - MYSQL_USER / DB_USER -> user
+    - MYSQL_PASSWORD / DB_PASSWORD -> password
+    - MYSQL_DATABASE / DB_NAME -> database
+    """
+
+    host: str = field(
+        default_factory=lambda: os.getenv("MYSQL_HOST") or os.getenv("DB_HOST", "localhost")
+    )
+    port: int = field(
+        default_factory=lambda: int(os.getenv("MYSQL_PORT") or os.getenv("DB_PORT", "3306"))
+    )
+    user: str = field(
+        default_factory=lambda: os.getenv("MYSQL_USER") or os.getenv("DB_USER", "root")
+    )
+    password: str = field(
+        default_factory=lambda: os.getenv("MYSQL_PASSWORD") or os.getenv("DB_PASSWORD", "")
+    )
+    database: str = field(
+        default_factory=lambda: os.getenv("MYSQL_DATABASE") or os.getenv("DB_NAME", "memory_dolt")
+    )
+
+
+class DoltMySQLReader:
+    """Dolt reader that connects to remote Dolt SQL server via MySQL connector.
+
+    Provides the same interface as the original dolt_reader functions but
+    connects to a running Dolt SQL server instead of local file access.
+    """
+
+    def __init__(self, config: DoltConnectionConfig):
+        """Initialize with connection configuration."""
+        self.config = config
+
+    def _get_connection(self):
+        """Get a new MySQL connection to the Dolt SQL server."""
+        try:
+            conn = mysql.connector.connect(
+                host=self.config.host,
+                port=self.config.port,
+                user=self.config.user,
+                password=self.config.password,
+                database=self.config.database,
+                charset="utf8mb4",
+                autocommit=True,
+                connection_timeout=10,
+                # Use dictionary cursor for consistent return format
+                use_unicode=True,
+                raise_on_warnings=True,
+            )
+            return conn
+        except Error as e:
+            raise Exception(f"Failed to connect to Dolt SQL server: {e}")
+
+    def _ensure_branch(self, connection: mysql.connector.MySQLConnection, branch: str) -> None:
+        """Ensure we're on the specified branch."""
+        try:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("CALL DOLT_CHECKOUT(%s)", (branch,))
+            # Consume any results
+            cursor.fetchall()
+            cursor.close()
+        except Error as e:
+            raise Exception(f"Failed to checkout branch '{branch}': {e}")
+
+    def _execute_query(self, query: str, params: tuple = None) -> List[Dict[str, Any]]:
+        """Execute a query and return results as list of dictionaries."""
+        connection = self._get_connection()
+        try:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute(query, params or ())
+            results = cursor.fetchall()
+            cursor.close()
+            return results
+        except Error as e:
+            raise Exception(f"Query failed: {e}")
+        finally:
+            connection.close()
+
+    def read_memory_blocks(self, branch: str = "main") -> List[Dict[str, Any]]:
+        """Read all memory blocks from the specified branch."""
+        connection = self._get_connection()
+        try:
+            self._ensure_branch(connection, branch)
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM memory_blocks")
+            results = cursor.fetchall()
+            cursor.close()
+            return results
+        except Error as e:
+            raise Exception(f"Failed to read memory blocks: {e}")
+        finally:
+            connection.close()
+
+    def read_memory_block(self, block_id: str, branch: str = "main") -> Optional[Dict[str, Any]]:
+        """Read a specific memory block by ID from the specified branch."""
+        connection = self._get_connection()
+        try:
+            self._ensure_branch(connection, branch)
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM memory_blocks WHERE id = %s", (block_id,))
+            result = cursor.fetchone()
+            cursor.close()
+            return result
+        except Error as e:
+            raise Exception(f"Failed to read memory block {block_id}: {e}")
+        finally:
+            connection.close()
+
+    def read_block_properties(
+        self, block_id: str, branch: str = "main"
+    ) -> Optional[Dict[str, Any]]:
+        """Read properties for a specific block."""
+        connection = self._get_connection()
+        try:
+            self._ensure_branch(connection, branch)
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT id, type, tags, metadata FROM memory_blocks WHERE id = %s", (block_id,)
+            )
+            result = cursor.fetchone()
+            cursor.close()
+            return result
+        except Error as e:
+            raise Exception(f"Failed to read block properties for {block_id}: {e}")
+        finally:
+            connection.close()
+
+    def batch_read_block_properties(
+        self, block_ids: List[str], branch: str = "main"
+    ) -> List[Dict[str, Any]]:
+        """Read properties for multiple blocks efficiently."""
+        if not block_ids:
+            return []
+
+        connection = self._get_connection()
+        try:
+            self._ensure_branch(connection, branch)
+            cursor = connection.cursor(dictionary=True)
+
+            # Create placeholders for the IN clause
+            placeholders = ",".join(["%s"] * len(block_ids))
+            query = (
+                f"SELECT id, type, tags, metadata FROM memory_blocks WHERE id IN ({placeholders})"
+            )
+
+            cursor.execute(query, block_ids)
+            results = cursor.fetchall()
+            cursor.close()
+            return results
+        except Error as e:
+            raise Exception(f"Failed to batch read block properties: {e}")
+        finally:
+            connection.close()
+
+    def read_memory_blocks_by_tags(
+        self, tags: List[str], branch: str = "main"
+    ) -> List[Dict[str, Any]]:
+        """Read memory blocks that have all specified tags."""
+        if not tags:
+            return self.read_memory_blocks(branch)
+
+        connection = self._get_connection()
+        try:
+            self._ensure_branch(connection, branch)
+            cursor = connection.cursor(dictionary=True)
+
+            # Build conditions for each tag
+            conditions = []
+            params = []
+            for tag in tags:
+                conditions.append("JSON_CONTAINS(tags, %s)")
+                params.append(json.dumps(tag))
+
+            where_clause = " AND ".join(conditions)
+            query = f"SELECT * FROM memory_blocks WHERE {where_clause}"
+
+            cursor.execute(query, params)
+            results = cursor.fetchall()
+            cursor.close()
+            return results
+        except Error as e:
+            raise Exception(f"Failed to read memory blocks by tags {tags}: {e}")
+        finally:
+            connection.close()
 
 
 # Helper function from dolt_writer for safe SQL formatting
@@ -126,80 +340,29 @@ def batch_read_block_properties(
     return properties_by_block
 
 
-def read_block_properties(db_path: str, block_id: str, branch: str = "main") -> List[BlockProperty]:
+def read_memory_blocks(db_path: str, branch: str = "main") -> List[MemoryBlock]:
     """
-    Read BlockProperty instances for a specific block from the block_properties table.
+    Read MemoryBlocks from a Dolt database using file-based access.
 
-    NOTE: For reading multiple blocks, use batch_read_block_properties() for better performance.
+    DEPRECATED: This function is deprecated and will be removed in a future version.
+    Use DoltMySQLReader class with a running Dolt SQL server instead for better
+    performance and scalability.
 
     Args:
         db_path: Path to the Dolt database directory
-        block_id: ID of the block to read properties for
         branch: The Dolt branch to read from (defaults to 'main')
 
     Returns:
-        List of BlockProperty instances
+        List of MemoryBlock instances
     """
-    logger.debug(f"Reading properties for block {block_id} from branch '{branch}'")
-    repo = Dolt(db_path)
-    escaped_block_id = _escape_sql_string(block_id)
-
-    query = f"""
-    SELECT 
-        block_id, property_name, property_value_text, property_value_number, 
-        property_value_json, property_type, is_computed, created_at, updated_at
-    FROM block_properties
-    AS OF '{branch}'
-    WHERE block_id = {escaped_block_id}
-    """
-
-    logger.debug(f"Executing properties query:\n{query}")
-    result = repo.sql(query=query, result_format="json")
-
-    properties = []
-    if result and "rows" in result and result["rows"]:
-        logger.debug(f"Found {len(result['rows'])} properties for block {block_id}")
-        for row in result["rows"]:
-            try:
-                # Convert datetime strings back to datetime objects if needed
-                if isinstance(row.get("created_at"), str):
-                    row["created_at"] = datetime.fromisoformat(row["created_at"])
-                if isinstance(row.get("updated_at"), str):
-                    row["updated_at"] = datetime.fromisoformat(row["updated_at"])
-
-                prop = BlockProperty.model_validate(row)
-                properties.append(prop)
-            except ValidationError as e:
-                logger.error(
-                    f"Failed to validate property {row.get('property_name', 'unknown')}: {e}"
-                )
-            except Exception as e:
-                logger.error(f"Error processing property row: {e}")
-    else:
-        logger.debug(f"No properties found for block {block_id}")
-
-    return properties
-
-
-def read_memory_blocks(db_path: str, branch: str = "main") -> List[MemoryBlock]:
-    """
-    Reads MemoryBlocks from the specified Dolt database and branch using Property-Schema Split approach.
-
-    Uses PropertyMapper to compose metadata from the block_properties table instead of reading
-    from a metadata JSON column (CR-01 fix).
-
-    PERFORMANCE: Uses batch_read_block_properties() to avoid N+1 query performance issues.
-
-    Args:
-        db_path: Path to the Dolt database directory.
-        branch: The Dolt branch to read from (defaults to 'main').
-
-    Returns:
-        A list of validated MemoryBlock objects.
-    """
-    logger.info(
-        f"Attempting to read MemoryBlocks from Dolt DB at {db_path} on branch '{branch}' using Property-Schema Split"
+    warnings.warn(
+        "read_memory_blocks() file-based access is deprecated. "
+        "Use DoltMySQLReader with a Dolt SQL server instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
+
+    logger.info(f"Reading MemoryBlocks from branch '{branch}' using legacy file-based access")
     memory_blocks_list: List[MemoryBlock] = []
     repo: Optional[Dolt] = None
 
@@ -324,14 +487,11 @@ def read_memory_blocks(db_path: str, branch: str = "main") -> List[MemoryBlock]:
 
 def read_memory_block(db_path: str, block_id: str, branch: str = "main") -> Optional[MemoryBlock]:
     """
-    Reads a single MemoryBlock from the specified Dolt database using the Property-Schema Split approach.
+    Reads a single MemoryBlock from the specified Dolt database using file-based access.
 
-    Uses PropertyMapper to compose metadata from the block_properties table instead of reading
-    from a metadata JSON column.
-
-    WARNING: This function constructs SQL queries with block_id manually escaped
-    due to limitations in doltpy.cli.Dolt.sql() (lack of parameterized query support).
-    This carries SQL injection risks if block_id is not sanitized elsewhere.
+    DEPRECATED: This function is deprecated and will be removed in a future version.
+    Use DoltMySQLReader class with a running Dolt SQL server instead for better
+    performance and scalability.
 
     Args:
         db_path: Path to the Dolt database directory.
@@ -341,9 +501,14 @@ def read_memory_block(db_path: str, block_id: str, branch: str = "main") -> Opti
     Returns:
         A validated MemoryBlock object if found, or None if not found/error.
     """
-    logger.info(
-        f"Attempting to read block {block_id} from Dolt DB at {db_path} on branch '{branch}' using Property-Schema Split"
+    warnings.warn(
+        "read_memory_block() file-based access is deprecated. "
+        "Use DoltMySQLReader with a Dolt SQL server instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
+
+    logger.info(f"Reading block {block_id} from branch '{branch}' using legacy file-based access")
     repo: Optional[Dolt] = None
 
     try:
@@ -453,17 +618,11 @@ def read_memory_blocks_by_tags(
     db_path: str, tags: List[str], match_all: bool = True, branch: str = "main"
 ) -> List[MemoryBlock]:
     """
-    Reads MemoryBlocks from Dolt filtered by tags using Property-Schema Split approach.
+    Reads MemoryBlocks from Dolt filtered by tags using file-based access.
 
-    Uses PropertyMapper to compose metadata from the block_properties table instead of reading
-    from a metadata JSON column (CR-01 fix).
-
-    PERFORMANCE: Uses batch_read_block_properties() to avoid N+1 query performance issues.
-
-    WARNING: This function constructs SQL queries with tag values manually formatted
-    due to limitations in doltpy.cli.Dolt.sql() (lack of parameterized query support
-    for complex JSON operations). This carries SQL injection risks if tags
-    originate from untrusted input without robust validation elsewhere.
+    DEPRECATED: This function is deprecated and will be removed in a future version.
+    Use DoltMySQLReader class with a running Dolt SQL server instead for better
+    performance and scalability.
 
     Args:
         db_path: Path to the Dolt database directory.
@@ -474,12 +633,19 @@ def read_memory_blocks_by_tags(
     Returns:
         A list of validated MemoryBlock objects matching the tag criteria.
     """
+    warnings.warn(
+        "read_memory_blocks_by_tags() file-based access is deprecated. "
+        "Use DoltMySQLReader with a Dolt SQL server instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
     if not tags:
         logger.warning("read_memory_blocks_by_tags called with empty tags list.")
         return []
 
     logger.info(
-        f"Attempting to read MemoryBlocks by tags {tags} (match_all={match_all}) from Dolt DB at {db_path} on branch '{branch}' using Property-Schema Split"
+        f"Reading MemoryBlocks by tags {tags} (match_all={match_all}) from branch '{branch}' using legacy file-based access"
     )
     memory_blocks_list: List[MemoryBlock] = []
     repo: Optional[Dolt] = None
@@ -728,6 +894,72 @@ def read_memory_blocks_from_working_set(db_path: str) -> List[MemoryBlock]:
         f"Finished reading. Successfully parsed {len(memory_blocks_list)} MemoryBlocks from working set using Property-Schema Split with batch property loading."
     )
     return memory_blocks_list
+
+
+def read_block_properties(db_path: str, block_id: str, branch: str = "main") -> List[BlockProperty]:
+    """
+    Read BlockProperty instances for a specific block from the block_properties table using file-based access.
+
+    DEPRECATED: This function is deprecated and will be removed in a future version.
+    Use DoltMySQLReader class with a running Dolt SQL server instead for better
+    performance and scalability.
+
+    Args:
+        db_path: Path to the Dolt database directory
+        block_id: ID of the block to read properties for
+        branch: The Dolt branch to read from (defaults to 'main')
+
+    Returns:
+        List of BlockProperty instances
+    """
+    warnings.warn(
+        "read_block_properties() file-based access is deprecated. "
+        "Use DoltMySQLReader with a Dolt SQL server instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    logger.debug(
+        f"Reading properties for block {block_id} from branch '{branch}' using legacy file-based access"
+    )
+    repo = Dolt(db_path)
+    escaped_block_id = _escape_sql_string(block_id)
+
+    query = f"""
+    SELECT 
+        block_id, property_name, property_value_text, property_value_number, 
+        property_value_json, property_type, is_computed, created_at, updated_at
+    FROM block_properties
+    AS OF '{branch}'
+    WHERE block_id = {escaped_block_id}
+    """
+
+    logger.debug(f"Executing properties query:\n{query}")
+    result = repo.sql(query=query, result_format="json")
+
+    properties = []
+    if result and "rows" in result and result["rows"]:
+        logger.debug(f"Found {len(result['rows'])} properties for block {block_id}")
+        for row in result["rows"]:
+            try:
+                # Convert datetime strings back to datetime objects if needed
+                if isinstance(row.get("created_at"), str):
+                    row["created_at"] = datetime.fromisoformat(row["created_at"])
+                if isinstance(row.get("updated_at"), str):
+                    row["updated_at"] = datetime.fromisoformat(row["updated_at"])
+
+                prop = BlockProperty.model_validate(row)
+                properties.append(prop)
+            except ValidationError as e:
+                logger.error(
+                    f"Failed to validate property {row.get('property_name', 'unknown')}: {e}"
+                )
+            except Exception as e:
+                logger.error(f"Error processing property row: {e}")
+    else:
+        logger.debug(f"No properties found for block {block_id}")
+
+    return properties
 
 
 # Example Usage (can be run as a script for testing)

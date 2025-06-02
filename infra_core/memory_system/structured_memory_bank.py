@@ -16,6 +16,8 @@ from infra_core.memory_system.dolt_reader import (
     read_memory_block,
     read_memory_blocks_by_tags,
     read_memory_blocks,
+    DoltConnectionConfig,
+    DoltMySQLReader,
 )
 from infra_core.memory_system.dolt_writer import (
     write_memory_block_to_dolt,
@@ -109,19 +111,58 @@ def diff_memory_blocks(
 class StructuredMemoryBank:
     """
     Manages MemoryBlocks using Dolt for persistence and LlamaIndex for indexing.
+
+    Supports both local file-based Dolt connections and remote MySQL connections to Dolt SQL servers.
     """
 
-    def __init__(self, dolt_db_path: str, chroma_path: str, chroma_collection: str):
+    def __init__(
+        self,
+        chroma_path: str,
+        chroma_collection: str,
+        dolt_db_path: Optional[str] = None,
+        dolt_connection_config: Optional[DoltConnectionConfig] = None,
+        branch: str = "main",
+    ):
         """
         Initializes the StructuredMemoryBank.
 
         Args:
-            dolt_db_path: Path to the Dolt database directory.
             chroma_path: Path to the ChromaDB storage directory.
             chroma_collection: Name of the ChromaDB collection.
+            dolt_db_path: Path to the Dolt database directory (for local file-based access).
+            dolt_connection_config: Configuration for MySQL connection to remote Dolt SQL server.
+            branch: Default branch to use for operations (default: "main").
+
+        Note:
+            Either dolt_db_path OR dolt_connection_config must be provided, but not both.
         """
-        self.dolt_db_path = dolt_db_path
-        self.repo = Dolt(dolt_db_path)  # Initialize a single Dolt repository connection
+        if (dolt_db_path is None) == (dolt_connection_config is None):
+            raise ValueError(
+                "Either dolt_db_path OR dolt_connection_config must be provided, but not both"
+            )
+
+        self.branch = branch
+
+        # Initialize Dolt connection
+        if dolt_db_path:
+            # File-based local connection
+            self.dolt_db_path = dolt_db_path
+            self.repo = Dolt(dolt_db_path)
+            self.dolt_reader = None  # Use legacy function-based approach
+            self.connection_type = "file"
+            logger.info(f"StructuredMemoryBank using local Dolt at: {dolt_db_path}")
+        else:
+            # MySQL remote connection
+            self.dolt_db_path = None
+            self.repo = None
+            self.dolt_reader = DoltMySQLReader(dolt_connection_config)
+            self.connection_config = dolt_connection_config
+            self.connection_type = "mysql"
+            logger.info(
+                f"StructuredMemoryBank using MySQL connection to {dolt_connection_config.host}:{dolt_connection_config.port}"
+            )
+
+        # Initialize LlamaIndex
         self.llama_memory = LlamaMemory(chroma_path=chroma_path, collection_name=chroma_collection)
 
         # Flag to track data consistency state
@@ -131,7 +172,7 @@ class StructuredMemoryBank:
             raise RuntimeError("Failed to initialize LlamaMemory backend.")
 
         logger.info(
-            f"StructuredMemoryBank initialized. Dolt Path: {dolt_db_path}, LlamaIndex Ready: {self.llama_memory.is_ready()}"
+            f"StructuredMemoryBank initialized. Connection: {self.connection_type}, Branch: {self.branch}, LlamaIndex Ready: {self.llama_memory.is_ready()}"
         )
 
     @property
@@ -152,6 +193,49 @@ class StructuredMemoryBank:
         self._is_consistent = False
         logger.critical(f"StructuredMemoryBank is in an inconsistent state: {reason}")
 
+    def _read_memory_block(
+        self, block_id: str, branch: Optional[str] = None
+    ) -> Optional[MemoryBlock]:
+        """
+        Internal method to read a memory block using the appropriate connection type.
+        """
+        effective_branch = branch or self.branch
+
+        if self.connection_type == "file":
+            return read_memory_block(
+                db_path=self.dolt_db_path, block_id=block_id, branch=effective_branch
+            )
+        else:
+            return self.dolt_reader.read_memory_block(block_id, branch=effective_branch)
+
+    def _read_memory_blocks(self, branch: Optional[str] = None) -> List[MemoryBlock]:
+        """
+        Internal method to read all memory blocks using the appropriate connection type.
+        """
+        effective_branch = branch or self.branch
+
+        if self.connection_type == "file":
+            return read_memory_blocks(db_path=self.dolt_db_path, branch=effective_branch)
+        else:
+            return self.dolt_reader.read_memory_blocks(branch=effective_branch)
+
+    def _read_memory_blocks_by_tags(
+        self, tags: List[str], match_all: bool = True, branch: Optional[str] = None
+    ) -> List[MemoryBlock]:
+        """
+        Internal method to read memory blocks by tags using the appropriate connection type.
+        """
+        effective_branch = branch or self.branch
+
+        if self.connection_type == "file":
+            return read_memory_blocks_by_tags(
+                db_path=self.dolt_db_path, tags=tags, match_all=match_all, branch=effective_branch
+            )
+        else:
+            return self.dolt_reader.read_memory_blocks_by_tags(
+                tags=tags, match_all=match_all, branch=effective_branch
+            )
+
     def get_latest_schema_version(self, node_type: str) -> Optional[int]:
         """
         Gets the latest schema version for a given node type by querying the node_schemas table.
@@ -165,8 +249,15 @@ class StructuredMemoryBank:
         logger.debug(f"Fetching latest schema version for node type: {node_type}")
 
         try:
-            # Use the get_schema function from our module
-            schema = get_schema(db_path=self.dolt_db_path, node_type=node_type)
+            if self.connection_type == "file":
+                # Use the existing file-based get_schema function
+                schema = get_schema(db_path=self.dolt_db_path, node_type=node_type)
+            else:
+                # For MySQL, we need to implement schema reading or fall back to default
+                logger.warning(
+                    "Schema version lookup not yet implemented for MySQL connections. Using default."
+                )
+                return None
 
             if schema and "x_schema_version" in schema:
                 version = schema["x_schema_version"]
@@ -371,7 +462,7 @@ class StructuredMemoryBank:
         logger.info(f"Attempting to get memory block: {block_id}")
         try:
             # Use the imported read_memory_block function
-            block = read_memory_block(db_path=self.dolt_db_path, block_id=block_id)
+            block = self._read_memory_block(block_id)
             if block:
                 logger.info(f"Successfully retrieved block {block_id}")
                 # Note: The current read_memory_block implementation reads the 'links' JSON column.
@@ -566,7 +657,7 @@ class StructuredMemoryBank:
 
         # Check if the block exists before deletion
         try:
-            existing_block = read_memory_block(db_path=self.dolt_db_path, block_id=block_id)
+            existing_block = self._read_memory_block(block_id)
             if not existing_block:
                 logger.warning(
                     f"Block {block_id} not found in Dolt. Cannot delete non-existent block."
@@ -810,11 +901,9 @@ class StructuredMemoryBank:
         try:
             # Call the new reader function
             # Assumes read_memory_blocks_by_tags is imported
-            matching_blocks = read_memory_blocks_by_tags(
-                db_path=self.dolt_db_path,
+            matching_blocks = self._read_memory_blocks_by_tags(
                 tags=tags,
                 match_all=match_all,
-                # branch='main' # Or allow specifying branch if needed
             )
             return matching_blocks
         except Exception as e:
@@ -834,10 +923,7 @@ class StructuredMemoryBank:
         logger.info(f"Getting all memory blocks from branch '{branch}'")
         try:
             # Call the reader function from dolt_reader
-            all_blocks = read_memory_blocks(
-                db_path=self.dolt_db_path,
-                branch=branch,
-            )
+            all_blocks = self._read_memory_blocks(branch=branch)
             return all_blocks
         except Exception as e:
             logger.error(
