@@ -22,13 +22,10 @@ import sys
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 import json
-from datetime import datetime
 import os
 from dataclasses import dataclass, field
 import warnings
 
-from doltpy.cli import Dolt
-from pydantic import ValidationError
 import mysql.connector
 from mysql.connector import Error
 
@@ -144,822 +141,401 @@ class DoltMySQLReader:
         finally:
             connection.close()
 
-    def read_memory_blocks(self, branch: str = "main") -> List[Dict[str, Any]]:
-        """Read all memory blocks from the specified branch."""
-        connection = self._get_connection()
+    def read_memory_blocks(self, branch: str = "main") -> List[MemoryBlock]:
+        """Read all memory blocks from Dolt SQL server, returning MemoryBlock objects."""
         try:
+            connection = self._get_connection()
             self._ensure_branch(connection, branch)
+
+            query = """
+            SELECT id, type, schema_version, text, state, visibility, block_version,
+                   parent_id, has_children, tags, source_file, source_uri, confidence,
+                   created_by, created_at, updated_at, embedding
+            FROM memory_blocks
+            """
+
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM memory_blocks")
-            results = cursor.fetchall()
+            cursor.execute(query)
+            rows = cursor.fetchall()
             cursor.close()
-            return results
-        except Error as e:
-            raise Exception(f"Failed to read memory blocks: {e}")
-        finally:
             connection.close()
 
-    def read_memory_block(self, block_id: str, branch: str = "main") -> Optional[Dict[str, Any]]:
-        """Read a specific memory block by ID from the specified branch."""
-        connection = self._get_connection()
+            # Convert to MemoryBlock objects
+            memory_blocks = []
+            for row in rows:
+                try:
+                    # Parse JSON fields
+                    if row.get("tags") and isinstance(row["tags"], str):
+                        row["tags"] = json.loads(row["tags"])
+                    if row.get("confidence") and isinstance(row["confidence"], str):
+                        row["confidence"] = json.loads(row["confidence"])
+                    if row.get("embedding") and isinstance(row["embedding"], str):
+                        row["embedding"] = json.loads(row["embedding"])
+
+                    # Get properties and compose metadata
+                    try:
+                        from infra_core.memory_system.property_mapper import PropertyMapper
+
+                        properties = self.read_block_properties(row["id"], branch)
+                        if properties:
+                            # Convert dict properties to BlockProperty objects if needed
+                            if properties and isinstance(properties[0], dict):
+                                from infra_core.memory_system.schemas.common import BlockProperty
+
+                                properties = [
+                                    BlockProperty.model_validate(prop) for prop in properties
+                                ]
+                            metadata_dict = PropertyMapper.compose_metadata(properties)
+                        else:
+                            metadata_dict = {}
+                        row["metadata"] = metadata_dict
+                    except Exception as e:
+                        logger.warning(f"Failed to compose metadata for block {row['id']}: {e}")
+                        row["metadata"] = {}
+
+                    # Remove None values and create MemoryBlock
+                    cleaned_row = {k: v for k, v in row.items() if v is not None}
+                    memory_block = MemoryBlock.model_validate(cleaned_row)
+                    memory_blocks.append(memory_block)
+
+                except Exception as e:
+                    logger.error(f"Failed to parse memory block {row.get('id', 'unknown')}: {e}")
+                    continue
+
+            return memory_blocks
+
+        except Exception as e:
+            logger.error(f"Failed to read memory blocks: {e}")
+            return []
+
+    def read_memory_block(self, block_id: str, branch: str = "main") -> Optional[MemoryBlock]:
+        """Read a single memory block by ID from Dolt SQL server, returning MemoryBlock object."""
         try:
+            connection = self._get_connection()
             self._ensure_branch(connection, branch)
+
+            query = """
+            SELECT id, type, schema_version, text, state, visibility, block_version,
+                   parent_id, has_children, tags, source_file, source_uri, confidence,
+                   created_by, created_at, updated_at, embedding
+            FROM memory_blocks
+            WHERE id = %s
+            LIMIT 1
+            """
+
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM memory_blocks WHERE id = %s", (block_id,))
-            result = cursor.fetchone()
+            cursor.execute(query, (block_id,))
+            row = cursor.fetchone()
             cursor.close()
-            return result
-        except Error as e:
-            raise Exception(f"Failed to read memory block {block_id}: {e}")
-        finally:
             connection.close()
 
-    def read_block_properties(
-        self, block_id: str, branch: str = "main"
-    ) -> Optional[Dict[str, Any]]:
-        """Read properties for a specific block."""
-        connection = self._get_connection()
+            if not row:
+                return None
+
+            try:
+                # Parse JSON fields
+                if row.get("tags") and isinstance(row["tags"], str):
+                    row["tags"] = json.loads(row["tags"])
+                if row.get("confidence") and isinstance(row["confidence"], str):
+                    row["confidence"] = json.loads(row["confidence"])
+                if row.get("embedding") and isinstance(row["embedding"], str):
+                    row["embedding"] = json.loads(row["embedding"])
+
+                # Get properties and compose metadata
+                try:
+                    from infra_core.memory_system.property_mapper import PropertyMapper
+
+                    properties = self.read_block_properties(block_id, branch)
+                    if properties:
+                        # Convert dict properties to BlockProperty objects if needed
+                        if properties and isinstance(properties[0], dict):
+                            from infra_core.memory_system.schemas.common import BlockProperty
+
+                            properties = [BlockProperty.model_validate(prop) for prop in properties]
+                        metadata_dict = PropertyMapper.compose_metadata(properties)
+                    else:
+                        metadata_dict = {}
+                    row["metadata"] = metadata_dict
+                except Exception as e:
+                    logger.warning(f"Failed to compose metadata for block {block_id}: {e}")
+                    row["metadata"] = {}
+
+                # Remove None values and create MemoryBlock
+                cleaned_row = {k: v for k, v in row.items() if v is not None}
+                return MemoryBlock.model_validate(cleaned_row)
+
+            except Exception as e:
+                logger.error(f"Failed to parse memory block {block_id}: {e}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Failed to read memory block {block_id}: {e}")
+            return None
+
+    def read_block_properties(self, block_id: str, branch: str = "main") -> List[BlockProperty]:
+        """Read block properties for a specific block, returning BlockProperty objects."""
         try:
+            connection = self._get_connection()
             self._ensure_branch(connection, branch)
+
+            query = """
+            SELECT block_id, property_name, property_value_text, property_value_number,
+                   property_value_json, property_type, is_computed, created_at, updated_at
+            FROM block_properties
+            WHERE block_id = %s
+            """
+
             cursor = connection.cursor(dictionary=True)
-            cursor.execute(
-                "SELECT id, type, tags, metadata FROM memory_blocks WHERE id = %s", (block_id,)
-            )
-            result = cursor.fetchone()
+            cursor.execute(query, (block_id,))
+            rows = cursor.fetchall()
             cursor.close()
-            return result
-        except Error as e:
-            raise Exception(f"Failed to read block properties for {block_id}: {e}")
-        finally:
             connection.close()
+
+            # Convert to BlockProperty objects
+            properties = []
+            for row in rows:
+                try:
+                    from infra_core.memory_system.schemas.common import BlockProperty
+
+                    # Parse JSON field if it's a string
+                    if row.get("property_value_json") and isinstance(
+                        row["property_value_json"], str
+                    ):
+                        row["property_value_json"] = json.loads(row["property_value_json"])
+
+                    property_obj = BlockProperty.model_validate(row)
+                    properties.append(property_obj)
+                except Exception as e:
+                    logger.error(f"Failed to parse property for block {block_id}: {e}")
+                    continue
+
+            return properties
+
+        except Exception as e:
+            logger.error(f"Failed to read properties for block {block_id}: {e}")
+            return []
 
     def batch_read_block_properties(
         self, block_ids: List[str], branch: str = "main"
-    ) -> List[Dict[str, Any]]:
-        """Read properties for multiple blocks efficiently."""
+    ) -> Dict[str, List[BlockProperty]]:
+        """Read block properties for multiple blocks efficiently."""
         if not block_ids:
-            return []
+            return {}
 
-        connection = self._get_connection()
         try:
+            connection = self._get_connection()
             self._ensure_branch(connection, branch)
-            cursor = connection.cursor(dictionary=True)
 
-            # Create placeholders for the IN clause
             placeholders = ",".join(["%s"] * len(block_ids))
-            query = (
-                f"SELECT id, type, tags, metadata FROM memory_blocks WHERE id IN ({placeholders})"
-            )
+            query = f"""
+            SELECT block_id, property_name, property_value_text, property_value_number,
+                   property_value_json, property_type, is_computed, created_at, updated_at
+            FROM block_properties
+            WHERE block_id IN ({placeholders})
+            """
 
+            cursor = connection.cursor(dictionary=True)
             cursor.execute(query, block_ids)
-            results = cursor.fetchall()
+            rows = cursor.fetchall()
             cursor.close()
-            return results
-        except Error as e:
-            raise Exception(f"Failed to batch read block properties: {e}")
-        finally:
             connection.close()
 
+            # Group by block_id and convert to BlockProperty objects
+            properties_by_block = {}
+            for row in rows:
+                try:
+                    from infra_core.memory_system.schemas.common import BlockProperty
+
+                    # Parse JSON field if it's a string
+                    if row.get("property_value_json") and isinstance(
+                        row["property_value_json"], str
+                    ):
+                        row["property_value_json"] = json.loads(row["property_value_json"])
+
+                    property_obj = BlockProperty.model_validate(row)
+                    block_id = row["block_id"]
+                    if block_id not in properties_by_block:
+                        properties_by_block[block_id] = []
+                    properties_by_block[block_id].append(property_obj)
+                except Exception as e:
+                    logger.error(
+                        f"Failed to parse property for block {row.get('block_id', 'unknown')}: {e}"
+                    )
+                    continue
+
+            return properties_by_block
+
+        except Exception as e:
+            logger.error(f"Failed to batch read properties: {e}")
+            return {}
+
     def read_memory_blocks_by_tags(
-        self, tags: List[str], branch: str = "main"
-    ) -> List[Dict[str, Any]]:
-        """Read memory blocks that have all specified tags."""
+        self, tags: List[str], match_all: bool = True, branch: str = "main"
+    ) -> List[MemoryBlock]:
+        """Read memory blocks filtered by tags, returning MemoryBlock objects."""
         if not tags:
             return self.read_memory_blocks(branch)
 
-        connection = self._get_connection()
         try:
+            connection = self._get_connection()
             self._ensure_branch(connection, branch)
+
+            # Build tag filter condition
+            if match_all:
+                # All tags must be present
+                tag_conditions = []
+                params = []
+                for tag in tags:
+                    tag_conditions.append("JSON_CONTAINS(tags, %s)")
+                    params.append(json.dumps(tag))
+                where_clause = " AND ".join(tag_conditions)
+            else:
+                # At least one tag must be present
+                tag_conditions = []
+                params = []
+                for tag in tags:
+                    tag_conditions.append("JSON_CONTAINS(tags, %s)")
+                    params.append(json.dumps(tag))
+                where_clause = " OR ".join(tag_conditions)
+
+            query = f"""
+            SELECT id, type, schema_version, text, state, visibility, block_version,
+                   parent_id, has_children, tags, source_file, source_uri, confidence,
+                   created_by, created_at, updated_at, embedding
+            FROM memory_blocks
+            WHERE {where_clause}
+            """
+
             cursor = connection.cursor(dictionary=True)
-
-            # Build conditions for each tag
-            conditions = []
-            params = []
-            for tag in tags:
-                conditions.append("JSON_CONTAINS(tags, %s)")
-                params.append(json.dumps(tag))
-
-            where_clause = " AND ".join(conditions)
-            query = f"SELECT * FROM memory_blocks WHERE {where_clause}"
-
             cursor.execute(query, params)
-            results = cursor.fetchall()
+            rows = cursor.fetchall()
             cursor.close()
-            return results
-        except Error as e:
-            raise Exception(f"Failed to read memory blocks by tags {tags}: {e}")
-        finally:
             connection.close()
+
+            # Convert to MemoryBlock objects (similar to read_memory_blocks)
+            memory_blocks = []
+            for row in rows:
+                try:
+                    # Parse JSON fields
+                    if row.get("tags") and isinstance(row["tags"], str):
+                        row["tags"] = json.loads(row["tags"])
+                    if row.get("confidence") and isinstance(row["confidence"], str):
+                        row["confidence"] = json.loads(row["confidence"])
+                    if row.get("embedding") and isinstance(row["embedding"], str):
+                        row["embedding"] = json.loads(row["embedding"])
+
+                    # Get properties and compose metadata
+                    try:
+                        from infra_core.memory_system.property_mapper import PropertyMapper
+
+                        properties = self.read_block_properties(row["id"], branch)
+                        if properties:
+                            metadata_dict = PropertyMapper.compose_metadata(properties)
+                        else:
+                            metadata_dict = {}
+                        row["metadata"] = metadata_dict
+                    except Exception as e:
+                        logger.warning(f"Failed to compose metadata for block {row['id']}: {e}")
+                        row["metadata"] = {}
+
+                    # Remove None values and create MemoryBlock
+                    cleaned_row = {k: v for k, v in row.items() if v is not None}
+                    memory_block = MemoryBlock.model_validate(cleaned_row)
+                    memory_blocks.append(memory_block)
+
+                except Exception as e:
+                    logger.error(f"Failed to parse memory block {row.get('id', 'unknown')}: {e}")
+                    continue
+
+            return memory_blocks
+
+        except Exception as e:
+            logger.error(f"Failed to read memory blocks by tags: {e}")
+            return []
 
 
 # Helper function from dolt_writer for safe SQL formatting
 def _escape_sql_string(value: Optional[str]) -> str:
-    """Basic escaping for SQL strings to prevent simple injection issues."""
-    if value is None:
-        return "NULL"
-    # Replace single quotes with two single quotes
-    escaped_value = value.replace("'", "''")
-    return f"'{escaped_value}'"
+    """
+    DEPRECATED: Basic escaping for SQL strings.
+    Use parameterized queries in DoltMySQLReader instead.
+    """
+    warnings.warn("_escape_sql_string is deprecated", DeprecationWarning)
+    from infra_core.memory_system.legacy_file_dolt_access import _escape_sql_string as legacy_escape
+
+    return legacy_escape(value)
 
 
 def batch_read_block_properties(
     db_path: str, block_ids: List[str], branch: str = "main"
 ) -> Dict[str, List[BlockProperty]]:
     """
-    Read BlockProperty instances for multiple blocks in a single query to avoid N+1 performance issues.
-
-    Args:
-        db_path: Path to the Dolt database directory
-        block_ids: List of block IDs to read properties for
-        branch: The Dolt branch to read from (defaults to 'main')
-
-    Returns:
-        Dictionary mapping block_id to list of BlockProperty instances
+    DEPRECATED: Legacy file-based function.
+    Use DoltMySQLReader.batch_read_block_properties() instead.
     """
-    if not block_ids:
-        return {}
-
-    logger.debug(f"Batch reading properties for {len(block_ids)} blocks from branch '{branch}'")
-    repo = Dolt(db_path)
-
-    # Escape all block IDs for SQL safety
-    escaped_block_ids = [_escape_sql_string(block_id) for block_id in block_ids]
-    in_clause = ", ".join(escaped_block_ids)
-
-    query = f"""
-    SELECT 
-        block_id, property_name, property_value_text, property_value_number, 
-        property_value_json, property_type, is_computed, created_at, updated_at
-    FROM block_properties
-    AS OF '{branch}'
-    WHERE block_id IN ({in_clause})
-    ORDER BY block_id, property_name
-    """
-
-    logger.debug(f"Executing batch properties query for {len(block_ids)} blocks:\n{query}")
-    result = repo.sql(query=query, result_format="json")
-
-    # Group properties by block_id
-    properties_by_block: Dict[str, List[BlockProperty]] = {block_id: [] for block_id in block_ids}
-
-    if result and "rows" in result and result["rows"]:
-        logger.debug(f"Found {len(result['rows'])} total properties for {len(block_ids)} blocks")
-        for row in result["rows"]:
-            try:
-                # Convert datetime strings back to datetime objects if needed
-                if isinstance(row.get("created_at"), str):
-                    row["created_at"] = datetime.fromisoformat(row["created_at"])
-                if isinstance(row.get("updated_at"), str):
-                    row["updated_at"] = datetime.fromisoformat(row["updated_at"])
-
-                prop = BlockProperty.model_validate(row)
-                block_id = prop.block_id
-                if block_id in properties_by_block:
-                    properties_by_block[block_id].append(prop)
-                else:
-                    # This shouldn't happen with proper WHERE clause, but handle gracefully
-                    logger.warning(f"Found properties for unexpected block_id: {block_id}")
-                    properties_by_block[block_id] = [prop]
-
-            except ValidationError as e:
-                logger.error(
-                    f"Failed to validate property {row.get('property_name', 'unknown')} for block {row.get('block_id', 'unknown')}: {e}"
-                )
-            except Exception as e:
-                logger.error(f"Error processing property row: {e}")
-    else:
-        logger.debug(f"No properties found for any of the {len(block_ids)} blocks")
-
-    # Log summary stats
-    total_properties = sum(len(props) for props in properties_by_block.values())
-    blocks_with_properties = sum(1 for props in properties_by_block.values() if props)
-    logger.debug(
-        f"Batch read complete: {total_properties} properties across {blocks_with_properties}/{len(block_ids)} blocks"
+    from infra_core.memory_system.legacy_file_dolt_access import (
+        batch_read_block_properties as legacy_func,
     )
 
-    return properties_by_block
+    return legacy_func(db_path, block_ids, branch)
 
 
 def read_memory_blocks(db_path: str, branch: str = "main") -> List[MemoryBlock]:
     """
-    Read MemoryBlocks from a Dolt database using file-based access.
-
-    DEPRECATED: This function is deprecated and will be removed in a future version.
-    Use DoltMySQLReader class with a running Dolt SQL server instead for better
-    performance and scalability.
-
-    Args:
-        db_path: Path to the Dolt database directory
-        branch: The Dolt branch to read from (defaults to 'main')
-
-    Returns:
-        List of MemoryBlock instances
+    DEPRECATED: Legacy file-based function.
+    Use DoltMySQLReader.read_memory_blocks() instead.
     """
-    warnings.warn(
-        "read_memory_blocks() file-based access is deprecated. "
-        "Use DoltMySQLReader with a Dolt SQL server instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
+    from infra_core.memory_system.legacy_file_dolt_access import read_memory_blocks as legacy_func
 
-    logger.info(f"Reading MemoryBlocks from branch '{branch}' using legacy file-based access")
-    memory_blocks_list: List[MemoryBlock] = []
-    repo: Optional[Dolt] = None
-
-    try:
-        # 1. Connect to Dolt repository
-        repo = Dolt(db_path)
-
-        # 2. Define the SQL Query (NO metadata column, include ALL mandatory columns - CR-01 & CR-02 fix)
-        # Use AS OF syntax to query a specific branch/commit
-        query = f"""
-        SELECT 
-            id, type, schema_version, text, state, visibility, block_version, 
-            parent_id, has_children, tags, source_file, source_uri, confidence, 
-            created_by, created_at, updated_at, embedding
-        FROM memory_blocks 
-        AS OF '{branch}'
-        """
-        logger.debug(f"Executing SQL query on branch '{branch}':\\n{query}")
-
-        # 3. Execute the query
-        result = repo.sql(query=query, result_format="json")
-
-        # 4. Process Results
-        if result and "rows" in result and result["rows"]:
-            logger.info(f"Retrieved {len(result['rows'])} rows from Dolt.")
-
-            # 5. PERFORMANCE OPTIMIZATION: Batch read all block properties in one query
-            block_ids = [row["id"] for row in result["rows"]]
-            properties_by_block = batch_read_block_properties(db_path, block_ids, branch)
-            logger.info(
-                f"Batch loaded properties for {len(block_ids)} blocks (performance optimization)"
-            )
-
-            for row in result["rows"]:
-                try:
-                    # 6. Compose metadata using PropertyMapper (CR-01 fix)
-                    try:
-                        # Import PropertyMapper here to avoid circular imports if needed
-                        from infra_core.memory_system.property_mapper import PropertyMapper
-
-                        # Get pre-loaded properties for this block
-                        properties = properties_by_block.get(row["id"], [])
-
-                        # Compose metadata from properties
-                        metadata_dict = PropertyMapper.compose_metadata(properties)
-                        logger.debug(
-                            f"Composed metadata with {len(metadata_dict)} fields for block {row['id']} using {len(properties)} properties"
-                        )
-
-                        # Add metadata to the row data
-                        row["metadata"] = metadata_dict
-
-                    except Exception as prop_e:
-                        logger.error(
-                            f"Failed to compose metadata for block {row['id']}: {prop_e}",
-                            exc_info=True,
-                        )
-                        # Use empty metadata as fallback
-                        row["metadata"] = {}
-
-                    # 7. Prepare row data for Pydantic model validation
-                    # Filter out None values explicitly if needed, though Pydantic usually handles optional fields.
-                    # Create a copy to avoid modifying the original result row if necessary.
-                    parsed_row: Dict[str, Any] = {k: v for k, v in row.items() if v is not None}
-
-                    # FIX-03: Parse embedding field if it comes as JSON string from Dolt
-                    # (similar to the logic in read_memory_blocks_from_working_set)
-                    for key, value in parsed_row.items():
-                        if value is None:
-                            continue
-
-                        # Handle embedding field specifically
-                        if key == "embedding" and isinstance(value, str):
-                            try:
-                                parsed_row[key] = json.loads(value)
-                                logger.debug(
-                                    f"Successfully parsed embedding JSON string for block {row['id']}"
-                                )
-                            except json.JSONDecodeError:
-                                logger.warning(
-                                    f"Failed to parse JSON string for embedding in block {row['id']}: {value}"
-                                )
-                                # Keep as string if parsing fails, Pydantic might handle or error
-                                parsed_row[key] = value
-
-                    # 8. Validate using Pydantic
-                    memory_block = MemoryBlock.model_validate(parsed_row)
-                    memory_blocks_list.append(memory_block)
-
-                except ValidationError as e:
-                    # Log Pydantic validation errors specifically
-                    logger.error(
-                        f"Pydantic validation failed for row (Block ID: {row.get('id', 'UNKNOWN')}): {e}"
-                    )
-                except Exception as parse_e:
-                    # Log any other unexpected errors during processing of a row
-                    logger.error(
-                        f"Unexpected error processing row (Block ID: {row.get('id', 'UNKNOWN')}): {parse_e}",
-                        exc_info=True,
-                    )
-        else:
-            logger.info("No rows returned from the Dolt query.")
-
-    except FileNotFoundError:
-        logger.error(f"Dolt database path not found: {db_path}")
-        # Re-raise or handle as appropriate for the application
-        raise
-    except Exception as e:
-        # Log errors related to DB connection or SQL execution
-        logger.error(
-            f"Failed to read from Dolt DB at {db_path} on branch '{branch}': {e}", exc_info=True
-        )
-        # Depending on use case, might want to return partial list or empty list
-        # Returning empty list on major error for now.
-        return []  # Return empty list on error
-
-    logger.info(
-        f"Finished reading. Successfully parsed {len(memory_blocks_list)} MemoryBlocks using Property-Schema Split with batch property loading."
-    )
-    return memory_blocks_list
+    return legacy_func(db_path, branch)
 
 
 def read_memory_block(db_path: str, block_id: str, branch: str = "main") -> Optional[MemoryBlock]:
     """
-    Reads a single MemoryBlock from the specified Dolt database using file-based access.
-
-    DEPRECATED: This function is deprecated and will be removed in a future version.
-    Use DoltMySQLReader class with a running Dolt SQL server instead for better
-    performance and scalability.
-
-    Args:
-        db_path: Path to the Dolt database directory.
-        block_id: The ID of the block to read.
-        branch: The Dolt branch to read from (defaults to 'main').
-
-    Returns:
-        A validated MemoryBlock object if found, or None if not found/error.
+    DEPRECATED: Legacy file-based function.
+    Use DoltMySQLReader.read_memory_block() instead.
     """
-    warnings.warn(
-        "read_memory_block() file-based access is deprecated. "
-        "Use DoltMySQLReader with a Dolt SQL server instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
+    from infra_core.memory_system.legacy_file_dolt_access import read_memory_block as legacy_func
 
-    logger.info(f"Reading block {block_id} from branch '{branch}' using legacy file-based access")
-    repo: Optional[Dolt] = None
-
-    try:
-        repo = Dolt(db_path)
-        escaped_block_id = _escape_sql_string(block_id)
-
-        # Step 1: Read from memory_blocks table (NO metadata column - Property-Schema Split)
-        query = f"""
-        SELECT
-            id, type, schema_version, text, state, visibility, block_version, 
-            parent_id, has_children, tags, source_file, source_uri, confidence, 
-            created_by, created_at, updated_at, embedding
-        FROM memory_blocks
-        AS OF '{branch}'
-        WHERE id = {escaped_block_id}
-        LIMIT 1
-        """
-        logger.debug(
-            f"Executing SQL query for block {escaped_block_id} on branch '{branch}':\n{query}"
-        )
-
-        # Execute query without the 'args' parameter
-        result = repo.sql(query=query, result_format="json")
-
-        if result and "rows" in result and result["rows"]:
-            row = result["rows"][0]
-            logger.info(f"Retrieved row for block ID: {block_id}")
-
-            # Step 2: Read properties and compose metadata using PropertyMapper
-            try:
-                # Import PropertyMapper here to avoid circular imports if needed
-                from infra_core.memory_system.property_mapper import PropertyMapper
-
-                # Read properties from block_properties table
-                properties = read_block_properties(db_path, block_id, branch)
-
-                # Compose metadata from properties
-                metadata_dict = PropertyMapper.compose_metadata(properties)
-                logger.debug(
-                    f"Composed metadata with {len(metadata_dict)} fields for block {block_id}"
-                )
-
-                # Add metadata to the row data
-                row["metadata"] = metadata_dict
-
-            except Exception as prop_e:
-                logger.error(
-                    f"Failed to compose metadata for block {block_id}: {prop_e}", exc_info=True
-                )
-                # Use empty metadata as fallback
-                row["metadata"] = {}
-
-            try:
-                # Prepare row data for Pydantic model validation
-                parsed_row: Dict[str, Any] = {k: v for k, v in row.items() if v is not None}
-
-                # FIX-03: Parse embedding field if it comes as JSON string from Dolt
-                for key, value in parsed_row.items():
-                    if value is None:
-                        continue
-
-                    # Handle embedding field specifically
-                    if key == "embedding" and isinstance(value, str):
-                        try:
-                            parsed_row[key] = json.loads(value)
-                            logger.debug(
-                                f"Successfully parsed embedding JSON string for block {block_id}"
-                            )
-                        except json.JSONDecodeError:
-                            logger.warning(
-                                f"Failed to parse JSON string for embedding in block {block_id}: {value}"
-                            )
-                            # Keep as string if parsing fails, Pydantic might handle or error
-                            parsed_row[key] = value
-
-                memory_block = MemoryBlock.model_validate(parsed_row)
-                logger.info(
-                    f"Successfully parsed MemoryBlock {block_id} using Property-Schema Split."
-                )
-                return memory_block
-
-            except ValidationError as e:
-                logger.error(f"Pydantic validation failed for row (Block ID: {block_id}): {e}")
-                return None
-            except Exception as parse_e:
-                logger.error(
-                    f"Unexpected error processing row (Block ID: {block_id}): {parse_e}",
-                    exc_info=True,
-                )
-                return None
-        else:
-            logger.info(f"No row found for MemoryBlock ID: {block_id}")
-            return None
-
-    except FileNotFoundError:
-        logger.error(f"Dolt database path not found: {db_path}")
-        raise  # Re-raise critical error
-    except Exception as e:
-        logger.error(
-            f"Failed to read block {block_id} from Dolt DB at {db_path} on branch '{branch}': {e}",
-            exc_info=True,
-        )
-        return None
+    return legacy_func(db_path, block_id, branch)
 
 
 def read_memory_blocks_by_tags(
     db_path: str, tags: List[str], match_all: bool = True, branch: str = "main"
 ) -> List[MemoryBlock]:
     """
-    Reads MemoryBlocks from Dolt filtered by tags using file-based access.
-
-    DEPRECATED: This function is deprecated and will be removed in a future version.
-    Use DoltMySQLReader class with a running Dolt SQL server instead for better
-    performance and scalability.
-
-    Args:
-        db_path: Path to the Dolt database directory.
-        tags: A list of tags to filter by.
-        match_all: If True, blocks must contain ALL tags. If False, blocks must contain AT LEAST ONE tag.
-        branch: The Dolt branch to read from (defaults to 'main').
-
-    Returns:
-        A list of validated MemoryBlock objects matching the tag criteria.
+    DEPRECATED: Legacy file-based function.
+    Use DoltMySQLReader.read_memory_blocks_by_tags() instead.
     """
-    warnings.warn(
-        "read_memory_blocks_by_tags() file-based access is deprecated. "
-        "Use DoltMySQLReader with a Dolt SQL server instead.",
-        DeprecationWarning,
-        stacklevel=2,
+    from infra_core.memory_system.legacy_file_dolt_access import (
+        read_memory_blocks_by_tags as legacy_func,
     )
 
-    if not tags:
-        logger.warning("read_memory_blocks_by_tags called with empty tags list.")
-        return []
-
-    logger.info(
-        f"Reading MemoryBlocks by tags {tags} (match_all={match_all}) from branch '{branch}' using legacy file-based access"
-    )
-    memory_blocks_list: List[MemoryBlock] = []
-    repo: Optional[Dolt] = None
-
-    try:
-        repo = Dolt(db_path)
-
-        # Build tag filter conditions using JSON operations
-        tag_conditions = []
-        for tag in tags:
-            # Convert tag to proper JSON string format first, then SQL-escape it
-            # This ensures JSON_CONTAINS gets a valid JSON string like '"core-document"'
-            json_tag = json.dumps(tag)  # Creates proper JSON string with quotes
-            escaped_json_tag = _escape_sql_string(json_tag)
-            # Use JSON_CONTAINS to check if the tag is in the JSON array
-            tag_conditions.append(f"JSON_CONTAINS(tags, {escaped_json_tag})")
-
-        if match_all:
-            # All tags must be present (AND condition)
-            where_clause = " AND ".join(tag_conditions)
-        else:
-            # At least one tag must be present (OR condition)
-            where_clause = " OR ".join(tag_conditions)
-
-        # Define the SQL Query with tag filtering
-        query = f"""
-        SELECT 
-            id, type, schema_version, text, state, visibility, block_version, 
-            parent_id, has_children, tags, source_file, source_uri, confidence, 
-            created_by, created_at, updated_at, embedding
-        FROM memory_blocks 
-        AS OF '{branch}'
-        WHERE {where_clause}
-        """
-        logger.debug(f"Executing tag filter SQL query on branch '{branch}':\\n{query}")
-
-        result = repo.sql(query=query, result_format="json")
-
-        if result and "rows" in result and result["rows"]:
-            logger.info(f"Retrieved {len(result['rows'])} rows matching tags from Dolt.")
-
-            # PERFORMANCE OPTIMIZATION: Batch read all block properties in one query
-            block_ids = [row["id"] for row in result["rows"]]
-            properties_by_block = batch_read_block_properties(db_path, block_ids, branch)
-            logger.info(
-                f"Batch loaded properties for {len(block_ids)} blocks matching tags (performance optimization)"
-            )
-
-            for row in result["rows"]:
-                try:
-                    # Compose metadata using PropertyMapper (CR-01 fix)
-                    try:
-                        # Import PropertyMapper here to avoid circular imports if needed
-                        from infra_core.memory_system.property_mapper import PropertyMapper
-
-                        # Get pre-loaded properties for this block
-                        properties = properties_by_block.get(row["id"], [])
-
-                        # Compose metadata from properties
-                        metadata_dict = PropertyMapper.compose_metadata(properties)
-                        logger.debug(
-                            f"Composed metadata with {len(metadata_dict)} fields for block {row['id']} using {len(properties)} properties"
-                        )
-
-                        # Add metadata to the row data
-                        row["metadata"] = metadata_dict
-
-                    except Exception as prop_e:
-                        logger.error(
-                            f"Failed to compose metadata for block {row['id']}: {prop_e}",
-                            exc_info=True,
-                        )
-                        # Use empty metadata as fallback
-                        row["metadata"] = {}
-
-                    parsed_row: Dict[str, Any] = {k: v for k, v in row.items() if v is not None}
-
-                    # FIX-03: Parse embedding field if it comes as JSON string from Dolt
-                    for key, value in parsed_row.items():
-                        if value is None:
-                            continue
-
-                        # Handle embedding field specifically
-                        if key == "embedding" and isinstance(value, str):
-                            try:
-                                parsed_row[key] = json.loads(value)
-                                logger.debug(
-                                    f"Successfully parsed embedding JSON string for block {row['id']}"
-                                )
-                            except json.JSONDecodeError:
-                                logger.warning(
-                                    f"Failed to parse JSON string for embedding in block {row['id']}: {value}"
-                                )
-                                # Keep as string if parsing fails, Pydantic might handle or error
-                                parsed_row[key] = value
-
-                    memory_block = MemoryBlock.model_validate(parsed_row)
-                    memory_blocks_list.append(memory_block)
-                except ValidationError as e:
-                    logger.error(
-                        f"Pydantic validation failed for row (Block ID: {row.get('id', 'UNKNOWN')}): {e}"
-                    )
-                except Exception as parse_e:
-                    logger.error(
-                        f"Unexpected error processing row (Block ID: {row.get('id', 'UNKNOWN')}): {parse_e}",
-                        exc_info=True,
-                    )
-        else:
-            logger.info("No rows returned from the Dolt tag query.")
-
-    except FileNotFoundError:
-        logger.error(f"Dolt database path not found: {db_path}")
-        raise
-    except Exception as e:
-        logger.error(
-            f"Failed to read by tags from Dolt DB at {db_path} on branch '{branch}': {e}",
-            exc_info=True,
-        )
-        return []  # Return empty list on error
-
-    logger.info(
-        f"Finished reading by tags. Successfully parsed {len(memory_blocks_list)} MemoryBlocks using Property-Schema Split with batch property loading."
-    )
-    return memory_blocks_list
+    return legacy_func(db_path, tags, match_all, branch)
 
 
 def read_memory_blocks_from_working_set(db_path: str) -> List[MemoryBlock]:
     """
-    Reads MemoryBlocks from the working set of the specified Dolt database using Property-Schema Split approach.
-
-    Uses PropertyMapper to compose metadata from the block_properties table instead of reading
-    from a metadata JSON column (CR-01 fix).
-
-    PERFORMANCE: Uses batch_read_block_properties() to avoid N+1 query performance issues.
+    DEPRECATED: Legacy file-based function.
+    Use DoltMySQLReader with appropriate branch instead.
     """
-    logger.info(
-        f"Attempting to read MemoryBlocks from Dolt DB working set at {db_path} using Property-Schema Split"
+    from infra_core.memory_system.legacy_file_dolt_access import (
+        read_memory_blocks_from_working_set as legacy_func,
     )
-    memory_blocks_list: List[MemoryBlock] = []
-    repo: Optional[Dolt] = None
 
-    try:
-        repo = Dolt(db_path)
-
-        # Query to select all relevant columns from memory_blocks in the working set.
-        # No 'AS OF' clause is used, so it queries the working tables.
-        # NO metadata column, include ALL mandatory columns (CR-01 & CR-02 fix)
-        query = """
-        SELECT
-            id, type, schema_version, text, state, visibility, block_version, 
-            parent_id, has_children, tags, source_file, source_uri, confidence, 
-            created_by, created_at, updated_at, embedding
-        FROM memory_blocks
-        """
-
-        logger.debug(f"Executing SQL query on working set:\\n{query}")
-
-        result = repo.sql(query=query, result_format="json")
-
-        if result and "rows" in result and result["rows"]:
-            logger.info(f"Retrieved {len(result['rows'])} rows from Dolt working set.")
-
-            # PERFORMANCE OPTIMIZATION: Batch read all block properties in one query
-            block_ids = [row_data["id"] for row_data in result["rows"]]
-            properties_by_block = batch_read_block_properties(
-                db_path, block_ids, "main"
-            )  # Working set uses main branch
-            logger.info(
-                f"Batch loaded properties for {len(block_ids)} blocks from working set (performance optimization)"
-            )
-
-            for row_data in result["rows"]:
-                try:
-                    # Compose metadata using PropertyMapper (CR-01 fix)
-                    try:
-                        # Import PropertyMapper here to avoid circular imports if needed
-                        from infra_core.memory_system.property_mapper import PropertyMapper
-
-                        # Get pre-loaded properties for this block
-                        properties = properties_by_block.get(row_data["id"], [])
-
-                        # Compose metadata from properties
-                        metadata_dict = PropertyMapper.compose_metadata(properties)
-                        logger.debug(
-                            f"Composed metadata with {len(metadata_dict)} fields for block {row_data['id']} using {len(properties)} properties"
-                        )
-
-                        # Add metadata to the row data
-                        row_data["metadata"] = metadata_dict
-
-                    except Exception as prop_e:
-                        logger.error(
-                            f"Failed to compose metadata for block {row_data['id']}: {prop_e}",
-                            exc_info=True,
-                        )
-                        # Use empty metadata as fallback
-                        row_data["metadata"] = {}
-
-                    # Prepare row data for Pydantic model validation.
-                    parsed_row = {}
-                    for key, value in row_data.items():
-                        if value is None:  # Pydantic handles optional fields being None
-                            parsed_row[key] = None
-                            continue
-
-                        # Explicitly parse potential JSON string fields if not auto-parsed
-                        if key in ["tags", "metadata", "confidence"]:
-                            if isinstance(value, str):
-                                try:
-                                    parsed_row[key] = json.loads(value)
-                                except json.JSONDecodeError:
-                                    logger.warning(
-                                        f"Failed to parse JSON string for field '{key}' in block ID {row_data.get('id', 'UNKNOWN')}: {value}"
-                                    )
-                                    parsed_row[key] = (
-                                        value  # Keep as string if parsing fails, Pydantic might handle or error
-                                    )
-                            else:
-                                parsed_row[key] = value  # Assume already parsed by doltpy
-                        else:
-                            parsed_row[key] = value
-
-                    memory_block = MemoryBlock.model_validate(parsed_row)
-                    memory_blocks_list.append(memory_block)
-
-                except ValidationError as e:
-                    logger.error(
-                        f"Pydantic validation failed for row (Block ID: {row_data.get('id', 'UNKNOWN')}): {e}"
-                    )
-                except Exception as parse_e:
-                    logger.error(
-                        f"Unexpected error processing row (Block ID: {row_data.get('id', 'UNKNOWN')}): {parse_e}",
-                        exc_info=True,
-                    )
-        else:
-            logger.info("No rows returned from the Dolt working set query.")
-
-    except FileNotFoundError:
-        logger.error(f"Dolt database path not found: {db_path}")
-        raise
-    except Exception as e:
-        logger.error(f"Failed to read from Dolt DB working set at {db_path}: {e}", exc_info=True)
-        return []
-
-    logger.info(
-        f"Finished reading. Successfully parsed {len(memory_blocks_list)} MemoryBlocks from working set using Property-Schema Split with batch property loading."
-    )
-    return memory_blocks_list
+    return legacy_func(db_path)
 
 
 def read_block_properties(db_path: str, block_id: str, branch: str = "main") -> List[BlockProperty]:
     """
-    Read BlockProperty instances for a specific block from the block_properties table using file-based access.
-
-    DEPRECATED: This function is deprecated and will be removed in a future version.
-    Use DoltMySQLReader class with a running Dolt SQL server instead for better
-    performance and scalability.
-
-    Args:
-        db_path: Path to the Dolt database directory
-        block_id: ID of the block to read properties for
-        branch: The Dolt branch to read from (defaults to 'main')
-
-    Returns:
-        List of BlockProperty instances
+    DEPRECATED: Legacy file-based function.
+    Use DoltMySQLReader.read_block_properties() instead.
     """
-    warnings.warn(
-        "read_block_properties() file-based access is deprecated. "
-        "Use DoltMySQLReader with a Dolt SQL server instead.",
-        DeprecationWarning,
-        stacklevel=2,
+    from infra_core.memory_system.legacy_file_dolt_access import (
+        read_block_properties as legacy_func,
     )
 
-    logger.debug(
-        f"Reading properties for block {block_id} from branch '{branch}' using legacy file-based access"
-    )
-    repo = Dolt(db_path)
-    escaped_block_id = _escape_sql_string(block_id)
-
-    query = f"""
-    SELECT 
-        block_id, property_name, property_value_text, property_value_number, 
-        property_value_json, property_type, is_computed, created_at, updated_at
-    FROM block_properties
-    AS OF '{branch}'
-    WHERE block_id = {escaped_block_id}
-    """
-
-    logger.debug(f"Executing properties query:\n{query}")
-    result = repo.sql(query=query, result_format="json")
-
-    properties = []
-    if result and "rows" in result and result["rows"]:
-        logger.debug(f"Found {len(result['rows'])} properties for block {block_id}")
-        for row in result["rows"]:
-            try:
-                # Convert datetime strings back to datetime objects if needed
-                if isinstance(row.get("created_at"), str):
-                    row["created_at"] = datetime.fromisoformat(row["created_at"])
-                if isinstance(row.get("updated_at"), str):
-                    row["updated_at"] = datetime.fromisoformat(row["updated_at"])
-
-                prop = BlockProperty.model_validate(row)
-                properties.append(prop)
-            except ValidationError as e:
-                logger.error(
-                    f"Failed to validate property {row.get('property_name', 'unknown')}: {e}"
-                )
-            except Exception as e:
-                logger.error(f"Error processing property row: {e}")
-    else:
-        logger.debug(f"No properties found for block {block_id}")
-
-    return properties
+    return legacy_func(db_path, block_id, branch)
 
 
 # Example Usage (can be run as a script for testing)
