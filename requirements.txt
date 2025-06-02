@@ -38,6 +38,7 @@ autogen-core
 
 # Dolt
 doltpy
+PyMySQL
 
 # Memory & Indexing (May move to separate requirements)
 llama-index
