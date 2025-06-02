@@ -296,3 +296,51 @@ class DoltMySQLWriter:
             return False
         finally:
             connection.close()
+
+
+# --- Backward Compatibility Stubs (DO NOT USE) ---
+
+
+def write_memory_block_to_dolt(
+    block: MemoryBlock, db_path: str, auto_commit: bool = False, preserve_nulls: bool = False
+) -> Tuple[bool, Optional[str]]:
+    """
+    DEPRECATED STUB: This function has been replaced by DoltMySQLWriter.write_memory_block().
+
+    The old file-based API is no longer supported for security reasons.
+    Use DoltMySQLWriter with a DoltConnectionConfig instead.
+    """
+    raise NotImplementedError(
+        "write_memory_block_to_dolt() is deprecated. Use DoltMySQLWriter.write_memory_block() instead."
+    )
+
+
+def delete_memory_block_from_dolt(
+    block_id: str, db_path: str, auto_commit: bool = False
+) -> Tuple[bool, Optional[str]]:
+    """
+    DEPRECATED STUB: This function has been replaced by DoltMySQLWriter.delete_memory_block().
+    """
+    raise NotImplementedError(
+        "delete_memory_block_from_dolt() is deprecated. Use DoltMySQLWriter.delete_memory_block() instead."
+    )
+
+
+def commit_working_changes(
+    db_path: str, commit_msg: str, tables: List[str] = None
+) -> Tuple[bool, Optional[str]]:
+    """
+    DEPRECATED STUB: This function has been replaced by DoltMySQLWriter.commit_changes().
+    """
+    raise NotImplementedError(
+        "commit_working_changes() is deprecated. Use DoltMySQLWriter.commit_changes() instead."
+    )
+
+
+def discard_working_changes(db_path: str, tables: List[str] = None) -> bool:
+    """
+    DEPRECATED STUB: This function has been replaced by DoltMySQLWriter.discard_changes().
+    """
+    raise NotImplementedError(
+        "discard_working_changes() is deprecated. Use DoltMySQLWriter.discard_changes() instead."
+    )

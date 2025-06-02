@@ -149,9 +149,9 @@ class DoltMySQLReader:
 
             query = """
             SELECT id, type, schema_version, text, state, visibility, block_version,
-                   parent_id, has_children, tags, source_file, source_uri, confidence,
-                   created_by, created_at, updated_at, embedding
-            FROM memory_blocks
+            parent_id, has_children, tags, source_file, source_uri, confidence, 
+            created_by, created_at, updated_at, embedding
+        FROM memory_blocks 
             """
 
             cursor = connection.cursor(dictionary=True)
@@ -216,12 +216,12 @@ class DoltMySQLReader:
 
             query = """
             SELECT id, type, schema_version, text, state, visibility, block_version,
-                   parent_id, has_children, tags, source_file, source_uri, confidence,
-                   created_by, created_at, updated_at, embedding
-            FROM memory_blocks
+            parent_id, has_children, tags, source_file, source_uri, confidence, 
+            created_by, created_at, updated_at, embedding
+        FROM memory_blocks
             WHERE id = %s
-            LIMIT 1
-            """
+        LIMIT 1
+        """
 
             cursor = connection.cursor(dictionary=True)
             cursor.execute(query, (block_id,))
@@ -400,11 +400,11 @@ class DoltMySQLReader:
 
             query = f"""
             SELECT id, type, schema_version, text, state, visibility, block_version,
-                   parent_id, has_children, tags, source_file, source_uri, confidence,
-                   created_by, created_at, updated_at, embedding
-            FROM memory_blocks
-            WHERE {where_clause}
-            """
+            parent_id, has_children, tags, source_file, source_uri, confidence, 
+            created_by, created_at, updated_at, embedding
+        FROM memory_blocks 
+        WHERE {where_clause}
+        """
 
             cursor = connection.cursor(dictionary=True)
             cursor.execute(query, params)
