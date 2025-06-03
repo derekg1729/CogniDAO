@@ -111,7 +111,7 @@ class DoltMySQLWriter(DoltMySQLBase):
                 getattr(block, "block_version", 1),
                 getattr(block, "parent_id", None),
                 getattr(block, "has_children", False),
-                json.dumps(block.tags) if block.tags else None,
+                json.dumps(block.tags) if block.tags is not None else json.dumps([]),
                 block.source_file,
                 block.source_uri,
                 json.dumps(block.confidence.model_dump()) if block.confidence else None,

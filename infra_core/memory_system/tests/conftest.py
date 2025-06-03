@@ -180,6 +180,19 @@ def integration_memory_bank(
     )
 
 
+@pytest.fixture(scope="function")
+def temp_memory_bank(
+    dolt_connection_config: DoltConnectionConfig, temp_chroma_path: str
+) -> StructuredMemoryBank:
+    """Create a StructuredMemoryBank instance using the test setup (backward compatibility alias)."""
+    return StructuredMemoryBank(
+        chroma_path=temp_chroma_path,
+        chroma_collection="test_collection",
+        dolt_connection_config=dolt_connection_config,
+        branch="main",
+    )
+
+
 @pytest.fixture
 def sample_memory_block() -> MemoryBlock:
     """Provide a sample MemoryBlock for testing."""

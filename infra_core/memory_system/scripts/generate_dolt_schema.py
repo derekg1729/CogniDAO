@@ -202,12 +202,12 @@ def generate_table_schema(model: Type[BaseModel], table_name: str) -> str:
     # Add composite primary key for BlockProperties
     if table_name == "block_properties":
         columns.append("    PRIMARY KEY (block_id, property_name)")
-        # Add CHECK constraint to ensure exactly one value column is non-null using CASE syntax
+        # Add CHECK constraint to ensure at most one value column is non-null using CASE syntax
         columns.append(
-            "    CONSTRAINT chk_exactly_one_value_nonnull CHECK "
+            "    CONSTRAINT chk_at_most_one_value_nonnull CHECK "
             "( (CASE WHEN property_value_text IS NOT NULL THEN 1 ELSE 0 END + "
             "CASE WHEN property_value_number IS NOT NULL THEN 1 ELSE 0 END + "
-            "CASE WHEN property_value_json IS NOT NULL THEN 1 ELSE 0 END) = 1 )"
+            "CASE WHEN property_value_json IS NOT NULL THEN 1 ELSE 0 END) <= 1 )"
         )
 
     # Create the table statement

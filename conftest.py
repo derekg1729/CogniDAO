@@ -76,48 +76,8 @@ def temp_chroma_db(tmp_path_factory):
     return str(chroma_path)
 
 
-@pytest.fixture(scope="module")
-def temp_memory_bank(temp_dolt_db, temp_chroma_db):
-    """Create a StructuredMemoryBank using temporary databases for MCP server testing."""
-    from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
-    from infra_core.memory_system.link_manager import InMemoryLinkManager
-
-    # Note: temp_dolt_db fixture already calls initialize_dolt_db which creates
-    # all tables including block_properties, so no additional schema setup needed
-
-    # Register schemas in the temporary database so schema lookups work
-    from infra_core.memory_system.dolt_schema_manager import DoltSchemaManager
-    from infra_core.memory_system.schemas.registry import get_all_metadata_models, SCHEMA_VERSIONS
-
-    # Import metadata models to trigger registration - this is critical!
-
-    # Create schema manager for the temp database
-    schema_manager = DoltSchemaManager(temp_dolt_db)
-
-    # Register all schemas in the temporary database
-    metadata_models = get_all_metadata_models()
-    for node_type, model_cls in metadata_models.items():
-        version = SCHEMA_VERSIONS[node_type]
-
-        # Register the schema in the temporary database - pass the model class, not the schema dict
-        try:
-            result = schema_manager.register_schema(node_type, version, model_cls)
-            print(f"Schema registration for {node_type}: {result}")
-        except Exception as e:
-            print(f"Failed to register schema for {node_type}: {e}")
-            raise
-
-    bank = StructuredMemoryBank(
-        dolt_db_path=temp_dolt_db,
-        chroma_path=temp_chroma_db,
-        chroma_collection="test_mcp_collection",
-    )
-
-    # Attach link_manager for CreateBlockLink tests
-    link_manager = InMemoryLinkManager()
-    bank.link_manager = link_manager
-
-    return bank
+# Note: temp_memory_bank fixture is now provided by infra_core/memory_system/tests/conftest.py
+# which creates a proper Dolt SQL server setup instead of trying to connect to localhost:3306
 
 
 # === MCP Server Testing Fixtures ===
@@ -277,3 +237,112 @@ def test_storage_dirs():
     finally:
         shutil.rmtree(chroma_dir)
         shutil.rmtree(archive_dir)
+
+
+@pytest.fixture(scope="function")
+def temp_memory_bank():
+    """Create a StructuredMemoryBank using the working pattern from memory system tests."""
+    from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
+    import tempfile
+
+    # Create temporary paths
+    with tempfile.TemporaryDirectory(prefix="test_dolt_") as temp_dolt_dir:
+        with tempfile.TemporaryDirectory(prefix="test_chroma_") as temp_chroma_dir:
+            # Import and run the setup from memory system conftest
+            from infra_core.memory_system.initialize_dolt import initialize_dolt_db
+            from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+            from infra_core.memory_system.dolt_schema_manager import register_all_metadata_schemas
+            import subprocess
+            import socket
+            from pathlib import Path
+
+            # Initialize Dolt repo
+            success = initialize_dolt_db(temp_dolt_dir)
+            assert success, f"Failed to initialize Dolt database in {temp_dolt_dir}"
+
+            # CRITICAL: Register all metadata schemas
+            registration = register_all_metadata_schemas(db_path=temp_dolt_dir)
+            assert all(registration.values()), f"Schema registration failed: {registration}"
+
+            # Commit the initial schema
+            subprocess.run(
+                ["dolt", "add", "."],
+                cwd=temp_dolt_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run(
+                ["dolt", "commit", "-m", "Initial schema for test database"],
+                cwd=temp_dolt_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            # Find free port and start dolt sql-server
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(("", 0))
+                s.listen(1)
+                port = s.getsockname()[1]
+
+            host = "localhost"
+            database_name = Path(temp_dolt_dir).name
+
+            # Start dolt sql-server
+            process = subprocess.Popen(
+                ["dolt", "sql-server", f"--host={host}", f"--port={port}", "--no-auto-commit"],
+                cwd=temp_dolt_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+
+            # Wait for server to start
+            import time
+
+            for retry in range(5):
+                try:
+                    import mysql.connector
+
+                    conn = mysql.connector.connect(
+                        host=host,
+                        port=port,
+                        user="root",
+                        password="",
+                        database=database_name,
+                        connection_timeout=2,
+                    )
+                    conn.close()
+                    break
+                except Exception:
+                    if retry == 4:
+                        process.terminate()
+                        process.wait()
+                        raise RuntimeError(f"Dolt SQL server failed to start on port {port}")
+                    time.sleep(0.5)
+
+            try:
+                # Create connection config
+                dolt_config = DoltConnectionConfig(
+                    host=host,
+                    port=port,
+                    user="root",
+                    password="",
+                    database=database_name,
+                )
+
+                # Create StructuredMemoryBank
+                bank = StructuredMemoryBank(
+                    chroma_path=temp_chroma_dir,
+                    chroma_collection="test_collection",
+                    dolt_connection_config=dolt_config,
+                    branch="main",
+                )
+
+                yield bank
+
+            finally:
+                # Cleanup: terminate the server
+                process.terminate()
+                process.wait()
