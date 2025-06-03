@@ -1,11 +1,11 @@
 #!/bin/bash
 # Standard deployment script for Cogni API
 # Usage:
-#   ./scripts/deploy.sh         # Default: Run persistent local server
-#   ./scripts/deploy.sh --local # Run persistent local server
-#   ./scripts/deploy.sh --test  # Run temporary CI-style test & cleanup
+#   ./scripts/deploy.sh         # Default: Run full stack using docker-compose
+#   ./scripts/deploy.sh --local # Run full stack using docker-compose (local development)
+#   ./scripts/deploy.sh --test  # Run temporary test using docker-compose & cleanup
 #   ./scripts/deploy.sh --clean # Clean up existing containers/images
-#   ./scripts/deploy.sh --compose # Run full stack using docker-compose
+#   ./scripts/deploy.sh --compose # Run full stack using docker-compose (same as --local)
 #   ./scripts/deploy.sh --prod  # Future: Deploy to production
 #   ./scripts/deploy.sh --preview # Future: Deploy to staging/preview
 #   ./scripts/deploy.sh --simulate-preview Simulate the preview deployment locally using .secrets
@@ -14,15 +14,12 @@
 set -e  # Exit on any error
 
 # Configuration
-IMAGE_NAME="cogni-api-local"
-CONTAINER_NAME="cogni-api-local"
-PORT_MAPPING="8000:8000"
+COMPOSE_DIR="cogni-api-deployment"
+COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
 ENV_FILE=".env"
 HEALTH_URL="http://localhost:8000/healthz"
 MAX_RETRIES=20
 RETRY_INTERVAL=2
-COMPOSE_DIR="deploy"
-COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
 
 # Ensure we're in the project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
@@ -43,24 +40,27 @@ display_help() {
   echo
   echo "Options:"
   echo "  --help        Display this help message"
-  echo "  --local       Build and start the API containers locally for development"
-  echo "  --test        Run tests on the API container"
-  echo "  --clean       Remove all local containers and images"
-  echo "  --compose     Start the full stack using Docker Compose (with Caddy proxy)"
+  echo "  --local       Start the full stack using Docker Compose (local development)"
+  echo "  --test        Run tests on the full stack using Docker Compose"
+  echo "  --clean       Remove all local containers, volumes and images"
+  echo "  --compose     Start the full stack using Docker Compose (same as --local)"
   echo "  --preview     Trigger GitHub Actions to deploy to the preview environment"
   echo "  --prod        Trigger GitHub Actions to deploy to the production environment"
   echo "  --simulate-preview Simulate the preview deployment locally using .secrets.preview"
   echo "  --simulate-prod Simulate the production deployment locally using .secrets.prod"
   echo
   echo "Examples:"
-  echo "  $0 --local    # Start the API locally for development"
-  echo "  $0 --test     # Run tests on the API"
-  echo "  $0 --clean    # Clean up all containers and images"
-  echo "  $0 --compose  # Start the full stack with Caddy proxy"
+  echo "  $0 --local    # Start the full stack locally for development"
+  echo "  $0 --test     # Run tests on the full stack"
+  echo "  $0 --clean    # Clean up all containers, volumes and images"
+  echo "  $0 --compose  # Start the full stack with Docker Compose"
   echo "  $0 --preview  # Deploy to preview environment"
   echo "  $0 --prod     # Deploy to production environment"
   echo "  $0 --simulate-preview # Simulate preview deployment locally"
   echo "  $0 --simulate-prod # Simulate production deployment locally"
+  echo ""
+  echo "Note: All local modes now use the docker-compose architecture with separate"
+  echo "      Dolt SQL server and API containers for consistency with production."
 }
 
 # Function for colorful status messages
@@ -88,50 +88,64 @@ check_file() {
 
 # Function to clean up resources
 cleanup() {
-  status "Cleaning up..."
-  docker stop "$CONTAINER_NAME" 2>/dev/null || true
-  docker rm "$CONTAINER_NAME" 2>/dev/null || true
+  status "Cleaning up docker-compose stack..."
   
+  # Navigate to compose directory
+  cd "$COMPOSE_DIR"
+  
+  # Stop and remove containers
+  docker compose down --volumes --remove-orphans 2>/dev/null || true
+  
+  # Remove images if full cleanup requested
   if [ "$1" == "full" ]; then
-    docker rmi "$IMAGE_NAME" 2>/dev/null || true
+    status "Removing all Cogni images..."
+    docker compose down --rmi all --volumes --remove-orphans 2>/dev/null || true
+    
+    # Also remove any old single-container images from legacy mode
+    docker rmi cogni-api-local 2>/dev/null || true
   fi
   
-  # Verify container is gone
-  if docker ps -a | grep -q "$CONTAINER_NAME"; then
-    warning "⚠️ Container $CONTAINER_NAME could not be removed. Try manual removal."
-  else
-    status "✅ Container successfully removed"
-  fi
+  # Return to project root
+  cd ..
   
-  # Wait briefly to ensure port is freed
+  # Wait briefly to ensure ports are freed
   sleep 2
   
-  # Check if port 8000 is still in use
-  if command -v lsof >/dev/null && lsof -i :8000 >/dev/null 2>&1; then
-    warning "⚠️ Port 8000 is still in use by another process. API may still be accessible."
-  else
-    status "✅ Port 8000 is now free"
+  # Check if ports are still in use
+  if command -v lsof >/dev/null; then
+    if lsof -i :8000 >/dev/null 2>&1; then
+      warning "⚠️ Port 8000 is still in use by another process."
+    else
+      status "✅ Port 8000 is now free"
+    fi
+    
+    if lsof -i :3306 >/dev/null 2>&1; then
+      warning "⚠️ Port 3306 is still in use by another process."
+    else
+      status "✅ Port 3306 is now free"
+    fi
   fi
   
-  status "Cleanup complete!"
+  status "✅ Cleanup complete!"
 }
 
-# Function to handle local deployment
+# Function to handle local deployment using docker-compose
 deploy_local() {
   # Check for required files
-  check_file "services/web_api/Dockerfile.api"
-  check_file "services/web_api/requirements.api.txt"
-  check_file "services/web_api/main.py"
-
+  check_file "$COMPOSE_FILE"
+  
   # Check for env file and create minimal one if needed
   if [ ! -f "$ENV_FILE" ]; then
     warning "⚠️ .env file not found, creating minimal version..."
     echo "COGNI_API_KEY=local-dev-key" > "$ENV_FILE"
     echo "# You need a real OpenAI API key for full functionality" >> "$ENV_FILE"
     echo "OPENAI_API_KEY=dummy-key" >> "$ENV_FILE"
+    echo "# Dolt database password" >> "$ENV_FILE"
+    echo "DOLT_ROOT_PASSWORD=local-dev-password" >> "$ENV_FILE"
     
-    warning "⚠️ WARNING: A dummy OpenAI API key has been set."
+    warning "⚠️ WARNING: Default API keys and database password have been set."
     warning "   To use OpenAI features, replace 'dummy-key' with a real key in .env"
+    warning "   To use a secure database password, update DOLT_ROOT_PASSWORD in .env"
   fi
 
   # Display warning if using dummy OpenAI key
@@ -140,20 +154,19 @@ deploy_local() {
     warning "   Edit your .env file to add a real OpenAI API key."
   fi
 
-  # Note about .secrets file for GitHub Actions
-  if [ ! -f ".secrets" ] && [ "$MODE" == "test" ]; then
-    status "ℹ️ Note: For CI testing with GitHub Actions locally,"
-    status "   you may need a .secrets file with actual API keys."
-    status "   See deploy/deployment.json for details."
-  fi
-
-  # Extract and validate API keys from .env file
+  # Extract and validate required environment variables
   COGNI_API_KEY=$(grep COGNI_API_KEY "$ENV_FILE" | cut -d= -f2 | tr -d '"')
   OPENAI_API_KEY=$(grep OPENAI_API_KEY "$ENV_FILE" | cut -d= -f2 | tr -d '"')
+  DOLT_ROOT_PASSWORD=$(grep DOLT_ROOT_PASSWORD "$ENV_FILE" | cut -d= -f2 | tr -d '"')
   
-  # Validate API keys
+  # Validate required variables
   if [ -z "$COGNI_API_KEY" ]; then
     warning "❌ Error: COGNI_API_KEY is missing or empty in $ENV_FILE"
+    exit 1
+  fi
+  
+  if [ -z "$DOLT_ROOT_PASSWORD" ]; then
+    warning "❌ Error: DOLT_ROOT_PASSWORD is missing or empty in $ENV_FILE"
     exit 1
   fi
   
@@ -162,28 +175,22 @@ deploy_local() {
     warning "   Some features like chat endpoint may not work correctly"
   fi
   
-  status "API keys validated:"
+  status "Environment variables validated:"
   status "  * COGNI_API_KEY: ${COGNI_API_KEY:0:3}...${COGNI_API_KEY: -3}"
+  status "  * DOLT_ROOT_PASSWORD: ${DOLT_ROOT_PASSWORD:0:3}...${DOLT_ROOT_PASSWORD: -3}"
   if [ "$OPENAI_API_KEY" != "dummy-key" ]; then
     status "  * OPENAI_API_KEY: ${OPENAI_API_KEY:0:3}...${OPENAI_API_KEY: -3}"
   fi
 
-  # Build Docker image
-  status "Building Docker image..."
-  docker build -t "$IMAGE_NAME" -f services/web_api/Dockerfile.api .
-
-  # Remove any existing containers
-  docker stop "$CONTAINER_NAME" 2>/dev/null || true
-  docker rm "$CONTAINER_NAME" 2>/dev/null || true
-
-  # Run the container
-  status "Starting container..."
-  docker run -d --name "$CONTAINER_NAME" \
-    -p "$PORT_MAPPING" \
-    -e COGNI_API_KEY=$COGNI_API_KEY \
-    -e OPENAI_API_KEY=$OPENAI_API_KEY \
-    -e TEST_MODE=$([ "$MODE" == "test" ] && echo "true" || echo "false") \
-    "$IMAGE_NAME"
+  # Navigate to compose directory
+  cd "$COMPOSE_DIR"
+  
+  # Build and start the compose stack
+  status "Building and starting the full stack..."
+  docker compose up --build -d
+  
+  # Return to project root
+  cd ..
 
   # Wait for the API to be ready
   status "Waiting for API to become available..."
@@ -191,20 +198,29 @@ deploy_local() {
     if curl -s "$HEALTH_URL" | grep -q "healthy"; then
       status "✅ API is up and running! Available at http://localhost:8000"
       
-      # Verify environment variables inside container
-      status "Verifying environment inside container..."
-      ENV_INSIDE=$(docker exec "$CONTAINER_NAME" printenv | grep -E '(COGNI|OPENAI)_API_KEY' | sed 's/=.*$/=***/')
-      if [ -n "$ENV_INSIDE" ]; then
-        status "Container environment contains API keys:"
-        echo "$ENV_INSIDE"
+      # Verify services are running
+      cd "$COMPOSE_DIR"
+      RUNNING_SERVICES=$(docker compose ps --services --filter "status=running")
+      cd ..
+      
+      if echo "$RUNNING_SERVICES" | grep -q "dolt-db"; then
+        status "✅ Dolt database service is running"
       else
-        warning "⚠️ Container may be missing API keys - auth might fail"
+        warning "⚠️ Dolt database service may not be running properly"
+      fi
+      
+      if echo "$RUNNING_SERVICES" | grep -q "api"; then
+        status "✅ API service is running"
+      else
+        warning "⚠️ API service may not be running properly"
       fi
       
       break
     elif [ $i -eq $MAX_RETRIES ]; then
       warning "❌ API failed to start after $MAX_RETRIES attempts"
-      docker logs "$CONTAINER_NAME"
+      cd "$COMPOSE_DIR"
+      docker compose logs
+      cd ..
       cleanup
       exit 1
     else
@@ -223,7 +239,9 @@ deploy_local() {
       status "✅ Health check passed!"
     else
       warning "❌ Health check failed! Status: $HEALTH_STATUS"
-      docker logs "$CONTAINER_NAME"
+      cd "$COMPOSE_DIR"
+      docker compose logs
+      cd ..
       cleanup
       exit 1
     fi
@@ -245,7 +263,9 @@ deploy_local() {
     else
       warning "⚠️ Chat endpoint returned non-200 status: $CHAT_STATUS"
       warning "Response: $CHAT_BODY"
-      docker logs "$CONTAINER_NAME"
+      cd "$COMPOSE_DIR"
+      docker compose logs
+      cd ..
     fi
     
     # Clean up after tests
@@ -257,96 +277,17 @@ deploy_local() {
     status "  * API endpoint: http://localhost:8000"
     status "  * Health check: http://localhost:8000/healthz"
     status "  * Chat endpoint: http://localhost:8000/chat"
+    status "  * Database: localhost:3306 (Dolt SQL Server)"
     status "  * API Key: ${COGNI_API_KEY:0:3}...${COGNI_API_KEY: -3}"
     status ""
     status "To stop the server, run: ./scripts/deploy.sh --clean"
+    status "To view logs, run: cd deploy && docker compose logs -f"
   fi
 }
 
-# Function to handle compose deployment
+# Function to handle compose deployment (same as local now)
 deploy_compose() {
-  check_file "$COMPOSE_FILE"
-  
-  # Check for env file and create minimal one if needed
-  if [ ! -f "$ENV_FILE" ]; then
-    warning "⚠️ .env file not found, creating minimal version..."
-    echo "COGNI_API_KEY=local-dev-key" > "$ENV_FILE"
-    echo "# You need a real OpenAI API key for full functionality" >> "$ENV_FILE"
-    echo "OPENAI_API_KEY=dummy-key" >> "$ENV_FILE"
-    
-    warning "⚠️ WARNING: A dummy OpenAI API key has been set."
-    warning "   To use OpenAI features, replace 'dummy-key' with a real key in .env"
-  fi
-  
-  # Display warning if using dummy OpenAI key
-  if grep -q "OPENAI_API_KEY=dummy-key" "$ENV_FILE"; then
-    warning "⚠️ Using dummy OpenAI API key. Some features won't work."
-    warning "   Edit your .env file to add a real OpenAI API key."
-  fi
-  
-  # Extract and validate API keys from .env file
-  COGNI_API_KEY=$(grep COGNI_API_KEY "$ENV_FILE" | cut -d= -f2 | tr -d '"')
-  OPENAI_API_KEY=$(grep OPENAI_API_KEY "$ENV_FILE" | cut -d= -f2 | tr -d '"')
-  
-  # Validate API keys
-  if [ -z "$COGNI_API_KEY" ]; then
-    warning "❌ Error: COGNI_API_KEY is missing or empty in $ENV_FILE"
-    exit 1
-  fi
-  
-  if [ -z "$OPENAI_API_KEY" ] || [ "$OPENAI_API_KEY" == "dummy-key" ]; then
-    warning "⚠️ Warning: OPENAI_API_KEY is missing or set to dummy value in $ENV_FILE"
-    warning "   Some features like chat endpoint may not work correctly"
-  fi
-  
-  status "API keys validated:"
-  status "  * COGNI_API_KEY: ${COGNI_API_KEY:0:3}...${COGNI_API_KEY: -3}"
-  if [ "$OPENAI_API_KEY" != "dummy-key" ]; then
-    status "  * OPENAI_API_KEY: ${OPENAI_API_KEY:0:3}...${OPENAI_API_KEY: -3}"
-  fi
-  
-  # Navigate to compose directory
-  cd "$COMPOSE_DIR"
-  
-  # Build and start the compose stack
-  status "Building and starting the full stack..."
-  docker compose up --build -d
-  
-  # Wait for services to start
-  status "Waiting for services to start..."
-  sleep 5
-  
-  # Check if services are running
-  if docker compose ps | grep -q "Up"; then
-    status "✅ Services are running!"
-    
-    # Get the container IP
-    CONTAINER_IP=$(docker compose exec api hostname -i 2>/dev/null || echo "unknown")
-    status "API container IP: $CONTAINER_IP"
-    
-    # Verify environment variables inside container
-    status "Verifying environment inside API container..."
-    ENV_INSIDE=$(docker compose exec api printenv | grep -E '(COGNI|OPENAI)_API_KEY' | sed 's/=.*$/=***/')
-    if [ -n "$ENV_INSIDE" ]; then
-      status "Container environment contains API keys:"
-      echo "$ENV_INSIDE"
-    else
-      warning "⚠️ Container may be missing API keys - auth might fail"
-    fi
-    
-    status ""
-    status "===== Deployment Complete ====="
-    status "To verify the deployment, run:"
-    status "  curl -f http://localhost/healthz"
-    status ""
-    status "You should see: {\"status\":\"healthy\"}"
-    status ""
-    status "To stop the services, run: cd $COMPOSE_DIR && docker compose down"
-  else
-    warning "❌ Services failed to start. Check the logs with:"
-    warning "  cd $COMPOSE_DIR && docker compose logs"
-    exit 1
-  fi
+  deploy_local
 }
 
 # Function to run a github workflow
@@ -536,6 +477,12 @@ services:
     environment:
       OPENAI_API_KEY: '$OPENAI_API_KEY'
       COGNI_API_KEY: '$COGNI_API_KEY'
+      # External database configuration for preview/prod deployments
+      DOLT_HOST: \${DOLT_HOST:-external-db-host}
+      DOLT_PORT: \${DOLT_PORT:-3306}
+      DOLT_USER: \${DOLT_USER:-root}
+      DOLT_PASSWORD: \${DOLT_PASSWORD:-\$DOLT_ROOT_PASSWORD}
+      DOLT_DATABASE: \${DOLT_DATABASE:-cogni-dao-memory}
     expose: ["8000"]
     restart: unless-stopped
     healthcheck:
@@ -665,20 +612,6 @@ EOF_JSON
       fi
     fi
   done
-}
-
-# Deploy for testing (temporary instance)
-deploy_test() {
-  echo -e "${CYAN}🧪 Deploying test container...${NC}"
-  deploy_local
-  
-  # Wait for a moment to let the server start
-  echo -e "${YELLOW}Waiting for server to start...${NC}"
-  sleep 5
-  
-  # Run tests (placeholder - expand as needed)
-  echo -e "${GREEN}✅ Server ready for testing${NC}"
-  echo -e "${CYAN}When finished testing, run: ./scripts/deploy.sh --clean${NC}"
 }
 
 # Main script execution
