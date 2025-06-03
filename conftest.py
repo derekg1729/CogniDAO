@@ -92,6 +92,11 @@ def sample_work_item_input():
         "description": "A test task for validation",
         "owner": "test_user",
         "acceptance_criteria": ["Criterion 1", "Criterion 2"],
+        "action_items": [],
+        "expected_artifacts": [],
+        "blocked_by": [],
+        "tool_hints": [],
+        "tags": [],
     }
 
 
@@ -126,6 +131,11 @@ def sample_work_item_data():
         "description": "Testing the complete workflow",
         "owner": "test-user",
         "acceptance_criteria": ["Complete integration test"],
+        "action_items": [],
+        "expected_artifacts": [],
+        "blocked_by": [],
+        "tool_hints": [],
+        "tags": [],
         "agent_id": "test-agent-001",
     }
 
@@ -239,7 +249,7 @@ def test_storage_dirs():
         shutil.rmtree(archive_dir)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def temp_memory_bank():
     """Create a StructuredMemoryBank using the working pattern from memory system tests."""
     from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
@@ -339,6 +349,12 @@ def temp_memory_bank():
                     dolt_connection_config=dolt_config,
                     branch="main",
                 )
+
+                # Initialize and attach SQLLinkManager (like MCP server does)
+                from infra_core.memory_system.sql_link_manager import SQLLinkManager
+
+                link_manager = SQLLinkManager(dolt_config)
+                bank.link_manager = link_manager
 
                 yield bank
 

@@ -64,6 +64,18 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
 
         return relation_str
 
+    def _parse_datetime(self, dt_value: Any) -> Optional[datetime]:
+        """Parse datetime value that could be string, datetime, or None."""
+        if dt_value is None:
+            return None
+        elif isinstance(dt_value, datetime):
+            return dt_value
+        elif isinstance(dt_value, str):
+            return datetime.fromisoformat(dt_value)
+        else:
+            logger.warning(f"Unexpected datetime type: {type(dt_value)}, value: {dt_value}")
+            return None
+
     def _sync_parent_child_columns(
         self, from_id: str, to_id: str, relation: str, operation: str
     ) -> None:
@@ -206,13 +218,13 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
         now = self._datetime.now()
         timestamp_str = now.isoformat(sep=" ", timespec="seconds")
 
-        # Properly escape JSON metadata
+        # Properly handle JSON metadata
         if link_metadata is None:
-            metadata_json = "NULL"
+            metadata_json = None  # Pass None for NULL in parameterized query
         else:
             metadata_json = json.dumps(link_metadata)
 
-        created_by_str = "NULL" if created_by is None else created_by
+        created_by_value = None if created_by is None else created_by
 
         if link_exists:
             # Update existing link
@@ -227,7 +239,7 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
             """
             self._execute_update(
                 update_query,
-                (priority, metadata_json, created_by_str, from_id, to_id, relation_str),
+                (priority, metadata_json, created_by_value, from_id, to_id, relation_str),
             )
             operation = "update"
         else:
@@ -244,7 +256,7 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
                     relation_str,
                     priority,
                     metadata_json,
-                    created_by_str,
+                    created_by_value,
                     timestamp_str,
                 ),
             )
@@ -351,9 +363,11 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
 
         # Build SQL query
         where_clauses = ["from_id = %s"]
+        params = [block_id]
 
         if relation:
             where_clauses.append("relation = %s")
+            params.append(relation)
 
         sql_query = f"""
         SELECT to_id, relation, priority, link_metadata, created_by, created_at
@@ -363,11 +377,14 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
         LIMIT %s
         """
 
-        result = self._execute_query(sql_query, (block_id, relation, limit))
+        params.append(limit)
+
+        result = self._execute_query(sql_query, params)
 
         links = []
         if result and len(result) > 0:
             for row in result:
+                # For links FROM this block
                 link = BlockLink(
                     from_id=block_id,
                     to_id=row["to_id"],
@@ -375,9 +392,7 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
                     priority=row.get("priority", 0),
                     link_metadata=row.get("link_metadata"),
                     created_by=row.get("created_by"),
-                    created_at=datetime.fromisoformat(row["created_at"])
-                    if row.get("created_at")
-                    else None,
+                    created_at=self._parse_datetime(row.get("created_at")),
                 )
                 links.append(link)
 
@@ -408,9 +423,11 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
 
         # Build SQL query
         where_clauses = ["to_id = %s"]
+        params = [block_id]
 
         if relation:
             where_clauses.append("relation = %s")
+            params.append(relation)
 
         sql_query = f"""
         SELECT from_id, to_id, relation, priority, link_metadata, created_by, created_at
@@ -420,7 +437,9 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
         LIMIT %s
         """
 
-        result = self._execute_query(sql_query, (block_id, relation, limit))
+        params.append(limit)
+
+        result = self._execute_query(sql_query, params)
 
         links = []
         if result and len(result) > 0:
@@ -433,9 +452,7 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
                     priority=row.get("priority", 0),
                     link_metadata=row.get("link_metadata"),
                     created_by=row.get("created_by"),
-                    created_at=datetime.fromisoformat(row["created_at"])
-                    if row.get("created_at")
-                    else None,
+                    created_at=self._parse_datetime(row.get("created_at")),
                 )
                 links.append(link)
 
@@ -550,9 +567,11 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
 
         # Build SQL query
         where_clauses = []
+        params = []
 
         if relation:
             where_clauses.append("relation = %s")
+            params.append(relation)
 
         where_clause = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
@@ -564,7 +583,9 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
         LIMIT %s
         """
 
-        result = self._execute_query(sql_query, (relation, limit))
+        params.append(limit)
+
+        result = self._execute_query(sql_query, params)
 
         links = []
         if result and len(result) > 0:
@@ -576,9 +597,7 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
                     priority=row.get("priority", 0),
                     link_metadata=row.get("link_metadata"),
                     created_by=row.get("created_by"),
-                    created_at=datetime.fromisoformat(row["created_at"])
-                    if row.get("created_at")
-                    else None,
+                    created_at=self._parse_datetime(row.get("created_at")),
                 )
                 links.append(link)
 
