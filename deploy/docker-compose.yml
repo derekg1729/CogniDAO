@@ -1,9 +1,49 @@
 version: "3.9"
 services:
+  # Dolt SQL Server Database Service
+  dolt-db:
+    build:
+      context: ..
+      dockerfile: cogni-cogni-dao-memory.dockerfile
+    environment:
+      - HOST=0.0.0.0
+      - PORT=3306
+      - DOLT_ROOT_PATH=/.dolt
+      - DATABASE_REMOTE=https://doltremoteapi.dolthub.com/cogni/cogni-dao-memory
+      - DATABASE_NAME=cogni-dao-memory
+      - DOLTHUB_USER=cogni
+      - DOLTHUB_EMAIL=steward@cognidao.org
+      - DATA_DIR=/dolthub-dbs/cogni/cogni-dao-memory
+      - DOLT_ROOT_HOST=%
+      - DOLT_ROOT_PASSWORD=cogni_admin_2024
+    volumes:
+      - dolt_data:/dolthub-dbs
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "dolt", "sql", "-q", "SELECT 1;"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # Web API Service  
   api:
-    build: ..
+    build:
+      context: ..
+      dockerfile: services/web_api/Dockerfile.api
     env_file: ../.env
+    environment:
+      - DOLT_HOST=dolt-db
+      - DOLT_PORT=3306
+      - DOLT_USER=root
+      - DOLT_PASSWORD=cogni_admin_2024
+      - DOLT_DATABASE=cogni-dao-memory
     expose: ["8000"]
+    depends_on:
+      dolt-db:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
@@ -21,4 +61,5 @@ services:
 
 volumes:
   caddy_data:
-  caddy_config: 
+  caddy_config:
+  dolt_data: 
