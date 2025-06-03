@@ -13,8 +13,8 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from pydantic import ValidationError
 
+from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
 from infra_core.memory_system.dolt_reader import (
-    DoltConnectionConfig,
     DoltMySQLReader,
 )
 from infra_core.memory_system.dolt_writer import (

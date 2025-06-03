@@ -33,7 +33,7 @@ if str(project_root_dir) not in sys.path:
 try:
     from infra_core.memory_system.schemas.memory_block import MemoryBlock
     from infra_core.memory_system.property_mapper import PropertyMapper
-    from infra_core.memory_system.dolt_reader import DoltConnectionConfig
+    from infra_core.memory_system.dolt_mysql_base import DoltMySQLBase
 except ImportError as e:
     # Add more context to the error message
     raise ImportError(
@@ -48,19 +48,15 @@ logging.basicConfig(
 )
 
 
-class DoltMySQLWriter:
+class DoltMySQLWriter(DoltMySQLBase):
     """Dolt writer that connects to remote Dolt SQL server via MySQL connector.
 
     Provides write operations using parameterized queries for better security.
     Works with the same DoltConnectionConfig as DoltMySQLReader.
     """
 
-    def __init__(self, config: DoltConnectionConfig):
-        """Initialize with connection configuration."""
-        self.config = config
-
     def _get_connection(self):
-        """Get a new MySQL connection to the Dolt SQL server."""
+        """Get a new MySQL connection to the Dolt SQL server with transaction control."""
         try:
             conn = mysql.connector.connect(
                 host=self.config.host,
@@ -77,17 +73,6 @@ class DoltMySQLWriter:
             return conn
         except Error as e:
             raise Exception(f"Failed to connect to Dolt SQL server: {e}")
-
-    def _ensure_branch(self, connection: mysql.connector.MySQLConnection, branch: str) -> None:
-        """Ensure we're on the specified branch."""
-        try:
-            cursor = connection.cursor()
-            cursor.execute("CALL DOLT_CHECKOUT(%s)", (branch,))
-            # Consume any results
-            cursor.fetchall()
-            cursor.close()
-        except Error as e:
-            raise Exception(f"Failed to checkout branch '{branch}': {e}")
 
     def write_memory_block(
         self,
@@ -250,6 +235,7 @@ class DoltMySQLWriter:
         commit_hash = None
 
         try:
+            self._ensure_branch(connection, "main")
             cursor = connection.cursor(dictionary=True)
 
             # Add specified tables or default ones
@@ -295,6 +281,7 @@ class DoltMySQLWriter:
         connection = self._get_connection()
 
         try:
+            self._ensure_branch(connection, "main")
             cursor = connection.cursor()
 
             if tables:

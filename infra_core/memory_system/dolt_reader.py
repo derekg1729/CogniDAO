@@ -22,8 +22,6 @@ import sys
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 import json
-import os
-from dataclasses import dataclass, field
 import warnings
 
 import mysql.connector
@@ -41,6 +39,7 @@ if str(project_root_dir) not in sys.path:
 try:
     from infra_core.memory_system.schemas.memory_block import MemoryBlock
     from infra_core.memory_system.schemas.common import BlockProperty
+    from infra_core.memory_system.dolt_mysql_base import DoltMySQLBase
 except ImportError as e:
     # Add more context to the error message
     raise ImportError(
@@ -55,49 +54,17 @@ logging.basicConfig(
 )
 
 
-@dataclass
-class DoltConnectionConfig:
-    """Configuration for connecting to a Dolt SQL server via MySQL connector.
-
-    Uses standard MySQL environment variables with sensible defaults for Dolt.
-    Environment variables checked (in order of precedence):
-    - MYSQL_HOST / DB_HOST -> host
-    - MYSQL_PORT / DB_PORT -> port
-    - MYSQL_USER / DB_USER -> user
-    - MYSQL_PASSWORD / DB_PASSWORD -> password
-    - MYSQL_DATABASE / DB_NAME -> database
-    """
-
-    host: str = field(
-        default_factory=lambda: os.getenv("MYSQL_HOST") or os.getenv("DB_HOST", "localhost")
-    )
-    port: int = field(
-        default_factory=lambda: int(os.getenv("MYSQL_PORT") or os.getenv("DB_PORT", "3306"))
-    )
-    user: str = field(
-        default_factory=lambda: os.getenv("MYSQL_USER") or os.getenv("DB_USER", "root")
-    )
-    password: str = field(
-        default_factory=lambda: os.getenv("MYSQL_PASSWORD") or os.getenv("DB_PASSWORD", "")
-    )
-    database: str = field(
-        default_factory=lambda: os.getenv("MYSQL_DATABASE") or os.getenv("DB_NAME", "memory_dolt")
-    )
-
-
-class DoltMySQLReader:
+class DoltMySQLReader(DoltMySQLBase):
     """Dolt reader that connects to remote Dolt SQL server via MySQL connector.
 
     Provides the same interface as the original dolt_reader functions but
     connects to a running Dolt SQL server instead of local file access.
+
+    Uses autocommit=True connections optimized for read operations.
     """
 
-    def __init__(self, config: DoltConnectionConfig):
-        """Initialize with connection configuration."""
-        self.config = config
-
     def _get_connection(self):
-        """Get a new MySQL connection to the Dolt SQL server."""
+        """Get a new MySQL connection optimized for reading with autocommit=True."""
         try:
             conn = mysql.connector.connect(
                 host=self.config.host,
@@ -106,40 +73,14 @@ class DoltMySQLReader:
                 password=self.config.password,
                 database=self.config.database,
                 charset="utf8mb4",
-                autocommit=True,
+                autocommit=True,  # Optimized for read operations
                 connection_timeout=10,
-                # Use dictionary cursor for consistent return format
                 use_unicode=True,
                 raise_on_warnings=True,
             )
             return conn
-        except Error as e:
+        except mysql.connector.Error as e:
             raise Exception(f"Failed to connect to Dolt SQL server: {e}")
-
-    def _ensure_branch(self, connection: mysql.connector.MySQLConnection, branch: str) -> None:
-        """Ensure we're on the specified branch."""
-        try:
-            cursor = connection.cursor(dictionary=True)
-            cursor.execute("CALL DOLT_CHECKOUT(%s)", (branch,))
-            # Consume any results
-            cursor.fetchall()
-            cursor.close()
-        except Error as e:
-            raise Exception(f"Failed to checkout branch '{branch}': {e}")
-
-    def _execute_query(self, query: str, params: tuple = None) -> List[Dict[str, Any]]:
-        """Execute a query and return results as list of dictionaries."""
-        connection = self._get_connection()
-        try:
-            cursor = connection.cursor(dictionary=True)
-            cursor.execute(query, params or ())
-            results = cursor.fetchall()
-            cursor.close()
-            return results
-        except Error as e:
-            raise Exception(f"Query failed: {e}")
-        finally:
-            connection.close()
 
     def read_memory_blocks(self, branch: str = "main") -> List[MemoryBlock]:
         """Read all memory blocks from Dolt SQL server, returning MemoryBlock objects."""

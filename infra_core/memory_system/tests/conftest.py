@@ -23,7 +23,7 @@ from typing import Generator
 from pathlib import Path
 
 from infra_core.memory_system.initialize_dolt import initialize_dolt_db
-from infra_core.memory_system.dolt_reader import DoltConnectionConfig
+from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
 from infra_core.memory_system.schemas.common import ConfidenceScore

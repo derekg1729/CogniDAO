@@ -16,7 +16,7 @@ Environment Variables:
 import pytest
 import tempfile
 from pathlib import Path
-from infra_core.memory_system.dolt_reader import DoltConnectionConfig
+from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 
 

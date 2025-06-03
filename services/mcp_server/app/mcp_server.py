@@ -6,6 +6,7 @@ from datetime import datetime
 
 from mcp.server.fastmcp import FastMCP
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
+from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
 from infra_core.memory_system.sql_link_manager import SQLLinkManager
 from infra_core.memory_system.tools.agent_facing.get_memory_block_tool import (
     get_memory_block_tool,
@@ -77,15 +78,24 @@ CHROMA_COLLECTION_NAME = os.environ.get("CHROMA_COLLECTION_NAME", "cogni_mcp_col
 # os.makedirs(CHROMA_PATH, exist_ok=True)
 
 try:
-    # Initialize memory bank
-    memory_bank = StructuredMemoryBank(
-        dolt_db_path=COGNI_DOLT_DIR,
-        chroma_path=CHROMA_PATH,
-        chroma_collection=CHROMA_COLLECTION_NAME,
+    # Initialize MySQL connection config for remote Dolt SQL server
+    dolt_config = DoltConnectionConfig(
+        host=os.environ.get("DOLT_HOST", "localhost"),
+        port=int(os.environ.get("DOLT_PORT", "3306")),
+        user=os.environ.get("DOLT_USER", "root"),
+        password=os.environ.get("DOLT_PASSWORD", ""),
+        database=os.environ.get("DOLT_DATABASE", "cogni_memory"),
     )
 
-    # Initialize LinkManager components with SQL backend
-    link_manager = SQLLinkManager(COGNI_DOLT_DIR)
+    # Initialize memory bank
+    memory_bank = StructuredMemoryBank(
+        chroma_path=CHROMA_PATH,
+        chroma_collection=CHROMA_COLLECTION_NAME,
+        dolt_connection_config=dolt_config,
+    )
+
+    # Initialize LinkManager components with SQL backend using same config
+    link_manager = SQLLinkManager(dolt_config)
     pm_links = ExecutableLinkManager(link_manager)
 
     # Attach link_manager to memory_bank for tool access
