@@ -153,28 +153,11 @@ class StructuredMemoryBank:
             True if proof was stored successfully, False otherwise
         """
         try:
-            from datetime import datetime
-
-            connection = self.dolt_reader._get_connection()
-            cursor = connection.cursor()
-
-            # Insert proof record
-            insert_query = """
-            INSERT INTO block_proofs (block_id, commit_hash, operation, timestamp)
-            VALUES (%s, %s, %s, %s)
-            """
-
-            timestamp = datetime.now()
-            cursor.execute(insert_query, (block_id, commit_hash, operation, timestamp))
-            connection.commit()
-
-            cursor.close()
-            connection.close()
-
-            logger.info(
-                f"Stored block proof: {operation} operation for block {block_id} with commit {commit_hash}"
+            # Use the new MySQL-based proof writer
+            success = self.dolt_writer.write_block_proof(
+                block_id=block_id, operation=operation, commit_hash=commit_hash, branch=self.branch
             )
-            return True
+            return success
 
         except Exception as e:
             logger.error(f"Failed to store block proof for {block_id}: {e}", exc_info=True)
@@ -193,11 +176,17 @@ class StructuredMemoryBank:
         logger.debug(f"Fetching latest schema version for node type: {node_type}")
 
         try:
-            # For MySQL, we need to implement schema reading or fall back to default
-            logger.warning(
-                "Schema version lookup not yet implemented for MySQL connections. Using default."
+            # Use the new MySQL-based schema reader
+            latest_version = self.dolt_reader.read_latest_schema_version(
+                node_type, branch=self.branch
             )
-            return None
+            if latest_version is not None:
+                logger.debug(
+                    f"Found latest schema version {latest_version} for node type {node_type}"
+                )
+            else:
+                logger.debug(f"No schema version found for node type {node_type}")
+            return latest_version
 
         except Exception as e:
             logger.warning(f"Error fetching schema version for {node_type}: {e}")
@@ -835,21 +824,89 @@ class StructuredMemoryBank:
     # TODO: Implement MySQL-based link management
     def get_forward_links(self, block_id: str, relation: Optional[str] = None) -> List[BlockLink]:
         """
+        TODO: optimization needed here
         Retrieves outgoing links from a specific block.
 
-        Note: This functionality needs to be implemented for MySQL connections.
+        Args:
+            block_id: The ID of the source block
+            relation: Optional relation type to filter by
+
+        Returns:
+            List of BlockLink objects representing outgoing links
         """
-        logger.warning("get_forward_links not yet implemented for MySQL connections")
-        return []
+        logger.debug(f"Getting forward links for block {block_id}, relation={relation}")
+        try:
+            # Use the new MySQL-based link reader
+            link_rows = self.dolt_reader.read_forward_links(
+                block_id=block_id, relation=relation, branch=self.branch
+            )
+
+            # Convert raw database rows to BlockLink objects
+            links = []
+            for row in link_rows:
+                try:
+                    link = BlockLink(
+                        from_id=row["from_block_id"],
+                        to_id=row["to_block_id"],
+                        relation=row["relation"],
+                        priority=row.get("priority", 0),
+                        link_metadata=row.get("metadata"),
+                        created_at=row.get("created_at"),
+                    )
+                    links.append(link)
+                except Exception as e:
+                    logger.warning(f"Failed to parse link row {row}: {e}")
+                    continue
+
+            logger.debug(f"Found {len(links)} forward links for block {block_id}")
+            return links
+
+        except Exception as e:
+            logger.error(f"Error retrieving forward links for {block_id}: {e}", exc_info=True)
+            return []
 
     def get_backlinks(self, block_id: str, relation: Optional[str] = None) -> List[BlockLink]:
         """
+        TODO: optimization needed here
         Retrieves blocks that link TO the specified block.
-        Note: Links are now managed via separate LinkManager and block_links table.
+
+        Args:
+            block_id: The ID of the target block
+            relation: Optional relation type to filter by
+
+        Returns:
+            List of BlockLink objects representing incoming links
         """
-        # TODO: Implement backlink retrieval
-        logger.warning("get_backlinks not yet implemented for MySQL connection")
-        return []
+        logger.debug(f"Getting backlinks for block {block_id}, relation={relation}")
+        try:
+            # Use the new MySQL-based link reader
+            link_rows = self.dolt_reader.read_backlinks(
+                block_id=block_id, relation=relation, branch=self.branch
+            )
+
+            # Convert raw database rows to BlockLink objects
+            links = []
+            for row in link_rows:
+                try:
+                    link = BlockLink(
+                        from_id=row["from_block_id"],
+                        to_id=row["to_block_id"],
+                        relation=row["relation"],
+                        priority=row.get("priority", 0),
+                        link_metadata=row.get("metadata"),
+                        created_at=row.get("created_at"),
+                    )
+                    links.append(link)
+                except Exception as e:
+                    logger.warning(f"Failed to parse link row {row}: {e}")
+                    continue
+
+            logger.debug(f"Found {len(links)} backlinks for block {block_id}")
+            return links
+
+        except Exception as e:
+            logger.error(f"Error retrieving backlinks for {block_id}: {e}", exc_info=True)
+            return []
 
     def get_block_proofs(self, block_id: str) -> List[Dict[str, Any]]:
         """

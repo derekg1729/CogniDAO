@@ -455,41 +455,195 @@ class DoltMySQLReader:
 
     def read_block_proofs(self, block_id: str, branch: str = "main") -> List[Dict[str, Any]]:
         """
-        Read block operation proofs for a specific block from the block_proofs table.
+        Read block operation proofs for a specific block from block_proofs table.
 
         Args:
             block_id: The ID of the block to get proofs for
-            branch: The branch to read from (default: "main")
+            branch: The Dolt branch to read from
 
         Returns:
-            List of dictionaries containing proof information, ordered newest first
+            List of dictionaries containing operation, commit_hash, timestamp info.
+            Ordered newest first (most recent operation first).
         """
         try:
             connection = self._get_connection()
             self._ensure_branch(connection, branch)
 
             query = """
-            SELECT id, block_id, commit_hash, operation, timestamp
+            SELECT block_id, commit_hash, operation, timestamp
             FROM block_proofs 
             WHERE block_id = %s
-            ORDER BY timestamp DESC, id DESC
+            ORDER BY timestamp DESC
             """
 
             cursor = connection.cursor(dictionary=True)
             cursor.execute(query, (block_id,))
-            proofs = cursor.fetchall()
+            rows = cursor.fetchall()
             cursor.close()
             connection.close()
 
-            # Convert datetime objects to strings for JSON serialization if needed
-            for proof in proofs:
-                if proof.get("timestamp"):
-                    proof["timestamp"] = proof["timestamp"].isoformat()
-
-            return proofs
+            return rows
 
         except Error as e:
-            logger.error(f"Error reading block proofs for {block_id}: {e}", exc_info=True)
+            logger.error(f"Failed to read block proofs for {block_id}: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error reading block proofs for {block_id}: {e}")
+            return []
+
+    def read_latest_schema_version(self, node_type: str, branch: str = "main") -> Optional[int]:
+        """
+        Read the latest schema version for a given node type from node_schemas table.
+
+        Args:
+            node_type: The type of node/block (e.g., 'knowledge', 'task', 'project', 'doc')
+            branch: The Dolt branch to read from
+
+        Returns:
+            The latest schema version as an integer, or None if no schema is found
+        """
+        try:
+            connection = self._get_connection()
+            self._ensure_branch(connection, branch)
+
+            query = """
+            SELECT MAX(schema_version) as latest_version
+            FROM node_schemas 
+            WHERE node_type = %s
+            """
+
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute(query, (node_type,))
+            result = cursor.fetchone()
+            cursor.close()
+            connection.close()
+
+            if result and result.get("latest_version") is not None:
+                return int(result["latest_version"])
+            else:
+                return None
+
+        except Error as e:
+            logger.error(f"Failed to read latest schema version for {node_type}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error reading schema version for {node_type}: {e}")
+            return None
+
+    def read_forward_links(
+        self, block_id: str, relation: Optional[str] = None, branch: str = "main"
+    ) -> List[Dict[str, Any]]:
+        """
+        Read outgoing links from a specific block from block_links table.
+
+        Args:
+            block_id: The ID of the source block
+            relation: Optional relation type to filter by
+            branch: The Dolt branch to read from
+
+        Returns:
+            List of dictionaries containing link information
+        """
+        try:
+            connection = self._get_connection()
+            self._ensure_branch(connection, branch)
+
+            if relation:
+                query = """
+                SELECT from_block_id, to_block_id, relation, priority, created_at, updated_at, metadata
+                FROM block_links 
+                WHERE from_block_id = %s AND relation = %s
+                ORDER BY priority DESC, created_at ASC
+                """
+                params = (block_id, relation)
+            else:
+                query = """
+                SELECT from_block_id, to_block_id, relation, priority, created_at, updated_at, metadata
+                FROM block_links 
+                WHERE from_block_id = %s
+                ORDER BY priority DESC, created_at ASC
+                """
+                params = (block_id,)
+
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            cursor.close()
+            connection.close()
+
+            # Parse JSON metadata if present
+            for row in rows:
+                if row.get("metadata") and isinstance(row["metadata"], str):
+                    try:
+                        row["metadata"] = json.loads(row["metadata"])
+                    except json.JSONDecodeError:
+                        row["metadata"] = {}
+
+            return rows
+
+        except Error as e:
+            logger.error(f"Failed to read forward links for {block_id}: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error reading forward links for {block_id}: {e}")
+            return []
+
+    def read_backlinks(
+        self, block_id: str, relation: Optional[str] = None, branch: str = "main"
+    ) -> List[Dict[str, Any]]:
+        """
+        Read incoming links to a specific block from block_links table.
+
+        Args:
+            block_id: The ID of the target block
+            relation: Optional relation type to filter by
+            branch: The Dolt branch to read from
+
+        Returns:
+            List of dictionaries containing link information
+        """
+        try:
+            connection = self._get_connection()
+            self._ensure_branch(connection, branch)
+
+            if relation:
+                query = """
+                SELECT from_block_id, to_block_id, relation, priority, created_at, updated_at, metadata
+                FROM block_links 
+                WHERE to_block_id = %s AND relation = %s
+                ORDER BY priority DESC, created_at ASC
+                """
+                params = (block_id, relation)
+            else:
+                query = """
+                SELECT from_block_id, to_block_id, relation, priority, created_at, updated_at, metadata
+                FROM block_links 
+                WHERE to_block_id = %s
+                ORDER BY priority DESC, created_at ASC
+                """
+                params = (block_id,)
+
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            cursor.close()
+            connection.close()
+
+            # Parse JSON metadata if present
+            for row in rows:
+                if row.get("metadata") and isinstance(row["metadata"], str):
+                    try:
+                        row["metadata"] = json.loads(row["metadata"])
+                    except json.JSONDecodeError:
+                        row["metadata"] = {}
+
+            return rows
+
+        except Error as e:
+            logger.error(f"Failed to read backlinks for {block_id}: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error reading backlinks for {block_id}: {e}")
             return []
 
 

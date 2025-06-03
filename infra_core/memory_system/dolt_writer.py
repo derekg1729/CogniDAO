@@ -283,25 +283,79 @@ class DoltMySQLWriter:
             connection.close()
 
     def discard_changes(self, tables: List[str] = None) -> bool:
-        """Discard working changes in Dolt via MySQL connection."""
+        """
+        Discard uncommitted changes in Dolt working set.
+
+        Args:
+            tables: List of table names to discard changes for. If None, discards all changes.
+
+        Returns:
+            True if discard was successful, False otherwise.
+        """
         connection = self._get_connection()
 
         try:
             cursor = connection.cursor()
 
-            # Reset specified tables or all
             if tables:
+                # Discard changes for specific tables
                 for table in tables:
                     cursor.execute("CALL DOLT_RESET('--hard', %s)", (table,))
+                    cursor.fetchall()  # Consume any results
             else:
+                # Discard all changes
                 cursor.execute("CALL DOLT_RESET('--hard')")
+                cursor.fetchall()  # Consume any results
 
             cursor.close()
-            logger.info("Successfully discarded working changes")
+            logger.info("Successfully discarded Dolt working changes")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to discard changes: {e}", exc_info=True)
+            logger.error(f"Failed to discard Dolt changes: {e}", exc_info=True)
+            return False
+        finally:
+            connection.close()
+
+    def write_block_proof(
+        self, block_id: str, operation: str, commit_hash: str, branch: str = "main"
+    ) -> bool:
+        """
+        Write a block operation proof to the block_proofs table.
+
+        Args:
+            block_id: The ID of the block
+            operation: The operation type ('create', 'update', 'delete')
+            commit_hash: The Dolt commit hash for this operation
+            branch: The Dolt branch to write to
+
+        Returns:
+            True if proof was stored successfully, False otherwise
+        """
+        connection = self._get_connection()
+
+        try:
+            self._ensure_branch(connection, branch)
+            cursor = connection.cursor()
+
+            # Insert proof record with current timestamp
+            insert_query = """
+            INSERT INTO block_proofs (block_id, commit_hash, operation, timestamp)
+            VALUES (%s, %s, %s, NOW())
+            """
+
+            cursor.execute(insert_query, (block_id, commit_hash, operation))
+            connection.commit()
+
+            cursor.close()
+            logger.info(
+                f"Stored block proof: {operation} operation for block {block_id} with commit {commit_hash}"
+            )
+            return True
+
+        except Exception as e:
+            connection.rollback()
+            logger.error(f"Failed to store block proof for {block_id}: {e}", exc_info=True)
             return False
         finally:
             connection.close()
