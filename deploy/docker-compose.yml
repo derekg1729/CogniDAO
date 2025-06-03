@@ -1,10 +1,10 @@
-version: "3.9"
 services:
   # Dolt SQL Server Database Service
   dolt-db:
     build:
       context: ..
-      dockerfile: cogni-cogni-dao-memory.dockerfile
+      dockerfile: services/dolt_memory/cogni-cogni-dao-memory.dockerfile
+    env_file: ../.env
     environment:
       - HOST=0.0.0.0
       - PORT=3306
@@ -15,7 +15,7 @@ services:
       - DOLTHUB_EMAIL=steward@cognidao.org
       - DATA_DIR=/dolthub-dbs/cogni/cogni-dao-memory
       - DOLT_ROOT_HOST=%
-      - DOLT_ROOT_PASSWORD=cogni_admin_2024
+      - DOLT_ROOT_PASSWORD=${DOLT_ROOT_PASSWORD}
     volumes:
       - dolt_data:/dolthub-dbs
     ports:
@@ -38,9 +38,10 @@ services:
       - DOLT_HOST=dolt-db
       - DOLT_PORT=3306
       - DOLT_USER=root
-      - DOLT_PASSWORD=cogni_admin_2024
+      - DOLT_PASSWORD=${DOLT_ROOT_PASSWORD}
       - DOLT_DATABASE=cogni-dao-memory
     expose: ["8000"]
+    ports: ["8000:8000"]
     depends_on:
       dolt-db:
         condition: service_healthy

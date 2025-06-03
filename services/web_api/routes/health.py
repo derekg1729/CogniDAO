@@ -12,7 +12,7 @@ async def health_check(request: Request):
 
     Tests:
     - Memory bank availability in app state
-    - Database connectivity via minimal query
+    - Database connectivity via direct connection test
 
     Returns detailed status for monitoring.
     """
@@ -35,29 +35,25 @@ async def health_check(request: Request):
         health_status["memory_bank_available"] = True
         health_status["details"]["memory_bank"] = "available"
 
-        # Test database connectivity with minimal query
+        # Test database connectivity with direct connection test
         try:
-            # Import here to avoid circular import issues
-            from infra_core.memory_system.tools.agent_facing.get_active_work_items_tool import (
-                get_active_work_items_tool,
-            )
+            # Get the dolt reader from the memory bank to test connectivity directly
+            dolt_reader = memory_bank.dolt_reader
 
-            # This is much more efficient - only gets up to 1 work item with filtering at database level
-            result = get_active_work_items_tool(memory_bank=memory_bank, limit=1)
+            # Test connection by attempting to establish a connection
+            # This will fail immediately on authentication errors instead of swallowing them
+            connection = dolt_reader._get_connection()
 
-            # If we get here without exception, database is connected
-            if result.success:
-                health_status["database_connected"] = True
-                health_status["details"]["database"] = (
-                    f"connected - found {result.total_count} active work items"
-                )
-                logger.debug(
-                    f"Health check passed: database connected, {result.total_count} active work items found"
-                )
-            else:
-                health_status["status"] = "unhealthy"
-                health_status["details"]["database"] = f"query failed: {result.error}"
-                logger.error(f"Health check failed: database query error - {result.error}")
+            # If we got a connection, test with a simple query
+            cursor = connection.cursor()
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+            cursor.close()
+            connection.close()
+
+            health_status["database_connected"] = True
+            health_status["details"]["database"] = "connection and query successful"
+            logger.debug("Health check passed: database connection and query successful")
 
         except Exception as db_error:
             health_status["status"] = "unhealthy"
