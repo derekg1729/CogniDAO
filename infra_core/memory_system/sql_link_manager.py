@@ -76,6 +76,24 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
             logger.warning(f"Unexpected datetime type: {type(dt_value)}, value: {dt_value}")
             return None
 
+    def _parse_json_metadata(self, metadata_value: Any) -> Optional[Dict[str, Any]]:
+        """Parse JSON metadata value that could be string, dict, or None."""
+        if metadata_value is None:
+            return None
+        elif isinstance(metadata_value, dict):
+            return metadata_value
+        elif isinstance(metadata_value, str):
+            try:
+                return json.loads(metadata_value)
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.warning(f"Failed to parse JSON metadata: {metadata_value}, error: {e}")
+                return None
+        else:
+            logger.warning(
+                f"Unexpected metadata type: {type(metadata_value)}, value: {metadata_value}"
+            )
+            return None
+
     def _sync_parent_child_columns(
         self, from_id: str, to_id: str, relation: str, operation: str
     ) -> None:
@@ -118,10 +136,10 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
         # Update parent's has_children flag
         parent_update_query = """
         UPDATE memory_blocks 
-        SET has_children = TRUE
+        SET has_children = %s
         WHERE id = %s
         """
-        self._execute_update(parent_update_query, (parent_id,))
+        self._execute_update(parent_update_query, (1, parent_id))
 
         logger.info(f"Set parent relationship: {child_id} -> {parent_id}")
 
@@ -153,7 +171,7 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
         SET has_children = %s
         WHERE id = %s
         """
-        self._execute_update(parent_update_query, (str(child_count > 0).upper(), parent_id))
+        self._execute_update(parent_update_query, (1 if child_count > 0 else 0, parent_id))
 
         logger.info(
             f"Cleared parent relationship: {child_id} -> {parent_id} (parent has {child_count} remaining children)"
@@ -390,7 +408,7 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
                     to_id=row["to_id"],
                     relation=row["relation"],
                     priority=row.get("priority", 0),
-                    link_metadata=row.get("link_metadata"),
+                    link_metadata=self._parse_json_metadata(row.get("link_metadata")),
                     created_by=row.get("created_by"),
                     created_at=self._parse_datetime(row.get("created_at")),
                 )
@@ -450,7 +468,7 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
                     to_id=row["to_id"],  # This should be the block_id we queried for
                     relation=row["relation"],
                     priority=row.get("priority", 0),
-                    link_metadata=row.get("link_metadata"),
+                    link_metadata=self._parse_json_metadata(row.get("link_metadata")),
                     created_by=row.get("created_by"),
                     created_at=self._parse_datetime(row.get("created_at")),
                 )
@@ -595,7 +613,7 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
                     to_id=row["to_id"],
                     relation=row["relation"],
                     priority=row.get("priority", 0),
-                    link_metadata=row.get("link_metadata"),
+                    link_metadata=self._parse_json_metadata(row.get("link_metadata")),
                     created_by=row.get("created_by"),
                     created_at=self._parse_datetime(row.get("created_at")),
                 )

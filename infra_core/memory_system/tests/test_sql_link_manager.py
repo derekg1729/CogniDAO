@@ -7,24 +7,18 @@ import uuid
 
 from infra_core.memory_system.sql_link_manager import SQLLinkManager
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
-from infra_core.memory_system.dolt_writer import write_memory_block_to_dolt
-from .test_utils import add_parent_child_columns_to_db
+from infra_core.memory_system.dolt_writer import DoltMySQLWriter
 
 
 @pytest.fixture
-def sql_link_manager(temp_dolt_db):
+def sql_link_manager(dolt_connection_config):
     """Create a SQLLinkManager instance for testing."""
-    # Add parent/child columns to the temp database
-    add_parent_child_columns_to_db(temp_dolt_db)
-    return SQLLinkManager(temp_dolt_db)
+    return SQLLinkManager(dolt_connection_config)
 
 
 @pytest.fixture
-def sample_blocks(temp_dolt_db):
+def sample_blocks(dolt_connection_config):
     """Create sample memory blocks for testing."""
-    # Add parent/child columns to the temp database
-    add_parent_child_columns_to_db(temp_dolt_db)
-
     parent_block = MemoryBlock(
         id=str(uuid.uuid4()),
         type="project",
@@ -39,11 +33,10 @@ def sample_blocks(temp_dolt_db):
         tags=["test", "child"],
     )
 
-    # Write blocks to database
-    write_success_1, _ = write_memory_block_to_dolt(parent_block, temp_dolt_db, auto_commit=True)
-    write_success_2, _ = write_memory_block_to_dolt(child_block, temp_dolt_db, auto_commit=True)
-
-    assert write_success_1 and write_success_2, "Failed to write sample blocks to database"
+    # Write blocks to database using DoltMySQLWriter
+    writer = DoltMySQLWriter(dolt_connection_config)
+    writer.write_memory_block(parent_block, "main", auto_commit=True)
+    writer.write_memory_block(child_block, "main", auto_commit=True)
 
     return parent_block, child_block
 
@@ -53,8 +46,11 @@ class TestSQLLinkManager:
 
     def test_initialization(self, sql_link_manager):
         """Test that SQLLinkManager initializes correctly."""
-        assert sql_link_manager.db_path is not None
-        assert sql_link_manager.repo is not None
+        # SQLLinkManager should be properly initialized with DoltConnectionConfig
+        assert sql_link_manager is not None
+        # Test database connection works
+        result = sql_link_manager._execute_query("SELECT 1 as test", ())
+        assert result[0]["test"] == 1
 
     def test_create_link_basic(self, sql_link_manager, sample_blocks):
         """Test basic link creation without hooks."""
@@ -85,20 +81,16 @@ class TestSQLLinkManager:
 
         assert link.relation == "contains"
 
-        # Verify parent/child columns were updated
-        from doltpy.cli import Dolt
-
-        repo = Dolt(sql_link_manager.db_path)
-
+        # Verify parent/child columns were updated using MySQL queries
         # Check child's parent_id was set
-        child_query = f"SELECT parent_id FROM memory_blocks WHERE id = '{child_block.id}'"
-        child_result = repo.sql(query=child_query, result_format="json")
-        assert child_result["rows"][0]["parent_id"] == parent_block.id
+        child_query = "SELECT parent_id FROM memory_blocks WHERE id = %s"
+        child_result = sql_link_manager._execute_query(child_query, (child_block.id,))
+        assert child_result[0]["parent_id"] == parent_block.id
 
         # Check parent's has_children was set to TRUE
-        parent_query = f"SELECT has_children FROM memory_blocks WHERE id = '{parent_block.id}'"
-        parent_result = repo.sql(query=parent_query, result_format="json")
-        assert parent_result["rows"][0]["has_children"] == 1  # TRUE in SQL
+        parent_query = "SELECT has_children FROM memory_blocks WHERE id = %s"
+        parent_result = sql_link_manager._execute_query(parent_query, (parent_block.id,))
+        assert parent_result[0]["has_children"] == 1  # TRUE in SQL
 
     def test_contains_relation_hook_delete(self, sql_link_manager, sample_blocks):
         """Test that deleting a 'contains' relation triggers parent/child column cleanup."""
@@ -116,22 +108,18 @@ class TestSQLLinkManager:
 
         assert deleted is True
 
-        # Verify parent/child columns were cleared
-        from doltpy.cli import Dolt
-
-        repo = Dolt(sql_link_manager.db_path)
-
-        # Check child's parent_id was cleared (NULL values don't appear in Dolt JSON)
-        child_query = f"SELECT parent_id FROM memory_blocks WHERE id = '{child_block.id}'"
-        child_result = repo.sql(query=child_query, result_format="json")
-        assert child_result["rows"][0].get("parent_id") is None
+        # Verify parent/child columns were cleared using MySQL queries
+        # Check child's parent_id was cleared (should be NULL)
+        child_query = "SELECT parent_id FROM memory_blocks WHERE id = %s"
+        child_result = sql_link_manager._execute_query(child_query, (child_block.id,))
+        assert child_result[0]["parent_id"] is None
 
         # Check parent's has_children was set to FALSE
-        parent_query = f"SELECT has_children FROM memory_blocks WHERE id = '{parent_block.id}'"
-        parent_result = repo.sql(query=parent_query, result_format="json")
-        assert parent_result["rows"][0]["has_children"] == 0  # FALSE in SQL
+        parent_query = "SELECT has_children FROM memory_blocks WHERE id = %s"
+        parent_result = sql_link_manager._execute_query(parent_query, (parent_block.id,))
+        assert parent_result[0]["has_children"] == 0  # FALSE in SQL
 
-    def test_multiple_children_handling(self, sql_link_manager, temp_dolt_db):
+    def test_multiple_children_handling(self, sql_link_manager, dolt_connection_config):
         """Test that has_children flag is handled correctly with multiple children."""
         # Create parent and two children
         parent_id = str(uuid.uuid4())
@@ -142,36 +130,33 @@ class TestSQLLinkManager:
         child1_block = MemoryBlock(id=child1_id, type="task", text="Child 1", tags=["test"])
         child2_block = MemoryBlock(id=child2_id, type="task", text="Child 2", tags=["test"])
 
-        # Write blocks to database
+        # Write blocks to database using DoltMySQLWriter
+        writer = DoltMySQLWriter(dolt_connection_config)
         for block in [parent_block, child1_block, child2_block]:
-            write_success, _ = write_memory_block_to_dolt(block, temp_dolt_db, auto_commit=True)
-            assert write_success
+            writer.write_memory_block(block, "main", auto_commit=True)
 
         # Create contains relations to both children
         sql_link_manager.create_link(parent_id, child1_id, "contains")
         sql_link_manager.create_link(parent_id, child2_id, "contains")
 
         # Verify parent has_children is TRUE
-        from doltpy.cli import Dolt
-
-        repo = Dolt(temp_dolt_db)
-        parent_query = f"SELECT has_children FROM memory_blocks WHERE id = '{parent_id}'"
-        parent_result = repo.sql(query=parent_query, result_format="json")
-        assert parent_result["rows"][0]["has_children"] == 1
+        parent_query = "SELECT has_children FROM memory_blocks WHERE id = %s"
+        parent_result = sql_link_manager._execute_query(parent_query, (parent_id,))
+        assert parent_result[0]["has_children"] == 1
 
         # Delete one child relationship
         sql_link_manager.delete_link(parent_id, child1_id, "contains")
 
         # Parent should still have has_children = TRUE (still has child2)
-        parent_result = repo.sql(query=parent_query, result_format="json")
-        assert parent_result["rows"][0]["has_children"] == 1
+        parent_result = sql_link_manager._execute_query(parent_query, (parent_id,))
+        assert parent_result[0]["has_children"] == 1
 
         # Delete the last child relationship
         sql_link_manager.delete_link(parent_id, child2_id, "contains")
 
         # Now parent should have has_children = FALSE
-        parent_result = repo.sql(query=parent_query, result_format="json")
-        assert parent_result["rows"][0]["has_children"] == 0
+        parent_result = sql_link_manager._execute_query(parent_query, (parent_id,))
+        assert parent_result[0]["has_children"] == 0
 
     def test_upsert_link_functionality(self, sql_link_manager, sample_blocks):
         """Test the upsert_link method that handles both create and update."""
@@ -204,7 +189,7 @@ class TestSQLLinkManager:
         assert len(links.links) == 1
         assert links.links[0].priority == 5
 
-    def test_bulk_upsert_with_hooks(self, sql_link_manager, temp_dolt_db):
+    def test_bulk_upsert_with_hooks(self, sql_link_manager, dolt_connection_config):
         """Test bulk_upsert with contains relations triggering hooks."""
         # Create test blocks
         parent_id = str(uuid.uuid4())
@@ -219,8 +204,8 @@ class TestSQLLinkManager:
             block = MemoryBlock(
                 id=block_id, type=block_type, text=f"Block {block_id}", tags=["test"]
             )
-            write_success, _ = write_memory_block_to_dolt(block, temp_dolt_db, auto_commit=True)
-            assert write_success
+            writer = DoltMySQLWriter(dolt_connection_config)
+            writer.write_memory_block(block, "main", auto_commit=True)
 
         # Bulk upsert with contains relations
         links_data = [
@@ -232,17 +217,13 @@ class TestSQLLinkManager:
         assert len(result_links) == 2
 
         # Verify hooks were triggered for both
-        from doltpy.cli import Dolt
-
-        repo = Dolt(temp_dolt_db)
-
         # Check both children have parent_id set
         for child_id in [child1_id, child2_id]:
-            child_query = f"SELECT parent_id FROM memory_blocks WHERE id = '{child_id}'"
-            child_result = repo.sql(query=child_query, result_format="json")
-            assert child_result["rows"][0]["parent_id"] == parent_id
+            child_query = "SELECT parent_id FROM memory_blocks WHERE id = %s"
+            child_result = sql_link_manager._execute_query(child_query, (child_id,))
+            assert child_result[0]["parent_id"] == parent_id
 
-    def test_delete_links_for_block_with_hooks(self, sql_link_manager, temp_dolt_db):
+    def test_delete_links_for_block_with_hooks(self, sql_link_manager, dolt_connection_config):
         """Test delete_links_for_block properly handles parent/child cleanup."""
         # Create parent and child blocks
         parent_id = str(uuid.uuid4())
@@ -252,8 +233,8 @@ class TestSQLLinkManager:
             block = MemoryBlock(
                 id=block_id, type=block_type, text=f"Block {block_id}", tags=["test"]
             )
-            write_success, _ = write_memory_block_to_dolt(block, temp_dolt_db, auto_commit=True)
-            assert write_success
+            writer = DoltMySQLWriter(dolt_connection_config)
+            writer.write_memory_block(block, "main", auto_commit=True)
 
         # Create contains relation
         sql_link_manager.create_link(parent_id, child_id, "contains")
@@ -262,13 +243,10 @@ class TestSQLLinkManager:
         deleted_count = sql_link_manager.delete_links_for_block(parent_id)
         assert deleted_count == 1
 
-        # Verify child's parent_id was cleared (NULL values don't appear in Dolt JSON)
-        from doltpy.cli import Dolt
-
-        repo = Dolt(temp_dolt_db)
-        child_query = f"SELECT parent_id FROM memory_blocks WHERE id = '{child_id}'"
-        child_result = repo.sql(query=child_query, result_format="json")
-        assert child_result["rows"][0].get("parent_id") is None
+        # Verify child's parent_id was cleared (should be NULL)
+        child_query = "SELECT parent_id FROM memory_blocks WHERE id = %s"
+        child_result = sql_link_manager._execute_query(child_query, (child_id,))
+        assert child_result[0]["parent_id"] is None
 
     def test_non_contains_relations_no_hooks(self, sql_link_manager, sample_blocks):
         """Test that non-contains relations don't trigger parent/child hooks."""
@@ -280,19 +258,15 @@ class TestSQLLinkManager:
         )
 
         # Verify parent/child columns remain unchanged
-        from doltpy.cli import Dolt
-
-        repo = Dolt(sql_link_manager.db_path)
-
-        # Check child's parent_id remains NULL (NULL values don't appear in Dolt JSON)
-        child_query = f"SELECT parent_id FROM memory_blocks WHERE id = '{child_block.id}'"
-        child_result = repo.sql(query=child_query, result_format="json")
-        assert child_result["rows"][0].get("parent_id") is None
+        # Check child's parent_id remains NULL (should be NULL)
+        child_query = "SELECT parent_id FROM memory_blocks WHERE id = %s"
+        child_result = sql_link_manager._execute_query(child_query, (child_block.id,))
+        assert child_result[0]["parent_id"] is None
 
         # Check parent's has_children remains FALSE
-        parent_query = f"SELECT has_children FROM memory_blocks WHERE id = '{parent_block.id}'"
-        parent_result = repo.sql(query=parent_query, result_format="json")
-        assert parent_result["rows"][0]["has_children"] == 0
+        parent_query = "SELECT has_children FROM memory_blocks WHERE id = %s"
+        parent_result = sql_link_manager._execute_query(parent_query, (parent_block.id,))
+        assert parent_result[0]["has_children"] == 0
 
     def test_links_to_query(self, sql_link_manager, sample_blocks):
         """Test the links_to method for finding backlinks."""
