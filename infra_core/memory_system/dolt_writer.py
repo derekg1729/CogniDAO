@@ -17,6 +17,7 @@ import logging
 import sys
 from pathlib import Path
 from typing import Optional, Tuple, List
+import warnings
 
 import mysql.connector
 from mysql.connector import Error
@@ -360,9 +361,18 @@ def write_memory_block_to_dolt(
     The old file-based API is no longer supported for security reasons.
     Use DoltMySQLWriter with a DoltConnectionConfig instead.
     """
-    raise NotImplementedError(
-        "write_memory_block_to_dolt() is deprecated. Use DoltMySQLWriter.write_memory_block() instead."
+    warnings.warn(
+        "write_memory_block_to_dolt() is deprecated. Use DoltMySQLWriter.write_memory_block() instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
+
+    # Use DoltMySQLWriter for MySQL-based access
+    from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+
+    config = DoltConnectionConfig()
+    writer = DoltMySQLWriter(config)
+    return writer.write_memory_block(block, "main", auto_commit, preserve_nulls)
 
 
 def delete_memory_block_from_dolt(
@@ -371,9 +381,18 @@ def delete_memory_block_from_dolt(
     """
     DEPRECATED STUB: This function has been replaced by DoltMySQLWriter.delete_memory_block().
     """
-    raise NotImplementedError(
-        "delete_memory_block_from_dolt() is deprecated. Use DoltMySQLWriter.delete_memory_block() instead."
+    warnings.warn(
+        "delete_memory_block_from_dolt() is deprecated. Use DoltMySQLWriter.delete_memory_block() instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
+
+    # Use DoltMySQLWriter for MySQL-based access
+    from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+
+    config = DoltConnectionConfig()
+    writer = DoltMySQLWriter(config)
+    return writer.delete_memory_block(block_id, "main", auto_commit)
 
 
 def commit_working_changes(
@@ -382,15 +401,33 @@ def commit_working_changes(
     """
     DEPRECATED STUB: This function has been replaced by DoltMySQLWriter.commit_changes().
     """
-    raise NotImplementedError(
-        "commit_working_changes() is deprecated. Use DoltMySQLWriter.commit_changes() instead."
+    warnings.warn(
+        "commit_working_changes() is deprecated. Use DoltMySQLWriter.commit_changes() instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
+
+    # Use DoltMySQLWriter for MySQL-based access
+    from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+
+    config = DoltConnectionConfig()
+    writer = DoltMySQLWriter(config)
+    return writer.commit_changes(commit_msg, tables)
 
 
 def discard_working_changes(db_path: str, tables: List[str] = None) -> bool:
     """
     DEPRECATED STUB: This function has been replaced by DoltMySQLWriter.discard_changes().
     """
-    raise NotImplementedError(
-        "discard_working_changes() is deprecated. Use DoltMySQLWriter.discard_changes() instead."
+    warnings.warn(
+        "discard_working_changes() is deprecated. Use DoltMySQLWriter.discard_changes() instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
+
+    # Use DoltMySQLWriter for MySQL-based access
+    from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+
+    config = DoltConnectionConfig()
+    writer = DoltMySQLWriter(config)
+    return writer.discard_changes(tables)

@@ -607,11 +607,19 @@ def batch_read_block_properties(
     DEPRECATED: Legacy file-based function.
     Use DoltMySQLReader.batch_read_block_properties() instead.
     """
-    from infra_core.memory_system.legacy_file_dolt_access import (
-        batch_read_block_properties as legacy_func,
+    warnings.warn(
+        "batch_read_block_properties() legacy function is deprecated. "
+        "Use DoltMySQLReader.batch_read_block_properties() instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
 
-    return legacy_func(db_path, block_ids, branch)
+    # Use DoltMySQLReader for MySQL-based access
+    from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+
+    config = DoltConnectionConfig()
+    reader = DoltMySQLReader(config)
+    return reader.batch_read_block_properties(block_ids, branch)
 
 
 def read_memory_blocks(db_path: str, branch: str = "main") -> List[MemoryBlock]:
@@ -619,9 +627,19 @@ def read_memory_blocks(db_path: str, branch: str = "main") -> List[MemoryBlock]:
     DEPRECATED: Legacy file-based function.
     Use DoltMySQLReader.read_memory_blocks() instead.
     """
-    from infra_core.memory_system.legacy_file_dolt_access import read_memory_blocks as legacy_func
+    warnings.warn(
+        "read_memory_blocks() legacy function is deprecated. "
+        "Use DoltMySQLReader.read_memory_blocks() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
-    return legacy_func(db_path, branch)
+    # Use DoltMySQLReader for MySQL-based access
+    from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+
+    config = DoltConnectionConfig()
+    reader = DoltMySQLReader(config)
+    return reader.read_memory_blocks(branch)
 
 
 def read_memory_block(db_path: str, block_id: str, branch: str = "main") -> Optional[MemoryBlock]:
@@ -629,9 +647,19 @@ def read_memory_block(db_path: str, block_id: str, branch: str = "main") -> Opti
     DEPRECATED: Legacy file-based function.
     Use DoltMySQLReader.read_memory_block() instead.
     """
-    from infra_core.memory_system.legacy_file_dolt_access import read_memory_block as legacy_func
+    warnings.warn(
+        "read_memory_block() legacy function is deprecated. "
+        "Use DoltMySQLReader.read_memory_block() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
-    return legacy_func(db_path, block_id, branch)
+    # Use DoltMySQLReader for MySQL-based access
+    from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+
+    config = DoltConnectionConfig()
+    reader = DoltMySQLReader(config)
+    return reader.read_memory_block(block_id, branch)
 
 
 def read_memory_blocks_by_tags(
@@ -641,11 +669,19 @@ def read_memory_blocks_by_tags(
     DEPRECATED: Legacy file-based function.
     Use DoltMySQLReader.read_memory_blocks_by_tags() instead.
     """
-    from infra_core.memory_system.legacy_file_dolt_access import (
-        read_memory_blocks_by_tags as legacy_func,
+    warnings.warn(
+        "read_memory_blocks_by_tags() legacy function is deprecated. "
+        "Use DoltMySQLReader.read_memory_blocks_by_tags() instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
 
-    return legacy_func(db_path, tags, match_all, branch)
+    # Use DoltMySQLReader for MySQL-based access
+    from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+
+    config = DoltConnectionConfig()
+    reader = DoltMySQLReader(config)
+    return reader.read_memory_blocks_by_tags(tags, match_all, branch)
 
 
 def read_memory_blocks_from_working_set(db_path: str) -> List[MemoryBlock]:
@@ -653,11 +689,19 @@ def read_memory_blocks_from_working_set(db_path: str) -> List[MemoryBlock]:
     DEPRECATED: Legacy file-based function.
     Use DoltMySQLReader with appropriate branch instead.
     """
-    from infra_core.memory_system.legacy_file_dolt_access import (
-        read_memory_blocks_from_working_set as legacy_func,
+    warnings.warn(
+        "read_memory_blocks_from_working_set() legacy function is deprecated. "
+        "Use DoltMySQLReader.read_memory_blocks() instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
 
-    return legacy_func(db_path)
+    # Use DoltMySQLReader for MySQL-based access (working set = current branch)
+    from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+
+    config = DoltConnectionConfig()
+    reader = DoltMySQLReader(config)
+    return reader.read_memory_blocks("main")  # Working set approximated as main branch
 
 
 def read_block_properties(db_path: str, block_id: str, branch: str = "main") -> List[BlockProperty]:
@@ -665,11 +709,19 @@ def read_block_properties(db_path: str, block_id: str, branch: str = "main") -> 
     DEPRECATED: Legacy file-based function.
     Use DoltMySQLReader.read_block_properties() instead.
     """
-    from infra_core.memory_system.legacy_file_dolt_access import (
-        read_block_properties as legacy_func,
+    warnings.warn(
+        "read_block_properties() legacy function is deprecated. "
+        "Use DoltMySQLReader.read_block_properties() instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
 
-    return legacy_func(db_path, block_id, branch)
+    # Use DoltMySQLReader for MySQL-based access
+    from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+
+    config = DoltConnectionConfig()
+    reader = DoltMySQLReader(config)
+    return reader.read_block_properties(block_id, branch)
 
 
 # Example Usage (can be run as a script for testing)

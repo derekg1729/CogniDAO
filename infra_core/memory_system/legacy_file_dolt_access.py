@@ -35,7 +35,7 @@ if str(project_root_dir) not in sys.path:
 
 try:
     from infra_core.memory_system.schemas.memory_block import MemoryBlock
-    from infra_core.memory_system.schemas.block_property import BlockProperty
+    from infra_core.memory_system.schemas.common import BlockProperty
 except ImportError as e:
     raise ImportError(f"Could not import required schemas: {e}")
 
