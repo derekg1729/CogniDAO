@@ -9,12 +9,14 @@
 #   ./scripts/deploy.sh --prod  # Future: Deploy to production
 #   ./scripts/deploy.sh --preview # Future: Deploy to staging/preview
 #   ./scripts/deploy.sh --simulate-preview Simulate the preview deployment locally using .secrets
+#   ./scripts/deploy.sh --simulate-prod Simulate the production deployment locally using .secrets.prod
+#   ./scripts/deploy.sh --cleanup-remote [env] Clean up old Docker images on remote server (preview|prod)
 #   ./scripts/deploy.sh --help  # Display this help message
 
 set -e  # Exit on any error
 
 # Configuration
-COMPOSE_DIR="cogni-api-deployment"
+COMPOSE_DIR="deploy"
 COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
 ENV_FILE=".env"
 HEALTH_URL="http://localhost:8000/healthz"
@@ -48,6 +50,7 @@ display_help() {
   echo "  --prod        Trigger GitHub Actions to deploy to the production environment"
   echo "  --simulate-preview Simulate the preview deployment locally using .secrets.preview"
   echo "  --simulate-prod Simulate the production deployment locally using .secrets.prod"
+  echo "  --cleanup-remote [env] Clean up old Docker images on remote server (preview|prod)"
   echo
   echo "Examples:"
   echo "  $0 --local    # Start the full stack locally for development"
@@ -58,6 +61,8 @@ display_help() {
   echo "  $0 --prod     # Deploy to production environment"
   echo "  $0 --simulate-preview # Simulate preview deployment locally"
   echo "  $0 --simulate-prod # Simulate production deployment locally"
+  echo "  $0 --cleanup-remote preview # Clean up old Docker images on preview server"
+  echo "  $0 --cleanup-remote prod # Clean up old Docker images on production server"
   echo ""
   echo "Note: All local modes now use the docker-compose architecture with separate"
   echo "      Dolt SQL server and API containers for consistency with production."
@@ -599,6 +604,32 @@ EOF_JSON
     # Poll the HTTPS endpoint using the dynamic domain name
     if curl -s -L --fail --connect-timeout 5 --max-time 10 "https://$target_domain/healthz" | grep -q '{"status":"healthy"}'; then
       status "✅ Simulated $environment deployment successful! Public health check passed after $attempt attempts."
+      
+      # Clean up old Docker images after successful deployment
+      status "Cleaning up old Docker images to free disk space..." >&2
+      ssh $SSH_OPTS ubuntu@$SERVER_IP "
+        # Get current image ID for the tag we just deployed
+        current_image_id=\$(docker images ghcr.io/$gh_owner/$repo_name:$image_tag --format '{{.ID}}')
+        
+        # Remove all old images from the same repository except the current one
+        old_images=\$(docker images ghcr.io/$gh_owner/$repo_name --format '{{.ID}} {{.Tag}}' | grep -v \"\$current_image_id\" | awk '{print \$1}' | sort -u)
+        
+        if [ -n \"\$old_images\" ]; then
+          echo \"Removing old images: \$old_images\"
+          echo \"\$old_images\" | xargs -r docker rmi -f
+          echo \"✅ Old images cleaned up successfully\"
+        else
+          echo \"No old images to clean up\"
+        fi
+        
+        # Also clean up dangling images and build cache
+        docker image prune -f
+        echo \"✅ Dangling images cleaned up\"
+        
+        # Show disk usage after cleanup
+        df -h / | tail -n 1
+      " || warning "⚠️ Image cleanup failed, but deployment was successful"
+      
       break
     else
       if [ $attempt -eq $MAX_RETRIES ]; then
@@ -612,6 +643,101 @@ EOF_JSON
       fi
     fi
   done
+}
+
+# Function to clean up Docker images on remote servers
+cleanup_remote() {
+  local environment=$1 # "preview" or "prod"
+  
+  if [ -z "$environment" ]; then
+    warning "❌ Environment not specified. Use: --cleanup-remote preview or --cleanup-remote prod"
+    exit 1
+  fi
+  
+  local secrets_file
+  if [ "$environment" == "preview" ]; then
+    secrets_file=".secrets.preview"
+  elif [ "$environment" == "prod" ]; then
+    secrets_file=".secrets.prod"
+  else
+    warning "❌ Invalid environment: $environment. Use 'preview' or 'prod'"
+    exit 1
+  fi
+  
+  # Check for required files
+  check_file "$secrets_file"
+  
+  # Load secrets
+  status "Loading secrets from $secrets_file..."
+  SERVER_IP=$(grep "^SERVER_IP=" "$secrets_file" | cut -d= -f2)
+  SSH_KEY_PATH_VALUE=$(grep "^SSH_KEY_PATH=" "$secrets_file" | cut -d= -f2)
+  
+  # Expand ~ in SSH key path
+  eval expanded_ssh_key_path=$SSH_KEY_PATH_VALUE
+  check_file "$expanded_ssh_key_path"
+  
+  if [ -z "$SERVER_IP" ]; then
+    warning "❌ SERVER_IP missing from $secrets_file"
+    exit 1
+  fi
+  
+  # Define SSH options
+  SSH_OPTS="-i $expanded_ssh_key_path -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+  
+  status "Cleaning up Docker resources on $environment server ($SERVER_IP)..."
+  
+  # Confirmation for production
+  if [ "$environment" == "prod" ]; then
+    echo -e "${YELLOW}⚠️  WARNING: You are about to clean up Docker resources on PRODUCTION!${NC}"
+    read -p "Type 'prod' to confirm cleanup: " confirmation
+    if [[ "$confirmation" != "prod" ]]; then
+      echo -e "${GREEN}Production cleanup cancelled.${NC}"
+      exit 0
+    fi
+  fi
+  
+  ssh $SSH_OPTS ubuntu@$SERVER_IP "
+    echo 'Before cleanup:'
+    df -h / | tail -n 1
+    docker images --format 'table {{.Repository}}\t{{.Tag}}\t{{.Size}}'
+    echo
+    
+    # Stop and remove old containers first (except running ones)
+    echo 'Cleaning up stopped containers...'
+    docker container prune -f
+    
+    # Keep only the currently running cogni-backend image, remove all others
+    running_image=\$(docker ps --format '{{.Image}}' | grep 'ghcr.io/cogni-1729/cogni-backend' | head -n1)
+    if [ -n \"\$running_image\" ]; then
+      echo \"Keeping running image: \$running_image\"
+      # Get the image ID of the running image
+      running_image_id=\$(docker images \"\$running_image\" --format '{{.ID}}')
+      
+      # Remove all other cogni-backend images
+      other_images=\$(docker images ghcr.io/cogni-1729/cogni-backend --format '{{.ID}}' | grep -v \"\$running_image_id\")
+      if [ -n \"\$other_images\" ]; then
+        echo \"Removing old images...\"
+        echo \"\$other_images\" | xargs -r docker rmi -f
+      fi
+    else
+      echo \"No running cogni-backend containers found\"
+      # Remove all cogni-backend images if none are running
+      docker rmi -f \$(docker images ghcr.io/cogni-1729/cogni-backend -q) 2>/dev/null || true
+    fi
+    
+    # Clean up dangling images, build cache, and unused volumes
+    echo 'Cleaning up dangling resources...'
+    docker image prune -f
+    docker builder prune -f
+    docker volume prune -f
+    
+    echo
+    echo 'After cleanup:'
+    df -h / | tail -n 1
+    docker images --format 'table {{.Repository}}\t{{.Tag}}\t{{.Size}}'
+  " || { warning "❌ Remote cleanup failed"; exit 1; }
+  
+  status "✅ Remote cleanup completed for $environment server"
 }
 
 # Main script execution
@@ -646,6 +772,9 @@ else
       ;;
     --simulate-prod)
       simulate_deployment "prod"
+      ;;
+    --cleanup-remote)
+      cleanup_remote "$2"
       ;;
     *)
       echo -e "${RED}Unknown option: $1${NC}"
