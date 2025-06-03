@@ -176,7 +176,9 @@ class DoltMySQLWriter:
             if auto_commit:
                 # Use Dolt SQL functions to add and commit
                 cursor.execute("CALL DOLT_ADD('memory_blocks', 'block_properties')")
+                cursor.fetchall()  # Consume any results from DOLT_ADD
                 cursor.execute("CALL DOLT_COMMIT('-m', %s)", (f"Write memory block {block.id}",))
+                cursor.fetchall()  # Consume any results from DOLT_COMMIT
 
                 # Get commit hash
                 cursor.execute("SELECT DOLT_HASHOF_DB('HEAD') AS commit_hash")
@@ -216,7 +218,9 @@ class DoltMySQLWriter:
             if auto_commit:
                 # Use Dolt SQL functions to add and commit
                 cursor.execute("CALL DOLT_ADD('memory_blocks', 'block_properties')")
+                cursor.fetchall()  # Consume any results from DOLT_ADD
                 cursor.execute("CALL DOLT_COMMIT('-m', %s)", (f"Delete memory block {block_id}",))
+                cursor.fetchall()  # Consume any results from DOLT_COMMIT
 
                 # Get commit hash
                 cursor.execute("SELECT DOLT_HASHOF_DB('HEAD') AS commit_hash")
@@ -250,12 +254,17 @@ class DoltMySQLWriter:
 
             # Add specified tables or default ones
             if tables:
-                cursor.execute("CALL DOLT_ADD(%s)", (",".join(tables),))
+                # Build the DOLT_ADD call with proper argument placeholders
+                placeholders = ", ".join(["%s"] * len(tables))
+                cursor.execute(f"CALL DOLT_ADD({placeholders})", tuple(tables))
+                cursor.fetchall()  # Consume any results from DOLT_ADD
             else:
                 cursor.execute("CALL DOLT_ADD('memory_blocks', 'block_properties', 'block_links')")
+                cursor.fetchall()  # Consume any results from DOLT_ADD
 
             # Commit changes
             cursor.execute("CALL DOLT_COMMIT('-m', %s)", (commit_msg,))
+            cursor.fetchall()  # Consume any results from DOLT_COMMIT
 
             # Get commit hash
             cursor.execute("SELECT DOLT_HASHOF_DB('HEAD') AS commit_hash")

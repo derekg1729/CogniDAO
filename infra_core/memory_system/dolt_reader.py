@@ -453,6 +453,45 @@ class DoltMySQLReader:
             logger.error(f"Failed to read memory blocks by tags: {e}")
             return []
 
+    def read_block_proofs(self, block_id: str, branch: str = "main") -> List[Dict[str, Any]]:
+        """
+        Read block operation proofs for a specific block from the block_proofs table.
+
+        Args:
+            block_id: The ID of the block to get proofs for
+            branch: The branch to read from (default: "main")
+
+        Returns:
+            List of dictionaries containing proof information, ordered newest first
+        """
+        try:
+            connection = self._get_connection()
+            self._ensure_branch(connection, branch)
+
+            query = """
+            SELECT id, block_id, commit_hash, operation, timestamp
+            FROM block_proofs 
+            WHERE block_id = %s
+            ORDER BY timestamp DESC, id DESC
+            """
+
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute(query, (block_id,))
+            proofs = cursor.fetchall()
+            cursor.close()
+            connection.close()
+
+            # Convert datetime objects to strings for JSON serialization if needed
+            for proof in proofs:
+                if proof.get("timestamp"):
+                    proof["timestamp"] = proof["timestamp"].isoformat()
+
+            return proofs
+
+        except Error as e:
+            logger.error(f"Error reading block proofs for {block_id}: {e}", exc_info=True)
+            return []
+
 
 # Helper function from dolt_writer for safe SQL formatting
 def _escape_sql_string(value: Optional[str]) -> str:

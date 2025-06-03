@@ -140,6 +140,46 @@ class StructuredMemoryBank:
         self._is_consistent = False
         logger.critical(f"StructuredMemoryBank is in an inconsistent state: {reason}")
 
+    def _store_block_proof(self, block_id: str, operation: str, commit_hash: str) -> bool:
+        """
+        Store a block operation proof in the block_proofs table.
+
+        Args:
+            block_id: The ID of the block
+            operation: The operation type ('create', 'update', 'delete')
+            commit_hash: The Dolt commit hash for this operation
+
+        Returns:
+            True if proof was stored successfully, False otherwise
+        """
+        try:
+            from datetime import datetime
+
+            connection = self.dolt_reader._get_connection()
+            cursor = connection.cursor()
+
+            # Insert proof record
+            insert_query = """
+            INSERT INTO block_proofs (block_id, commit_hash, operation, timestamp)
+            VALUES (%s, %s, %s, %s)
+            """
+
+            timestamp = datetime.now()
+            cursor.execute(insert_query, (block_id, commit_hash, operation, timestamp))
+            connection.commit()
+
+            cursor.close()
+            connection.close()
+
+            logger.info(
+                f"Stored block proof: {operation} operation for block {block_id} with commit {commit_hash}"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to store block proof for {block_id}: {e}", exc_info=True)
+            return False
+
     def get_latest_schema_version(self, node_type: str) -> Optional[int]:
         """
         Gets the latest schema version for a given node type by querying the node_schemas table.
@@ -264,6 +304,7 @@ class StructuredMemoryBank:
 
                     if commit_success:
                         logger.info(f"Successfully created and indexed memory block: {block.id}")
+                        self._store_block_proof(block.id, "create", commit_hash)
                         return True
                     else:
                         # Commit failed - attempt rollback
@@ -443,6 +484,7 @@ class StructuredMemoryBank:
 
                     if commit_success:
                         logger.info(f"Successfully updated and indexed memory block: {block.id}")
+                        self._store_block_proof(block.id, "update", commit_hash)
                         return True
                     else:
                         # Commit failed - attempt rollback
@@ -603,6 +645,7 @@ class StructuredMemoryBank:
 
                     if commit_success:
                         logger.info(f"Successfully deleted memory block: {block_id}")
+                        self._store_block_proof(block_id, "delete", commit_hash)
                         return True
                     else:
                         # Commit failed - attempt rollback
@@ -801,9 +844,60 @@ class StructuredMemoryBank:
 
     def get_backlinks(self, block_id: str, relation: Optional[str] = None) -> List[BlockLink]:
         """
-        Retrieves incoming links to a specific block.
-
-        Note: This functionality needs to be implemented for MySQL connections.
+        Retrieves blocks that link TO the specified block.
+        Note: Links are now managed via separate LinkManager and block_links table.
         """
-        logger.warning("get_backlinks not yet implemented for MySQL connections")
+        # TODO: Implement backlink retrieval
+        logger.warning("get_backlinks not yet implemented for MySQL connection")
         return []
+
+    def get_block_proofs(self, block_id: str) -> List[Dict[str, Any]]:
+        """
+        Retrieves block operation proofs (create/update/delete) for a specific block.
+
+        Args:
+            block_id: The ID of the block to get proofs for
+
+        Returns:
+            List of dictionaries containing operation, commit_hash, timestamp info.
+            Ordered newest first (most recent operation first).
+        """
+        logger.info(f"Getting block proofs for block: {block_id}")
+        try:
+            proofs = self.dolt_reader.read_block_proofs(block_id, branch=self.branch)
+            logger.info(f"Found {len(proofs)} proofs for block {block_id}")
+            return proofs
+        except Exception as e:
+            logger.error(f"Error retrieving block proofs for {block_id}: {e}", exc_info=True)
+            return []
+
+    def format_commit_message(
+        self,
+        operation: str,
+        block_id: str,
+        change_summary: str = "No significant changes",
+        extra_info: Optional[str] = None,
+    ) -> str:
+        """
+        Formats a standardized commit message for memory block operations.
+
+        Args:
+            operation: The operation type (create, update, delete)
+            block_id: The ID of the block being operated on
+            change_summary: Summary of changes made (default: "No significant changes")
+            extra_info: Optional additional context (e.g., "actor=user-123")
+
+        Returns:
+            Formatted commit message string
+        """
+        # Standardize operation name to uppercase
+        operation_upper = operation.upper()
+
+        # Build base message
+        message = f"{operation_upper}: {block_id} - {change_summary}"
+
+        # Append extra info if provided
+        if extra_info:
+            message += f" [{extra_info}]"
+
+        return message

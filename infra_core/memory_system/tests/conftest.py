@@ -160,14 +160,11 @@ def dolt_connection_config(
     )
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def temp_chroma_path() -> Generator[str, None, None]:
-    """Create a temporary ChromaDB directory for each test."""
-    temp_dir = tempfile.mkdtemp(prefix="test_chroma_")
-    try:
+    """Temporary ChromaDB storage path for testing."""
+    with tempfile.TemporaryDirectory(prefix="test_chroma_") as temp_dir:
         yield temp_dir
-    finally:
-        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 @pytest.fixture(scope="function")
