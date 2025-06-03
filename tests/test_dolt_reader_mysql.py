@@ -16,6 +16,7 @@ Environment Variables:
 import pytest
 from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
 from infra_core.memory_system.dolt_reader import DoltMySQLReader
+from infra_core.memory_system.schemas.memory_block import MemoryBlock
 
 
 class TestDoltMySQLReader:
@@ -48,10 +49,16 @@ class TestDoltMySQLReader:
         assert isinstance(memory_blocks, list), "Should return a list of memory blocks"
         if memory_blocks:
             sample_block = memory_blocks[0]
-            assert isinstance(sample_block, dict), "Each memory block should be a dictionary"
-            assert "id" in sample_block, "Memory block should have an id field"
-            assert "text" in sample_block, "Memory block should have a text field"
-            assert "type" in sample_block, "Memory block should have a type field"
+            assert isinstance(sample_block, MemoryBlock), (
+                "Each memory block should be a MemoryBlock object"
+            )
+            assert hasattr(sample_block, "id") and sample_block.id, (
+                "Memory block should have an id field"
+            )
+            assert hasattr(sample_block, "text"), "Memory block should have a text field"
+            assert hasattr(sample_block, "type") and sample_block.type, (
+                "Memory block should have a type field"
+            )
 
         print(f"Successfully read {len(memory_blocks)} memory blocks")
 
@@ -63,13 +70,13 @@ class TestDoltMySQLReader:
         if not all_blocks:
             pytest.skip("No memory blocks available for testing")
 
-        test_block_id = all_blocks[0]["id"]
+        test_block_id = all_blocks[0].id
 
         # Test reading the specific block
         memory_block = dolt_reader.read_memory_block(test_block_id, branch="main")
 
         assert memory_block is not None, f"Should find memory block with ID {test_block_id}"
-        assert memory_block["id"] == test_block_id, "Retrieved block should have the correct ID"
+        assert memory_block.id == test_block_id, "Retrieved block should have the correct ID"
 
         print(f"Successfully read specific memory block: {test_block_id}")
 
@@ -87,14 +94,19 @@ class TestDoltMySQLReader:
         if not all_blocks:
             pytest.skip("No memory blocks available for testing")
 
-        test_block_id = all_blocks[0]["id"]
+        test_block_id = all_blocks[0].id
 
         # Test reading block properties
         properties = dolt_reader.read_block_properties(test_block_id, branch="main")
 
         assert properties is not None, f"Should find properties for block {test_block_id}"
-        assert "id" in properties, "Properties should include id field"
-        assert "type" in properties, "Properties should include type field"
+        assert isinstance(properties, list), "Properties should be a list"
+
+        if properties:
+            # Each property should be a BlockProperty object
+            for prop in properties:
+                assert hasattr(prop, "block_id"), "Property should have block_id field"
+                assert hasattr(prop, "property_name"), "Property should have property_name field"
 
         print(f"Successfully read properties for block: {test_block_id}")
 
@@ -107,21 +119,22 @@ class TestDoltMySQLReader:
             pytest.skip("No memory blocks available for testing")
 
         # Test with first 3 blocks (or fewer if not available)
-        test_block_ids = [block["id"] for block in all_blocks[:3]]
+        test_block_ids = [block.id for block in all_blocks[:3]]
 
         # Test batch reading
-        properties_list = dolt_reader.batch_read_block_properties(test_block_ids, branch="main")
+        properties_dict = dolt_reader.batch_read_block_properties(test_block_ids, branch="main")
 
-        assert isinstance(properties_list, list), "Should return a list of properties"
-        assert len(properties_list) <= len(test_block_ids), (
-            "Should not return more properties than requested"
-        )
+        assert isinstance(properties_dict, dict), "Should return a dictionary of properties"
 
-        for props in properties_list:
-            assert "id" in props, "Each property result should include id field"
-            assert "type" in props, "Each property result should include type field"
+        for block_id, properties_list in properties_dict.items():
+            assert isinstance(properties_list, list), "Each property value should be a list"
+            for prop in properties_list:
+                assert hasattr(prop, "block_id"), "Each property should have block_id field"
+                assert hasattr(prop, "property_name"), (
+                    "Each property should have property_name field"
+                )
 
-        print(f"Successfully batch read properties for {len(properties_list)} blocks")
+        print(f"Successfully batch read properties for {len(properties_dict)} blocks")
 
     def test_read_memory_blocks_by_tags(self, dolt_reader):
         """Test reading memory blocks by tags."""
@@ -134,7 +147,12 @@ class TestDoltMySQLReader:
         # Find a block with tags to test with
         block_with_tags = None
         for block in all_blocks:
-            if block.get("tags") and isinstance(block["tags"], (list, str)):
+            if (
+                hasattr(block, "tags")
+                and block.tags
+                and isinstance(block.tags, list)
+                and len(block.tags) > 0
+            ):
                 block_with_tags = block
                 break
 
@@ -145,21 +163,20 @@ class TestDoltMySQLReader:
             assert len(tagged_blocks) == len(all_blocks), "Empty tag list should return all blocks"
         else:
             # Test with actual tags
-            tags = block_with_tags["tags"]
-            if isinstance(tags, str):
-                import json
+            tags = block_with_tags.tags
 
-                try:
-                    tags = json.loads(tags)
-                except (json.JSONDecodeError, ValueError):
-                    tags = [tags]
-
-            if tags and isinstance(tags, list):
+            if tags and isinstance(tags, list) and len(tags) > 0:
                 # Test with first tag
                 test_tag = tags[0]
                 tagged_blocks = dolt_reader.read_memory_blocks_by_tags([test_tag], branch="main")
 
                 assert isinstance(tagged_blocks, list), "Should return a list of memory blocks"
+                # Verify all returned blocks are MemoryBlock objects
+                for block in tagged_blocks:
+                    assert isinstance(block, MemoryBlock), (
+                        "Each returned block should be a MemoryBlock object"
+                    )
+
                 print(f"Found {len(tagged_blocks)} blocks with tag '{test_tag}'")
 
     def test_branch_parameter(self, dolt_reader):
