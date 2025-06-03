@@ -149,7 +149,7 @@ class DoltMySQLWriter(DoltMySQLBase):
                             prop.property_value_text,
                             prop.property_value_number,
                             json.dumps(prop.property_value_json)
-                            if prop.property_value_json
+                            if prop.property_value_json is not None
                             else None,
                             prop.property_type,
                             prop.is_computed,
