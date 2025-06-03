@@ -84,7 +84,7 @@ try:
         port=int(os.environ.get("DOLT_PORT", "3306")),
         user=os.environ.get("DOLT_USER", "root"),
         password=os.environ.get("DOLT_PASSWORD", ""),
-        database=os.environ.get("DOLT_DATABASE", "cogni_memory"),
+        database=os.environ.get("DOLT_DATABASE", "memory_dolt"),
     )
 
     # Initialize memory bank
