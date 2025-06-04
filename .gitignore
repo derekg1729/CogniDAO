@@ -12,7 +12,7 @@ dist/
 build/
 
 # Environment variables
-.env
+*.env*
 
 # local deployment secrets
 .secrets.*

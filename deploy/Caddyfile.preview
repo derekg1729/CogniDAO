@@ -11,11 +11,11 @@ api-preview.cognidao.org {
     encode gzip
 
     # Proxy ALL requests to the backend
-    reverse_proxy cogni-api-preview:8000
+    reverse_proxy api:8000
 
     # Handle health check endpoint
     handle /healthz* {
-        reverse_proxy cogni-api-preview:8000
+        reverse_proxy api:8000
     }
 
     # Optional: Basic security headers

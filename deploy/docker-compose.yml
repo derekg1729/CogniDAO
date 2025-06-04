@@ -1,10 +1,11 @@
 services:
   # Dolt SQL Server Database Service
   dolt-db:
+    image: ${DOLT_IMAGE:-deploy-dolt-db}
     build:
       context: ..
       dockerfile: services/dolt_memory/cogni-cogni-dao-memory.dockerfile
-    env_file: ../.env
+    env_file: ./.env
     environment:
       - HOST=0.0.0.0
       - PORT=3306
@@ -30,10 +31,11 @@ services:
 
   # Web API Service  
   api:
+    image: ${API_IMAGE:-cogni-api-local}
     build:
       context: ..
       dockerfile: services/web_api/Dockerfile.api
-    env_file: ../.env
+    env_file: ./.env
     environment:
       - DOLT_HOST=dolt-db
       - DOLT_PORT=3306

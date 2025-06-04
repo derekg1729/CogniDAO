@@ -7,7 +7,7 @@ tests/
 .ruff_cache/
 .cursor/
 .vscode/
-.DS_Store
+.DS_Store 
 
 # Virtual environments
 .venv/

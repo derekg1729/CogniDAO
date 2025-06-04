@@ -1,0 +1,17 @@
+services:
+  dolt-db:
+    image: ${DOLT_IMAGE:-ghcr.io/cogni-1729/cogni-dolt:latest}
+    build: ""
+    env_file: ./.env
+    
+  api:
+    image: ${API_IMAGE:-ghcr.io/cogni-1729/cogni-backend:latest}
+    build: ""
+    env_file: ./.env
+    
+  caddy:
+    volumes:
+      # This will use Caddyfile.prod copied as ./Caddyfile in the remote cogni-deploy dir
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config 
