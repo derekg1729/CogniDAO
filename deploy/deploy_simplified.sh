@@ -72,34 +72,6 @@ build_and_push_image() {
     echo "$tag"
 }
 
-setup_docker_context() {
-    local env=$1
-    local secrets_file=".secrets.$env"
-    
-    # Load server details
-    SERVER_IP=$(grep "^SERVER_IP=" "$secrets_file" | cut -d= -f2)
-    SSH_KEY_PATH=$(grep "^SSH_KEY_PATH=" "$secrets_file" | cut -d= -f2)
-    
-    # Expand ~ in SSH key path
-    eval expanded_ssh_key_path=$SSH_KEY_PATH
-    
-    if [ -z "$SERVER_IP" ] || [ ! -f "$expanded_ssh_key_path" ]; then
-        warning "❌ Missing SERVER_IP or SSH key in $secrets_file"
-        exit 1
-    fi
-    
-    # Create or update Docker context
-    local context_name="cogni-$env"
-    if docker context ls | grep -q "$context_name"; then
-        status "Docker context '$context_name' already exists" >&2
-    else
-        status "Creating Docker context '$context_name'..." >&2
-        docker context create "$context_name" --docker "host=ssh://ubuntu@$SERVER_IP" >&2
-    fi
-    
-    echo "$context_name"
-}
-
 create_env_file() {
     local env=$1
     local secrets_file=".secrets.$env"
@@ -201,10 +173,6 @@ deploy_remote() {
     local image_tag
     image_tag=$(build_and_push_image "$env")
     
-    # Setup Docker context
-    local context_name
-    context_name=$(setup_docker_context "$env")
-    
     # Create environment file
     create_env_file "$env"
 
@@ -283,6 +251,13 @@ REMOTE_COMPOSE
     # Deploy using SSH
     status "Deploying to $env environment..."
 
+    # Authenticate remote server with GHCR before pulling images
+    status "Authenticating remote server with GHCR..."
+    GHCR_USERNAME=$(grep "^GHCR_USERNAME=" "$secrets_file" | cut -d= -f2)
+    GHCR_TOKEN=$(grep "^GHCR_TOKEN=" "$secrets_file" | cut -d= -f2)
+    ssh -i "$expanded_ssh_key_path" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        ubuntu@$SERVER_IP "echo '$GHCR_TOKEN' | docker login ghcr.io -u '$GHCR_USERNAME' --password-stdin"
+
     # Run docker compose on remote server using the clean compose file
     ssh -i "$expanded_ssh_key_path" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         ubuntu@$SERVER_IP "cd ~/cogni-deploy && API_IMAGE='ghcr.io/cogni-1729/cogni-backend:latest' DOLT_IMAGE='ghcr.io/cogni-1729/cogni-dolt:latest' docker compose up -d --pull always"
@@ -311,9 +286,10 @@ REMOTE_COMPOSE
                     status "✅ $env deployment successful!"
                     rm -f /tmp/remote_health_response.json
                     
-                    # Cleanup old images
+                    # Cleanup old images using direct SSH
                     status "Cleaning up old images..."
-                    docker --context "$context_name" image prune -f
+                    ssh -i "$expanded_ssh_key_path" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+                        ubuntu@$SERVER_IP "docker image prune -f"
                     break
                 else
                     echo "⏳ Remote API responding but status is: $health_status (attempt $i/20)"
@@ -323,9 +299,10 @@ REMOTE_COMPOSE
                 status "✅ $env deployment successful! (200 OK)"
                 rm -f /tmp/remote_health_response.json
                 
-                # Cleanup old images
+                # Cleanup old images using direct SSH
                 status "Cleaning up old images..."
-                docker --context "$context_name" image prune -f
+                ssh -i "$expanded_ssh_key_path" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+                    ubuntu@$SERVER_IP "docker image prune -f"
                 break
             fi
         elif [ $i -eq 20 ]; then
@@ -363,13 +340,19 @@ cleanup_remote() {
         fi
     fi
     
-    # Setup Docker context
-    local context_name
-    context_name=$(setup_docker_context "$env")
+    # Load server details
+    SERVER_IP=$(grep "^SERVER_IP=" "$secrets_file" | cut -d= -f2)
+    SSH_KEY_PATH=$(grep "^SSH_KEY_PATH=" "$secrets_file" | cut -d= -f2)
+    eval expanded_ssh_key_path=$SSH_KEY_PATH
     
     status "Cleaning up $env environment..."
-    docker --context "$context_name" system prune -f
-    docker --context "$context_name" image prune -a -f
+    
+    # Use direct SSH commands instead of Docker contexts
+    ssh -i "$expanded_ssh_key_path" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        ubuntu@$SERVER_IP "docker system prune -f"
+        
+    ssh -i "$expanded_ssh_key_path" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        ubuntu@$SERVER_IP "docker image prune -a -f"
     
     status "✅ Cleanup completed for $env environment"
 }
