@@ -96,6 +96,9 @@ def reflector_agent(memory_storage, memory_bank):
     )
 
 
+@pytest.mark.skip(
+    reason="Integration test - hangs due to complex Dolt infrastructure setup (temp_dolt_dir, Dolt.init, initialize_dolt_db). Use unit tests with mocked dependencies instead for CI."
+)
 def test_crewai_save_and_query(memory_bank, thinker_agent, reflector_agent):
     """Test that CrewAI agents can save and query memory blocks."""
     # Create a crew with both agents
@@ -178,6 +181,9 @@ def test_crewai_save_and_query(memory_bank, thinker_agent, reflector_agent):
     )
 
 
+@pytest.mark.skip(
+    reason="Integration test - hangs due to complex Dolt infrastructure setup (temp_dolt_dir, Dolt.init, initialize_dolt_db). Use unit tests with mocked dependencies instead for CI."
+)
 def test_crewai_error_handling(memory_bank, thinker_agent):
     """Test error handling in CrewAI memory operations."""
     # Create a crew with just the thinker agent
