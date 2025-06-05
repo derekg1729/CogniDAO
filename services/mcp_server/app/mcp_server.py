@@ -72,14 +72,11 @@ logger = logging.getLogger(__name__)
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.append(str(project_root))
 
-
-# Initialize StructuredMemoryBank using environment variable
-# COGNI_DOLT_DIR = "/Users/derek/dev/cogni/data/blocks/memory_dolt"  # Removed hardcoded path
+# Initialize StructuredMemoryBank using environment variables
 CHROMA_PATH = os.environ.get("CHROMA_PATH", "/tmp/cogni_chroma")  # Make configurable
 CHROMA_COLLECTION_NAME = os.environ.get("CHROMA_COLLECTION_NAME", "cogni_mcp_collection")
 
 # Ensure directories exist
-# os.makedirs(COGNI_DOLT_DIR, exist_ok=True)  # Commented out since not using local Dolt dir
 os.makedirs(CHROMA_PATH, exist_ok=True)
 
 try:

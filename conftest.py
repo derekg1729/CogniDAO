@@ -17,7 +17,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 # Configure pytest
-pytest_plugins = []
+pytest_plugins = ["infra_core.memory_system.tests.conftest"]
 
 
 # === General Testing Fixtures ===
@@ -83,6 +83,77 @@ def temp_chroma_db(tmp_path_factory):
 # === MCP Server Testing Fixtures ===
 
 
+# Shared MCP Server Mocking Fixtures (using proven working pattern)
+@pytest.fixture(autouse=True)
+def mock_mysql_connect_for_mcp_server(monkeypatch):
+    """
+    Replace mysql.connector.connect with a dummy connection for MCP server tests.
+    This prevents sys.exit(1) during module import when tests run.
+    Uses the proven working pattern from test_mcp_poc_dry.py.
+    """
+    dummy_conn = MagicMock()
+    dummy_cursor = MagicMock()
+    dummy_cursor.execute.return_value = None
+    dummy_cursor.fetchone.return_value = (1,)
+    dummy_conn.cursor.return_value = dummy_cursor
+
+    # Patch the connect() call globally for all MCP server tests
+    monkeypatch.setattr("mysql.connector.connect", lambda **kwargs: dummy_conn)
+    yield
+
+
+@pytest.fixture(autouse=True)
+def mock_structured_memory_bank_for_mcp_server(monkeypatch):
+    """
+    Replace StructuredMemoryBank and SQLLinkManager with MagicMocks for MCP server tests.
+    This ensures MCP tools work without real persistence layers during testing.
+    Uses the proven working pattern from test_mcp_poc_dry.py with enhanced return values
+    for Pydantic validation compatibility.
+    """
+    from infra_core.memory_system.link_manager import LinkManager
+
+    dummy_bank = MagicMock()
+    dummy_link_mgr = MagicMock()
+
+    # Make isinstance(link_manager, LinkManager) return True for validation
+    dummy_link_mgr.__class__ = LinkManager
+
+    # Configure get_all_links to return properly structured data instead of MagicMock
+    class MockLinkResult:
+        def __init__(self):
+            self.links = []  # Empty list instead of MagicMock
+            self.next_cursor = None  # None instead of MagicMock (Pydantic expects str|None)
+
+    dummy_link_mgr.get_all_links.return_value = MockLinkResult()
+
+    # Configure the dummy_bank to have a link_manager attribute pointing to dummy_link_mgr
+    dummy_bank.link_manager = dummy_link_mgr
+
+    # Patch the constructors globally for all MCP server tests
+    monkeypatch.setattr(
+        "infra_core.memory_system.structured_memory_bank.StructuredMemoryBank",
+        lambda *args, **kwargs: dummy_bank,
+    )
+    monkeypatch.setattr(
+        "infra_core.memory_system.sql_link_manager.SQLLinkManager",
+        lambda *args, **kwargs: dummy_link_mgr,
+    )
+    yield
+
+
+@pytest.fixture
+def mcp_app():
+    """
+    Import and reload the MCP server so that mocks apply at module-load time.
+    This uses the proven working pattern from test_mcp_poc_dry.py.
+    Tests should use this fixture to get a properly mocked MCP server module.
+    """
+    import importlib
+    import services.mcp_server.app.mcp_server as app_module
+
+    return importlib.reload(app_module)
+
+
 @pytest.fixture
 def sample_work_item_input():
     """Sample input for creating a work item."""
@@ -108,6 +179,16 @@ def sample_memory_block_input(sample_block_id):
         "text": "Updated text content",
         "tags": ["test", "updated"],
         "change_note": "Test update",
+    }
+
+
+@pytest.fixture
+def sample_memory_block_update():
+    """Sample memory block update data."""
+    return {
+        "text": "Updated text content",
+        "tags": ["updated", "test"],
+        "metadata": {"source": "test", "priority": "high"},
     }
 
 
@@ -247,118 +328,3 @@ def test_storage_dirs():
     finally:
         shutil.rmtree(chroma_dir)
         shutil.rmtree(archive_dir)
-
-
-@pytest.fixture(scope="module")
-def temp_memory_bank():
-    """Create a StructuredMemoryBank using the working pattern from memory system tests."""
-    from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
-    import tempfile
-
-    # Create temporary paths
-    with tempfile.TemporaryDirectory(prefix="test_dolt_") as temp_dolt_dir:
-        with tempfile.TemporaryDirectory(prefix="test_chroma_") as temp_chroma_dir:
-            # Import and run the setup from memory system conftest
-            from infra_core.memory_system.initialize_dolt import initialize_dolt_db
-            from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
-            from infra_core.memory_system.dolt_schema_manager import register_all_metadata_schemas
-            import subprocess
-            import socket
-            from pathlib import Path
-
-            # Initialize Dolt repo
-            success = initialize_dolt_db(temp_dolt_dir)
-            assert success, f"Failed to initialize Dolt database in {temp_dolt_dir}"
-
-            # CRITICAL: Register all metadata schemas
-            registration = register_all_metadata_schemas(db_path=temp_dolt_dir)
-            assert all(registration.values()), f"Schema registration failed: {registration}"
-
-            # Commit the initial schema
-            subprocess.run(
-                ["dolt", "add", "."],
-                cwd=temp_dolt_dir,
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            subprocess.run(
-                ["dolt", "commit", "-m", "Initial schema for test database"],
-                cwd=temp_dolt_dir,
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-
-            # Find free port and start dolt sql-server
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(("", 0))
-                s.listen(1)
-                port = s.getsockname()[1]
-
-            host = "localhost"
-            database_name = Path(temp_dolt_dir).name
-
-            # Start dolt sql-server
-            process = subprocess.Popen(
-                ["dolt", "sql-server", f"--host={host}", f"--port={port}", "--no-auto-commit"],
-                cwd=temp_dolt_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-
-            # Wait for server to start
-            import time
-
-            for retry in range(5):
-                try:
-                    import mysql.connector
-
-                    conn = mysql.connector.connect(
-                        host=host,
-                        port=port,
-                        user="root",
-                        password="",
-                        database=database_name,
-                        connection_timeout=2,
-                    )
-                    conn.close()
-                    break
-                except Exception:
-                    if retry == 4:
-                        process.terminate()
-                        process.wait()
-                        raise RuntimeError(f"Dolt SQL server failed to start on port {port}")
-                    time.sleep(0.5)
-
-            try:
-                # Create connection config
-                dolt_config = DoltConnectionConfig(
-                    host=host,
-                    port=port,
-                    user="root",
-                    password="",
-                    database=database_name,
-                )
-
-                # Create StructuredMemoryBank
-                bank = StructuredMemoryBank(
-                    chroma_path=temp_chroma_dir,
-                    chroma_collection="test_collection",
-                    dolt_connection_config=dolt_config,
-                    branch="main",
-                )
-
-                # Initialize and attach SQLLinkManager (like MCP server does)
-                from infra_core.memory_system.sql_link_manager import SQLLinkManager
-
-                link_manager = SQLLinkManager(dolt_config)
-                bank.link_manager = link_manager
-
-                yield bank
-
-            finally:
-                # Cleanup: terminate the server
-                process.terminate()
-                process.wait()
