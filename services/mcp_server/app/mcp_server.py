@@ -497,15 +497,6 @@ async def create_memory_block(input):
         return {"error": str(e)}
 
 
-class HealthCheckOutput:
-    """Simple health check output."""
-
-    def __init__(self, healthy: bool, memory_bank_status: str, link_manager_status: str):
-        self.healthy = healthy
-        self.memory_bank_status = memory_bank_status
-        self.link_manager_status = link_manager_status
-
-
 # Register a health check tool
 @mcp.tool("HealthCheck")
 async def health_check():
@@ -513,11 +504,12 @@ async def health_check():
     memory_bank_ok = memory_bank is not None
     link_manager_ok = link_manager is not None and pm_links is not None
 
-    return HealthCheckOutput(
-        healthy=memory_bank_ok and link_manager_ok,
-        memory_bank_status="initialized" if memory_bank_ok else "not_initialized",
-        link_manager_status="initialized" if link_manager_ok else "not_initialized",
-    )
+    return {
+        "healthy": memory_bank_ok and link_manager_ok,
+        "memory_bank_status": "initialized" if memory_bank_ok else "not_initialized",
+        "link_manager_status": "initialized" if link_manager_ok else "not_initialized",
+        "timestamp": datetime.now().isoformat(),
+    }
 
 
 # initial JSON for local MCP server:
