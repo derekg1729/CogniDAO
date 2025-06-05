@@ -53,6 +53,11 @@ from infra_core.memory_system.tools.agent_facing.delete_memory_block_tool import
     delete_memory_block_tool,
     DeleteMemoryBlockToolInput,
 )
+from infra_core.memory_system.tools.memory_core.query_memory_blocks_tool import (
+    query_memory_blocks_core,
+    QueryMemoryBlocksInput,
+    QueryMemoryBlocksOutput,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -262,8 +267,41 @@ async def get_active_work_items(input):
         return GetActiveWorkItemsOutput(
             success=False,
             work_items=[],
-            total_count=0,
             error=f"Error retrieving active work items: {str(e)}",
+            timestamp=datetime.now(),
+        ).model_dump(mode="json")
+
+
+# Register the QueryMemoryBlocksSemantic tool
+@mcp.tool("QueryMemoryBlocksSemantic")
+async def query_memory_blocks_semantic(input):
+    """Query memory blocks using semantic search with chroma vector database
+
+    Semantic Search with Filters:
+        query_text: Text to search for semantically (required)
+        type_filter: Optional filter by block type (knowledge, task, project, doc, interaction, bug, epic)
+        tag_filters: Optional list of tags to filter by (all must match)
+        metadata_filters: Optional metadata key-value pairs to filter by (exact matches)
+        top_k: Maximum number of results to return (1-20, default: 5)
+
+    Output contains 'blocks' array of semantically relevant memory blocks.
+    """
+    try:
+        # Parse dict input into Pydantic model
+        input_data = QueryMemoryBlocksInput(**input)
+
+        # Execute the core query function
+        result = query_memory_blocks_core(input_data, memory_bank)
+
+        # Return the complete result
+        return result.model_dump(mode="json")
+
+    except Exception as e:
+        logger.error(f"Error in QueryMemoryBlocksSemantic MCP tool: {e}")
+        return QueryMemoryBlocksOutput(
+            success=False,
+            blocks=[],
+            error=f"Error performing semantic search: {str(e)}",
             timestamp=datetime.now(),
         ).model_dump(mode="json")
 
