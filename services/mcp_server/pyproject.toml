@@ -10,6 +10,7 @@ dependencies = [
     "pydantic",
     "pydantic-settings",
     "doltpy",
+    "mysql-connector-python",
     "llama-index==0.12.32",
     "llama-index-core==0.12.32",
     "chromadb==1.0.8",

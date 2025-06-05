@@ -69,13 +69,13 @@ sys.path.append(str(project_root))
 
 
 # Initialize StructuredMemoryBank using environment variable
-COGNI_DOLT_DIR = "/Users/derek/dev/cogni/data/blocks/memory_dolt"
-CHROMA_PATH = "/Users/derek/dev/cogni/data/memory_chroma"
+# COGNI_DOLT_DIR = "/Users/derek/dev/cogni/data/blocks/memory_dolt"  # Removed hardcoded path
+CHROMA_PATH = os.environ.get("CHROMA_PATH", "/tmp/cogni_chroma")  # Make configurable
 CHROMA_COLLECTION_NAME = os.environ.get("CHROMA_COLLECTION_NAME", "cogni_mcp_collection")
 
-# # Ensure directories exist
-# os.makedirs(COGNI_DOLT_DIR, exist_ok=True)
-# os.makedirs(CHROMA_PATH, exist_ok=True)
+# Ensure directories exist
+# os.makedirs(COGNI_DOLT_DIR, exist_ok=True)  # Commented out since not using local Dolt dir
+os.makedirs(CHROMA_PATH, exist_ok=True)
 
 try:
     # Initialize MySQL connection config for remote Dolt SQL server
@@ -84,8 +84,36 @@ try:
         port=int(os.environ.get("DOLT_PORT", "3306")),
         user=os.environ.get("DOLT_USER", "root"),
         password=os.environ.get("DOLT_PASSWORD", ""),
-        database=os.environ.get("DOLT_DATABASE", "memory_dolt"),
+        database=os.environ.get(
+            "DOLT_DATABASE", "cogni-dao-memory"
+        ),  # Fixed default to match production
     )
+
+    # Test database connection before proceeding
+    logger.info(f"Testing database connection to {dolt_config.host}:{dolt_config.port}")
+    try:
+        import mysql.connector
+
+        test_conn = mysql.connector.connect(
+            host=dolt_config.host,
+            port=dolt_config.port,
+            user=dolt_config.user,
+            password=dolt_config.password,
+            database=dolt_config.database,
+            connect_timeout=5,
+        )
+        cursor = test_conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.fetchone()
+        cursor.close()
+        test_conn.close()
+        logger.info("✅ Database connection successful")
+    except Exception as db_error:
+        logger.error(f"❌ Database connection failed: {db_error}")
+        logger.error(
+            f"Config: host={dolt_config.host}, port={dolt_config.port}, user={dolt_config.user}, database={dolt_config.database}"
+        )
+        raise
 
     # Initialize memory bank
     memory_bank = StructuredMemoryBank(
