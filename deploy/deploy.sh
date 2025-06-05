@@ -94,6 +94,7 @@ deploy_local() {
     
     # Create local .env if it doesn't exist
     if [ ! -f "$ENV_FILE" ]; then
+        # NOTE: These are INTENTIONAL dummy values for basic functionality:
         cat > "$ENV_FILE" << EOF
 COGNI_API_KEY=local-dev-key
 OPENAI_API_KEY=dummy-key
