@@ -1,6 +1,22 @@
 {
   "head": "refs/heads/main",
   "remotes": {
+    "container": {
+      "name": "container",
+      "url": "file:///Users/derek/dev/cogni/docker-volumes/dolt-data/dolthub-dbs/cogni/cogni-dao-memory",
+      "fetch_specs": [
+        "refs/heads/*:refs/remotes/container/*"
+      ],
+      "params": {}
+    },
+    "container_db": {
+      "name": "container_db",
+      "url": "https://root:kXMnM6firYohXzK+2r0E0DmSjOl6g3A2SmXc6ALDOlA=@localhost:3306/memory",
+      "fetch_specs": [
+        "refs/heads/*:refs/remotes/container_db/*"
+      ],
+      "params": {}
+    },
     "origin": {
       "name": "origin",
       "url": "https://doltremoteapi.dolthub.com/cogni/cogni-dao-memory",

@@ -88,6 +88,7 @@ class StructuredMemoryBank:
         chroma_collection: str,
         dolt_connection_config: DoltConnectionConfig,
         branch: str = "main",
+        auto_commit: bool = True,
     ):
         """
         Initializes the StructuredMemoryBank.
@@ -97,8 +98,11 @@ class StructuredMemoryBank:
             chroma_collection: Name of the ChromaDB collection.
             dolt_connection_config: Configuration for MySQL connection to remote Dolt SQL server.
             branch: Default branch to use for operations (default: "main").
+            auto_commit: Whether to automatically commit changes after successful operations (default: True).
+                        When False, changes remain in working set until explicit commit via MCP tools.
         """
         self.branch = branch
+        self.auto_commit = auto_commit
         self.connection_config = dolt_connection_config
 
         # Initialize secure MySQL-based Dolt connections
@@ -284,45 +288,54 @@ class StructuredMemoryBank:
 
             # Step 3: Handle success or failure path
             if llama_success:
-                # Both operations succeeded - commit the Dolt changes
-                try:
-                    commit_msg = f"Create memory block {block.id}"
-                    commit_success, commit_hash = self.dolt_writer.commit_changes(
-                        commit_msg=commit_msg, tables=tables
-                    )
-
-                    if commit_success:
-                        logger.info(f"Successfully created and indexed memory block: {block.id}")
-                        self._store_block_proof(block.id, "create", commit_hash)
-                        return True
-                    else:
-                        # Commit failed - attempt rollback
-                        logger.error(
-                            f"Failed to commit Dolt changes for block {block.id}. Attempting rollback."
+                # Both operations succeeded - commit the Dolt changes if auto_commit is enabled
+                if self.auto_commit:
+                    try:
+                        commit_msg = f"Create memory block {block.id}"
+                        commit_success, commit_hash = self.dolt_writer.commit_changes(
+                            commit_msg=commit_msg, tables=tables
                         )
 
-                        # Rollback Dolt changes
-                        try:
-                            self.dolt_writer.discard_changes(tables)
+                        if commit_success:
                             logger.info(
-                                f"Successfully rolled back Dolt changes for block {block.id}"
+                                f"Successfully created and indexed memory block: {block.id}"
                             )
-                        except Exception as rollback_e:
-                            logger.critical(
-                                f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
-                            )
-                            self._mark_inconsistent(
-                                f"Dolt commit failed and rollback failed for block {block.id}"
+                            self._store_block_proof(block.id, "create", commit_hash)
+                            return True
+                        else:
+                            # Commit failed - attempt rollback
+                            logger.error(
+                                f"Failed to commit Dolt changes for block {block.id}. Attempting rollback."
                             )
 
+                            # Rollback Dolt changes
+                            try:
+                                self.dolt_writer.discard_changes(tables)
+                                logger.info(
+                                    f"Successfully rolled back Dolt changes for block {block.id}"
+                                )
+                            except Exception as rollback_e:
+                                logger.critical(
+                                    f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
+                                )
+                                self._mark_inconsistent(
+                                    f"Dolt commit failed and rollback failed for block {block.id}"
+                                )
+
+                            return False
+
+                    except Exception as commit_e:
+                        logger.error(
+                            f"Unexpected error during commit for block {block.id}: {commit_e}",
+                            exc_info=True,
+                        )
                         return False
-
-                except Exception as commit_e:
-                    logger.error(
-                        f"Unexpected error during commit for block {block.id}: {commit_e}",
-                        exc_info=True,
+                else:
+                    # Auto-commit disabled - operation succeeded but changes remain uncommitted
+                    logger.info(
+                        f"Successfully created memory block {block.id} (uncommitted - auto_commit=False)"
                     )
-                    return False
+                    return True
 
             else:
                 # LlamaIndex operation failed - rollback Dolt changes
@@ -464,45 +477,54 @@ class StructuredMemoryBank:
 
             # Step 3: Handle success or failure path
             if llama_success:
-                # Both operations succeeded - commit the Dolt changes
-                try:
-                    commit_msg = f"Update memory block {block.id}"
-                    commit_success, commit_hash = self.dolt_writer.commit_changes(
-                        commit_msg=commit_msg, tables=tables
-                    )
-
-                    if commit_success:
-                        logger.info(f"Successfully updated and indexed memory block: {block.id}")
-                        self._store_block_proof(block.id, "update", commit_hash)
-                        return True
-                    else:
-                        # Commit failed - attempt rollback
-                        logger.error(
-                            f"Failed to commit Dolt changes for block {block.id}. Attempting rollback."
+                # Both operations succeeded - commit the Dolt changes if auto_commit is enabled
+                if self.auto_commit:
+                    try:
+                        commit_msg = f"Update memory block {block.id}"
+                        commit_success, commit_hash = self.dolt_writer.commit_changes(
+                            commit_msg=commit_msg, tables=tables
                         )
 
-                        # Rollback Dolt changes
-                        try:
-                            self.dolt_writer.discard_changes(tables)
+                        if commit_success:
                             logger.info(
-                                f"Successfully rolled back Dolt changes for block {block.id}"
+                                f"Successfully updated and indexed memory block: {block.id}"
                             )
-                        except Exception as rollback_e:
-                            logger.critical(
-                                f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
-                            )
-                            self._mark_inconsistent(
-                                f"Dolt commit failed and rollback failed for block {block.id}"
+                            self._store_block_proof(block.id, "update", commit_hash)
+                            return True
+                        else:
+                            # Commit failed - attempt rollback
+                            logger.error(
+                                f"Failed to commit Dolt changes for block {block.id}. Attempting rollback."
                             )
 
+                            # Rollback Dolt changes
+                            try:
+                                self.dolt_writer.discard_changes(tables)
+                                logger.info(
+                                    f"Successfully rolled back Dolt changes for block {block.id}"
+                                )
+                            except Exception as rollback_e:
+                                logger.critical(
+                                    f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
+                                )
+                                self._mark_inconsistent(
+                                    f"Dolt commit failed and rollback failed for block {block.id}"
+                                )
+
+                            return False
+
+                    except Exception as commit_e:
+                        logger.error(
+                            f"Unexpected error during commit for block {block.id}: {commit_e}",
+                            exc_info=True,
+                        )
                         return False
-
-                except Exception as commit_e:
-                    logger.error(
-                        f"Unexpected error during commit for block {block.id}: {commit_e}",
-                        exc_info=True,
+                else:
+                    # Auto-commit disabled - operation succeeded but changes remain uncommitted
+                    logger.info(
+                        f"Successfully updated memory block {block.id} (uncommitted - auto_commit=False)"
                     )
-                    return False
+                    return True
 
             else:
                 # LlamaIndex operation failed - rollback Dolt changes
@@ -625,24 +647,51 @@ class StructuredMemoryBank:
 
             # Step 3: Handle success or failure path
             if llama_success:
-                # Both operations succeeded - commit the Dolt changes
-                try:
-                    commit_msg = f"Delete memory block {block_id}"
-                    commit_success, commit_hash = self.dolt_writer.commit_changes(
-                        commit_msg=commit_msg, tables=tables
-                    )
-
-                    if commit_success:
-                        logger.info(f"Successfully deleted memory block: {block_id}")
-                        self._store_block_proof(block_id, "delete", commit_hash)
-                        return True
-                    else:
-                        # Commit failed - attempt rollback
-                        logger.error(
-                            f"Failed to commit Dolt changes for deleted block {block_id}. Attempting rollback."
+                # Both operations succeeded - commit the Dolt changes if auto_commit is enabled
+                if self.auto_commit:
+                    try:
+                        commit_msg = f"Delete memory block {block_id}"
+                        commit_success, commit_hash = self.dolt_writer.commit_changes(
+                            commit_msg=commit_msg, tables=tables
                         )
 
-                        # Rollback Dolt changes - restore deleted block
+                        if commit_success:
+                            logger.info(f"Successfully deleted memory block: {block_id}")
+                            self._store_block_proof(block_id, "delete", commit_hash)
+                            return True
+                        else:
+                            # Commit failed - attempt rollback
+                            logger.error(
+                                f"Failed to commit Dolt changes for deleted block {block_id}. Attempting rollback."
+                            )
+
+                            # Rollback Dolt changes - restore deleted block
+                            try:
+                                self.dolt_writer.discard_changes(tables)
+                                logger.info(
+                                    f"Successfully rolled back Dolt deletion for block {block_id}."
+                                )
+                            except Exception as rollback_e:
+                                logger.critical(
+                                    f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
+                                )
+                                self._mark_inconsistent(
+                                    f"Dolt commit failed and rollback failed for deleted block {block_id}"
+                                )
+
+                            return False
+                    except Exception as commit_e:
+                        logger.error(
+                            f"Exception during Dolt commit for deleted block {block_id}: {commit_e}",
+                            exc_info=True,
+                        )
+
+                        # Rollback LlamaIndex changes - would need to re-add the original block
+                        logger.warning(
+                            f"LlamaIndex deletion of block {block_id} cannot be automatically rolled back."
+                        )
+
+                        # Rollback Dolt changes
                         try:
                             self.dolt_writer.discard_changes(tables)
                             logger.info(
@@ -657,30 +706,12 @@ class StructuredMemoryBank:
                             )
 
                         return False
-                except Exception as commit_e:
-                    logger.error(
-                        f"Exception during Dolt commit for deleted block {block_id}: {commit_e}",
-                        exc_info=True,
+                else:
+                    # Auto-commit disabled - operation succeeded but changes remain uncommitted
+                    logger.info(
+                        f"Successfully deleted memory block {block_id} (uncommitted - auto_commit=False)"
                     )
-
-                    # Rollback LlamaIndex changes - would need to re-add the original block
-                    logger.warning(
-                        f"LlamaIndex deletion of block {block_id} cannot be automatically rolled back."
-                    )
-
-                    # Rollback Dolt changes
-                    try:
-                        self.dolt_writer.discard_changes(tables)
-                        logger.info(f"Successfully rolled back Dolt deletion for block {block_id}.")
-                    except Exception as rollback_e:
-                        logger.critical(
-                            f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
-                        )
-                        self._mark_inconsistent(
-                            f"Dolt commit failed and rollback failed for deleted block {block_id}"
-                        )
-
-                    return False
+                    return True
             else:
                 # LlamaIndex delete failed - rollback Dolt changes
                 try:
