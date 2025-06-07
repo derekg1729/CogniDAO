@@ -59,6 +59,20 @@ from infra_core.memory_system.tools.memory_core.query_memory_blocks_tool import 
     QueryMemoryBlocksInput,
     QueryMemoryBlocksOutput,
 )
+from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
+    dolt_repo_tool,
+    DoltCommitInput,
+    DoltCommitOutput,
+    dolt_push_tool,
+    DoltPushInput,
+    DoltPushOutput,
+    dolt_status_tool,
+    DoltStatusInput,
+    DoltStatusOutput,
+    dolt_pull_tool,
+    DoltPullInput,
+    DoltPullOutput,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -500,6 +514,152 @@ async def create_memory_block(input):
     except Exception as e:
         logger.error(f"Error creating memory block: {e}")
         return {"error": str(e)}
+
+
+# Register the DoltCommit tool
+@mcp.tool("DoltCommit")
+async def dolt_commit(input):
+    """Commit working changes to Dolt using the memory bank's writer
+
+    Args:
+        commit_message: Commit message for the Dolt changes (required, 1-500 chars)
+        tables: Optional list of specific tables to add/commit. If not provided, all standard tables will be committed
+        author: Optional author attribution for the commit (max 100 chars)
+
+    Returns:
+        success: Whether the commit operation succeeded
+        commit_hash: The Dolt commit hash if successful
+        message: Human-readable result message
+        tables_committed: List of tables that were committed
+        error: Error message if operation failed
+        timestamp: Timestamp of operation
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = DoltCommitInput(**input)
+        result = dolt_repo_tool(parsed_input, memory_bank=memory_bank)
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error in DoltCommit MCP tool: {e}")
+        return DoltCommitOutput(
+            success=False,
+            message=f"Commit failed: {str(e)}",
+            error=f"Error during dolt_commit: {str(e)}",
+        ).model_dump(mode="json")
+
+
+# Register the DoltPush tool
+@mcp.tool("DoltPush")
+async def dolt_push(input):
+    """Push changes to a remote repository using the memory bank's writer
+
+    Args:
+        remote_name: Name of the remote to push to (e.g., 'origin') (required, 1-100 chars)
+        branch: Branch to push (default: 'main') (1-100 chars)
+        force: Whether to force push, overriding safety checks (default: False)
+
+    Returns:
+        success: Whether the push operation succeeded
+        message: Human-readable result message
+        remote_name: Name of the remote that was pushed to
+        branch: Branch that was pushed
+        force: Whether force push was used
+        error: Error message if operation failed
+        timestamp: Timestamp of operation
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = DoltPushInput(**input)
+        result = dolt_push_tool(parsed_input, memory_bank=memory_bank)
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error in DoltPush MCP tool: {e}")
+        return DoltPushOutput(
+            success=False,
+            message=f"Push failed: {str(e)}",
+            remote_name=input.get("remote_name", "unknown"),
+            branch=input.get("branch", "main"),
+            force=input.get("force", False),
+            error=f"Error during dolt_push: {str(e)}",
+        ).model_dump(mode="json")
+
+
+# Register the DoltStatus tool
+@mcp.tool("DoltStatus")
+async def dolt_status(input):
+    """Get repository status using Dolt system tables
+
+    Returns:
+        current_branch: Current active branch
+        is_clean: True if working tree is clean
+        staged_tables: Tables with staged changes
+        unstaged_tables: Tables with unstaged changes
+        untracked_tables: New untracked tables
+        total_changes: Total number of changes
+        ahead: Commits ahead of remote
+        behind: Commits behind remote
+        conflicts: Tables with conflicts
+        message: Human-readable status summary
+        timestamp: Timestamp of operation
+    """
+    logger.info("DoltStatus MCP tool called")
+
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = DoltStatusInput(**input)
+        result = dolt_status_tool(parsed_input, memory_bank=memory_bank)
+        return result.model_dump(mode="json")
+
+    except Exception as e:
+        logger.error(f"Error in DoltStatus MCP tool: {e}")
+        return DoltStatusOutput(
+            current_branch="unknown",
+            is_clean=False,
+            total_changes=0,
+            message=f"Status check failed: {str(e)}",
+        ).model_dump(mode="json")
+
+
+# Register the DoltPull tool
+@mcp.tool("DoltPull")
+async def dolt_pull(input):
+    """Pull changes from a remote repository using the memory bank's writer
+
+    Args:
+        remote_name: Name of the remote to pull from (e.g., 'origin') (default: 'origin')
+        branch: Specific branch to pull (optional, defaults to tracking branch)
+        force: Whether to force pull, ignoring conflicts (default: False)
+        no_ff: Create a merge commit even for fast-forward merges (default: False)
+        squash: Merge changes to working set without updating commit history (default: False)
+
+    Returns:
+        success: Whether the pull operation succeeded
+        message: Human-readable result message
+        remote_name: Name of the remote that was pulled from
+        branch: Branch that was pulled (if specified)
+        force: Whether force pull was used
+        no_ff: Whether no-fast-forward was used
+        squash: Whether squash merge was used
+        error: Error message if operation failed
+        timestamp: Timestamp of operation
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = DoltPullInput(**input)
+        result = dolt_pull_tool(parsed_input, memory_bank=memory_bank)
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error in DoltPull MCP tool: {e}")
+        return DoltPullOutput(
+            success=False,
+            message=f"Pull failed: {str(e)}",
+            remote_name=input.get("remote_name", "origin"),
+            branch=input.get("branch", None),
+            force=input.get("force", False),
+            no_ff=input.get("no_ff", False),
+            squash=input.get("squash", False),
+            error=f"Error during dolt_pull: {str(e)}",
+        ).model_dump(mode="json")
 
 
 # Register a health check tool

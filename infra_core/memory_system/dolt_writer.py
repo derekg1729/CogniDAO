@@ -305,6 +305,174 @@ class DoltMySQLWriter(DoltMySQLBase):
         finally:
             connection.close()
 
+    def push_to_remote(
+        self, remote_name: str, branch: str = "main", force: bool = False
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Push changes to a remote repository using Dolt's DOLT_PUSH function.
+
+        Args:
+            remote_name: Name of the remote to push to (e.g., 'origin')
+            branch: Branch to push (default: "main")
+            force: Whether to force push, overriding safety checks (default: False)
+
+        Returns:
+            Tuple of (success: bool, message: Optional[str])
+        """
+        connection = self._get_connection()
+
+        try:
+            self._ensure_branch(connection, branch)
+            cursor = connection.cursor(dictionary=True)
+
+            # Build push command arguments
+            push_args = [remote_name, branch]
+            if force:
+                push_args.insert(0, "--force")  # Add --force flag at the beginning
+
+            logger.info(f"Pushing branch '{branch}' to remote '{remote_name}' (force={force})")
+
+            # Execute the push using DOLT_PUSH function
+            # DOLT_PUSH expects arguments as separate parameters
+            if force:
+                cursor.execute("CALL DOLT_PUSH(%s, %s, %s)", ("--force", remote_name, branch))
+            else:
+                cursor.execute("CALL DOLT_PUSH(%s, %s)", (remote_name, branch))
+
+            result = cursor.fetchall()  # Consume any results from DOLT_PUSH
+
+            # Check if push was successful by examining the result
+            # DOLT_PUSH typically returns status information
+            message = f"Successfully pushed branch '{branch}' to remote '{remote_name}'"
+
+            # If there are results, check for success indicators
+            if result:
+                # Log the result for debugging
+                logger.info(f"DOLT_PUSH result: {result}")
+
+            cursor.close()
+            logger.info(message)
+            return True, message
+
+        except Exception as e:
+            error_msg = f"Failed to push to remote '{remote_name}': {e}"
+            logger.error(error_msg, exc_info=True)
+            return False, error_msg
+        finally:
+            connection.close()
+
+    def pull_from_remote(
+        self,
+        remote_name: str = "origin",
+        branch: str = None,
+        force: bool = False,
+        no_ff: bool = False,
+        squash: bool = False,
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Pull changes from a remote repository using Dolt's DOLT_PULL function.
+
+        Args:
+            remote_name: Name of the remote to pull from (e.g., 'origin')
+            branch: Specific branch to pull (optional, defaults to tracking branch)
+            force: Whether to force pull, ignoring conflicts (default: False)
+            no_ff: Create a merge commit even for fast-forward merges (default: False)
+            squash: Merge changes to working set without updating commit history (default: False)
+
+        Returns:
+            Tuple of (success: bool, message: Optional[str])
+        """
+        connection = self._get_connection()
+
+        try:
+            cursor = connection.cursor(dictionary=True)
+
+            # Build pull command arguments list
+            pull_args = []
+
+            # Add flags before remote name
+            if force:
+                pull_args.append("--force")
+            if no_ff:
+                pull_args.append("--no-ff")
+            if squash:
+                pull_args.append("--squash")
+
+            # Add remote name
+            pull_args.append(remote_name)
+
+            # Add branch if specified
+            if branch:
+                pull_args.append(branch)
+
+            logger.info(
+                f"Pulling from remote '{remote_name}'"
+                + (f" branch '{branch}'" if branch else "")
+                + f" (force={force}, no_ff={no_ff}, squash={squash})"
+            )
+
+            # Execute the pull using DOLT_PULL function
+            # DOLT_PULL supports various argument combinations
+            if len(pull_args) == 1:  # Just remote name
+                cursor.execute("CALL DOLT_PULL(%s)", (pull_args[0],))
+            elif len(pull_args) == 2:  # Remote + branch or remote + flag
+                cursor.execute("CALL DOLT_PULL(%s, %s)", (pull_args[0], pull_args[1]))
+            elif len(pull_args) == 3:  # Flag + remote + branch
+                cursor.execute(
+                    "CALL DOLT_PULL(%s, %s, %s)", (pull_args[0], pull_args[1], pull_args[2])
+                )
+            elif len(pull_args) == 4:  # Multiple flags + remote + branch
+                cursor.execute(
+                    "CALL DOLT_PULL(%s, %s, %s, %s)",
+                    (pull_args[0], pull_args[1], pull_args[2], pull_args[3]),
+                )
+            elif len(pull_args) == 5:  # All flags + remote + branch
+                cursor.execute(
+                    "CALL DOLT_PULL(%s, %s, %s, %s, %s)",
+                    (pull_args[0], pull_args[1], pull_args[2], pull_args[3], pull_args[4]),
+                )
+
+            result = cursor.fetchall()  # Consume any results from DOLT_PULL
+
+            # Check if pull was successful by examining the result
+            # DOLT_PULL typically returns status information about fast_forward and conflicts
+            success = True
+            message = f"Successfully pulled from remote '{remote_name}'"
+
+            if branch:
+                message += f" branch '{branch}'"
+
+            # If there are results, check for conflicts or other information
+            if result:
+                logger.info(f"DOLT_PULL result: {result}")
+                # Extract useful information from result
+                for row in result:
+                    if isinstance(row, dict):
+                        if "conflicts" in row and row["conflicts"] and row["conflicts"] > 0:
+                            success = False
+                            message = f"Pull completed with {row['conflicts']} conflicts that need resolution"
+                        elif "fast_forward" in row:
+                            if row["fast_forward"]:
+                                message += " (fast-forward)"
+                            else:
+                                message += " (merge commit created)"
+
+            cursor.close()
+
+            if success:
+                logger.info(message)
+            else:
+                logger.warning(message)
+
+            return success, message
+
+        except Exception as e:
+            error_msg = f"Failed to pull from remote '{remote_name}': {e}"
+            logger.error(error_msg, exc_info=True)
+            return False, error_msg
+        finally:
+            connection.close()
+
     def write_block_proof(
         self, block_id: str, operation: str, commit_hash: str, branch: str = "main"
     ) -> bool:
