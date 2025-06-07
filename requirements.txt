@@ -1,7 +1,7 @@
 # Core dependencies
 prefect
 tweepy
-openai>=1.0.0
+openai>=1.0.0,<1.80.0
 PyGithub>=2.1.1
 python-dotenv # From experimental
 crewai>=0.1,<0.2  # For CrewAI adapter
@@ -43,8 +43,14 @@ mysql-connector-python  # MySQL connector for Dolt SQL server connections
 # Memory & Indexing (May move to separate requirements)
 llama-index
 llama-index-vector-stores-chroma
-llama-index-embeddings-openai
+llama-index-embeddings-huggingface  # For HuggingFace embedding models
 llama-index-readers-file
+
+# MCP (Model Context Protocol)
+fastmcp  # FastMCP server framework
+
+# Legacy dependencies
+python-frontmatter  # For parsing YAML frontmatter in markdown files
 
 # Utility & Dev
 aiofiles # for async file operations in FastAPI

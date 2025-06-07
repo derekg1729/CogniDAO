@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import importlib.util
 from pathlib import Path
 from datetime import datetime
 
@@ -68,6 +69,13 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+# Validate critical dependencies are available
+
+if importlib.util.find_spec("llama_index.embeddings.huggingface") is None:
+    logger.error("Critical dependency missing - llama_index.embeddings.huggingface")
+    sys.exit(1)
+
+
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.append(str(project_root))
@@ -85,7 +93,7 @@ try:
         host=os.environ.get("DOLT_HOST", "localhost"),
         port=int(os.environ.get("DOLT_PORT", "3306")),
         user=os.environ.get("DOLT_USER", "root"),
-        password=os.environ.get("DOLT_PASSWORD", ""),
+        password=os.environ.get("DOLT_ROOT_PASSWORD", ""),
         database=os.environ.get(
             "DOLT_DATABASE", "cogni-dao-memory"
         ),  # Fixed default to match production

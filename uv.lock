@@ -11,7 +11,7 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "cogni-adapters",
+    "cogni",
     "mcp-server",
 ]
 
@@ -436,7 +436,7 @@ wheels = [
 ]
 
 [[package]]
-name = "cogni-adapters"
+name = "cogni"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
@@ -451,6 +451,11 @@ autogen = [
     { name = "autogen-core" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "cogni" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "autogen-core", marker = "extra == 'autogen'" },
@@ -460,6 +465,9 @@ requires-dist = [
     { name = "rpds-py" },
 ]
 provides-extras = ["autogen"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "cogni", editable = "." }]
 
 [[package]]
 name = "colorama"
@@ -1682,8 +1690,8 @@ version = "0.1.0"
 source = { editable = "services/mcp_server" }
 dependencies = [
     { name = "chromadb" },
+    { name = "cogni" },
     { name = "doltpy" },
-    { name = "llama-index" },
     { name = "llama-index-core" },
     { name = "llama-index-embeddings-huggingface" },
     { name = "llama-index-vector-stores-chroma" },
@@ -1704,8 +1712,8 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "chromadb", specifier = "==1.0.8" },
+    { name = "cogni", editable = "." },
     { name = "doltpy" },
-    { name = "llama-index", specifier = "==0.12.32" },
     { name = "llama-index-core", specifier = "==0.12.32" },
     { name = "llama-index-embeddings-huggingface", specifier = "==0.5.4" },
     { name = "llama-index-vector-stores-chroma", specifier = "==0.4.1" },
