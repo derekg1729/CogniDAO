@@ -4,6 +4,7 @@ import logging
 import importlib.util
 from pathlib import Path
 from datetime import datetime
+import json
 
 from mcp.server.fastmcp import FastMCP
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
@@ -63,15 +64,13 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     dolt_repo_tool,
     DoltCommitInput,
     DoltCommitOutput,
-    dolt_push_tool,
-    DoltPushInput,
-    DoltPushOutput,
     dolt_status_tool,
     DoltStatusInput,
     DoltStatusOutput,
     dolt_pull_tool,
     DoltPullInput,
-    DoltPullOutput,
+    dolt_branch_tool,
+    DoltBranchInput,
 )
 
 # Configure logging
@@ -550,38 +549,45 @@ async def dolt_commit(input):
 
 # Register the DoltPush tool
 @mcp.tool("DoltPush")
-async def dolt_push(input):
-    """Push changes to a remote repository using the memory bank's writer
+async def mcp_dolt_push(
+    remote_name: str = "origin",
+    branch: str = "main",
+    force: bool = False,
+) -> str:
+    """
+    Push changes to a remote repository using Dolt.
 
     Args:
-        remote_name: Name of the remote to push to (e.g., 'origin') (required, 1-100 chars)
-        branch: Branch to push (default: 'main') (1-100 chars)
-        force: Whether to force push, overriding safety checks (default: False)
+        remote_name: Name of the remote to push to (default: 'origin')
+        branch: Branch to push (default: 'main')
+        force: Whether to force push, overriding safety checks
 
     Returns:
-        success: Whether the push operation succeeded
-        message: Human-readable result message
-        remote_name: Name of the remote that was pushed to
-        branch: Branch that was pushed
-        force: Whether force push was used
-        error: Error message if operation failed
-        timestamp: Timestamp of operation
+        JSON string with push results including success status and message
     """
     try:
-        # Parse dict input into Pydantic model
-        parsed_input = DoltPushInput(**input)
-        result = dolt_push_tool(parsed_input, memory_bank=memory_bank)
-        return result.model_dump(mode="json")
+        # Import the dolt_push_tool function and input model
+        from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
+            DoltPushInput,
+            dolt_push_tool,
+        )
+
+        # Create input object
+        input_data = DoltPushInput(
+            remote_name=remote_name,
+            branch=branch,
+            force=force,
+        )
+
+        # Execute the push operation
+        result = dolt_push_tool(input_data, memory_bank)
+
+        # Return JSON representation
+        return result.model_dump_json(indent=2)
+
     except Exception as e:
-        logger.error(f"Error in DoltPush MCP tool: {e}")
-        return DoltPushOutput(
-            success=False,
-            message=f"Push failed: {str(e)}",
-            remote_name=input.get("remote_name", "unknown"),
-            branch=input.get("branch", "main"),
-            force=input.get("force", False),
-            error=f"Error during dolt_push: {str(e)}",
-        ).model_dump(mode="json")
+        logger.error(f"Error in DoltPush tool: {e}", exc_info=True)
+        return json.dumps({"success": False, "error": str(e)}, indent=2)
 
 
 # Register the DoltStatus tool
@@ -622,43 +628,121 @@ async def dolt_status(input):
 
 # Register the DoltPull tool
 @mcp.tool("DoltPull")
-async def dolt_pull(input):
-    """Pull changes from a remote repository using the memory bank's writer
+async def mcp_dolt_pull(
+    remote_name: str = "origin",
+    branch: str = None,
+    force: bool = False,
+    no_ff: bool = False,
+    squash: bool = False,
+) -> str:
+    """
+    Pull changes from a remote repository using Dolt.
 
     Args:
-        remote_name: Name of the remote to pull from (e.g., 'origin') (default: 'origin')
-        branch: Specific branch to pull (optional, defaults to tracking branch)
-        force: Whether to force pull, ignoring conflicts (default: False)
-        no_ff: Create a merge commit even for fast-forward merges (default: False)
-        squash: Merge changes to working set without updating commit history (default: False)
+        remote_name: Name of the remote to pull from (default: 'origin')
+        branch: Specific branch to pull (optional)
+        force: Whether to force pull, ignoring conflicts
+        no_ff: Create a merge commit even for fast-forward merges
+        squash: Merge changes to working set without updating commit history
 
     Returns:
-        success: Whether the pull operation succeeded
+        JSON string with pull results including success status and message
+    """
+    try:
+        # Create input object
+        input_data = DoltPullInput(
+            remote_name=remote_name,
+            branch=branch,
+            force=force,
+            no_ff=no_ff,
+            squash=squash,
+        )
+
+        # Execute the pull operation
+        result = dolt_pull_tool(input_data, memory_bank)
+
+        # Return JSON representation
+        return result.model_dump_json(indent=2)
+
+    except Exception as e:
+        logger.error(f"Error in DoltPull tool: {e}", exc_info=True)
+        return json.dumps({"success": False, "error": str(e)}, indent=2)
+
+
+@mcp.tool("DoltBranch")
+async def mcp_dolt_branch(
+    branch_name: str,
+    start_point: str = None,
+    force: bool = False,
+) -> str:
+    """
+    Create a new branch using Dolt.
+
+    Args:
+        branch_name: Name of the new branch to create
+        start_point: Commit, branch, or tag to start the branch from (optional)
+        force: Whether to force creation, overriding safety checks
+
+    Returns:
+        JSON string with branch creation results including success status and message
+    """
+    try:
+        # Create input object
+        input_data = DoltBranchInput(
+            branch_name=branch_name,
+            start_point=start_point,
+            force=force,
+        )
+
+        # Execute the branch creation operation
+        result = dolt_branch_tool(input_data, memory_bank)
+
+        # Return JSON representation
+        return result.model_dump_json(indent=2)
+
+    except Exception as e:
+        logger.error(f"Error in DoltBranch tool: {e}", exc_info=True)
+        return json.dumps({"success": False, "error": str(e)}, indent=2)
+
+
+# Register the DoltListBranches tool
+@mcp.tool("DoltListBranches")
+async def dolt_list_branches(input):
+    """List all Dolt branches with their information
+
+    Returns:
+        success: Whether the operation succeeded
+        branches: List of branch information objects
+        current_branch: Currently active branch
         message: Human-readable result message
-        remote_name: Name of the remote that was pulled from
-        branch: Branch that was pulled (if specified)
-        force: Whether force pull was used
-        no_ff: Whether no-fast-forward was used
-        squash: Whether squash merge was used
-        error: Error message if operation failed
         timestamp: Timestamp of operation
     """
     try:
+        # Import the function locally for now
+        from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
+            DoltListBranchesInput,
+            DoltListBranchesOutput,
+            dolt_list_branches_tool,
+        )
+
         # Parse dict input into Pydantic model
-        parsed_input = DoltPullInput(**input)
-        result = dolt_pull_tool(parsed_input, memory_bank=memory_bank)
+        parsed_input = DoltListBranchesInput(**input)
+        result = dolt_list_branches_tool(parsed_input, memory_bank=memory_bank)
         return result.model_dump(mode="json")
+
     except Exception as e:
-        logger.error(f"Error in DoltPull MCP tool: {e}")
-        return DoltPullOutput(
+        logger.error(f"Error in DoltListBranches MCP tool: {e}")
+        # Import locally for error handling too
+        from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
+            DoltListBranchesOutput,
+        )
+
+        return DoltListBranchesOutput(
             success=False,
-            message=f"Pull failed: {str(e)}",
-            remote_name=input.get("remote_name", "origin"),
-            branch=input.get("branch", None),
-            force=input.get("force", False),
-            no_ff=input.get("no_ff", False),
-            squash=input.get("squash", False),
-            error=f"Error during dolt_pull: {str(e)}",
+            branches=[],
+            current_branch="unknown",
+            message=f"Failed to list branches: {str(e)}",
+            error=f"Error during branch listing: {str(e)}",
         ).model_dump(mode="json")
 
 

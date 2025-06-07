@@ -306,7 +306,11 @@ class DoltMySQLWriter(DoltMySQLBase):
             connection.close()
 
     def push_to_remote(
-        self, remote_name: str, branch: str = "main", force: bool = False
+        self,
+        remote_name: str,
+        branch: str = "main",
+        force: bool = False,
+        set_upstream: bool = False,
     ) -> Tuple[bool, Optional[str]]:
         """
         Push changes to a remote repository using Dolt's DOLT_PUSH function.
@@ -315,6 +319,7 @@ class DoltMySQLWriter(DoltMySQLBase):
             remote_name: Name of the remote to push to (e.g., 'origin')
             branch: Branch to push (default: "main")
             force: Whether to force push, overriding safety checks (default: False)
+            set_upstream: Whether to set up upstream tracking for the branch (default: False)
 
         Returns:
             Tuple of (success: bool, message: Optional[str])
@@ -325,19 +330,35 @@ class DoltMySQLWriter(DoltMySQLBase):
             self._ensure_branch(connection, branch)
             cursor = connection.cursor(dictionary=True)
 
-            # Build push command arguments
-            push_args = [remote_name, branch]
-            if force:
-                push_args.insert(0, "--force")  # Add --force flag at the beginning
+            # Build push command arguments list
+            push_args = []
 
-            logger.info(f"Pushing branch '{branch}' to remote '{remote_name}' (force={force})")
+            # Add flags first
+            if force:
+                push_args.append("--force")
+            if set_upstream:
+                push_args.append("--set-upstream")
+
+            # Add remote and branch
+            push_args.extend([remote_name, branch])
+
+            logger.info(
+                f"Pushing branch '{branch}' to remote '{remote_name}' (force={force}, set_upstream={set_upstream})"
+            )
 
             # Execute the push using DOLT_PUSH function
-            # DOLT_PUSH expects arguments as separate parameters
-            if force:
-                cursor.execute("CALL DOLT_PUSH(%s, %s, %s)", ("--force", remote_name, branch))
-            else:
-                cursor.execute("CALL DOLT_PUSH(%s, %s)", (remote_name, branch))
+            # DOLT_PUSH supports various argument combinations
+            if len(push_args) == 2:  # Just remote and branch
+                cursor.execute("CALL DOLT_PUSH(%s, %s)", (push_args[0], push_args[1]))
+            elif len(push_args) == 3:  # One flag + remote + branch
+                cursor.execute(
+                    "CALL DOLT_PUSH(%s, %s, %s)", (push_args[0], push_args[1], push_args[2])
+                )
+            elif len(push_args) == 4:  # Two flags + remote + branch
+                cursor.execute(
+                    "CALL DOLT_PUSH(%s, %s, %s, %s)",
+                    (push_args[0], push_args[1], push_args[2], push_args[3]),
+                )
 
             result = cursor.fetchall()  # Consume any results from DOLT_PUSH
 
@@ -432,7 +453,7 @@ class DoltMySQLWriter(DoltMySQLBase):
                     (pull_args[0], pull_args[1], pull_args[2], pull_args[3], pull_args[4]),
                 )
 
-            result = cursor.fetchall()  # Consume any results from DOLT_PULL
+            result = cursor.fetchall()
 
             # Check if pull was successful by examining the result
             # DOLT_PULL typically returns status information about fast_forward and conflicts
@@ -468,6 +489,91 @@ class DoltMySQLWriter(DoltMySQLBase):
 
         except Exception as e:
             error_msg = f"Failed to pull from remote '{remote_name}': {e}"
+            logger.error(error_msg, exc_info=True)
+            return False, error_msg
+        finally:
+            connection.close()
+
+    def create_branch(
+        self,
+        branch_name: str,
+        start_point: str = None,
+        force: bool = False,
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Create a new branch using Dolt's DOLT_BRANCH function.
+
+        Args:
+            branch_name: Name of the new branch to create
+            start_point: Commit, branch, or tag to start the branch from (optional, defaults to current HEAD)
+            force: Whether to force creation, overriding safety checks (default: False)
+
+        Returns:
+            Tuple of (success: bool, message: Optional[str])
+        """
+        connection = self._get_connection()
+
+        try:
+            cursor = connection.cursor(dictionary=True)
+
+            # Build branch command arguments list
+            branch_args = []
+
+            # Add force flag if specified
+            if force:
+                branch_args.append("--force")
+
+            # Add branch name
+            branch_args.append(branch_name)
+
+            # Add start point if specified
+            if start_point:
+                branch_args.append(start_point)
+
+            logger.info(
+                f"Creating branch '{branch_name}'"
+                + (f" from '{start_point}'" if start_point else " from current HEAD")
+                + f" (force={force})"
+            )
+
+            # Execute the branch creation using DOLT_BRANCH function
+            if len(branch_args) == 1:  # Just branch name
+                cursor.execute("CALL DOLT_BRANCH(%s)", (branch_args[0],))
+            elif len(branch_args) == 2:  # Branch name + start point OR force + branch name
+                cursor.execute("CALL DOLT_BRANCH(%s, %s)", (branch_args[0], branch_args[1]))
+            elif len(branch_args) == 3:  # Force + branch name + start point
+                cursor.execute(
+                    "CALL DOLT_BRANCH(%s, %s, %s)", (branch_args[0], branch_args[1], branch_args[2])
+                )
+
+            result = cursor.fetchall()
+
+            # Build success message after successful execution
+            message = f"Successfully created branch '{branch_name}'"
+            if start_point:
+                message += f" from '{start_point}'"
+
+            # If there are results, check for success indicators
+            if result:
+                logger.info(f"DOLT_BRANCH result: {result}")
+                # Check if result indicates an error
+                # Dolt typically returns empty result for successful branch creation
+                # If there's error content, it might indicate a problem
+                for row in result:
+                    if isinstance(row, dict) and any(
+                        "error" in str(v).lower() for v in row.values() if v
+                    ):
+                        error_msg = f"Branch creation failed: {row}"
+                        logger.error(error_msg)
+                        cursor.close()
+                        return False, error_msg
+
+            cursor.close()
+            logger.info(message)
+            return True, message
+
+        except Exception as e:
+            error_msg = f"Failed to create branch '{branch_name}': {e}"
             logger.error(error_msg, exc_info=True)
             return False, error_msg
         finally:

@@ -12,6 +12,10 @@ from datetime import datetime
 from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     dolt_repo_tool,
     DoltCommitInput,
+    dolt_branch_tool,
+    DoltBranchInput,
+    DoltListBranchesInput,
+    dolt_list_branches_tool,
 )
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
@@ -231,7 +235,7 @@ class TestDoltRepoTool:
         assert isinstance(serialized["timestamp"], str)  # datetime becomes string in JSON
 
     def test_empty_tables_list_uses_defaults(self, mock_memory_bank):
-        """Test that an empty tables list uses default tables."""
+        """Test that an empty tables list is passed through as-is (not replaced with defaults)."""
         memory_bank, mock_writer = mock_memory_bank
 
         # Mock successful commit
@@ -240,7 +244,7 @@ class TestDoltRepoTool:
         # Prepare input with empty tables list
         input_data = DoltCommitInput(
             commit_message="Empty tables test",
-            tables=[],  # Empty list should use defaults
+            tables=[],  # Empty list should be passed through as-is
         )
 
         # Execute tool
@@ -254,3 +258,261 @@ class TestDoltRepoTool:
         mock_writer.commit_changes.assert_called_once_with(
             commit_msg="Empty tables test", tables=[]
         )
+
+
+class TestDoltBranchTool:
+    """Test class for dolt_branch tool functionality."""
+
+    def test_successful_branch_creation_basic(self, mock_memory_bank):
+        """Test successful branch creation with basic parameters."""
+        memory_bank, mock_writer = mock_memory_bank
+
+        # Mock successful branch creation
+        mock_writer.create_branch.return_value = (
+            True,
+            "Branch 'feature-branch' created successfully",
+        )
+
+        # Prepare input
+        input_data = DoltBranchInput(branch_name="feature-branch")
+
+        # Execute tool
+        result = dolt_branch_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is True
+        assert result.branch_name == "feature-branch"
+        assert "Branch 'feature-branch' created successfully" in result.message
+        assert result.start_point is None
+        assert result.force is False
+        assert result.error is None
+        assert isinstance(result.timestamp, datetime)
+
+        # Verify mock calls
+        mock_writer.create_branch.assert_called_once_with(
+            branch_name="feature-branch",
+            start_point=None,
+            force=False,
+        )
+
+    def test_successful_branch_creation_with_start_point(self, mock_memory_bank):
+        """Test successful branch creation with start point."""
+        memory_bank, mock_writer = mock_memory_bank
+
+        # Mock successful branch creation
+        mock_writer.create_branch.return_value = (
+            True,
+            "Branch 'feature-from-main' created from 'main'",
+        )
+
+        # Prepare input with start point
+        input_data = DoltBranchInput(branch_name="feature-from-main", start_point="main")
+
+        # Execute tool
+        result = dolt_branch_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is True
+        assert result.branch_name == "feature-from-main"
+        assert result.start_point == "main"
+        assert result.force is False
+
+        # Verify mock calls
+        mock_writer.create_branch.assert_called_once_with(
+            branch_name="feature-from-main",
+            start_point="main",
+            force=False,
+        )
+
+    def test_successful_branch_creation_with_force(self, mock_memory_bank):
+        """Test successful branch creation with force flag."""
+        memory_bank, mock_writer = mock_memory_bank
+
+        # Mock successful branch creation
+        mock_writer.create_branch.return_value = (True, "Branch 'existing-branch' force created")
+
+        # Prepare input with force
+        input_data = DoltBranchInput(branch_name="existing-branch", force=True)
+
+        # Execute tool
+        result = dolt_branch_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is True
+        assert result.force is True
+
+        # Verify mock calls
+        mock_writer.create_branch.assert_called_once_with(
+            branch_name="existing-branch",
+            start_point=None,
+            force=True,
+        )
+
+    def test_failed_branch_creation(self, mock_memory_bank):
+        """Test failed branch creation operation."""
+        memory_bank, mock_writer = mock_memory_bank
+
+        # Mock failed branch creation
+        mock_writer.create_branch.return_value = (False, "Branch already exists")
+
+        # Prepare input
+        input_data = DoltBranchInput(branch_name="duplicate-branch")
+
+        # Execute tool
+        result = dolt_branch_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is False
+        assert result.branch_name == "duplicate-branch"
+        assert "Branch creation failed" in result.message
+        assert result.error == "Branch already exists"
+
+    def test_branch_creation_with_exception(self, mock_memory_bank):
+        """Test branch creation when an exception occurs."""
+        memory_bank, mock_writer = mock_memory_bank
+
+        # Mock exception during branch creation
+        mock_writer.create_branch.side_effect = Exception("Database connection failed")
+
+        # Prepare input
+        input_data = DoltBranchInput(branch_name="exception-branch")
+
+        # Execute tool
+        result = dolt_branch_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is False
+        assert result.branch_name == "exception-branch"
+        assert "Branch creation failed due to exception" in result.message
+        assert "Exception during branch creation" in result.error
+
+    def test_branch_input_validation_empty_name(self):
+        """Test input validation with empty branch name."""
+        with pytest.raises(ValueError):
+            DoltBranchInput(branch_name="")
+
+    def test_branch_input_validation_long_name(self):
+        """Test input validation with overly long branch name."""
+        long_name = "x" * 101  # Exceeds max_length of 100
+        with pytest.raises(ValueError):
+            DoltBranchInput(branch_name=long_name)
+
+    def test_branch_input_validation_valid_max_lengths(self):
+        """Test input validation with maximum allowed lengths."""
+        # Test maximum valid lengths
+        max_name = "x" * 100
+        max_start_point = "x" * 100
+
+        # Should not raise an exception
+        input_data = DoltBranchInput(
+            branch_name=max_name,
+            start_point=max_start_point,
+            force=True,
+        )
+
+        assert input_data.branch_name == max_name
+        assert input_data.start_point == max_start_point
+        assert input_data.force is True
+
+
+class TestDoltListBranchesTool:
+    """Test class for dolt_list_branches tool functionality."""
+
+    def test_successful_branch_listing(self, mock_memory_bank):
+        """Test successful branch listing operation."""
+        memory_bank, mock_writer = mock_memory_bank
+
+        # Mock branch listing result
+        mock_branches_data = [
+            {
+                "name": "main",
+                "hash": "abc123",
+                "latest_committer": "root",
+                "latest_committer_email": "root@example.com",
+                "latest_commit_date": datetime(2025, 6, 7, 12, 0, 0),
+                "latest_commit_message": "Initial commit",
+                "remote": "origin",
+                "branch": "main",
+                "dirty": 0,
+            },
+            {
+                "name": "feature/test",
+                "hash": "def456",
+                "latest_committer": "developer",
+                "latest_committer_email": "dev@example.com",
+                "latest_commit_date": datetime(2025, 6, 7, 13, 0, 0),
+                "latest_commit_message": "Feature work",
+                "remote": "",
+                "branch": "",
+                "dirty": 1,
+            },
+        ]
+
+        # Mock current branch query
+        mock_writer._execute_query.side_effect = [
+            [{"branch": "main"}],  # Current branch query
+            mock_branches_data,  # Branches query
+        ]
+
+        # Prepare input
+        input_data = DoltListBranchesInput()
+
+        # Execute tool
+        result = dolt_list_branches_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is True
+        assert result.current_branch == "main"
+        assert len(result.branches) == 2
+        assert result.branches[0].name == "main"
+        assert result.branches[0].dirty is False  # 0 becomes False
+        assert result.branches[1].name == "feature/test"
+        assert result.branches[1].dirty is True  # 1 becomes True
+        assert "Found 2 branches" in result.message
+        assert result.error is None
+
+        # Verify mock calls
+        assert mock_writer._execute_query.call_count == 2
+
+    def test_failed_branch_listing(self, mock_memory_bank):
+        """Test failed branch listing operation."""
+        memory_bank, mock_writer = mock_memory_bank
+
+        # Mock exception during branch listing
+        mock_writer._execute_query.side_effect = Exception("Database connection failed")
+
+        # Prepare input
+        input_data = DoltListBranchesInput()
+
+        # Execute tool
+        result = dolt_list_branches_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is False
+        assert result.current_branch == "unknown"
+        assert len(result.branches) == 0
+        assert "Failed to list branches" in result.message
+        assert "Exception during branch listing" in result.error
+
+    def test_empty_branch_listing(self, mock_memory_bank):
+        """Test branch listing with no branches."""
+        memory_bank, mock_writer = mock_memory_bank
+
+        # Mock empty branch listing result
+        mock_writer._execute_query.side_effect = [
+            [{"branch": "main"}],  # Current branch query
+            [],  # Empty branches query
+        ]
+
+        # Prepare input
+        input_data = DoltListBranchesInput()
+
+        # Execute tool
+        result = dolt_list_branches_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is True
+        assert result.current_branch == "main"
+        assert len(result.branches) == 0
+        assert "Found 0 branches" in result.message
+        assert result.error is None
