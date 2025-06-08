@@ -418,7 +418,7 @@ class DoltMySQLWriter(DoltMySQLBase):
     def pull_from_remote(
         self,
         remote_name: str = "origin",
-        branch: str = None,
+        branch: str = "main",
         force: bool = False,
         no_ff: bool = False,
         squash: bool = False,
@@ -521,6 +521,13 @@ class DoltMySQLWriter(DoltMySQLBase):
             return success, message
 
         except Exception as e:
+            error_str = str(e)
+            # "Everything up-to-date" is actually a success condition, not an error
+            # TODO: This is a hack to get around the fact that Dolt doesn't return a success code for this
+            if "Everything up-to-date" in error_str:
+                logger.info(f"Pull from remote '{remote_name}': Everything up-to-date")
+                return True, "Everything up-to-date"
+
             error_msg = f"Failed to pull from remote '{remote_name}': {e}"
             logger.error(error_msg, exc_info=True)
             return False, error_msg

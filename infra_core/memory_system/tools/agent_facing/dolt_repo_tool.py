@@ -125,9 +125,9 @@ class DoltPullInput(BaseModel):
         min_length=1,
         max_length=100,
     )
-    branch: Optional[str] = Field(
-        default=None,
-        description="Specific branch to pull (optional, defaults to tracking branch)",
+    branch: str = Field(
+        default="main",
+        description="Specific branch to pull (default: 'main')",
         min_length=1,
         max_length=100,
     )
@@ -151,7 +151,7 @@ class DoltPullOutput(BaseModel):
     success: bool = Field(..., description="Whether the pull operation succeeded")
     message: str = Field(..., description="Human-readable result message")
     remote_name: str = Field(..., description="Name of the remote that was pulled from")
-    branch: Optional[str] = Field(default=None, description="Branch that was pulled (if specified)")
+    branch: str = Field(..., description="Branch that was pulled")
     force: bool = Field(..., description="Whether force pull was used")
     no_ff: bool = Field(..., description="Whether no-fast-forward was used")
     squash: bool = Field(..., description="Whether squash merge was used")

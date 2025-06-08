@@ -632,7 +632,7 @@ async def dolt_status(input):
 @mcp.tool("DoltPull")
 async def mcp_dolt_pull(
     remote_name: str = "origin",
-    branch: str = None,
+    branch: str = "main",
     force: bool = False,
     no_ff: bool = False,
     squash: bool = False,
@@ -642,7 +642,7 @@ async def mcp_dolt_pull(
 
     Args:
         remote_name: Name of the remote to pull from (default: 'origin')
-        branch: Specific branch to pull (optional)
+        branch: Specific branch to pull (default: 'main')
         force: Whether to force pull, ignoring conflicts
         no_ff: Create a merge commit even for fast-forward merges
         squash: Merge changes to working set without updating commit history
