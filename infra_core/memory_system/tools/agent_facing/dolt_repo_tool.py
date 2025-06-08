@@ -101,6 +101,7 @@ class DoltStatusInput(BaseModel):
 class DoltStatusOutput(BaseModel):
     """Output model for the dolt_status tool."""
 
+    success: bool = Field(..., description="Whether the status operation succeeded")
     current_branch: str = Field(..., description="Current active branch")
     is_clean: bool = Field(..., description="True if working tree is clean")
     staged_tables: List[str] = Field(default=[], description="Tables with staged changes")
@@ -111,6 +112,7 @@ class DoltStatusOutput(BaseModel):
     behind: int = Field(default=0, description="Commits behind remote")
     conflicts: List[str] = Field(default=[], description="Tables with conflicts")
     message: str = Field(..., description="Human-readable status summary")
+    error: Optional[str] = Field(default=None, description="Error message if operation failed")
     timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
 
 
@@ -397,7 +399,23 @@ def dolt_status_tool(
 
             for row in status_result:
                 logger.info(f"Status row: {row}")
-                # Process status rows if any exist
+
+                # Process status row data - dolt_status returns: table_name, staged, status
+                table_name = row.get("table_name", "")
+                staged = row.get("staged", 0)  # 1 = staged, 0 = unstaged
+                status = row.get("status", "")
+
+                if table_name and status:
+                    if staged == 1:
+                        # Table has staged changes
+                        staged_tables.append(table_name)
+                    elif staged == 0:
+                        # Table has unstaged changes
+                        unstaged_tables.append(table_name)
+
+                    # Handle special status types
+                    if status == "conflict":
+                        conflicts.append(table_name)
 
         except Exception as e:
             logger.info(f"Status query failed (expected if clean): {e}")
@@ -414,6 +432,7 @@ def dolt_status_tool(
         logger.info(f"Repository status: {message}")
 
         return DoltStatusOutput(
+            success=True,
             current_branch=current_branch,
             is_clean=is_clean,
             staged_tables=staged_tables,
@@ -429,10 +448,12 @@ def dolt_status_tool(
         logger.error(error_msg, exc_info=True)
 
         return DoltStatusOutput(
+            success=False,
             current_branch="unknown",
             is_clean=False,
             total_changes=0,
             message=f"Status check failed: {str(e)}",
+            error=error_msg,
         )
 
 

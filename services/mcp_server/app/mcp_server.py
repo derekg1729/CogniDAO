@@ -619,10 +619,12 @@ async def dolt_status(input):
     except Exception as e:
         logger.error(f"Error in DoltStatus MCP tool: {e}")
         return DoltStatusOutput(
+            success=False,
             current_branch="unknown",
             is_clean=False,
             total_changes=0,
             message=f"Status check failed: {str(e)}",
+            error=str(e),
         ).model_dump(mode="json")
 
 
