@@ -260,15 +260,8 @@ class DoltMySQLWriter(DoltMySQLBase):
                 self._ensure_branch(connection, "main")
             cursor = connection.cursor(dictionary=True)
 
-            # Add specified tables or default ones
-            if tables:
-                # Build the DOLT_ADD call with proper argument placeholders
-                placeholders = ", ".join(["%s"] * len(tables))
-                cursor.execute(f"CALL DOLT_ADD({placeholders})", tuple(tables))
-                cursor.fetchall()  # Consume any results from DOLT_ADD
-            else:
-                cursor.execute("CALL DOLT_ADD('memory_blocks', 'block_properties', 'block_links')")
-                cursor.fetchall()  # Consume any results from DOLT_ADD
+            # NOTE: Staging should be handled by the `add_to_staging` method.
+            # This method should only be responsible for committing.
 
             # Commit changes
             cursor.execute("CALL DOLT_COMMIT('-m', %s)", (commit_msg,))
@@ -293,7 +286,10 @@ class DoltMySQLWriter(DoltMySQLBase):
                 connection.close()
 
     def add_to_staging(self, tables: List[str] = None) -> Tuple[bool, Optional[str]]:
-        """Add working changes to the staging area for the current session."""
+        """
+        Add working changes to the staging area for the current session.
+        This is a critical step before committing.
+        """
         if self._use_persistent and self._persistent_connection:
             connection = self._persistent_connection
             connection_is_persistent = True
@@ -316,8 +312,12 @@ class DoltMySQLWriter(DoltMySQLBase):
                 query = "CALL DOLT_ADD('-A')"
                 cursor.execute(query)
 
+            # The result MUST be consumed before committing the transaction.
             result = cursor.fetchall()
             status_row = result[0] if result else None
+
+            # The transaction must be committed for the staging to take effect.
+            connection.commit()
 
             # The procedure returns a 'status' column, 0 for success
             if status_row and status_row.get("status") == 0:
