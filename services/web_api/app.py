@@ -14,6 +14,7 @@ from services.web_api.models import ErrorResponse
 # Import memory components
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 from infra_core.memory_system.sql_link_manager import SQLLinkManager
+from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
 
 # Import routers
 from .routes import health as health_router
@@ -26,7 +27,6 @@ from .routes import links_router
 logger = logging.getLogger(__name__)
 
 # Define paths for memory and source data (moved from main.py)
-DOLT_DB_PATH = "data/blocks/memory_dolt"
 CHROMA_PATH = "data/memory_chroma"
 CHROMA_COLLECTION = "cogni_memory_poc"
 
@@ -41,15 +41,24 @@ async def lifespan(app: FastAPI):
     logger.info("🧠 Initializing StructuredMemoryBank...")
     memory_bank_instance = None
     try:
+        # Initialize MySQL connection config for remote Dolt SQL server
+        dolt_config = DoltConnectionConfig(
+            host=os.environ.get("DOLT_HOST", "localhost"),
+            port=int(os.environ.get("DOLT_PORT", "3306")),
+            user=os.environ.get("DOLT_USER", "root"),
+            password=os.environ.get("DOLT_PASSWORD", ""),
+            database=os.environ.get("DOLT_DATABASE", "memory_dolt"),
+        )
+
         memory_bank_instance = StructuredMemoryBank(
-            dolt_db_path=DOLT_DB_PATH,
+            dolt_connection_config=dolt_config,
             chroma_path=CHROMA_PATH,
             chroma_collection=CHROMA_COLLECTION,
         )
         logger.info("🧠 StructuredMemoryBank initialized.")
 
-        # Initialize and attach SQLLinkManager
-        link_manager = SQLLinkManager(DOLT_DB_PATH)
+        # Initialize and attach SQLLinkManager with same config
+        link_manager = SQLLinkManager(dolt_config)
         memory_bank_instance.link_manager = link_manager
         logger.info("🔗 SQLLinkManager initialized and attached to memory bank.")
 

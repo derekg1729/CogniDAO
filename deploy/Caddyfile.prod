@@ -11,8 +11,7 @@ api.cognidao.org {
     encode gzip
 
     # Proxy ALL requests to the backend
-    # Use the container name defined in the simulate_deployment script
-    reverse_proxy cogni-api-prod:8000
+    reverse_proxy api:8000
 
     # Optional: Basic security headers (copied from preview)
     header {

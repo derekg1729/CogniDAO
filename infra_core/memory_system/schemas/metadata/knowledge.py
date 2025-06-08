@@ -1,34 +1,29 @@
 """
-Knowledge metadata schema for MemoryBlocks of type "knowledge".
+Knowledge memory block metadata schema.
 """
 
-from typing import Optional, Literal
-from datetime import datetime
+from typing import Optional, List
 from pydantic import Field
 
-# Import BaseMetadata
-from .base import BaseMetadata
+from .base_user import BaseUserMetadata
 from ..registry import register_metadata
 
 
-class KnowledgeMetadata(BaseMetadata):
-    """
-    Metadata schema for MemoryBlocks of type "knowledge".
-    Structure for knowledge/fact blocks.
-    """
+class KnowledgeMetadata(BaseUserMetadata):
+    """Metadata for knowledge-type memory blocks."""
 
+    subject: Optional[str] = Field(None, description="Primary subject or domain of the knowledge")
+    keywords: Optional[List[str]] = Field(
+        None, description="Keywords or tags related to this knowledge"
+    )
     source: Optional[str] = Field(
-        None, description="Source of the knowledge (e.g., research paper, website, observation)"
+        None, description="Source of the knowledge (e.g., documentation, research, experience)"
     )
-    validity: Optional[Literal["confirmed", "speculative", "outdated"]] = Field(
-        None, description="Current validity status of this knowledge"
-    )
-    domain: Optional[str] = Field(None, description="Knowledge domain or category")
-    last_verified: Optional[datetime] = Field(
-        None, description="When this knowledge was last verified as accurate"
-    )
-    confidence_level: Optional[float] = Field(
-        None, ge=0, le=1, description="Confidence in this knowledge (0-1)"
+    confidence: Optional[float] = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Confidence level in the accuracy of this knowledge (0.0 to 1.0)",
     )
 
     model_config = {
@@ -36,10 +31,7 @@ class KnowledgeMetadata(BaseMetadata):
             "examples": [
                 {
                     "source": "Cogni Research Team",
-                    "validity": "confirmed",
-                    "domain": "memory-systems",
-                    "last_verified": "2023-11-01T09:15:00",
-                    "confidence_level": 0.95,
+                    "confidence": 0.95,
                 }
             ]
         }

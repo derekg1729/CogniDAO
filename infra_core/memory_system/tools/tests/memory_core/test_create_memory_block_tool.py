@@ -35,7 +35,7 @@ def sample_input():
         state="draft",
         visibility="internal",
         tags=["test"],
-        metadata={},
+        metadata={"title": "Test Knowledge"},
         source_file="test.md",
         confidence=ConfidenceScore(),
         created_by="test_agent",
@@ -84,7 +84,9 @@ def test_create_memory_block_schema_lookup_fails(mock_memory_bank):
     mock_memory_bank.get_latest_schema_version.return_value = None
 
     # Use a valid type, but expect the lookup to fail
-    input_data = CreateMemoryBlockInput(type="knowledge", text="Test knowledge block")
+    input_data = CreateMemoryBlockInput(
+        type="knowledge", text="Test knowledge block", metadata={"title": "Test Knowledge"}
+    )
 
     # Call the tool
     result = create_memory_block(input_data=input_data, memory_bank=mock_memory_bank)
@@ -207,7 +209,7 @@ def test_create_memory_block_injects_system_metadata(mock_memory_bank):
     input_data = CreateMemoryBlockInput(
         type="knowledge",
         text="Test content for metadata injection.",
-        metadata={},  # Start with empty metadata
+        metadata={"title": "Test Knowledge"},
         created_by="test_creator_for_injection",
     )
 
@@ -248,6 +250,7 @@ def test_create_memory_block_respects_provided_system_metadata(mock_memory_bank)
         type="knowledge",
         text="Test content with provided metadata.",
         metadata={
+            "title": "Test Knowledge",
             "x_timestamp": provided_timestamp,
             "x_agent_id": provided_agent_id,
         },

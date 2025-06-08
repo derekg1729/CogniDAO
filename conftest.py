@@ -17,7 +17,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 # Configure pytest
-pytest_plugins = []
+pytest_plugins = ["infra_core.memory_system.tests.conftest"]
 
 
 # === General Testing Fixtures ===
@@ -76,51 +76,82 @@ def temp_chroma_db(tmp_path_factory):
     return str(chroma_path)
 
 
-@pytest.fixture(scope="module")
-def temp_memory_bank(temp_dolt_db, temp_chroma_db):
-    """Create a StructuredMemoryBank using temporary databases for MCP server testing."""
-    from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
-    from infra_core.memory_system.link_manager import InMemoryLinkManager
-
-    # Note: temp_dolt_db fixture already calls initialize_dolt_db which creates
-    # all tables including block_properties, so no additional schema setup needed
-
-    # Register schemas in the temporary database so schema lookups work
-    from infra_core.memory_system.dolt_schema_manager import DoltSchemaManager
-    from infra_core.memory_system.schemas.registry import get_all_metadata_models, SCHEMA_VERSIONS
-
-    # Import metadata models to trigger registration - this is critical!
-
-    # Create schema manager for the temp database
-    schema_manager = DoltSchemaManager(temp_dolt_db)
-
-    # Register all schemas in the temporary database
-    metadata_models = get_all_metadata_models()
-    for node_type, model_cls in metadata_models.items():
-        version = SCHEMA_VERSIONS[node_type]
-
-        # Register the schema in the temporary database - pass the model class, not the schema dict
-        try:
-            result = schema_manager.register_schema(node_type, version, model_cls)
-            print(f"Schema registration for {node_type}: {result}")
-        except Exception as e:
-            print(f"Failed to register schema for {node_type}: {e}")
-            raise
-
-    bank = StructuredMemoryBank(
-        dolt_db_path=temp_dolt_db,
-        chroma_path=temp_chroma_db,
-        chroma_collection="test_mcp_collection",
-    )
-
-    # Attach link_manager for CreateBlockLink tests
-    link_manager = InMemoryLinkManager()
-    bank.link_manager = link_manager
-
-    return bank
+# Note: temp_memory_bank fixture is now provided by infra_core/memory_system/tests/conftest.py
+# which creates a proper Dolt SQL server setup instead of trying to connect to localhost:3306
 
 
 # === MCP Server Testing Fixtures ===
+
+
+# Shared MCP Server Mocking Fixtures (using proven working pattern)
+@pytest.fixture(autouse=True)
+def mock_mysql_connect_for_mcp_server(monkeypatch):
+    """
+    Replace mysql.connector.connect with a dummy connection for MCP server tests.
+    This prevents sys.exit(1) during module import when tests run.
+    Uses the proven working pattern from test_mcp_poc_dry.py.
+    """
+    dummy_conn = MagicMock()
+    dummy_cursor = MagicMock()
+    dummy_cursor.execute.return_value = None
+    dummy_cursor.fetchone.return_value = (1,)
+    dummy_conn.cursor.return_value = dummy_cursor
+
+    # Patch the connect() call globally for all MCP server tests
+    monkeypatch.setattr("mysql.connector.connect", lambda **kwargs: dummy_conn)
+    yield
+
+
+@pytest.fixture(autouse=True)
+def mock_structured_memory_bank_for_mcp_server(monkeypatch):
+    """
+    Replace StructuredMemoryBank and SQLLinkManager with MagicMocks for MCP server tests.
+    This ensures MCP tools work without real persistence layers during testing.
+    Uses the proven working pattern from test_mcp_poc_dry.py with enhanced return values
+    for Pydantic validation compatibility.
+    """
+    from infra_core.memory_system.link_manager import LinkManager
+
+    dummy_bank = MagicMock()
+    dummy_link_mgr = MagicMock()
+
+    # Make isinstance(link_manager, LinkManager) return True for validation
+    dummy_link_mgr.__class__ = LinkManager
+
+    # Configure get_all_links to return properly structured data instead of MagicMock
+    class MockLinkResult:
+        def __init__(self):
+            self.links = []  # Empty list instead of MagicMock
+            self.next_cursor = None  # None instead of MagicMock (Pydantic expects str|None)
+
+    dummy_link_mgr.get_all_links.return_value = MockLinkResult()
+
+    # Configure the dummy_bank to have a link_manager attribute pointing to dummy_link_mgr
+    dummy_bank.link_manager = dummy_link_mgr
+
+    # Patch the constructors globally for all MCP server tests
+    monkeypatch.setattr(
+        "infra_core.memory_system.structured_memory_bank.StructuredMemoryBank",
+        lambda *args, **kwargs: dummy_bank,
+    )
+    monkeypatch.setattr(
+        "infra_core.memory_system.sql_link_manager.SQLLinkManager",
+        lambda *args, **kwargs: dummy_link_mgr,
+    )
+    yield
+
+
+@pytest.fixture
+def mcp_app():
+    """
+    Import and reload the MCP server so that mocks apply at module-load time.
+    This uses the proven working pattern from test_mcp_poc_dry.py.
+    Tests should use this fixture to get a properly mocked MCP server module.
+    """
+    import importlib
+    import services.mcp_server.app.mcp_server as app_module
+
+    return importlib.reload(app_module)
 
 
 @pytest.fixture
@@ -132,6 +163,11 @@ def sample_work_item_input():
         "description": "A test task for validation",
         "owner": "test_user",
         "acceptance_criteria": ["Criterion 1", "Criterion 2"],
+        "action_items": [],
+        "expected_artifacts": [],
+        "blocked_by": [],
+        "tool_hints": [],
+        "tags": [],
     }
 
 
@@ -143,6 +179,16 @@ def sample_memory_block_input(sample_block_id):
         "text": "Updated text content",
         "tags": ["test", "updated"],
         "change_note": "Test update",
+    }
+
+
+@pytest.fixture
+def sample_memory_block_update():
+    """Sample memory block update data."""
+    return {
+        "text": "Updated text content",
+        "tags": ["updated", "test"],
+        "metadata": {"source": "test", "priority": "high"},
     }
 
 
@@ -166,6 +212,11 @@ def sample_work_item_data():
         "description": "Testing the complete workflow",
         "owner": "test-user",
         "acceptance_criteria": ["Complete integration test"],
+        "action_items": [],
+        "expected_artifacts": [],
+        "blocked_by": [],
+        "tool_hints": [],
+        "tags": [],
         "agent_id": "test-agent-001",
     }
 

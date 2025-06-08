@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "cogni-adapters"
+name = "cogni"
 version = "0.1.0"
 description = "Adapter layers for integrating Cogni's memory system with various AI frameworks"
 authors = [
@@ -20,6 +20,9 @@ requires-python = ">=3.9"
 [project.optional-dependencies]
 autogen = ["autogen-core"]
 
+[tool.hatch.build.targets.wheel]
+packages = ["infra_core", "cogni_adapters", "legacy_logseq", "schemas"]
+
 [tool.ruff]
 line-length = 100
 exclude = ["build", "dist", ".venv", "__pycache__"]
@@ -31,4 +34,12 @@ ignore = ["E501"]          # Ignore line length for now
 [tool.uv.workspace]
 members = [
     "services/mcp_server",
+]
+
+[tool.uv.sources]
+cogni = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "cogni",
 ]

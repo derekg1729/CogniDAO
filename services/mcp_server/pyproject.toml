@@ -5,12 +5,14 @@ description = "MCP server for Cogni's memory system"
 requires-python = ">=3.10"
 license = { text = "Private" }
 dependencies = [
+    "cogni",
     "mcp",
     "uv",
     "pydantic",
     "pydantic-settings",
     "doltpy",
-    "llama-index==0.12.32",
+    "mysql-connector-python",
+    # Only install the specific llama-index components we need (avoid main llama-index package that pulls in OpenAI)
     "llama-index-core==0.12.32",
     "chromadb==1.0.8",
     "llama-index-vector-stores-chroma==0.4.1",

@@ -8,3 +8,26 @@ tests/
 .cursor/
 .vscode/
 .DS_Store 
+
+# Virtual environments
+.venv/
+venv/
+env/
+**/.venv/
+**/venv/
+
+# Test directories 
+**/tests/
+
+# Python cache
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+
+# IDE and editor files
+.idea/
+*.swp
+*.swo
+
+# OS files
+Thumbs.db 

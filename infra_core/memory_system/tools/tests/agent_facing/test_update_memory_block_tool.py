@@ -49,9 +49,10 @@ def sample_memory_block(test_block_id):
         visibility="internal",
         tags=["test", "original"],
         metadata={
+            "title": "Test Knowledge Block",  # Required field for KnowledgeMetadata
             "source": "test_fixture",
-            "domain": "testing",
-            "validity": "confirmed",
+            "keywords": ["testing", "sample"],
+            "confidence": 0.9,
             "x_agent_id": "test_agent",
         },
         source_file="test.md",
@@ -109,9 +110,10 @@ def test_update_memory_block_tool_multiple_fields(mock_memory_bank, sample_memor
         visibility="public",
         tags=["updated", "published"],
         metadata={
+            "title": "Updated Knowledge Block",  # Add required title field
             "source": "agent_update",
-            "domain": "agent-testing",
-            "validity": "confirmed",
+            "keywords": ["agent-testing", "updated"],  # Replace domain with keywords
+            "confidence": 0.95,  # Replace validity with confidence score
             "x_agent_id": "test_agent",
         },
         merge_tags=False,  # Replace tags
@@ -187,7 +189,11 @@ def test_update_memory_block_tool_json_patch(mock_memory_bank, sample_memory_blo
 
     json_patch = [
         {"op": "replace", "path": "/metadata/source", "value": "updated_source"},
-        {"op": "replace", "path": "/metadata/domain", "value": "json-patch-testing"},
+        {
+            "op": "replace",
+            "path": "/metadata/keywords",
+            "value": ["json-patch-testing"],
+        },  # Replace domain with keywords
     ]
 
     input_data = UpdateMemoryBlockToolInput(
@@ -351,9 +357,10 @@ def test_update_memory_block_tool_agent_workflow(mock_memory_bank, sample_memory
         text="Original content\n\nNew insights added by agent.",
         tags=["original", "test", "agent-updated"],
         metadata={
+            "title": "Agent-Enhanced Knowledge Block",  # Add required title field
             "source": "cogni_agent_update",
-            "domain": "agent-enriched",
-            "validity": "confirmed",
+            "keywords": ["agent-enriched", "updated"],  # Replace domain with keywords
+            "confidence": 0.95,  # Replace validity with confidence score
             "x_agent_id": "cogni_agent",
         },
         state="published",  # Promote to published

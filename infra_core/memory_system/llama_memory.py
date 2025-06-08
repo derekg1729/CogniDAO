@@ -53,8 +53,25 @@ class LlamaMemory:
 
         # Set up local embedding model instead of OpenAI
         logging.info("Setting up local HuggingFace embedding model")
-        embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en-v1.5")
-        Settings.embed_model = embed_model
+        try:
+            # Initialize HuggingFace embedding model
+            embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en-v1.5")
+            Settings.embed_model = embed_model
+
+            # CRITICAL: Explicitly disable LLM in Settings to prevent OpenAI initialization
+            Settings.llm = None
+
+            logging.info("Initialized local HuggingFace embedding model (BAAI/bge-small-en-v1.5)")
+
+        except Exception as embed_error:
+            logging.error(
+                f"Failed to initialize HuggingFace embedding model: {embed_error}", exc_info=True
+            )
+            logging.error(
+                "This may cause LlamaIndex to fall back to OpenAI, leading to API key errors"
+            )
+            raise RuntimeError(f"Embedding model initialization failed: {embed_error}")
+
         logging.info("Local embedding model configured")
 
         if not self._is_in_memory:
@@ -133,8 +150,15 @@ class LlamaMemory:
                     logging.info("Initialized new empty VectorStoreIndex.")
 
             if self.index:
-                self.query_engine = self.index.as_query_engine()
-                logging.info("Created query engine from index.")
+                # Create query engine with LLM disabled for vector-only retrieval
+                try:
+                    self.query_engine = self.index.as_query_engine(llm=None)
+                    logging.info(
+                        "Created query engine from index (LLM disabled for vector-only retrieval)"
+                    )
+                except Exception as qe_error:
+                    logging.error(f"Failed to create query engine: {qe_error}", exc_info=True)
+                    raise
             else:
                 logging.warning("Index could not be loaded or created. Query engine not available.")
 

@@ -9,34 +9,34 @@ import logging
 import uuid
 from datetime import datetime
 from typing import Dict, List, Optional, Set, Tuple, Any, Union, get_args
-from doltpy.cli import Dolt
 import json
 
 from .link_manager import LinkManager, LinkError, LinkErrorType, LinkQuery, LinkQueryResult
 from .schemas.common import BlockLink, RelationType
-from .dolt_writer import _escape_sql_string
+from .dolt_mysql_base import DoltMySQLBase, DoltConnectionConfig
 
 # Setup logging
 logger = logging.getLogger(__name__)
 
 
-class SQLLinkManager(LinkManager):
+class SQLLinkManager(LinkManager, DoltMySQLBase):
     """
-    SQL-backed implementation of LinkManager using Dolt database.
+    SQL-backed implementation of LinkManager using Dolt database via MySQL connector.
 
     Provides production-ready link management with persistent storage and hooks
     for maintaining parent/child hierarchy columns.
     """
 
-    def __init__(self, db_path: str):
+    def __init__(self, config: DoltConnectionConfig):
         """
         Initialize the SQL LinkManager.
 
         Args:
-            db_path: Path to the Dolt database directory
+            config: DoltConnectionConfig for MySQL connection
         """
-        self.db_path = db_path
-        self.repo = Dolt(db_path)
+        # Initialize both parent classes
+        LinkManager.__init__(self)
+        DoltMySQLBase.__init__(self, config)
 
         # For validation
         self._uuid_module = uuid
@@ -63,6 +63,36 @@ class SQLLinkManager(LinkManager):
             )
 
         return relation_str
+
+    def _parse_datetime(self, dt_value: Any) -> Optional[datetime]:
+        """Parse datetime value that could be string, datetime, or None."""
+        if dt_value is None:
+            return None
+        elif isinstance(dt_value, datetime):
+            return dt_value
+        elif isinstance(dt_value, str):
+            return datetime.fromisoformat(dt_value)
+        else:
+            logger.warning(f"Unexpected datetime type: {type(dt_value)}, value: {dt_value}")
+            return None
+
+    def _parse_json_metadata(self, metadata_value: Any) -> Optional[Dict[str, Any]]:
+        """Parse JSON metadata value that could be string, dict, or None."""
+        if metadata_value is None:
+            return None
+        elif isinstance(metadata_value, dict):
+            return metadata_value
+        elif isinstance(metadata_value, str):
+            try:
+                return json.loads(metadata_value)
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.warning(f"Failed to parse JSON metadata: {metadata_value}, error: {e}")
+                return None
+        else:
+            logger.warning(
+                f"Unexpected metadata type: {type(metadata_value)}, value: {metadata_value}"
+            )
+            return None
 
     def _sync_parent_child_columns(
         self, from_id: str, to_id: str, relation: str, operation: str
@@ -96,52 +126,52 @@ class SQLLinkManager(LinkManager):
     def _set_parent_relationship(self, child_id: str, parent_id: str) -> None:
         """Set parent_id on child block and has_children=TRUE on parent block."""
         # Update child's parent_id
-        child_update_query = f"""
+        child_update_query = """
         UPDATE memory_blocks 
-        SET parent_id = {_escape_sql_string(parent_id)}
-        WHERE id = {_escape_sql_string(child_id)}
+        SET parent_id = %s
+        WHERE id = %s
         """
-        self.repo.sql(query=child_update_query)
+        self._execute_update(child_update_query, (parent_id, child_id))
 
         # Update parent's has_children flag
-        parent_update_query = f"""
+        parent_update_query = """
         UPDATE memory_blocks 
-        SET has_children = TRUE
-        WHERE id = {_escape_sql_string(parent_id)}
+        SET has_children = %s
+        WHERE id = %s
         """
-        self.repo.sql(query=parent_update_query)
+        self._execute_update(parent_update_query, (1, parent_id))
 
         logger.info(f"Set parent relationship: {child_id} -> {parent_id}")
 
     def _clear_parent_relationship(self, child_id: str, parent_id: str) -> None:
         """Clear parent_id on child block and update has_children on parent if no other children."""
         # Clear child's parent_id
-        child_update_query = f"""
+        child_update_query = """
         UPDATE memory_blocks 
         SET parent_id = NULL
-        WHERE id = {_escape_sql_string(child_id)}
+        WHERE id = %s
         """
-        self.repo.sql(query=child_update_query)
+        self._execute_update(child_update_query, (child_id,))
 
         # Check if parent has any other children via 'contains' links
-        check_children_query = f"""
+        check_children_query = """
         SELECT COUNT(*) as child_count 
         FROM block_links 
-        WHERE from_id = {_escape_sql_string(parent_id)} AND relation = 'contains'
+        WHERE from_id = %s AND relation = %s
         """
-        result = self.repo.sql(query=check_children_query, result_format="json")
+        result = self._execute_query(check_children_query, (parent_id, "contains"))
 
         child_count = 0
-        if result and "rows" in result and result["rows"]:
-            child_count = result["rows"][0]["child_count"]
+        if result and len(result) > 0:
+            child_count = result[0]["child_count"]
 
         # Update parent's has_children flag based on remaining children
-        parent_update_query = f"""
+        parent_update_query = """
         UPDATE memory_blocks 
-        SET has_children = {str(child_count > 0).upper()}
-        WHERE id = {_escape_sql_string(parent_id)}
+        SET has_children = %s
+        WHERE id = %s
         """
-        self.repo.sql(query=parent_update_query)
+        self._execute_update(parent_update_query, (1 if child_count > 0 else 0, parent_id))
 
         logger.info(
             f"Cleared parent relationship: {child_id} -> {parent_id} (parent has {child_count} remaining children)"
@@ -189,59 +219,65 @@ class SQLLinkManager(LinkManager):
             )
 
         # Check if link already exists
-        check_query = f"""
+        check_query = """
         SELECT COUNT(*) as link_count
         FROM block_links 
-        WHERE from_id = {_escape_sql_string(from_id)} 
-        AND to_id = {_escape_sql_string(to_id)} 
-        AND relation = {_escape_sql_string(relation_str)}
+        WHERE from_id = %s 
+        AND to_id = %s 
+        AND relation = %s
         """
-        result = self.repo.sql(query=check_query, result_format="json")
+        result = self._execute_query(check_query, (from_id, to_id, relation_str))
 
         link_exists = False
-        if result and "rows" in result and result["rows"]:
-            link_exists = result["rows"][0]["link_count"] > 0
+        if result and len(result) > 0:
+            link_exists = result[0]["link_count"] > 0
 
         # Prepare timestamp and metadata
         now = self._datetime.now()
         timestamp_str = now.isoformat(sep=" ", timespec="seconds")
 
-        # Properly escape JSON metadata
+        # Properly handle JSON metadata
         if link_metadata is None:
-            metadata_json = "NULL"
+            metadata_json = None  # Pass None for NULL in parameterized query
         else:
-            metadata_json = _escape_sql_string(json.dumps(link_metadata))
+            metadata_json = json.dumps(link_metadata)
 
-        created_by_str = "NULL" if created_by is None else _escape_sql_string(created_by)
+        created_by_value = None if created_by is None else created_by
 
         if link_exists:
             # Update existing link
-            update_query = f"""
+            update_query = """
             UPDATE block_links SET
-                priority = {priority},
-                link_metadata = {metadata_json},
-                created_by = {created_by_str}
-            WHERE from_id = {_escape_sql_string(from_id)} 
-            AND to_id = {_escape_sql_string(to_id)} 
-            AND relation = {_escape_sql_string(relation_str)}
+                priority = %s,
+                link_metadata = %s,
+                created_by = %s
+            WHERE from_id = %s 
+            AND to_id = %s 
+            AND relation = %s
             """
-            self.repo.sql(query=update_query)
+            self._execute_update(
+                update_query,
+                (priority, metadata_json, created_by_value, from_id, to_id, relation_str),
+            )
             operation = "update"
         else:
             # Insert new link
-            insert_query = f"""
+            insert_query = """
             INSERT INTO block_links (from_id, to_id, relation, priority, link_metadata, created_by, created_at)
-            VALUES (
-                {_escape_sql_string(from_id)},
-                {_escape_sql_string(to_id)},
-                {_escape_sql_string(relation_str)},
-                {priority},
-                {metadata_json},
-                {created_by_str},
-                {_escape_sql_string(timestamp_str)}
-            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
-            self.repo.sql(query=insert_query)
+            self._execute_update(
+                insert_query,
+                (
+                    from_id,
+                    to_id,
+                    relation_str,
+                    priority,
+                    metadata_json,
+                    created_by_value,
+                    timestamp_str,
+                ),
+            )
             operation = "create"
 
         # Call hook for parent/child synchronization
@@ -291,30 +327,30 @@ class SQLLinkManager(LinkManager):
         relation_str = self._validate_relation(relation)
 
         # Check if link exists
-        check_query = f"""
+        check_query = """
         SELECT COUNT(*) as link_count
         FROM block_links 
-        WHERE from_id = {_escape_sql_string(from_id)} 
-        AND to_id = {_escape_sql_string(to_id)} 
-        AND relation = {_escape_sql_string(relation_str)}
+        WHERE from_id = %s 
+        AND to_id = %s 
+        AND relation = %s
         """
-        result = self.repo.sql(query=check_query, result_format="json")
+        result = self._execute_query(check_query, (from_id, to_id, relation_str))
 
         link_exists = False
-        if result and "rows" in result and result["rows"]:
-            link_exists = result["rows"][0]["link_count"] > 0
+        if result and len(result) > 0:
+            link_exists = result[0]["link_count"] > 0
 
         if not link_exists:
             return False
 
         # Delete the link
-        delete_query = f"""
+        delete_query = """
         DELETE FROM block_links 
-        WHERE from_id = {_escape_sql_string(from_id)} 
-        AND to_id = {_escape_sql_string(to_id)} 
-        AND relation = {_escape_sql_string(relation_str)}
+        WHERE from_id = %s 
+        AND to_id = %s 
+        AND relation = %s
         """
-        self.repo.sql(query=delete_query)
+        self._execute_update(delete_query, (from_id, to_id, relation_str))
 
         # Call hook for parent/child synchronization
         self._sync_parent_child_columns(from_id, to_id, relation_str, "delete")
@@ -344,34 +380,37 @@ class SQLLinkManager(LinkManager):
         limit = query_dict.get("limit", 100)
 
         # Build SQL query
-        where_clauses = [f"from_id = {_escape_sql_string(block_id)}"]
+        where_clauses = ["from_id = %s"]
+        params = [block_id]
 
         if relation:
-            where_clauses.append(f"relation = {_escape_sql_string(relation)}")
+            where_clauses.append("relation = %s")
+            params.append(relation)
 
         sql_query = f"""
         SELECT to_id, relation, priority, link_metadata, created_by, created_at
         FROM block_links 
         WHERE {" AND ".join(where_clauses)}
         ORDER BY priority DESC, created_at DESC
-        LIMIT {limit}
+        LIMIT %s
         """
 
-        result = self.repo.sql(query=sql_query, result_format="json")
+        params.append(limit)
+
+        result = self._execute_query(sql_query, params)
 
         links = []
-        if result and "rows" in result:
-            for row in result["rows"]:
+        if result and len(result) > 0:
+            for row in result:
+                # For links FROM this block
                 link = BlockLink(
                     from_id=block_id,
                     to_id=row["to_id"],
                     relation=row["relation"],
                     priority=row.get("priority", 0),
-                    link_metadata=row.get("link_metadata"),
+                    link_metadata=self._parse_json_metadata(row.get("link_metadata")),
                     created_by=row.get("created_by"),
-                    created_at=datetime.fromisoformat(row["created_at"])
-                    if row.get("created_at")
-                    else None,
+                    created_at=self._parse_datetime(row.get("created_at")),
                 )
                 links.append(link)
 
@@ -401,35 +440,37 @@ class SQLLinkManager(LinkManager):
         limit = query_dict.get("limit", 100)
 
         # Build SQL query
-        where_clauses = [f"to_id = {_escape_sql_string(block_id)}"]
+        where_clauses = ["to_id = %s"]
+        params = [block_id]
 
         if relation:
-            where_clauses.append(f"relation = {_escape_sql_string(relation)}")
+            where_clauses.append("relation = %s")
+            params.append(relation)
 
         sql_query = f"""
         SELECT from_id, to_id, relation, priority, link_metadata, created_by, created_at
         FROM block_links 
         WHERE {" AND ".join(where_clauses)}
         ORDER BY priority DESC, created_at DESC
-        LIMIT {limit}
+        LIMIT %s
         """
 
-        result = self.repo.sql(query=sql_query, result_format="json")
+        params.append(limit)
+
+        result = self._execute_query(sql_query, params)
 
         links = []
-        if result and "rows" in result:
-            for row in result["rows"]:
+        if result and len(result) > 0:
+            for row in result:
                 # For links pointing TO this block, the from_id is what we get from DB
                 link = BlockLink(
                     from_id=row["from_id"],
                     to_id=row["to_id"],  # This should be the block_id we queried for
                     relation=row["relation"],
                     priority=row.get("priority", 0),
-                    link_metadata=row.get("link_metadata"),
+                    link_metadata=self._parse_json_metadata(row.get("link_metadata")),
                     created_by=row.get("created_by"),
-                    created_at=datetime.fromisoformat(row["created_at"])
-                    if row.get("created_at")
-                    else None,
+                    created_at=self._parse_datetime(row.get("created_at")),
                 )
                 links.append(link)
 
@@ -493,16 +534,16 @@ class SQLLinkManager(LinkManager):
         self._validate_uuid(block_id)
 
         # Get all links involving this block for hook processing
-        get_links_query = f"""
+        get_links_query = """
         SELECT from_id, to_id, relation
         FROM block_links 
-        WHERE from_id = {_escape_sql_string(block_id)} OR to_id = {_escape_sql_string(block_id)}
+        WHERE from_id = %s OR to_id = %s
         """
-        result = self.repo.sql(query=get_links_query, result_format="json")
+        result = self._execute_query(get_links_query, (block_id, block_id))
 
         links_to_process = []
-        if result and "rows" in result:
-            links_to_process = result["rows"]
+        if result and len(result) > 0:
+            links_to_process = result
 
         # Process hooks for each link before deletion
         for link_row in links_to_process:
@@ -515,11 +556,11 @@ class SQLLinkManager(LinkManager):
                     self._clear_parent_relationship(block_id, link_row["from_id"])
 
         # Delete all links involving this block
-        delete_query = f"""
+        delete_query = """
         DELETE FROM block_links 
-        WHERE from_id = {_escape_sql_string(block_id)} OR to_id = {_escape_sql_string(block_id)}
+        WHERE from_id = %s OR to_id = %s
         """
-        self.repo.sql(query=delete_query)
+        self._execute_update(delete_query, (block_id, block_id))
 
         return len(links_to_process)
 
@@ -544,9 +585,11 @@ class SQLLinkManager(LinkManager):
 
         # Build SQL query
         where_clauses = []
+        params = []
 
         if relation:
-            where_clauses.append(f"relation = {_escape_sql_string(relation)}")
+            where_clauses.append("relation = %s")
+            params.append(relation)
 
         where_clause = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
@@ -555,24 +598,24 @@ class SQLLinkManager(LinkManager):
         FROM block_links 
         {where_clause}
         ORDER BY priority DESC, created_at DESC
-        LIMIT {limit}
+        LIMIT %s
         """
 
-        result = self.repo.sql(query=sql_query, result_format="json")
+        params.append(limit)
+
+        result = self._execute_query(sql_query, params)
 
         links = []
-        if result and "rows" in result:
-            for row in result["rows"]:
+        if result and len(result) > 0:
+            for row in result:
                 link = BlockLink(
                     from_id=row["from_id"],
                     to_id=row["to_id"],
                     relation=row["relation"],
                     priority=row.get("priority", 0),
-                    link_metadata=row.get("link_metadata"),
+                    link_metadata=self._parse_json_metadata(row.get("link_metadata")),
                     created_by=row.get("created_by"),
-                    created_at=datetime.fromisoformat(row["created_at"])
-                    if row.get("created_at")
-                    else None,
+                    created_at=self._parse_datetime(row.get("created_at")),
                 )
                 links.append(link)
 

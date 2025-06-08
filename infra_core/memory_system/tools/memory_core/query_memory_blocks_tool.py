@@ -24,9 +24,9 @@ class QueryMemoryBlocksInput(BaseModel):
     """Input model for querying memory blocks."""
 
     query_text: str = Field(..., description="Text to search for semantically")
-    type_filter: Optional[Literal["knowledge", "task", "project", "doc", "interaction"]] = Field(
-        None, description="Optional filter by block type"
-    )
+    type_filter: Optional[
+        Literal["knowledge", "task", "project", "doc", "interaction", "log", "epic", "bug"]
+    ] = Field(None, description="Optional filter by block type")
     tag_filters: Optional[List[str]] = Field(None, description="Optional list of tags to filter by")
     top_k: Optional[int] = Field(5, description="Maximum number of results to return", ge=1, le=20)
     metadata_filters: Optional[Dict[str, Any]] = Field(

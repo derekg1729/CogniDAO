@@ -1,35 +1,25 @@
-FROM dolthub/dolt-sql-server:latest as dolt
-
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install required system dependencies for building packages
+# Install required system dependencies for building packages and curl for healthcheck
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc g++ libaio-dev && \
+    apt-get install -y --no-install-recommends gcc g++ libaio-dev curl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-
-# Copy dolt binary and configuration from the dolthub/dolt-sql-server image
-COPY --from=dolt /usr/local/bin/dolt /usr/local/bin/dolt
-
-# Configure dolt
-RUN dolt config --global --add user.email "cogni-api@example.com" && \
-    dolt config --global --add user.name "Cogni API"
 
 # Copy requirements file from its new location into /app/
 COPY services/web_api/requirements.api.txt ./requirements.api.txt
 RUN pip install --upgrade pip && \
     pip install -r requirements.api.txt
 
-# Copy data directories from project root into /app/data/
-COPY ./data/blocks/memory_dolt /app/data/blocks/memory_dolt/
-COPY ./data/memory_chroma /app/data/memory_chroma/
+# Copy only the infra_core components that web API actually uses
+COPY ./infra_core/memory_system/ /app/infra_core/memory_system/
+COPY ./infra_core/constants.py /app/infra_core/constants.py
 
-# Copy infra_core application code
-COPY ./infra_core/ /app/infra_core/
-# Copy services application code (this will create /app/services/web_api/ etc.)
-COPY ./services /app/services/
+# Copy only the web_api service directory (not the entire services directory)
+COPY ./services/web_api/ /app/services/web_api/
+COPY ./services/__init__.py /app/services/__init__.py
 
 # Expose port
 EXPOSE 8000

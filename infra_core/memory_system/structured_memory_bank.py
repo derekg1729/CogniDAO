@@ -3,33 +3,26 @@ Core StructuredMemoryBank class for managing MemoryBlocks.
 
 This class orchestrates interactions between the persistent Dolt storage
 and the LlamaIndex (ChromaDB) indexing/retrieval system.
+
+Uses secure MySQL connections to Dolt SQL servers with parameterized queries.
 """
 
 import logging
 import sys
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
-import datetime
 from pydantic import ValidationError
-from doltpy.cli import Dolt
+
+from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
 from infra_core.memory_system.dolt_reader import (
-    read_memory_block,
-    read_memory_blocks_by_tags,
-    read_memory_blocks,
+    DoltMySQLReader,
 )
 from infra_core.memory_system.dolt_writer import (
-    write_memory_block_to_dolt,
-    delete_memory_block_from_dolt,
-    _escape_sql_string,
-    discard_working_changes,
-    commit_working_changes,
+    DoltMySQLWriter,
 )
 from infra_core.memory_system.llama_memory import LlamaMemory
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
 from infra_core.memory_system.schemas.common import BlockLink
-from infra_core.memory_system.dolt_schema_manager import (
-    get_schema as _get_schema_external,
-)
 
 # --- Path Setup ---
 script_dir = Path(__file__).parent
@@ -42,30 +35,6 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-
-# TODO: Security Migration Plan for SQL Parameterization
-# Currently, the code uses manual SQL string escaping via _escape_sql_string which
-# is not ideal from a security perspective. A future enhancement should:
-#
-# 1. Wait for Doltpy to add proper parameterized query support (check latest updates)
-# 2. If direct parameterization is still not available, consider:
-#    - Creating a wrapper around the Dolt CLI that supports parameterized queries
-#    - Using a more robust SQL escaping library instead of the current approach
-#    - Implementing a query builder pattern with parameterization
-# 3. Replace all instances of manual string interpolation with parameterized queries
-#    in the following methods:
-#    - _store_block_proof
-#    - get_block_proofs
-#    - get_forward_links
-#    - get_backlinks
-#
-# Example of desired future API:
-# ```
-# self.repo.sql(
-#     query="INSERT INTO block_proofs (block_id, commit_hash, operation, timestamp) VALUES (?, ?, ?, ?)",
-#     params=[block_id, commit_hash, operation, timestamp]
-# )
-# ```
 
 
 def diff_memory_blocks(
@@ -109,19 +78,54 @@ def diff_memory_blocks(
 class StructuredMemoryBank:
     """
     Manages MemoryBlocks using Dolt for persistence and LlamaIndex for indexing.
+
+    Uses secure MySQL connections to remote Dolt SQL servers with parameterized queries.
     """
 
-    def __init__(self, dolt_db_path: str, chroma_path: str, chroma_collection: str):
+    def __init__(
+        self,
+        chroma_path: str,
+        chroma_collection: str,
+        dolt_connection_config: DoltConnectionConfig,
+        branch: str = "main",
+        auto_commit: bool = False,
+    ):
         """
         Initializes the StructuredMemoryBank.
 
         Args:
-            dolt_db_path: Path to the Dolt database directory.
             chroma_path: Path to the ChromaDB storage directory.
             chroma_collection: Name of the ChromaDB collection.
+            dolt_connection_config: Configuration for MySQL connection to remote Dolt SQL server.
+            branch: Default branch to use for operations (default: "main").
+            auto_commit: Whether to automatically commit changes after successful operations (default: False).
+                        When False, changes remain in working set until explicit commit via MCP tools.
         """
-        self.dolt_db_path = dolt_db_path
-        self.repo = Dolt(dolt_db_path)  # Initialize a single Dolt repository connection
+        self.branch = branch
+        self.auto_commit = auto_commit
+        self.connection_config = dolt_connection_config
+
+        # Initialize secure MySQL-based Dolt connections
+        self.dolt_reader = DoltMySQLReader(dolt_connection_config)
+        self.dolt_writer = DoltMySQLWriter(dolt_connection_config)
+
+        # ═════════════════════════════════════════════
+        # ✅ ENSURE WE'RE ON THE RIGHT BRANCH BEFORE ANY COMMITS
+        try:
+            conn = self.dolt_writer._get_connection()
+            self.dolt_writer._ensure_branch(conn, self.branch)
+            conn.close()
+            logger.info(f"Checked out Dolt branch '{self.branch}' on new connection")
+        except Exception as e:
+            logger.error(f"Failed to checkout branch '{self.branch}': {e}", exc_info=True)
+            raise
+        # ═════════════════════════════════════════════
+
+        logger.info(
+            f"StructuredMemoryBank using secure MySQL connection to {dolt_connection_config.host}:{dolt_connection_config.port}"
+        )
+
+        # Initialize LlamaIndex
         self.llama_memory = LlamaMemory(chroma_path=chroma_path, collection_name=chroma_collection)
 
         # Flag to track data consistency state
@@ -131,7 +135,7 @@ class StructuredMemoryBank:
             raise RuntimeError("Failed to initialize LlamaMemory backend.")
 
         logger.info(
-            f"StructuredMemoryBank initialized. Dolt Path: {dolt_db_path}, LlamaIndex Ready: {self.llama_memory.is_ready()}"
+            f"StructuredMemoryBank initialized. Branch: {self.branch}, LlamaIndex Ready: {self.llama_memory.is_ready()}"
         )
 
     @property
@@ -152,6 +156,29 @@ class StructuredMemoryBank:
         self._is_consistent = False
         logger.critical(f"StructuredMemoryBank is in an inconsistent state: {reason}")
 
+    def _store_block_proof(self, block_id: str, operation: str, commit_hash: str) -> bool:
+        """
+        Store a block operation proof in the block_proofs table.
+
+        Args:
+            block_id: The ID of the block
+            operation: The operation type ('create', 'update', 'delete')
+            commit_hash: The Dolt commit hash for this operation
+
+        Returns:
+            True if proof was stored successfully, False otherwise
+        """
+        try:
+            # Use the new MySQL-based proof writer
+            success = self.dolt_writer.write_block_proof(
+                block_id=block_id, operation=operation, commit_hash=commit_hash, branch=self.branch
+            )
+            return success
+
+        except Exception as e:
+            logger.error(f"Failed to store block proof for {block_id}: {e}", exc_info=True)
+            return False
+
     def get_latest_schema_version(self, node_type: str) -> Optional[int]:
         """
         Gets the latest schema version for a given node type by querying the node_schemas table.
@@ -165,16 +192,17 @@ class StructuredMemoryBank:
         logger.debug(f"Fetching latest schema version for node type: {node_type}")
 
         try:
-            # Use the get_schema function from our module
-            schema = get_schema(db_path=self.dolt_db_path, node_type=node_type)
-
-            if schema and "x_schema_version" in schema:
-                version = schema["x_schema_version"]
-                logger.debug(f"Found schema version {version} for {node_type}")
-                return version
+            # Use the new MySQL-based schema reader
+            latest_version = self.dolt_reader.read_latest_schema_version(
+                node_type, branch=self.branch
+            )
+            if latest_version is not None:
+                logger.debug(
+                    f"Found latest schema version {latest_version} for node type {node_type}"
+                )
             else:
-                logger.warning(f"No schema found for node type: {node_type}")
-                return None
+                logger.debug(f"No schema version found for node type {node_type}")
+            return latest_version
 
         except Exception as e:
             logger.warning(f"Error fetching schema version for {node_type}: {e}")
@@ -237,9 +265,9 @@ class StructuredMemoryBank:
         try:
             # Step 1: Write to Dolt without auto-commit
             try:
-                dolt_write_success, _ = write_memory_block_to_dolt(
+                dolt_write_success, _ = self.dolt_writer.write_memory_block(
                     block=block,
-                    db_path=self.dolt_db_path,
+                    branch=self.branch,
                     auto_commit=False,  # Do not auto-commit, we need atomicity control
                 )
 
@@ -272,50 +300,54 @@ class StructuredMemoryBank:
 
             # Step 3: Handle success or failure path
             if llama_success:
-                # Both operations succeeded - commit the Dolt changes
-                try:
-                    commit_msg = f"Create memory block {block.id}"
-                    commit_success, commit_hash = commit_working_changes(
-                        db_path=self.dolt_db_path, commit_msg=commit_msg, tables=tables
-                    )
-
-                    if commit_success:
-                        # 3a. Store proof of creation in block_proofs table
-                        if commit_hash:
-                            self._store_block_proof(
-                                block.id, commit_hash, "create", "New memory block created"
-                            )
-
-                        logger.info(f"Successfully created and indexed memory block: {block.id}")
-                        return True
-                    else:
-                        # Commit failed - attempt rollback
-                        logger.error(
-                            f"Failed to commit Dolt changes for block {block.id}. Attempting rollback."
+                # Both operations succeeded - commit the Dolt changes if auto_commit is enabled
+                if self.auto_commit:
+                    try:
+                        commit_msg = f"Create memory block {block.id}"
+                        commit_success, commit_hash = self.dolt_writer.commit_changes(
+                            commit_msg=commit_msg, tables=tables
                         )
 
-                        # Rollback Dolt changes
-                        try:
-                            discard_working_changes(self.dolt_db_path, tables)
+                        if commit_success:
                             logger.info(
-                                f"Successfully rolled back Dolt changes for block {block.id}"
+                                f"Successfully created and indexed memory block: {block.id}"
                             )
-                        except Exception as rollback_e:
-                            logger.critical(
-                                f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
-                            )
-                            self._mark_inconsistent(
-                                f"Dolt commit failed and rollback failed for block {block.id}"
+                            self._store_block_proof(block.id, "create", commit_hash)
+                            return True
+                        else:
+                            # Commit failed - attempt rollback
+                            logger.error(
+                                f"Failed to commit Dolt changes for block {block.id}. Attempting rollback."
                             )
 
+                            # Rollback Dolt changes
+                            try:
+                                self.dolt_writer.discard_changes(tables)
+                                logger.info(
+                                    f"Successfully rolled back Dolt changes for block {block.id}"
+                                )
+                            except Exception as rollback_e:
+                                logger.critical(
+                                    f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
+                                )
+                                self._mark_inconsistent(
+                                    f"Dolt commit failed and rollback failed for block {block.id}"
+                                )
+
+                            return False
+
+                    except Exception as commit_e:
+                        logger.error(
+                            f"Unexpected error during commit for block {block.id}: {commit_e}",
+                            exc_info=True,
+                        )
                         return False
-
-                except Exception as commit_e:
-                    logger.error(
-                        f"Unexpected error during commit for block {block.id}: {commit_e}",
-                        exc_info=True,
+                else:
+                    # Auto-commit disabled - operation succeeded but changes remain uncommitted
+                    logger.info(
+                        f"Successfully created memory block {block.id} (uncommitted - auto_commit=False)"
                     )
-                    return False
+                    return True
 
             else:
                 # LlamaIndex operation failed - rollback Dolt changes
@@ -323,7 +355,7 @@ class StructuredMemoryBank:
                     f"LlamaIndex operation failed for block {block.id}. Rolling back Dolt changes."
                 )
                 try:
-                    discard_working_changes(self.dolt_db_path, tables)
+                    self.dolt_writer.discard_changes(tables)
                     logger.info(f"Successfully rolled back Dolt changes for block {block.id}")
                 except Exception as rollback_e:
                     logger.critical(
@@ -343,7 +375,7 @@ class StructuredMemoryBank:
 
             # Attempt rollback of any Dolt changes
             try:
-                discard_working_changes(self.dolt_db_path, tables)
+                self.dolt_writer.discard_changes(tables)
                 logger.info(
                     f"Successfully rolled back any Dolt changes after exception for block {block.id}."
                 )
@@ -370,13 +402,9 @@ class StructuredMemoryBank:
         """
         logger.info(f"Attempting to get memory block: {block_id}")
         try:
-            # Use the imported read_memory_block function
-            block = read_memory_block(db_path=self.dolt_db_path, block_id=block_id)
+            block = self.dolt_reader.read_memory_block(block_id, branch=self.branch)
             if block:
                 logger.info(f"Successfully retrieved block {block_id}")
-                # Note: The current read_memory_block implementation reads the 'links' JSON column.
-                # If we manage links ONLY in the block_links table, we'd need to fetch them separately here.
-                # For now, we assume the JSON column might suffice or will be addressed later.
             else:
                 logger.info(f"Block {block_id} not found in Dolt.")
             return block
@@ -425,9 +453,9 @@ class StructuredMemoryBank:
         try:
             # Step 1: Write to Dolt without auto-commit
             try:
-                dolt_write_success, _ = write_memory_block_to_dolt(
+                dolt_write_success, _ = self.dolt_writer.write_memory_block(
                     block=block,
-                    db_path=self.dolt_db_path,
+                    branch=self.branch,
                     auto_commit=False,  # Do not auto-commit, we need atomicity control
                     preserve_nulls=True,  # Preserve None values for update operations
                 )
@@ -461,50 +489,54 @@ class StructuredMemoryBank:
 
             # Step 3: Handle success or failure path
             if llama_success:
-                # Both operations succeeded - commit the Dolt changes
-                try:
-                    commit_msg = f"Update memory block {block.id}"
-                    commit_success, commit_hash = commit_working_changes(
-                        db_path=self.dolt_db_path, commit_msg=commit_msg, tables=tables
-                    )
-
-                    if commit_success:
-                        # 3a. Store proof of update in block_proofs table
-                        if commit_hash:
-                            self._store_block_proof(
-                                block.id, commit_hash, "update", "Memory block updated"
-                            )
-
-                        logger.info(f"Successfully updated and indexed memory block: {block.id}")
-                        return True
-                    else:
-                        # Commit failed - attempt rollback
-                        logger.error(
-                            f"Failed to commit Dolt changes for block {block.id}. Attempting rollback."
+                # Both operations succeeded - commit the Dolt changes if auto_commit is enabled
+                if self.auto_commit:
+                    try:
+                        commit_msg = f"Update memory block {block.id}"
+                        commit_success, commit_hash = self.dolt_writer.commit_changes(
+                            commit_msg=commit_msg, tables=tables
                         )
 
-                        # Rollback Dolt changes
-                        try:
-                            discard_working_changes(self.dolt_db_path, tables)
+                        if commit_success:
                             logger.info(
-                                f"Successfully rolled back Dolt changes for block {block.id}"
+                                f"Successfully updated and indexed memory block: {block.id}"
                             )
-                        except Exception as rollback_e:
-                            logger.critical(
-                                f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
-                            )
-                            self._mark_inconsistent(
-                                f"Dolt commit failed and rollback failed for block {block.id}"
+                            self._store_block_proof(block.id, "update", commit_hash)
+                            return True
+                        else:
+                            # Commit failed - attempt rollback
+                            logger.error(
+                                f"Failed to commit Dolt changes for block {block.id}. Attempting rollback."
                             )
 
+                            # Rollback Dolt changes
+                            try:
+                                self.dolt_writer.discard_changes(tables)
+                                logger.info(
+                                    f"Successfully rolled back Dolt changes for block {block.id}"
+                                )
+                            except Exception as rollback_e:
+                                logger.critical(
+                                    f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
+                                )
+                                self._mark_inconsistent(
+                                    f"Dolt commit failed and rollback failed for block {block.id}"
+                                )
+
+                            return False
+
+                    except Exception as commit_e:
+                        logger.error(
+                            f"Unexpected error during commit for block {block.id}: {commit_e}",
+                            exc_info=True,
+                        )
                         return False
-
-                except Exception as commit_e:
-                    logger.error(
-                        f"Unexpected error during commit for block {block.id}: {commit_e}",
-                        exc_info=True,
+                else:
+                    # Auto-commit disabled - operation succeeded but changes remain uncommitted
+                    logger.info(
+                        f"Successfully updated memory block {block.id} (uncommitted - auto_commit=False)"
                     )
-                    return False
+                    return True
 
             else:
                 # LlamaIndex operation failed - rollback Dolt changes
@@ -512,7 +544,7 @@ class StructuredMemoryBank:
                     f"LlamaIndex operation failed for block {block.id}. Rolling back Dolt changes."
                 )
                 try:
-                    discard_working_changes(self.dolt_db_path, tables)
+                    self.dolt_writer.discard_changes(tables)
                     logger.info(f"Successfully rolled back Dolt changes for block {block.id}")
                 except Exception as rollback_e:
                     logger.critical(
@@ -532,7 +564,7 @@ class StructuredMemoryBank:
 
             # Attempt rollback of any Dolt changes
             try:
-                discard_working_changes(self.dolt_db_path, tables)
+                self.dolt_writer.discard_changes(tables)
                 logger.info(
                     f"Successfully rolled back any Dolt changes after exception for block {block.id}."
                 )
@@ -566,7 +598,7 @@ class StructuredMemoryBank:
 
         # Check if the block exists before deletion
         try:
-            existing_block = read_memory_block(db_path=self.dolt_db_path, block_id=block_id)
+            existing_block = self.dolt_reader.read_memory_block(block_id, branch=self.branch)
             if not existing_block:
                 logger.warning(
                     f"Block {block_id} not found in Dolt. Cannot delete non-existent block."
@@ -582,9 +614,9 @@ class StructuredMemoryBank:
 
         # Step 1: Delete from Dolt without auto-commit
         try:
-            dolt_delete_success, _ = delete_memory_block_from_dolt(
+            dolt_delete_success, _ = self.dolt_writer.delete_memory_block(
                 block_id=block_id,
-                db_path=self.dolt_db_path,
+                branch=self.branch,
                 auto_commit=False,  # Do not auto-commit, we need atomicity control
             )
 
@@ -627,39 +659,53 @@ class StructuredMemoryBank:
 
             # Step 3: Handle success or failure path
             if llama_success:
-                # Both operations succeeded - commit the Dolt changes
-                try:
-                    commit_msg = self.format_commit_message(
-                        operation="delete",
-                        block_id=block_id,
-                        change_summary=f"Deleted {existing_block.type} block",
-                    )
-
-                    commit_success, commit_hash = commit_working_changes(
-                        db_path=self.dolt_db_path, commit_msg=commit_msg, tables=tables
-                    )
-
-                    if commit_success:
-                        # Store proof of deletion in block_proofs table
-                        if commit_hash:
-                            self._store_block_proof(
-                                block_id=block_id,
-                                commit_hash=commit_hash,
-                                operation="delete",
-                                change_summary=f"Deleted {existing_block.type} block",
-                            )
-
-                        logger.info(f"Successfully deleted memory block: {block_id}")
-                        return True
-                    else:
-                        # Commit failed - attempt rollback
-                        logger.error(
-                            f"Failed to commit Dolt changes for deleted block {block_id}. Attempting rollback."
+                # Both operations succeeded - commit the Dolt changes if auto_commit is enabled
+                if self.auto_commit:
+                    try:
+                        commit_msg = f"Delete memory block {block_id}"
+                        commit_success, commit_hash = self.dolt_writer.commit_changes(
+                            commit_msg=commit_msg, tables=tables
                         )
 
-                        # Rollback Dolt changes - restore deleted block
+                        if commit_success:
+                            logger.info(f"Successfully deleted memory block: {block_id}")
+                            self._store_block_proof(block_id, "delete", commit_hash)
+                            return True
+                        else:
+                            # Commit failed - attempt rollback
+                            logger.error(
+                                f"Failed to commit Dolt changes for deleted block {block_id}. Attempting rollback."
+                            )
+
+                            # Rollback Dolt changes - restore deleted block
+                            try:
+                                self.dolt_writer.discard_changes(tables)
+                                logger.info(
+                                    f"Successfully rolled back Dolt deletion for block {block_id}."
+                                )
+                            except Exception as rollback_e:
+                                logger.critical(
+                                    f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
+                                )
+                                self._mark_inconsistent(
+                                    f"Dolt commit failed and rollback failed for deleted block {block_id}"
+                                )
+
+                            return False
+                    except Exception as commit_e:
+                        logger.error(
+                            f"Exception during Dolt commit for deleted block {block_id}: {commit_e}",
+                            exc_info=True,
+                        )
+
+                        # Rollback LlamaIndex changes - would need to re-add the original block
+                        logger.warning(
+                            f"LlamaIndex deletion of block {block_id} cannot be automatically rolled back."
+                        )
+
+                        # Rollback Dolt changes
                         try:
-                            discard_working_changes(self.dolt_db_path, tables)
+                            self.dolt_writer.discard_changes(tables)
                             logger.info(
                                 f"Successfully rolled back Dolt deletion for block {block_id}."
                             )
@@ -672,36 +718,16 @@ class StructuredMemoryBank:
                             )
 
                         return False
-                except Exception as commit_e:
-                    logger.error(
-                        f"Exception during Dolt commit for deleted block {block_id}: {commit_e}",
-                        exc_info=True,
+                else:
+                    # Auto-commit disabled - operation succeeded but changes remain uncommitted
+                    logger.info(
+                        f"Successfully deleted memory block {block_id} (uncommitted - auto_commit=False)"
                     )
-
-                    # Rollback LlamaIndex changes - would need to re-add the original block
-                    logger.warning(
-                        f"LlamaIndex deletion of block {block_id} cannot be automatically rolled back."
-                    )
-
-                    # Rollback Dolt changes
-                    try:
-                        discard_working_changes(self.dolt_db_path, tables)
-                        logger.info(
-                            f"Successfully rolled back Dolt changes for deleted block {block_id}."
-                        )
-                    except Exception as rollback_e:
-                        logger.critical(
-                            f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
-                        )
-                        self._mark_inconsistent(
-                            f"Dolt commit failed and rollback failed for deleted block {block_id}"
-                        )
-
-                    return False
+                    return True
             else:
                 # LlamaIndex delete failed - rollback Dolt changes
                 try:
-                    discard_working_changes(self.dolt_db_path, tables)
+                    self.dolt_writer.discard_changes(tables)
                     logger.info(
                         f"Successfully rolled back Dolt changes after LlamaIndex delete failure for block {block_id}."
                     )
@@ -720,7 +746,7 @@ class StructuredMemoryBank:
 
             # Attempt rollback of any Dolt changes
             try:
-                discard_working_changes(self.dolt_db_path, tables)
+                self.dolt_writer.discard_changes(tables)
                 logger.info(
                     f"Successfully rolled back any Dolt changes after exception for deleted block {block_id}."
                 )
@@ -808,13 +834,10 @@ class StructuredMemoryBank:
         """
         logger.info(f"Getting blocks by tags: {tags} (match_all={match_all})")
         try:
-            # Call the new reader function
-            # Assumes read_memory_blocks_by_tags is imported
-            matching_blocks = read_memory_blocks_by_tags(
-                db_path=self.dolt_db_path,
+            matching_blocks = self.dolt_reader.read_memory_blocks_by_tags(
                 tags=tags,
                 match_all=match_all,
-                # branch='main' # Or allow specifying branch if needed
+                branch=self.branch,
             )
             return matching_blocks
         except Exception as e:
@@ -833,11 +856,7 @@ class StructuredMemoryBank:
         """
         logger.info(f"Getting all memory blocks from branch '{branch}'")
         try:
-            # Call the reader function from dolt_reader
-            all_blocks = read_memory_blocks(
-                db_path=self.dolt_db_path,
-                branch=branch,
-            )
+            all_blocks = self.dolt_reader.read_memory_blocks(branch=branch)
             return all_blocks
         except Exception as e:
             logger.error(
@@ -845,196 +864,136 @@ class StructuredMemoryBank:
             )
             return []  # Return empty list on error
 
+    # TODO: Implement MySQL-based link management
     def get_forward_links(self, block_id: str, relation: Optional[str] = None) -> List[BlockLink]:
         """
+        TODO: optimization needed here
         Retrieves outgoing links from a specific block.
 
         Args:
-            block_id: The ID of the source block.
-            relation: Optional filter for the relationship type.
+            block_id: The ID of the source block
+            relation: Optional relation type to filter by
 
         Returns:
-            A list of BlockLink objects representing the forward links.
+            List of BlockLink objects representing outgoing links
         """
-        logger.info(f"Getting forward links for block: {block_id} (relation={relation})")
-        forward_links: List[BlockLink] = []
-
+        logger.debug(f"Getting forward links for block {block_id}, relation={relation}")
         try:
-            # Escape input values for SQL query
-            escaped_block_id = _escape_sql_string(block_id)
+            # Use the new MySQL-based link reader
+            link_rows = self.dolt_reader.read_forward_links(
+                block_id=block_id, relation=relation, branch=self.branch
+            )
 
-            # Build the query based on whether relation is specified
-            if relation:
-                escaped_relation = _escape_sql_string(relation)
-                query = f"""
-                SELECT from_id, to_id, relation 
-                FROM block_links 
-                WHERE from_id = {escaped_block_id} AND relation = {escaped_relation}
-                """
-            else:
-                query = f"""
-                SELECT from_id, to_id, relation 
-                FROM block_links 
-                WHERE from_id = {escaped_block_id}
-                """
+            # Convert raw database rows to BlockLink objects
+            links = []
+            for row in link_rows:
+                try:
+                    link = BlockLink(
+                        from_id=row["from_block_id"],
+                        to_id=row["to_block_id"],
+                        relation=row["relation"],
+                        priority=row.get("priority", 0),
+                        link_metadata=row.get("metadata"),
+                        created_at=row.get("created_at"),
+                    )
+                    links.append(link)
+                except Exception as e:
+                    logger.warning(f"Failed to parse link row {row}: {e}")
+                    continue
 
-            logger.debug(f"Executing forward links query: {query}")
-            result = self.repo.sql(query=query, result_format="json")
-
-            # Process results
-            if result and "rows" in result and result["rows"]:
-                logger.info(f"Found {len(result['rows'])} forward links for block {block_id}")
-                for row in result["rows"]:
-                    # Convert SQL results to BlockLink objects
-                    link = BlockLink(from_id=block_id, to_id=row["to_id"], relation=row["relation"])
-                    forward_links.append(link)
-            else:
-                logger.info(f"No forward links found for block {block_id}")
-
-            return forward_links
+            logger.debug(f"Found {len(links)} forward links for block {block_id}")
+            return links
 
         except Exception as e:
-            logger.error(f"Error retrieving forward links for block {block_id}: {e}", exc_info=True)
+            logger.error(f"Error retrieving forward links for {block_id}: {e}", exc_info=True)
             return []
 
     def get_backlinks(self, block_id: str, relation: Optional[str] = None) -> List[BlockLink]:
         """
-        Retrieves incoming links to a specific block.
+        TODO: optimization needed here
+        Retrieves blocks that link TO the specified block.
 
         Args:
-            block_id: The ID of the target block.
-            relation: Optional filter for the relationship type.
+            block_id: The ID of the target block
+            relation: Optional relation type to filter by
 
         Returns:
-            A list of BlockLink objects representing the backlinks.
+            List of BlockLink objects representing incoming links
         """
-        logger.info(f"Getting backlinks for block: {block_id} (relation={relation})")
-        backlinks: List[BlockLink] = []
-
+        logger.debug(f"Getting backlinks for block {block_id}, relation={relation}")
         try:
-            # Escape input values for SQL query
-            escaped_block_id = _escape_sql_string(block_id)
+            # Use the new MySQL-based link reader
+            link_rows = self.dolt_reader.read_backlinks(
+                block_id=block_id, relation=relation, branch=self.branch
+            )
 
-            # Build the query based on whether relation is specified
-            if relation:
-                escaped_relation = _escape_sql_string(relation)
-                query = f"""
-                SELECT from_id, to_id, relation 
-                FROM block_links 
-                WHERE to_id = {escaped_block_id} AND relation = {escaped_relation}
-                """
-            else:
-                query = f"""
-                SELECT from_id, to_id, relation 
-                FROM block_links 
-                WHERE to_id = {escaped_block_id}
-                """
-
-            logger.debug(f"Executing backlinks query: {query}")
-            result = self.repo.sql(query=query, result_format="json")
-
-            # Process results
-            if result and "rows" in result and result["rows"]:
-                logger.info(f"Found {len(result['rows'])} backlinks for block {block_id}")
-                for row in result["rows"]:
-                    # BlockLink constructor expects both from_id and to_id
-                    # For backlinks, the from_id comes from the database row, and to_id is our target block
+            # Convert raw database rows to BlockLink objects
+            links = []
+            for row in link_rows:
+                try:
                     link = BlockLink(
-                        from_id=row["from_id"],
-                        to_id=block_id,  # The block we're getting backlinks to
+                        from_id=row["from_block_id"],
+                        to_id=row["to_block_id"],
                         relation=row["relation"],
+                        priority=row.get("priority", 0),
+                        link_metadata=row.get("metadata"),
+                        created_at=row.get("created_at"),
                     )
-                    backlinks.append(link)
-            else:
-                logger.info(f"No backlinks found for block {block_id}")
+                    links.append(link)
+                except Exception as e:
+                    logger.warning(f"Failed to parse link row {row}: {e}")
+                    continue
 
-            return backlinks
+            logger.debug(f"Found {len(links)} backlinks for block {block_id}")
+            return links
 
         except Exception as e:
-            logger.error(f"Error retrieving backlinks for block {block_id}: {e}", exc_info=True)
+            logger.error(f"Error retrieving backlinks for {block_id}: {e}", exc_info=True)
             return []
 
-    # Optional: Add chat history methods if needed
-    # def read_history_dicts(self, ...) -> List[Dict[str, Any]]: ...
-    # def write_history_dicts(self, messages: List[Dict[str, Any]]) -> None: ...
-
-    # TODO: (Optional) Store commit hash in block_proofs (Phase 7)
-    def _ensure_block_proofs_table_exists(self) -> bool:
+    def get_block_proofs(self, block_id: str) -> List[Dict[str, Any]]:
         """
-        Ensures that the block_proofs table exists in the Dolt database.
-        Creates it if it does not exist.
+        Retrieves block operation proofs (create/update/delete) for a specific block.
 
-        The block_proofs table tracks the commit hash for each operation
-        on a memory block, enabling historical proof tracking.
+        Args:
+            block_id: The ID of the block to get proofs for
 
         Returns:
-            bool: True if the table exists or was created successfully, False otherwise.
+            List of dictionaries containing operation, commit_hash, timestamp info.
+            Ordered newest first (most recent operation first).
         """
-        logger.info("Ensuring block_proofs table exists in Dolt database")
+        logger.info(f"Getting block proofs for block: {block_id}")
         try:
-            # Check if the table already exists
-            table_check_query = "SHOW TABLES LIKE 'block_proofs'"
-            table_check_result = self.repo.sql(query=table_check_query, result_format="json")
-
-            if table_check_result and "rows" in table_check_result and table_check_result["rows"]:
-                logger.info("block_proofs table already exists")
-                return True
-
-            # Create the table if it doesn't exist
-            # Use VARCHAR instead of TEXT to match the memory_blocks table column types
-            create_table_query = """
-            CREATE TABLE block_proofs (
-                id INTEGER PRIMARY KEY AUTO_INCREMENT,
-                block_id VARCHAR(255) NOT NULL,
-                commit_hash VARCHAR(255) NOT NULL,
-                operation VARCHAR(10) NOT NULL CHECK (operation IN ('create', 'update', 'delete')),
-                timestamp DATETIME NOT NULL,
-                INDEX block_id_idx (block_id)
-            );
-            """
-
-            self.repo.sql(query=create_table_query)
-            logger.info("Successfully created block_proofs table")
-
-            # Commit the table creation
-            self.repo.add(["block_proofs"])
-            self.repo.commit("Create block_proofs table for tracking block history")
-
-            return True
-
+            proofs = self.dolt_reader.read_block_proofs(block_id, branch=self.branch)
+            logger.info(f"Found {len(proofs)} proofs for block {block_id}")
+            return proofs
         except Exception as e:
-            logger.error(f"Failed to ensure block_proofs table exists: {e}", exc_info=True)
-            return False
+            logger.error(f"Error retrieving block proofs for {block_id}: {e}", exc_info=True)
+            return []
 
     def format_commit_message(
         self,
         operation: str,
         block_id: str,
-        change_summary: Optional[str] = None,
+        change_summary: str = "No significant changes",
         extra_info: Optional[str] = None,
     ) -> str:
         """
-        Format a standardized commit message for block operations.
+        Formats a standardized commit message for memory block operations.
 
         Args:
-            operation: The operation type ('create', 'update', or 'delete')
+            operation: The operation type (create, update, delete)
             block_id: The ID of the block being operated on
-            change_summary: Optional summary of changes. Defaults to 'No significant changes'
-            extra_info: Optional additional metadata (e.g., actor_identity_id, tool_name, session_id)
+            change_summary: Summary of changes made (default: "No significant changes")
+            extra_info: Optional additional context (e.g., "actor=user-123")
 
         Returns:
-            Formatted commit message following the standard:
-            "{OPERATION}: {block_id} - {summary_of_change} [{extra_info}]" if extra_info is provided,
-            "{OPERATION}: {block_id} - {summary_of_change}" otherwise
+            Formatted commit message string
         """
-        # Standardize operation to uppercase
+        # Standardize operation name to uppercase
         operation_upper = operation.upper()
 
-        # Use default summary if none provided
-        if not change_summary:
-            change_summary = "No significant changes"
-
-        # Format according to the standard
+        # Build base message
         message = f"{operation_upper}: {block_id} - {change_summary}"
 
         # Append extra info if provided
@@ -1043,113 +1002,89 @@ class StructuredMemoryBank:
 
         return message
 
-    def _store_block_proof(
-        self, block_id: str, commit_hash: str, operation: str, change_summary: Optional[str] = None
-    ) -> bool:
+    def use_persistent_connections(self, branch: str = None) -> None:
         """
-        Stores a proof record in the block_proofs table.
+        Enable persistent connection mode on both reader and writer with coordinated branch state.
+
+        This ensures that branch checkouts persist across all memory bank operations.
 
         Args:
-            block_id: The ID of the block that was modified
-            commit_hash: The Dolt commit hash after the operation
-            operation: The type of operation ('create', 'update', or 'delete')
-            change_summary: Optional summary of changes. Defaults to 'No significant changes'
-
-        Returns:
-            bool: True if the proof was stored successfully, False otherwise
+            branch: Branch to checkout and maintain (defaults to self.branch)
         """
-        if not commit_hash:
-            logger.warning(f"Cannot store block proof for {block_id}: No commit hash provided")
-            return False
+        target_branch = branch or self.branch
 
         try:
-            # Ensure the table exists
-            if not self._ensure_block_proofs_table_exists():
-                return False
+            # Enable persistent connections on both reader and writer
+            self.dolt_reader.use_persistent_connection(target_branch)
+            reader_actual_branch = getattr(self.dolt_reader, "_current_branch", None)
 
-            # Format values for the query
-            escaped_block_id = _escape_sql_string(block_id)
-            escaped_commit_hash = _escape_sql_string(commit_hash)
-            escaped_operation = _escape_sql_string(operation)
-            now = datetime.datetime.now().isoformat(sep=" ", timespec="seconds")
-            escaped_timestamp = _escape_sql_string(now)
+            self.dolt_writer.use_persistent_connection(target_branch)
+            writer_actual_branch = getattr(self.dolt_writer, "_current_branch", None)
 
-            # Insert the proof record
-            query = f"""
-            INSERT INTO block_proofs (block_id, commit_hash, operation, timestamp)
-            VALUES ({escaped_block_id}, {escaped_commit_hash}, {escaped_operation}, {escaped_timestamp});
-            """
+            # Verify both connections are on the same branch (session synchronization)
+            if reader_actual_branch != writer_actual_branch:
+                self.close_persistent_connections()
+                raise Exception(
+                    f"Branch synchronization failed: reader on '{reader_actual_branch}', "
+                    f"writer on '{writer_actual_branch}'. Both must be on same branch for consistent operations."
+                )
 
-            self.repo.sql(query=query)
-
-            # Generate standardized commit message
-            commit_message = self.format_commit_message(operation, block_id, change_summary)
-
-            # Log the commit message before submitting
-            logger.info(f"Commit message: {commit_message}")
-
-            # Commit the changes to the block_proofs table
-            self.repo.add(["block_proofs"])
-            self.repo.commit(commit_message)
+            # Update the memory bank's branch to match the verified database session state
+            self.branch = reader_actual_branch  # Use verified branch from database session
 
             logger.info(
-                f"Stored {operation} proof for block {block_id} with commit hash {commit_hash}"
+                f"StructuredMemoryBank enabled persistent connections on verified branch '{self.branch}'"
             )
-            return True
 
         except Exception as e:
-            logger.error(f"Failed to store block proof for {block_id}: {e}", exc_info=True)
-            return False
+            logger.error(f"Exception in use_persistent_connections: {e}", exc_info=True)
+            # Cleanup on failure
+            try:
+                self.close_persistent_connections()
+            except Exception:
+                pass
+            raise Exception(f"Failed to enable persistent connections: {e}")
 
-    def get_block_proofs(self, block_id: str) -> List[Dict[str, Any]]:
+    def close_persistent_connections(self) -> None:
         """
-        Retrieves all proof records for a specific block_id.
-
-        Args:
-            block_id: The ID of the block to retrieve proofs for
-
-        Returns:
-            A list of dictionaries containing proof records, each with
-            fields: id, block_id, commit_hash, operation, and timestamp
+        Close persistent connections on both reader and writer.
         """
-        logger.info(f"Retrieving proof records for block: {block_id}")
-        proofs = []
+        try:
+            if hasattr(self.dolt_reader, "close_persistent_connection"):
+                self.dolt_reader.close_persistent_connection()
+        except Exception as e:
+            logger.warning(f"Error closing reader persistent connection: {e}")
 
         try:
-            # Ensure the table exists
-            if not self._ensure_block_proofs_table_exists():
-                return []
-
-            # Escape the block_id for SQL
-            escaped_block_id = _escape_sql_string(block_id)
-
-            # Query for proofs
-            query = f"""
-            SELECT id, block_id, commit_hash, operation, timestamp
-            FROM block_proofs
-            WHERE block_id = {escaped_block_id}
-            ORDER BY timestamp DESC;
-            """
-
-            result = self.repo.sql(query=query, result_format="json")
-
-            if result and "rows" in result:
-                proofs = result["rows"]
-                logger.info(f"Found {len(proofs)} proof records for block {block_id}")
-            else:
-                logger.info(f"No proof records found for block {block_id}")
-
-            return proofs
-
+            if hasattr(self.dolt_writer, "close_persistent_connection"):
+                self.dolt_writer.close_persistent_connection()
         except Exception as e:
-            logger.error(
-                f"Failed to retrieve proof records for block {block_id}: {e}", exc_info=True
-            )
-            return []
+            logger.warning(f"Error closing writer persistent connection: {e}")
 
+        logger.info("StructuredMemoryBank closed persistent connections")
 
-# Define get_schema directly in this module so it can be patched by tests
-def get_schema(db_path, node_type, version=None, schema_version=None):
-    """Local wrapper for the get_schema function from dolt_schema_manager."""
-    v = schema_version if schema_version is not None else version
-    return _get_schema_external(db_path, node_type, v)
+    def test_commit_without_persistent(self) -> str:
+        """
+        Test method to close persistent connections and check if commits work.
+        """
+        self.close_persistent_connections()
+        return "Persistent connections closed - ready for commit test"
+
+    def debug_persistent_state(self) -> Dict[str, Any]:
+        """
+        Debug method to check persistent connection state.
+
+        Returns:
+            Dictionary with debug information about persistent connections
+        """
+        return {
+            "memory_bank_branch": self.branch,
+            "reader_use_persistent": getattr(self.dolt_reader, "_use_persistent", "UNKNOWN"),
+            "reader_current_branch": getattr(self.dolt_reader, "_current_branch", "UNKNOWN"),
+            "writer_use_persistent": getattr(self.dolt_writer, "_use_persistent", "UNKNOWN"),
+            "writer_current_branch": getattr(self.dolt_writer, "_current_branch", "UNKNOWN"),
+            "reader_has_connection": getattr(self.dolt_reader, "_persistent_connection", None)
+            is not None,
+            "writer_has_connection": getattr(self.dolt_writer, "_persistent_connection", None)
+            is not None,
+        }

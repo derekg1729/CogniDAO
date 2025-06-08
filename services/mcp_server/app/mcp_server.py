@@ -1,11 +1,14 @@
 import os
 import sys
 import logging
+import importlib.util
 from pathlib import Path
 from datetime import datetime
+import json
 
 from mcp.server.fastmcp import FastMCP
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
+from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
 from infra_core.memory_system.sql_link_manager import SQLLinkManager
 from infra_core.memory_system.tools.agent_facing.get_memory_block_tool import (
     get_memory_block_tool,
@@ -20,6 +23,10 @@ from infra_core.memory_system.tools.agent_facing.get_active_work_items_tool impo
 from infra_core.memory_system.tools.agent_facing.create_work_item_tool import (
     create_work_item_tool,
     CreateWorkItemInput,
+)
+from infra_core.memory_system.tools.agent_facing.create_memory_block_agent_tool import (
+    create_memory_block_agent_tool,
+    CreateMemoryBlockAgentInput,
 )
 from infra_core.memory_system.tools.agent_facing.update_memory_block_tool import (
     update_memory_block_tool,
@@ -44,6 +51,27 @@ from infra_core.memory_system.tools.agent_facing.get_linked_blocks_tool import (
     GetLinkedBlocksInput,
     GetLinkedBlocksOutput,
 )
+from infra_core.memory_system.tools.agent_facing.delete_memory_block_tool import (
+    delete_memory_block_tool,
+    DeleteMemoryBlockToolInput,
+)
+from infra_core.memory_system.tools.memory_core.query_memory_blocks_tool import (
+    query_memory_blocks_core,
+    QueryMemoryBlocksInput,
+    QueryMemoryBlocksOutput,
+)
+from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
+    dolt_repo_tool,
+    DoltCommitInput,
+    DoltCommitOutput,
+    dolt_status_tool,
+    DoltStatusInput,
+    DoltStatusOutput,
+    dolt_pull_tool,
+    DoltPullInput,
+    dolt_branch_tool,
+    DoltBranchInput,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -54,30 +82,71 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+# Validate critical dependencies are available
+
+if importlib.util.find_spec("llama_index.embeddings.huggingface") is None:
+    logger.error("Critical dependency missing - llama_index.embeddings.huggingface")
+    sys.exit(1)
+
+
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.append(str(project_root))
 
-
-# Initialize StructuredMemoryBank using environment variable
-COGNI_DOLT_DIR = "/Users/derek/dev/cogni/data/blocks/memory_dolt"
-CHROMA_PATH = "/Users/derek/dev/cogni/data/memory_chroma"
+# Initialize StructuredMemoryBank using environment variables
+CHROMA_PATH = os.environ.get("CHROMA_PATH", "/tmp/cogni_chroma")  # Make configurable
 CHROMA_COLLECTION_NAME = os.environ.get("CHROMA_COLLECTION_NAME", "cogni_mcp_collection")
 
-# # Ensure directories exist
-# os.makedirs(COGNI_DOLT_DIR, exist_ok=True)
-# os.makedirs(CHROMA_PATH, exist_ok=True)
+# Ensure directories exist
+os.makedirs(CHROMA_PATH, exist_ok=True)
 
 try:
-    # Initialize memory bank
-    memory_bank = StructuredMemoryBank(
-        dolt_db_path=COGNI_DOLT_DIR,
-        chroma_path=CHROMA_PATH,
-        chroma_collection=CHROMA_COLLECTION_NAME,
+    # Initialize MySQL connection config for remote Dolt SQL server
+    dolt_config = DoltConnectionConfig(
+        host=os.environ.get("DOLT_HOST", "localhost"),
+        port=int(os.environ.get("DOLT_PORT", "3306")),
+        user=os.environ.get("DOLT_USER", "root"),
+        password=os.environ.get("DOLT_ROOT_PASSWORD", ""),
+        database=os.environ.get(
+            "DOLT_DATABASE", "cogni-dao-memory"
+        ),  # Fixed default to match production
     )
 
-    # Initialize LinkManager components with SQL backend
-    link_manager = SQLLinkManager(COGNI_DOLT_DIR)
+    # Test database connection before proceeding
+    logger.info(f"Testing database connection to {dolt_config.host}:{dolt_config.port}")
+    try:
+        import mysql.connector
+
+        test_conn = mysql.connector.connect(
+            host=dolt_config.host,
+            port=dolt_config.port,
+            user=dolt_config.user,
+            password=dolt_config.password,
+            database=dolt_config.database,
+            connect_timeout=5,
+        )
+        cursor = test_conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.fetchone()
+        cursor.close()
+        test_conn.close()
+        logger.info("✅ Database connection successful")
+    except Exception as db_error:
+        logger.error(f"❌ Database connection failed: {db_error}")
+        logger.error(
+            f"Config: host={dolt_config.host}, port={dolt_config.port}, user={dolt_config.user}, database={dolt_config.database}"
+        )
+        raise
+
+    # Initialize memory bank
+    memory_bank = StructuredMemoryBank(
+        chroma_path=CHROMA_PATH,
+        chroma_collection=CHROMA_COLLECTION_NAME,
+        dolt_connection_config=dolt_config,
+    )
+
+    # Initialize LinkManager components with SQL backend using same config
+    link_manager = SQLLinkManager(dolt_config)
     pm_links = ExecutableLinkManager(link_manager)
 
     # Attach link_manager to memory_bank for tool access
@@ -216,8 +285,41 @@ async def get_active_work_items(input):
         return GetActiveWorkItemsOutput(
             success=False,
             work_items=[],
-            total_count=0,
             error=f"Error retrieving active work items: {str(e)}",
+            timestamp=datetime.now(),
+        ).model_dump(mode="json")
+
+
+# Register the QueryMemoryBlocksSemantic tool
+@mcp.tool("QueryMemoryBlocksSemantic")
+async def query_memory_blocks_semantic(input):
+    """Query memory blocks using semantic search with chroma vector database
+
+    Semantic Search with Filters:
+        query_text: Text to search for semantically (required)
+        type_filter: Optional filter by block type (knowledge, task, project, doc, interaction, bug, epic)
+        tag_filters: Optional list of tags to filter by (all must match)
+        metadata_filters: Optional metadata key-value pairs to filter by (exact matches)
+        top_k: Maximum number of results to return (1-20, default: 5)
+
+    Output contains 'blocks' array of semantically relevant memory blocks.
+    """
+    try:
+        # Parse dict input into Pydantic model
+        input_data = QueryMemoryBlocksInput(**input)
+
+        # Execute the core query function
+        result = query_memory_blocks_core(input_data, memory_bank)
+
+        # Return the complete result
+        return result.model_dump(mode="json")
+
+    except Exception as e:
+        logger.error(f"Error in QueryMemoryBlocksSemantic MCP tool: {e}")
+        return QueryMemoryBlocksOutput(
+            success=False,
+            blocks=[],
+            error=f"Error performing semantic search: {str(e)}",
             timestamp=datetime.now(),
         ).model_dump(mode="json")
 
@@ -286,6 +388,28 @@ async def update_memory_block(input):
         return result
     except Exception as e:
         logger.error(f"Error updating memory block: {e}")
+        return {"error": str(e)}
+
+
+# Register the DeleteMemoryBlock tool
+@mcp.tool("DeleteMemoryBlock")
+async def delete_memory_block(input):
+    """Delete an existing memory block with dependency validation
+
+    Args:
+        block_id: ID of the memory block to delete
+        validate_dependencies: If True, check for dependent blocks and fail if any exist
+        author: Who is performing the deletion
+        agent_id: Agent identifier for tracking
+        change_note: Optional note explaining the reason for deletion
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = DeleteMemoryBlockToolInput(**input)
+        result = delete_memory_block_tool(parsed_input, memory_bank=memory_bank)
+        return result
+    except Exception as e:
+        logger.error(f"Error deleting memory block: {e}")
         return {"error": str(e)}
 
 
@@ -362,13 +486,266 @@ async def create_block_link(input):
         return {"success": False, "message": "Failed to create block link", "error_details": str(e)}
 
 
-class HealthCheckOutput:
-    """Simple health check output."""
+# Register the CreateMemoryBlock tool
+@mcp.tool("CreateMemoryBlock")
+async def create_memory_block(input):
+    """Create a new general memory block (doc, knowledge, or log)
 
-    def __init__(self, healthy: bool, memory_bank_status: str, link_manager_status: str):
-        self.healthy = healthy
-        self.memory_bank_status = memory_bank_status
-        self.link_manager_status = link_manager_status
+    Args:
+        type: Type of memory block to create (doc, knowledge, or log)
+        title: Title of the memory block
+        content: Primary content/text of the memory block
+        audience: Intended audience (doc type only)
+        section: Section or category (doc type only)
+        source: Source of the knowledge (knowledge type only)
+        validity: Validity status (knowledge type only)
+        input_text: Input text from interaction (log type only)
+        output_text: Output text from interaction (log type only)
+        tags: Tags for categorizing this memory block
+        state: Initial state of the block
+        visibility: Visibility level of the block
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = CreateMemoryBlockAgentInput(**input)
+        result = create_memory_block_agent_tool(parsed_input, memory_bank=memory_bank)
+        return result
+    except Exception as e:
+        logger.error(f"Error creating memory block: {e}")
+        return {"error": str(e)}
+
+
+# Register the DoltCommit tool
+@mcp.tool("DoltCommit")
+async def dolt_commit(input):
+    """Commit working changes to Dolt using the memory bank's writer
+
+    Args:
+        commit_message: Commit message for the Dolt changes (required, 1-500 chars)
+        tables: Optional list of specific tables to add/commit. If not provided, all standard tables will be committed
+        author: Optional author attribution for the commit (max 100 chars)
+
+    Returns:
+        success: Whether the commit operation succeeded
+        commit_hash: The Dolt commit hash if successful
+        message: Human-readable result message
+        tables_committed: List of tables that were committed
+        error: Error message if operation failed
+        timestamp: Timestamp of operation
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = DoltCommitInput(**input)
+        result = dolt_repo_tool(parsed_input, memory_bank=memory_bank)
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error in DoltCommit MCP tool: {e}")
+        return DoltCommitOutput(
+            success=False,
+            message=f"Commit failed: {str(e)}",
+            error=f"Error during dolt_commit: {str(e)}",
+        ).model_dump(mode="json")
+
+
+# Register the DoltPush tool
+@mcp.tool("DoltPush")
+async def mcp_dolt_push(
+    remote_name: str = "origin",
+    branch: str = "main",
+    force: bool = False,
+) -> str:
+    """
+    Push changes to a remote repository using Dolt.
+
+    Args:
+        remote_name: Name of the remote to push to (default: 'origin')
+        branch: Branch to push (default: 'main')
+        force: Whether to force push, overriding safety checks
+
+    Returns:
+        JSON string with push results including success status and message
+    """
+    try:
+        # Import the dolt_push_tool function and input model
+        from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
+            DoltPushInput,
+            dolt_push_tool,
+        )
+
+        # Create input object
+        input_data = DoltPushInput(
+            remote_name=remote_name,
+            branch=branch,
+            force=force,
+        )
+
+        # Execute the push operation
+        result = dolt_push_tool(input_data, memory_bank)
+
+        # Return JSON representation
+        return result.model_dump_json(indent=2)
+
+    except Exception as e:
+        logger.error(f"Error in DoltPush tool: {e}", exc_info=True)
+        return json.dumps({"success": False, "error": str(e)}, indent=2)
+
+
+# Register the DoltStatus tool
+@mcp.tool("DoltStatus")
+async def dolt_status(input):
+    """Get repository status using Dolt system tables
+
+    Returns:
+        current_branch: Current active branch
+        is_clean: True if working tree is clean
+        staged_tables: Tables with staged changes
+        unstaged_tables: Tables with unstaged changes
+        untracked_tables: New untracked tables
+        total_changes: Total number of changes
+        ahead: Commits ahead of remote
+        behind: Commits behind remote
+        conflicts: Tables with conflicts
+        message: Human-readable status summary
+        timestamp: Timestamp of operation
+    """
+    logger.info("DoltStatus MCP tool called")
+
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = DoltStatusInput(**input)
+        result = dolt_status_tool(parsed_input, memory_bank=memory_bank)
+        return result.model_dump(mode="json")
+
+    except Exception as e:
+        logger.error(f"Error in DoltStatus MCP tool: {e}")
+        return DoltStatusOutput(
+            success=False,
+            current_branch="unknown",
+            is_clean=False,
+            total_changes=0,
+            message=f"Status check failed: {str(e)}",
+            error=str(e),
+        ).model_dump(mode="json")
+
+
+# Register the DoltPull tool
+@mcp.tool("DoltPull")
+async def mcp_dolt_pull(
+    remote_name: str = "origin",
+    branch: str = "main",
+    force: bool = False,
+    no_ff: bool = False,
+    squash: bool = False,
+) -> str:
+    """
+    Pull changes from a remote repository using Dolt.
+
+    Args:
+        remote_name: Name of the remote to pull from (default: 'origin')
+        branch: Specific branch to pull (default: 'main')
+        force: Whether to force pull, ignoring conflicts
+        no_ff: Create a merge commit even for fast-forward merges
+        squash: Merge changes to working set without updating commit history
+
+    Returns:
+        JSON string with pull results including success status and message
+    """
+    try:
+        # Create input object
+        input_data = DoltPullInput(
+            remote_name=remote_name,
+            branch=branch,
+            force=force,
+            no_ff=no_ff,
+            squash=squash,
+        )
+
+        # Execute the pull operation
+        result = dolt_pull_tool(input_data, memory_bank)
+
+        # Return JSON representation
+        return result.model_dump_json(indent=2)
+
+    except Exception as e:
+        logger.error(f"Error in DoltPull tool: {e}", exc_info=True)
+        return json.dumps({"success": False, "error": str(e)}, indent=2)
+
+
+@mcp.tool("DoltBranch")
+async def mcp_dolt_branch(
+    branch_name: str,
+    start_point: str = None,
+    force: bool = False,
+) -> str:
+    """
+    Create a new branch using Dolt.
+
+    Args:
+        branch_name: Name of the new branch to create
+        start_point: Commit, branch, or tag to start the branch from (optional)
+        force: Whether to force creation, overriding safety checks
+
+    Returns:
+        JSON string with branch creation results including success status and message
+    """
+    try:
+        # Create input object
+        input_data = DoltBranchInput(
+            branch_name=branch_name,
+            start_point=start_point,
+            force=force,
+        )
+
+        # Execute the branch creation operation
+        result = dolt_branch_tool(input_data, memory_bank)
+
+        # Return JSON representation
+        return result.model_dump_json(indent=2)
+
+    except Exception as e:
+        logger.error(f"Error in DoltBranch tool: {e}", exc_info=True)
+        return json.dumps({"success": False, "error": str(e)}, indent=2)
+
+
+# Register the DoltListBranches tool
+@mcp.tool("DoltListBranches")
+async def dolt_list_branches(input):
+    """List all Dolt branches with their information
+
+    Returns:
+        success: Whether the operation succeeded
+        branches: List of branch information objects
+        current_branch: Currently active branch
+        message: Human-readable result message
+        timestamp: Timestamp of operation
+    """
+    try:
+        # Import the function locally for now
+        from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
+            DoltListBranchesInput,
+            DoltListBranchesOutput,
+            dolt_list_branches_tool,
+        )
+
+        # Parse dict input into Pydantic model
+        parsed_input = DoltListBranchesInput(**input)
+        result = dolt_list_branches_tool(parsed_input, memory_bank=memory_bank)
+        return result.model_dump(mode="json")
+
+    except Exception as e:
+        logger.error(f"Error in DoltListBranches MCP tool: {e}")
+        # Import locally for error handling too
+        from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
+            DoltListBranchesOutput,
+        )
+
+        return DoltListBranchesOutput(
+            success=False,
+            branches=[],
+            current_branch="unknown",
+            message=f"Failed to list branches: {str(e)}",
+            error=f"Error during branch listing: {str(e)}",
+        ).model_dump(mode="json")
 
 
 # Register a health check tool
@@ -378,11 +755,12 @@ async def health_check():
     memory_bank_ok = memory_bank is not None
     link_manager_ok = link_manager is not None and pm_links is not None
 
-    return HealthCheckOutput(
-        healthy=memory_bank_ok and link_manager_ok,
-        memory_bank_status="initialized" if memory_bank_ok else "not_initialized",
-        link_manager_status="initialized" if link_manager_ok else "not_initialized",
-    )
+    return {
+        "healthy": memory_bank_ok and link_manager_ok,
+        "memory_bank_status": "initialized" if memory_bank_ok else "not_initialized",
+        "link_manager_status": "initialized" if link_manager_ok else "not_initialized",
+        "timestamp": datetime.now().isoformat(),
+    }
 
 
 # initial JSON for local MCP server:

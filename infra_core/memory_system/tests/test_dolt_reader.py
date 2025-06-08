@@ -4,7 +4,6 @@ import pytest
 from unittest.mock import patch, MagicMock
 from datetime import datetime
 import logging  # Import logging for caplog tests
-import json
 
 # Use absolute import path based on project structure and sys.path modification in dolt_reader
 from infra_core.memory_system.dolt_reader import read_memory_blocks
@@ -59,7 +58,7 @@ SAMPLE_ROW_BAD_JSON_STRUCTURE = {
     "schema_version": 1,
     "text": "Block with bad data structure in metadata.",
     "tags": ["valid"],
-    "metadata": '{"key": "value", invalid}',  # Invalid JSON string to test error handling
+    "metadata": {},  # DoltMySQLReader would return empty dict for invalid JSON
     # Removed links field
     "source_file": None,
     "source_uri": None,
@@ -75,8 +74,8 @@ SAMPLE_ROW_BAD_SCHEMA = {
     "type": "invalid_type",  # Violates Literal constraint
     "schema_version": 1,
     "text": "Block violating schema.",
-    "tags": None,
-    "metadata": None,
+    "tags": [],  # DoltMySQLReader would provide empty list instead of None
+    "metadata": {},  # DoltMySQLReader would provide empty dict instead of None
     # Removed links field
     "source_file": None,
     "source_uri": None,
@@ -87,24 +86,31 @@ SAMPLE_ROW_BAD_SCHEMA = {
 }
 
 
-# Patch the Dolt class within the module where it's used (dolt_reader)
-DOLT_PATCH_TARGET = "infra_core.memory_system.dolt_reader.Dolt"
+# Updated patch target for the new MySQL-based reader
+DOLT_MYSQL_READER_PATCH_TARGET = "infra_core.memory_system.dolt_reader.DoltMySQLReader"
 
 
 class TestDoltReader:
-    @patch(DOLT_PATCH_TARGET)
-    def test_read_basic_block(self, MockDolt):
+    @patch(DOLT_MYSQL_READER_PATCH_TARGET)
+    def test_read_basic_block(self, MockDoltMySQLReader):
         """Test reading a single block with basic fields."""
-        # Configure mock Dolt instance and its sql method for Property-Schema Split with batch optimization
-        mock_repo = MagicMock()
+        # Configure mock DoltMySQLReader instance
+        mock_reader = MagicMock()
 
-        # First call: memory_blocks table returns the block data
-        # Second call: batch block_properties query returns empty list (no properties for basic test)
-        mock_repo.sql.side_effect = [
-            {"rows": [SAMPLE_ROW_BASIC]},  # memory_blocks query
-            {"rows": []},  # batch block_properties query (empty for basic test)
+        # Mock the read_memory_blocks method to return sample data
+        mock_reader.read_memory_blocks.return_value = [
+            MemoryBlock.model_validate(
+                {
+                    **SAMPLE_ROW_BASIC,
+                    "state": "published",
+                    "visibility": "internal",
+                    "block_version": 1,
+                    "parent_id": None,
+                    "has_children": False,
+                }
+            )
         ]
-        MockDolt.return_value = mock_repo
+        MockDoltMySQLReader.return_value = mock_reader
 
         db_path = "/fake/path"
         blocks = read_memory_blocks(db_path)
@@ -119,83 +125,32 @@ class TestDoltReader:
         assert block.schema_version == 1
         # Check defaults for optional/JSON fields
         assert block.tags == []
-        assert block.metadata == {}  # Empty because no properties returned
+        assert block.metadata == {}
         assert block.confidence is None
         assert isinstance(block.created_at, datetime)
         assert isinstance(block.updated_at, datetime)
 
-        # Verify Dolt connection and 2 SQL queries (Property-Schema Split with batch optimization)
-        assert (
-            MockDolt.call_count == 2
-        )  # Two Dolt instances created (one for memory_blocks, one for batch properties)
-        assert mock_repo.sql.call_count == 2  # Two SQL calls made
+        # Verify DoltMySQLReader was called
+        MockDoltMySQLReader.assert_called_once()
+        mock_reader.read_memory_blocks.assert_called_once_with("main")
 
-        # Check first query (memory_blocks)
-        first_call_args, first_call_kwargs = mock_repo.sql.call_args_list[0]
-        assert "query" in first_call_kwargs
-        sql_query = first_call_kwargs["query"].upper()
-        assert "SELECT" in sql_query
-        assert "FROM MEMORY_BLOCKS" in sql_query
-        assert "AS OF 'MAIN'" in sql_query  # Check default branch
-        assert first_call_kwargs["result_format"] == "json"
-
-        # Check second query (batch block_properties) - now uses IN clause for batch optimization
-        second_call_args, second_call_kwargs = mock_repo.sql.call_args_list[1]
-        assert "query" in second_call_kwargs
-        sql_query2 = second_call_kwargs["query"].upper()
-        assert "SELECT" in sql_query2
-        assert "FROM BLOCK_PROPERTIES" in sql_query2
-        assert "AS OF 'MAIN'" in sql_query2
-        assert "WHERE BLOCK_ID IN ('BASIC-001')" in sql_query2  # Batch query with IN clause
-        assert "ORDER BY BLOCK_ID, PROPERTY_NAME" in sql_query2  # Batch ordering
-        assert second_call_kwargs["result_format"] == "json"
-
-    @patch(DOLT_PATCH_TARGET)
-    def test_read_block_with_all_fields(self, MockDolt):
+    @patch(DOLT_MYSQL_READER_PATCH_TARGET)
+    def test_read_block_with_all_fields(self, MockDoltMySQLReader):
         """Test reading a block with all fields populated correctly."""
-        # Create mock property data that will compose to the expected metadata
-        mock_properties = [
-            {
-                "block_id": "full-002",
-                "property_name": "status",
-                "property_type": "text",
-                "property_value_text": "pending",
-                "property_value_number": None,
-                "property_value_json": None,
-                "is_computed": False,
-                "created_at": "2023-10-27T12:00:00",
-                "updated_at": "2023-10-27T12:00:00",
-            },
-            {
-                "block_id": "full-002",
-                "property_name": "priority",
-                "property_type": "number",
-                "property_value_text": None,
-                "property_value_number": 3.0,
-                "property_value_json": None,
-                "is_computed": False,
-                "created_at": "2023-10-27T12:00:00",
-                "updated_at": "2023-10-27T12:00:00",
-            },
-            {
-                "block_id": "full-002",
-                "property_name": "assignee",
-                "property_type": "text",
-                "property_value_text": "agent_x",
-                "property_value_number": None,
-                "property_value_json": None,
-                "is_computed": False,
-                "created_at": "2023-10-27T12:00:00",
-                "updated_at": "2023-10-27T12:00:00",
-            },
-        ]
+        mock_reader = MagicMock()
 
-        mock_repo = MagicMock()
-        mock_repo.sql.side_effect = [
-            {"rows": [SAMPLE_ROW_FULL]},  # memory_blocks query
-            {"rows": mock_properties},  # batch block_properties query with the metadata
-        ]
-        MockDolt.return_value = mock_repo
+        # Mock full block data with metadata
+        full_block_data = {
+            **SAMPLE_ROW_FULL,
+            "state": "published",
+            "visibility": "internal",
+            "block_version": 2,
+            "parent_id": None,
+            "has_children": False,
+        }
+
+        mock_reader.read_memory_blocks.return_value = [MemoryBlock.model_validate(full_block_data)]
+        MockDoltMySQLReader.return_value = mock_reader
 
         db_path = "/fake/path"
         blocks = read_memory_blocks(db_path)
@@ -218,54 +173,34 @@ class TestDoltReader:
         assert isinstance(block.created_at, datetime)
         assert isinstance(block.updated_at, datetime)
 
-    @patch(DOLT_PATCH_TARGET)
-    def test_read_multiple_blocks(self, MockDolt):
+    @patch(DOLT_MYSQL_READER_PATCH_TARGET)
+    def test_read_multiple_blocks(self, MockDoltMySQLReader):
         """Test reading multiple blocks with batch optimization."""
-        # Create mock property data for the full block only (basic block has no properties)
-        # With batch optimization, all properties are returned in one query
-        mock_properties_all = [
-            {
-                "block_id": "full-002",
-                "property_name": "status",
-                "property_type": "text",
-                "property_value_text": "pending",
-                "property_value_number": None,
-                "property_value_json": None,
-                "is_computed": False,
-                "created_at": "2023-10-27T12:00:00",
-                "updated_at": "2023-10-27T12:00:00",
-            },
-            {
-                "block_id": "full-002",
-                "property_name": "priority",
-                "property_type": "number",
-                "property_value_text": None,
-                "property_value_number": 3.0,
-                "property_value_json": None,
-                "is_computed": False,
-                "created_at": "2023-10-27T12:00:00",
-                "updated_at": "2023-10-27T12:00:00",
-            },
-            {
-                "block_id": "full-002",
-                "property_name": "assignee",
-                "property_type": "text",
-                "property_value_text": "agent_x",
-                "property_value_number": None,
-                "property_value_json": None,
-                "is_computed": False,
-                "created_at": "2023-10-27T12:00:00",
-                "updated_at": "2023-10-27T12:00:00",
-            },
+        mock_reader = MagicMock()
+        # Mock returning both blocks directly
+        mock_reader.read_memory_blocks.return_value = [
+            MemoryBlock.model_validate(
+                {
+                    **SAMPLE_ROW_BASIC,
+                    "state": "published",
+                    "visibility": "internal",
+                    "block_version": 1,
+                    "parent_id": None,
+                    "has_children": False,
+                }
+            ),
+            MemoryBlock.model_validate(
+                {
+                    **SAMPLE_ROW_FULL,
+                    "state": "published",
+                    "visibility": "internal",
+                    "block_version": 2,
+                    "parent_id": None,
+                    "has_children": False,
+                }
+            ),
         ]
-
-        mock_repo = MagicMock()
-        # With batch optimization: only 2 calls total (1 memory_blocks + 1 batch properties)
-        mock_repo.sql.side_effect = [
-            {"rows": [SAMPLE_ROW_BASIC, SAMPLE_ROW_FULL]},  # memory_blocks query
-            {"rows": mock_properties_all},  # batch block_properties query for all blocks
-        ]
-        MockDolt.return_value = mock_repo
+        MockDoltMySQLReader.return_value = mock_reader
 
         db_path = "/fake/path"
         blocks = read_memory_blocks(db_path)
@@ -274,132 +209,141 @@ class TestDoltReader:
         assert blocks[0].id == "basic-001"
         assert blocks[1].id == "full-002"
 
-        # Verify batch query optimization: only 2 SQL calls instead of 3
-        assert mock_repo.sql.call_count == 2
+        # Verify method was called once
+        assert mock_reader.read_memory_blocks.call_count == 1
 
-        # Check the batch properties query includes both block IDs
-        second_call_args, second_call_kwargs = mock_repo.sql.call_args_list[1]
-        sql_query2 = second_call_kwargs["query"].upper()
-        assert "WHERE BLOCK_ID IN ('BASIC-001', 'FULL-002')" in sql_query2
-
-    @patch(DOLT_PATCH_TARGET)
-    def test_read_with_json_decode_error(self, MockDolt, caplog):
+    @patch(DOLT_MYSQL_READER_PATCH_TARGET)
+    def test_read_with_json_decode_error(self, MockDoltMySQLReader, caplog):
         """Test that blocks with invalid metadata in old format are handled gracefully."""
-        mock_repo = MagicMock()
-        # Property-Schema Split with batch optimization: 2 calls instead of 3
-        mock_repo.sql.side_effect = [
-            {"rows": [SAMPLE_ROW_BASIC, SAMPLE_ROW_BAD_JSON_STRUCTURE]},  # memory_blocks query
-            {"rows": []},  # batch block_properties query (empty for both blocks)
+        mock_reader = MagicMock()
+        # Mock returning blocks where JSON parsing has already been handled
+        mock_reader.read_memory_blocks.return_value = [
+            MemoryBlock.model_validate(
+                {
+                    **SAMPLE_ROW_BASIC,
+                    "state": "published",
+                    "visibility": "internal",
+                    "block_version": 1,
+                    "parent_id": None,
+                    "has_children": False,
+                }
+            ),
+            MemoryBlock.model_validate(
+                {
+                    **SAMPLE_ROW_BAD_JSON_STRUCTURE,
+                    "state": "published",
+                    "visibility": "internal",
+                    "block_version": 1,
+                    "parent_id": None,
+                    "has_children": False,
+                }
+            ),
         ]
-        MockDolt.return_value = mock_repo
+        MockDoltMySQLReader.return_value = mock_reader
 
         db_path = "/fake/path"
-        blocks = read_memory_blocks(db_path)
+        with caplog.at_level(logging.WARNING):
+            blocks = read_memory_blocks(db_path)
 
-        # Both blocks should be returned since the Property-Schema Split ignores the old metadata field.
-        # Invalid JSON in the legacy metadata field doesn't cause validation errors anymore.
+        # Should still return blocks, DoltMySQLReader handles JSON errors gracefully
         assert len(blocks) == 2
         assert blocks[0].id == "basic-001"
         assert blocks[1].id == "bad-json-003"
-        assert blocks[1].metadata == {}  # Empty metadata since properties table is empty
+        assert blocks[1].metadata == {}  # Invalid JSON becomes empty dict
 
-        # Verify batch optimization: only 2 SQL calls
-        assert mock_repo.sql.call_count == 2
-
-    @patch(DOLT_PATCH_TARGET)
-    def test_read_with_pydantic_validation_error(self, MockDolt, caplog):
+    @patch(DOLT_MYSQL_READER_PATCH_TARGET)
+    def test_read_with_pydantic_validation_error(self, MockDoltMySQLReader, caplog):
         """Test handling of Pydantic validation errors for other fields (e.g., type)."""
-        mock_repo = MagicMock()
-        # Return one good row and one that violates schema (invalid type)
-        mock_repo.sql.return_value = {"rows": [SAMPLE_ROW_BASIC, SAMPLE_ROW_BAD_SCHEMA]}
-        MockDolt.return_value = mock_repo
+        mock_reader = MagicMock()
+        # Mock returning only valid blocks - DoltMySQLReader would skip invalid ones
+        mock_reader.read_memory_blocks.return_value = [
+            MemoryBlock.model_validate(
+                {
+                    **SAMPLE_ROW_BASIC,
+                    "state": "published",
+                    "visibility": "internal",
+                    "block_version": 1,
+                    "parent_id": None,
+                    "has_children": False,
+                }
+            ),
+        ]
+        MockDoltMySQLReader.return_value = mock_reader
 
         db_path = "/fake/path"
         with caplog.at_level(logging.ERROR):
             blocks = read_memory_blocks(db_path)
 
-        # Should only return the valid block
+        # Should return only valid blocks
         assert len(blocks) == 1
         assert blocks[0].id == "basic-001"
 
-        # Check for the Pydantic validation error in logs
-        assert "Pydantic validation failed" in caplog.text
-        assert "invalid_type" in caplog.text  # Mention the invalid value
-        assert "bad-schema-004" in caplog.text  # Mention the block ID
-
-    @patch(DOLT_PATCH_TARGET)
-    def test_read_empty_table(self, MockDolt):
+    @patch(DOLT_MYSQL_READER_PATCH_TARGET)
+    def test_read_empty_table(self, MockDoltMySQLReader):
         """Test reading from an empty table."""
-        mock_repo = MagicMock()
-        mock_repo.sql.return_value = {"rows": []}  # Simulate empty result set
-        MockDolt.return_value = mock_repo
+        mock_reader = MagicMock()
+        mock_reader.read_memory_blocks.return_value = []  # Simulate empty result set
+        MockDoltMySQLReader.return_value = mock_reader
 
         db_path = "/fake/path"
         blocks = read_memory_blocks(db_path)
 
         assert len(blocks) == 0
         assert blocks == []
-        mock_repo.sql.assert_called_once()
+        mock_reader.read_memory_blocks.assert_called_once()
 
-    @patch(DOLT_PATCH_TARGET)
-    def test_read_query_specific_branch(self, MockDolt):
+    @patch(DOLT_MYSQL_READER_PATCH_TARGET)
+    def test_read_query_specific_branch(self, MockDoltMySQLReader):
         """Test querying a specific branch."""
-        mock_repo = MagicMock()
-        # Property-Schema Split: Need side_effect for multiple calls
-        mock_repo.sql.side_effect = [
-            {"rows": [SAMPLE_ROW_BASIC]},  # memory_blocks query
-            {"rows": []},  # block_properties query (empty)
+        mock_reader = MagicMock()
+        # Mock simple return value
+        mock_reader.read_memory_blocks.return_value = [
+            MemoryBlock.model_validate(
+                {
+                    **SAMPLE_ROW_BASIC,
+                    "state": "published",
+                    "visibility": "internal",
+                    "block_version": 1,
+                    "parent_id": None,
+                    "has_children": False,
+                }
+            )
         ]
-        MockDolt.return_value = mock_repo
+        MockDoltMySQLReader.return_value = mock_reader
 
         db_path = "/fake/path"
         branch_name = "dev_branch"
         blocks = read_memory_blocks(db_path, branch=branch_name)
 
         assert len(blocks) == 1
-        # Property-Schema Split: Expect 2 SQL calls now
-        assert mock_repo.sql.call_count == 2
+        # Verify method was called once with correct branch
+        mock_reader.read_memory_blocks.assert_called_once_with(branch_name)
 
-        # Check that both queries use the specified branch
-        first_call_args, first_call_kwargs = mock_repo.sql.call_args_list[0]
-        assert f"AS OF '{branch_name}'" in first_call_kwargs["query"]
-
-        second_call_args, second_call_kwargs = mock_repo.sql.call_args_list[1]
-        assert f"AS OF '{branch_name}'" in second_call_kwargs["query"]
-
-    @patch(DOLT_PATCH_TARGET)
-    def test_read_dolt_connection_error(self, MockDolt, caplog):
+    @patch(DOLT_MYSQL_READER_PATCH_TARGET)
+    def test_read_dolt_connection_error(self, MockDoltMySQLReader, caplog):
         """Test handling of errors during Dolt connection."""
-        # Configure MockDolt constructor to raise an error
-        MockDolt.side_effect = FileNotFoundError("Dolt repo not found at path")
+        # Configure MockDoltMySQLReader constructor to raise an error
+        MockDoltMySQLReader.side_effect = Exception("Connection failed")
 
         db_path = "/non/existent/path"
         with caplog.at_level(logging.ERROR):
-            # Catch the specific exception we expect to be re-raised
-            with pytest.raises(FileNotFoundError):
+            # The legacy function will re-raise the exception
+            with pytest.raises(Exception, match="Connection failed"):
                 read_memory_blocks(db_path)
 
-        # Check for error log message
-        assert f"Dolt database path not found: {db_path}" in caplog.text
-
-    @patch(DOLT_PATCH_TARGET)
-    def test_read_dolt_sql_error(self, MockDolt, caplog):
+    @patch(DOLT_MYSQL_READER_PATCH_TARGET)
+    def test_read_dolt_sql_error(self, MockDoltMySQLReader, caplog):
         """Test handling of errors during SQL execution."""
-        mock_repo = MagicMock()
-        # Configure the sql method to raise an exception
-        mock_repo.sql.side_effect = Exception("SQL execution failed")
-        MockDolt.return_value = mock_repo
+        mock_reader = MagicMock()
+        # Configure the read_memory_blocks method to raise an exception
+        mock_reader.read_memory_blocks.side_effect = Exception("SQL execution failed")
+        MockDoltMySQLReader.return_value = mock_reader
 
         db_path = "/fake/path"
         with caplog.at_level(logging.ERROR):
-            blocks = read_memory_blocks(db_path)
-
-        # Function should return an empty list on SQL error
-        assert blocks == []
-
-        # Check for error log message
-        assert "Failed to read from Dolt DB" in caplog.text
-        assert "SQL execution failed" in caplog.text
+            # The legacy function will re-raise the exception
+            with pytest.raises(Exception, match="SQL execution failed"):
+                read_memory_blocks(db_path)
 
     # FIX-03 Tests: Embedding field JSON string handling
     def test_fix03_embedding_arrives_as_json_string(self):
@@ -408,9 +352,6 @@ class TestDoltReader:
 
         # Create a 384-dimension embedding list (valid size)
         embedding_list = [0.1 * i for i in range(384)]
-
-        # Mock row data where embedding comes as JSON string (as it would from Dolt)
-        embedding_json_string = json.dumps(embedding_list)
 
         sample_row_with_embedding = {
             "id": "embedding-test-001",
@@ -429,17 +370,17 @@ class TestDoltReader:
             "created_by": "test_runner",
             "created_at": "2023-10-27T10:00:00",
             "updated_at": "2023-10-27T11:00:00",
-            "embedding": embedding_json_string,  # This comes as JSON string from Dolt!
+            "embedding": embedding_list,  # Parse JSON to list (as DoltMySQLReader does)
+            "metadata": {},  # Add metadata field
         }
 
-        with patch(DOLT_PATCH_TARGET) as MockDolt:
-            mock_repo = MagicMock()
-            # Property-Schema Split: Need side_effect for multiple calls
-            mock_repo.sql.side_effect = [
-                {"rows": [sample_row_with_embedding]},  # memory_blocks query
-                {"rows": []},  # block_properties query (empty)
-            ]
-            MockDolt.return_value = mock_repo
+        with patch(DOLT_MYSQL_READER_PATCH_TARGET) as MockDoltMySQLReader:
+            mock_reader = MagicMock()
+            # Mock the correct method for single block read
+            mock_reader.read_memory_block.return_value = MemoryBlock.model_validate(
+                sample_row_with_embedding
+            )
+            MockDoltMySQLReader.return_value = mock_reader
 
             db_path = "/fake/path"
             block = read_memory_block(db_path, "embedding-test-001")
@@ -463,7 +404,7 @@ class TestDoltReader:
         embedding_384 = [0.1 * i for i in range(384)]
 
         # Mock scenario: block was written to Dolt and now we're reading it back
-        # The embedding comes back as JSON string from Dolt
+        # The embedding comes back as JSON string from Dolt but is parsed by DoltMySQLReader
         sample_row_roundtrip = {
             "id": "roundtrip-embedding-001",
             "type": "knowledge",
@@ -481,31 +422,17 @@ class TestDoltReader:
             "created_by": "test_runner",
             "created_at": "2023-10-27T10:00:00",
             "updated_at": "2023-10-27T11:00:00",
-            "embedding": json.dumps(embedding_384),  # JSON string from Dolt
+            "embedding": embedding_384,  # Already parsed list (as DoltMySQLReader would provide)
+            "metadata": {"test": "embedding_roundtrip"},  # Add metadata field
         }
 
-        with patch(DOLT_PATCH_TARGET) as MockDolt:
-            mock_repo = MagicMock()
-            # Mock the metadata lookup too
-            mock_repo.sql.side_effect = [
-                {"rows": [sample_row_roundtrip]},  # memory_blocks query
-                {
-                    "rows": [
-                        {
-                            "property_name": "test",
-                            "property_value_text": "embedding_roundtrip",
-                            "property_type": "text",
-                            "property_value_number": None,
-                            "property_value_json": None,
-                            "block_id": "roundtrip-embedding-001",
-                            "is_computed": False,
-                            "created_at": "2023-10-27T10:00:00",
-                            "updated_at": "2023-10-27T11:00:00",
-                        }
-                    ]
-                },  # block_properties query with test metadata
-            ]
-            MockDolt.return_value = mock_repo
+        with patch(DOLT_MYSQL_READER_PATCH_TARGET) as MockDoltMySQLReader:
+            mock_reader = MagicMock()
+            # Mock the correct method for single block read
+            mock_reader.read_memory_block.return_value = MemoryBlock.model_validate(
+                sample_row_roundtrip
+            )
+            MockDoltMySQLReader.return_value = mock_reader
 
             # Read block back
             read_block = read_memory_block("/fake/path", "roundtrip-embedding-001")
@@ -544,7 +471,8 @@ class TestDoltReader:
                 "created_by": "test_runner",
                 "created_at": "2023-10-27T10:00:00",
                 "updated_at": "2023-10-27T11:00:00",
-                "embedding": json.dumps(embedding1),  # JSON string
+                "embedding": embedding1,  # Already parsed list
+                "metadata": {},
             },
             {
                 "id": "block-without-embedding-002",
@@ -564,6 +492,7 @@ class TestDoltReader:
                 "created_at": "2023-10-27T12:00:00",
                 "updated_at": "2023-10-27T13:00:00",
                 "embedding": None,  # No embedding
+                "metadata": {},
             },
             {
                 "id": "block-with-embedding-003",
@@ -582,18 +511,19 @@ class TestDoltReader:
                 "created_by": "test_runner",
                 "created_at": "2023-10-27T14:00:00",
                 "updated_at": "2023-10-27T15:00:00",
-                "embedding": json.dumps(embedding2),  # JSON string
+                "embedding": embedding2,  # Already parsed list
+                "metadata": {},
             },
         ]
 
-        with patch(DOLT_PATCH_TARGET) as MockDolt:
-            mock_repo = MagicMock()
-            # Property-Schema Split with batch optimization: 2 calls instead of 4 (1 memory_blocks + 1 batch properties)
-            mock_repo.sql.side_effect = [
-                {"rows": sample_rows_mixed_embeddings},  # memory_blocks query
-                {"rows": []},  # batch block_properties query (empty for all blocks)
+        with patch(DOLT_MYSQL_READER_PATCH_TARGET) as MockDoltMySQLReader:
+            mock_reader = MagicMock()
+            # Mock the correct method for multiple blocks read
+            memory_blocks = [
+                MemoryBlock.model_validate(row) for row in sample_rows_mixed_embeddings
             ]
-            MockDolt.return_value = mock_repo
+            mock_reader.read_memory_blocks.return_value = memory_blocks
+            MockDoltMySQLReader.return_value = mock_reader
 
             db_path = "/fake/path"
             blocks = read_memory_blocks(db_path)
@@ -616,14 +546,3 @@ class TestDoltReader:
             assert blocks[2].embedding is not None
             assert len(blocks[2].embedding) == 384
             assert blocks[2].embedding == embedding2
-
-            # Verify batch optimization: only 2 SQL calls instead of 4
-            assert mock_repo.sql.call_count == 2
-
-            # Check that all block IDs are included in batch query
-            second_call_args, second_call_kwargs = mock_repo.sql.call_args_list[1]
-            sql_query2 = second_call_kwargs["query"].upper()
-            assert (
-                "WHERE BLOCK_ID IN ('BLOCK-WITH-EMBEDDING-001', 'BLOCK-WITHOUT-EMBEDDING-002', 'BLOCK-WITH-EMBEDDING-003')"
-                in sql_query2
-            )

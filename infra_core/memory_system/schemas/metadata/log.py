@@ -3,21 +3,23 @@ Metadata schema for log type MemoryBlocks.
 Used to store atomic agent log entries linked to other blocks like tasks.
 """
 
-from typing import Optional, Dict
+from typing import Optional, Dict, Literal
+from datetime import datetime
 from pydantic import Field
 
-# Import the base class
+# Import the base class - use BaseMetadata since logs don't need user-controlled fields
 from .base import BaseMetadata
 
 # Import for registration
 from ..registry import register_metadata
 
 
-# Inherit from BaseMetadata
+# Inherit from BaseMetadata (not BaseUserMetadata, since logs don't need title/description/owner)
 class LogMetadata(BaseMetadata):
     """
     Metadata schema for log type MemoryBlocks.
-    Inherits common fields (x_timestamp, x_agent_id, x_tool_id, x_parent_block_id, x_session_id) from BaseMetadata.
+    Inherits system fields (x_timestamp, x_agent_id, x_tool_id, x_parent_block_id, x_session_id) from BaseMetadata.
+    Does not include user fields (title, description, owner) since logs are typically system-generated.
     """
 
     # Keep specific fields, renamed for clarity
@@ -36,6 +38,15 @@ class LogMetadata(BaseMetadata):
         None, description="Optional end-to-end latency in milliseconds"
     )
     # session_id is now inherited from BaseMetadata as x_session_id
+    log_level: Optional[Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]] = Field(
+        None, description="Severity level of the log entry"
+    )
+    component: Optional[str] = Field(
+        None, description="System component or module that generated this log"
+    )
+    event_timestamp: Optional[datetime] = Field(
+        None, description="Timestamp when the logged event actually occurred"
+    )
 
     model_config = {
         "json_schema_extra": {

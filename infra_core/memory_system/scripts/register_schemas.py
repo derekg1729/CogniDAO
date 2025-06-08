@@ -22,8 +22,8 @@ from infra_core.memory_system.dolt_schema_manager import (
     logger as schema_manager_logger,
 )
 from infra_core.constants import (
-    MEMORY_DOLT_ROOT as DEFAULT_DOLT_DB_PATH,
-)  # Use the central constant
+    PROPERTY_SCHEMA_DOLT_ROOT as DEFAULT_DOLT_DB_PATH,
+)  # Use the correct current database path
 
 # Import all schema definition files to ensure they are registered
 # The act of importing these modules triggers their call to `register_metadata`

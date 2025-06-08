@@ -30,7 +30,7 @@ class TestCreateMemoryBlockTool:
             state="draft",
             visibility="internal",
             tags=["test"],
-            metadata={"source": "test"},
+            metadata={"title": "Test Knowledge", "source": "test"},
         )
 
         # Call the tool
@@ -58,7 +58,9 @@ class TestCreateMemoryBlockTool:
         mock_memory_bank.create_memory_block.return_value = False
 
         # Create input model
-        input_data = CreateMemoryBlockInput(type="knowledge", text="Test knowledge block")
+        input_data = CreateMemoryBlockInput(
+            type="knowledge", text="Test knowledge block", metadata={"title": "Test Knowledge"}
+        )
 
         # Call the tool
         result = create_memory_block(input_data=input_data, memory_bank=mock_memory_bank)
@@ -75,7 +77,9 @@ class TestCreateMemoryBlockTool:
         mock_memory_bank.get_latest_schema_version.return_value = None
 
         # Create input model
-        input_data = CreateMemoryBlockInput(type="knowledge", text="Test knowledge block")
+        input_data = CreateMemoryBlockInput(
+            type="knowledge", text="Test knowledge block", metadata={"title": "Test Knowledge"}
+        )
 
         # Call the tool
         result = create_memory_block(input_data=input_data, memory_bank=mock_memory_bank)

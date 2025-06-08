@@ -1,0 +1,52 @@
+services:
+  dolt-db:
+    image: ${DOLT_IMAGE:-ghcr.io/cogni-1729/cogni-dolt:latest}
+    env_file: ./.env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=3306
+      - DOLT_ROOT_PASSWORD=${DOLT_ROOT_PASSWORD}
+      - DOLT_ROOT_HOST=%
+      - DATABASE_REMOTE=https://doltremoteapi.dolthub.com/cogni/cogni-dao-memory
+      - DATABASE_NAME=cogni-dao-memory
+      - DOLTHUB_USER=cogni
+      - DOLTHUB_EMAIL=steward@cognidao.org
+      - DATA_DIR=/dolthub-dbs/cogni/cogni-dao-memory
+      # Temporarily disabled JWK auth - newline characters in credential causing parsing errors
+      # - CREDS_KEY=g3ld8if3kr1kl5ajm6ptl1kii5hvgo1t6vka5ms02arv2
+      # - CREDS_VALUE=${DOLTHUB_JWK_CREDENTIAL}
+    volumes:
+      - dolt_data:/dolthub-dbs
+    ports: ["3306:3306"]
+    restart: unless-stopped
+
+  api:
+    image: ${API_IMAGE:-ghcr.io/cogni-1729/cogni-backend:latest}
+    env_file: ./.env
+    environment:
+      - DOLT_HOST=dolt-db
+      - DOLT_PORT=3306
+      - DOLT_USER=root
+      - DOLT_PASSWORD=${DOLT_ROOT_PASSWORD}
+      - DOLT_DATABASE=cogni-dao-memory
+      - DOLT_REMOTE_URL=https://doltremoteapi.dolthub.com/cogni/cogni-dao-memory
+      - DOLT_REMOTE_PASSWORD=${DOLTHUB_MCP_ACCESS_WRITE}
+    ports: ["8000:8000"]
+    depends_on:
+      dolt-db:
+        condition: service_started
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [api]
+
+volumes:
+  dolt_data:
+  caddy_data:
+  caddy_config:

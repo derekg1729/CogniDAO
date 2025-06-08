@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS block_properties (
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     PRIMARY KEY (block_id, property_name),
-    CONSTRAINT chk_exactly_one_value_nonnull CHECK ( (CASE WHEN property_value_text IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN property_value_number IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN property_value_json IS NOT NULL THEN 1 ELSE 0 END) = 1 )
+    CONSTRAINT chk_exactly_one_value_nonnull CHECK ( (CASE WHEN property_value_text IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN property_value_number IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN property_value_json IS NOT NULL THEN 1 ELSE 0 END) <= 1 )
 );
 
 CREATE TABLE IF NOT EXISTS block_proofs (
