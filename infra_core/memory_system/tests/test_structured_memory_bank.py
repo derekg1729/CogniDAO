@@ -159,6 +159,7 @@ def memory_bank(mock_llama_memory, mock_dolt_writer, mock_dolt_reader):
         chroma_collection=MOCK_COLLECTION,
         dolt_connection_config=mock_config,
         branch="main",
+        auto_commit=True,  # Explicitly enable auto-commit for tests that expect it
     )
     yield bank
 
@@ -304,12 +305,13 @@ class TestStructuredMemoryBank:
                     mock_reader.read_latest_schema_version.return_value = None  # No schema found
                     mock_reader_class.return_value = mock_reader
 
-                    # Create memory bank instance
+                    # Create memory bank instance with auto_commit=True for this test
                     bank = StructuredMemoryBank(
                         chroma_path="/mock/chroma/path",
                         chroma_collection="test_collection",
                         dolt_connection_config=mock_config,
                         branch="main",
+                        auto_commit=True,  # Explicitly enable auto-commit for this test
                     )
 
                     # Create sample memory block

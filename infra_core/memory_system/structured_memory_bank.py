@@ -88,7 +88,7 @@ class StructuredMemoryBank:
         chroma_collection: str,
         dolt_connection_config: DoltConnectionConfig,
         branch: str = "main",
-        auto_commit: bool = True,
+        auto_commit: bool = False,
     ):
         """
         Initializes the StructuredMemoryBank.
@@ -98,7 +98,7 @@ class StructuredMemoryBank:
             chroma_collection: Name of the ChromaDB collection.
             dolt_connection_config: Configuration for MySQL connection to remote Dolt SQL server.
             branch: Default branch to use for operations (default: "main").
-            auto_commit: Whether to automatically commit changes after successful operations (default: True).
+            auto_commit: Whether to automatically commit changes after successful operations (default: False).
                         When False, changes remain in working set until explicit commit via MCP tools.
         """
         self.branch = branch

@@ -289,21 +289,21 @@ class TestStructuredMemoryBankAutoCommit:
         mock_dolt_writer.delete_memory_block.assert_called_once()
         mock_llama_memory.delete_block.assert_called_once_with(sample_memory_block.id)
 
-    def test_auto_commit_default_is_true(
+    def test_auto_commit_default_is_false(
         self, mock_llama_memory, mock_dolt_writer, mock_dolt_reader, mock_config
     ):
-        """Test that auto_commit defaults to True when not specified."""
+        """Test that auto_commit defaults to False when not specified."""
         # Create memory bank without specifying auto_commit
         bank = StructuredMemoryBank(
             chroma_path=MOCK_CHROMA_PATH,
             chroma_collection=MOCK_COLLECTION,
             dolt_connection_config=mock_config,
             branch="main",
-            # auto_commit not specified - should default to True
+            # auto_commit not specified - should default to False
         )
 
         # Verify the default value
-        assert bank.auto_commit is True
+        assert bank.auto_commit is False
 
     def test_auto_commit_backward_compatibility(
         self,
@@ -322,11 +322,11 @@ class TestStructuredMemoryBankAutoCommit:
             # branch and auto_commit are optional parameters
         )
 
-        # Verify backward compatibility: should default to True
-        assert bank.auto_commit is True
+        # Verify backward compatibility: now defaults to False
+        assert bank.auto_commit is False
         assert bank.branch == "main"  # Should also use default branch
 
-        # Verify operations work as before
+        # Verify operations work but don't auto-commit
         result = bank.create_memory_block(sample_memory_block)
         assert result is True
-        mock_dolt_writer.commit_changes.assert_called_once()
+        mock_dolt_writer.commit_changes.assert_not_called()
