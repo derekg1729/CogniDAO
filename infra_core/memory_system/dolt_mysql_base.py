@@ -48,7 +48,7 @@ class DoltConnectionConfig:
         default_factory=lambda: int(os.getenv("MYSQL_PORT") or os.getenv("DB_PORT", "3306"))
     )
     user: str = field(
-        default_factory=lambda: os.getenv("MYSQL_USER") or os.getenv("DB_USER", "cogni_mcp")
+        default_factory=lambda: os.getenv("MYSQL_USER") or os.getenv("DB_USER", "root")
     )
     password: str = field(
         default_factory=lambda: os.getenv("MYSQL_PASSWORD") or os.getenv("DB_PASSWORD", "")
