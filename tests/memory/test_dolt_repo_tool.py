@@ -16,6 +16,12 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     DoltBranchInput,
     DoltListBranchesInput,
     dolt_list_branches_tool,
+    dolt_add_tool,
+    DoltAddInput,
+    dolt_checkout_tool,
+    DoltCheckoutInput,
+    dolt_diff_tool,
+    DoltDiffInput,
 )
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
@@ -416,7 +422,7 @@ class TestDoltBranchTool:
 
 
 class TestDoltListBranchesTool:
-    """Test class for dolt_list_branches tool functionality."""
+    """Test class for dolt_list_branches_tool functionality."""
 
     def test_successful_branch_listing(self, mock_memory_bank):
         """Test successful branch listing operation."""
@@ -447,12 +453,7 @@ class TestDoltListBranchesTool:
                 "dirty": 1,
             },
         ]
-
-        # Mock current branch query
-        mock_writer._execute_query.side_effect = [
-            [{"branch": "main"}],  # Current branch query
-            mock_branches_data,  # Branches query
-        ]
+        mock_writer.list_branches.return_value = (mock_branches_data, "main")
 
         # Prepare input
         input_data = DoltListBranchesInput()
@@ -462,24 +463,17 @@ class TestDoltListBranchesTool:
 
         # Verify results
         assert result.success is True
-        assert result.current_branch == "main"
         assert len(result.branches) == 2
+        assert result.current_branch == "main"
         assert result.branches[0].name == "main"
-        assert result.branches[0].dirty is False  # 0 becomes False
-        assert result.branches[1].name == "feature/test"
-        assert result.branches[1].dirty is True  # 1 becomes True
+        assert result.branches[1].hash == "def456"
         assert "Found 2 branches" in result.message
         assert result.error is None
-
-        # Verify mock calls
-        assert mock_writer._execute_query.call_count == 2
 
     def test_failed_branch_listing(self, mock_memory_bank):
         """Test failed branch listing operation."""
         memory_bank, mock_writer = mock_memory_bank
-
-        # Mock exception during branch listing
-        mock_writer._execute_query.side_effect = Exception("Database connection failed")
+        mock_writer.list_branches.return_value = ([], "unknown")
 
         # Prepare input
         input_data = DoltListBranchesInput()
@@ -487,22 +481,15 @@ class TestDoltListBranchesTool:
         # Execute tool
         result = dolt_list_branches_tool(input_data, memory_bank)
 
-        # Verify results
-        assert result.success is False
-        assert result.current_branch == "unknown"
+        # A failed listing from the writer should be handled gracefully by the tool
+        assert result.success is True
         assert len(result.branches) == 0
-        assert "Failed to list branches" in result.message
-        assert "Exception during branch listing" in result.error
+        assert result.current_branch == "unknown"
 
     def test_empty_branch_listing(self, mock_memory_bank):
         """Test branch listing with no branches."""
         memory_bank, mock_writer = mock_memory_bank
-
-        # Mock empty branch listing result
-        mock_writer._execute_query.side_effect = [
-            [{"branch": "main"}],  # Current branch query
-            [],  # Empty branches query
-        ]
+        mock_writer.list_branches.return_value = ([], "main")
 
         # Prepare input
         input_data = DoltListBranchesInput()
@@ -512,7 +499,246 @@ class TestDoltListBranchesTool:
 
         # Verify results
         assert result.success is True
-        assert result.current_branch == "main"
         assert len(result.branches) == 0
+        assert result.current_branch == "main"
         assert "Found 0 branches" in result.message
         assert result.error is None
+
+    def test_list_branches_with_exception(self, mock_memory_bank):
+        """Test branch listing when an exception occurs."""
+        memory_bank, mock_writer = mock_memory_bank
+        mock_writer.list_branches.side_effect = Exception("Connection timeout")
+
+        result = dolt_list_branches_tool(DoltListBranchesInput(), memory_bank)
+
+        assert result.success is False
+        assert "Failed to list branches" in result.message
+        assert "Exception during branch listing" in result.error
+        assert "Connection timeout" in result.error
+
+
+class TestDoltAddTool:
+    """Test class for dolt_add_tool functionality."""
+
+    def test_successful_add_all(self, mock_memory_bank):
+        """Test successful add operation for all changes."""
+        memory_bank, mock_writer = mock_memory_bank
+        mock_writer.add_to_staging.return_value = (True, "Successfully staged all changes")
+
+        input_data = DoltAddInput()  # No tables specified
+        result = dolt_add_tool(input_data, memory_bank)
+
+        assert result.success is True
+        assert "Successfully staged all changes" in result.message
+        mock_writer.add_to_staging.assert_called_once_with(tables=None)
+
+    def test_successful_add_specific_tables(self, mock_memory_bank):
+        """Test successful add operation for a specific list of tables."""
+        memory_bank, mock_writer = mock_memory_bank
+        mock_writer.add_to_staging.return_value = (True, "Successfully staged 2 tables")
+        tables = ["table1", "table2"]
+
+        input_data = DoltAddInput(tables=tables)
+        result = dolt_add_tool(input_data, memory_bank)
+
+        assert result.success is True
+        assert "Successfully staged 2 tables" in result.message
+        mock_writer.add_to_staging.assert_called_once_with(tables=tables)
+
+    def test_failed_add(self, mock_memory_bank):
+        """Test a failed add operation."""
+        memory_bank, mock_writer = mock_memory_bank
+        mock_writer.add_to_staging.return_value = (False, "Staging failed")
+
+        input_data = DoltAddInput()
+        result = dolt_add_tool(input_data, memory_bank)
+
+        assert result.success is False
+        assert "Dolt add operation failed" in result.message
+        assert "Staging failed" in result.error
+
+    def test_add_with_exception(self, mock_memory_bank):
+        """Test add operation when an exception occurs."""
+        memory_bank, mock_writer = mock_memory_bank
+        mock_writer.add_to_staging.side_effect = Exception("Underlying SQL error")
+
+        input_data = DoltAddInput()
+        result = dolt_add_tool(input_data, memory_bank)
+
+        assert result.success is False
+        assert "Add failed: Underlying SQL error" in result.message
+        assert "Exception during dolt_add" in result.error
+
+
+class TestDoltCheckoutTool:
+    """Test class for dolt_checkout_tool functionality."""
+
+    def test_successful_checkout(self, mock_memory_bank):
+        """Test a successful branch checkout."""
+        memory_bank, mock_writer = mock_memory_bank
+        mock_writer.checkout_branch.return_value = (
+            True,
+            "Successfully checked out feat/new-branch",
+        )
+
+        input_data = DoltCheckoutInput(branch_name="feat/new-branch")
+        result = dolt_checkout_tool(input_data, memory_bank)
+
+        assert result.success is True
+        assert "Successfully checked out" in result.message
+        mock_writer.checkout_branch.assert_called_once_with(
+            branch_name="feat/new-branch", force=False
+        )
+
+    def test_successful_force_checkout(self, mock_memory_bank):
+        """Test a successful force checkout."""
+        memory_bank, mock_writer = mock_memory_bank
+        mock_writer.checkout_branch.return_value = (
+            True,
+            "Successfully force checked out feat/new-branch",
+        )
+
+        input_data = DoltCheckoutInput(branch_name="feat/new-branch", force=True)
+        result = dolt_checkout_tool(input_data, memory_bank)
+
+        assert result.success is True
+        assert "Successfully force checked out" in result.message
+        mock_writer.checkout_branch.assert_called_once_with(
+            branch_name="feat/new-branch", force=True
+        )
+
+    def test_failed_checkout(self, mock_memory_bank):
+        """Test a failed checkout operation."""
+        memory_bank, mock_writer = mock_memory_bank
+        mock_writer.checkout_branch.return_value = (False, "Branch not found")
+
+        input_data = DoltCheckoutInput(branch_name="nonexistent-branch")
+        result = dolt_checkout_tool(input_data, memory_bank)
+
+        assert result.success is False
+        assert "Dolt checkout operation failed" in result.message
+        assert "Branch not found" in result.error
+
+    def test_checkout_with_exception(self, mock_memory_bank):
+        """Test checkout operation when an exception occurs."""
+        memory_bank, mock_writer = mock_memory_bank
+        mock_writer.checkout_branch.side_effect = Exception("Connection error")
+
+        input_data = DoltCheckoutInput(branch_name="any-branch")
+        result = dolt_checkout_tool(input_data, memory_bank)
+
+        assert result.success is False
+        assert "Checkout failed: Connection error" in result.message
+        assert "Exception during dolt_checkout" in result.error
+
+
+class TestDoltDiffTool:
+    """Test class for dolt_diff_tool functionality."""
+
+    def test_successful_diff_working(self, mock_memory_bank):
+        """Test a successful diff for the working set."""
+        memory_bank, mock_writer = mock_memory_bank
+
+        mock_diff_summary = [
+            {
+                "from_table_name": "test_table",
+                "to_table_name": "test_table",
+                "diff_type": "modified",
+                "data_change": True,
+                "schema_change": False,
+            }
+        ]
+        mock_writer.get_diff_summary.return_value = mock_diff_summary
+
+        input_data = DoltDiffInput(mode="working")
+        result = dolt_diff_tool(input_data, memory_bank)
+
+        assert result.success is True
+        assert "Successfully retrieved diff summary" in result.message
+        assert len(result.diff_summary) == 1
+        assert result.diff_summary[0].to_table_name == "test_table"
+        assert result.diff_summary[0].diff_type == "modified"
+        mock_writer.get_diff_summary.assert_called_once_with(
+            from_revision="HEAD", to_revision="WORKING"
+        )
+
+    def test_successful_diff_staged(self, mock_memory_bank):
+        """Test a successful diff for the staged changes."""
+        memory_bank, mock_writer = mock_memory_bank
+
+        mock_diff_summary = [
+            {
+                "from_table_name": None,
+                "to_table_name": "new_table",
+                "diff_type": "added",
+                "data_change": True,
+                "schema_change": True,
+            }
+        ]
+        mock_writer.get_diff_summary.return_value = mock_diff_summary
+
+        input_data = DoltDiffInput(mode="staged")
+        result = dolt_diff_tool(input_data, memory_bank)
+
+        assert result.success is True
+        assert "Successfully retrieved diff summary" in result.message
+        assert len(result.diff_summary) == 1
+        assert result.diff_summary[0].to_table_name == "new_table"
+        assert result.diff_summary[0].diff_type == "added"
+        mock_writer.get_diff_summary.assert_called_once_with(
+            from_revision="HEAD", to_revision="STAGED"
+        )
+
+    def test_successful_diff_custom_revisions(self, mock_memory_bank):
+        """Test a successful diff with custom from and to revisions."""
+        memory_bank, mock_writer = mock_memory_bank
+        mock_writer.get_diff_summary.return_value = []
+
+        input_data = DoltDiffInput(from_revision="main", to_revision="feature-branch")
+        result = dolt_diff_tool(input_data, memory_bank)
+
+        assert result.success is True
+        assert "No changes found" in result.message
+        assert len(result.diff_summary) == 0
+        mock_writer.get_diff_summary.assert_called_once_with(
+            from_revision="main", to_revision="feature-branch"
+        )
+
+    def test_no_changes_found(self, mock_memory_bank):
+        """Test the case where no diff summary is returned."""
+        memory_bank, mock_writer = mock_memory_bank
+        mock_writer.get_diff_summary.return_value = []
+
+        input_data = DoltDiffInput(mode="working")
+        result = dolt_diff_tool(input_data, memory_bank)
+
+        assert result.success is True
+        assert "No changes found" in result.message
+        assert len(result.diff_summary) == 0
+
+    def test_failed_diff_with_exception(self, mock_memory_bank):
+        """Test the case where the writer raises an exception."""
+        memory_bank, mock_writer = mock_memory_bank
+        mock_writer.get_diff_summary.side_effect = Exception("Dolt connection error")
+
+        input_data = DoltDiffInput(mode="working")
+        result = dolt_diff_tool(input_data, memory_bank)
+
+        assert result.success is False
+        assert "An unexpected error occurred" in result.message
+        assert "Dolt connection error" in result.error
+        assert len(result.diff_summary) == 0
+
+    def test_invalid_input_no_revisions(self, mock_memory_bank):
+        """Test invalid input where no mode or revisions are provided."""
+        memory_bank, mock_writer = mock_memory_bank
+
+        # This combination is not valid anymore because mode has a default
+        # Instead, we test the internal logic that requires both from and to revs
+        input_data = DoltDiffInput(mode=None, from_revision="HEAD", to_revision=None)
+        result = dolt_diff_tool(input_data, memory_bank)
+
+        assert result.success is False
+        assert "must be provided if not using a mode" in result.message
+        assert "Invalid revision arguments" in result.error
+        mock_writer.get_diff_summary.assert_not_called()

@@ -64,6 +64,8 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     dolt_repo_tool,
     DoltCommitInput,
     DoltCommitOutput,
+    dolt_push_tool,
+    DoltPushInput,
     dolt_status_tool,
     DoltStatusInput,
     DoltStatusOutput,
@@ -71,6 +73,17 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     DoltPullInput,
     dolt_branch_tool,
     DoltBranchInput,
+    dolt_list_branches_tool,
+    DoltListBranchesInput,
+    dolt_add_tool,
+    DoltAddInput,
+    DoltAddOutput,
+    dolt_checkout_tool,
+    DoltCheckoutInput,
+    DoltCheckoutOutput,
+    dolt_diff_tool,
+    DoltDiffInput,
+    DoltDiffOutput,
 )
 
 # Configure logging
@@ -547,15 +560,65 @@ async def dolt_commit(input):
         ).model_dump(mode="json")
 
 
+# Register the DoltCheckout tool
+@mcp.tool("DoltCheckout")
+async def dolt_checkout(input):
+    """Checkout a Dolt branch, making it active for the current session.
+
+    Args:
+        branch_name: Name of the branch to checkout.
+        force: Whether to force checkout, discarding uncommitted changes.
+
+    Returns:
+        success: Whether the checkout operation succeeded
+        message: Human-readable result message
+        error: Error message if operation failed
+        timestamp: Timestamp of operation
+    """
+    try:
+        parsed_input = DoltCheckoutInput(**input)
+        result = dolt_checkout_tool(parsed_input, memory_bank=memory_bank)
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error in DoltCheckout MCP tool: {e}")
+        return DoltCheckoutOutput(
+            success=False,
+            message=f"Checkout failed: {str(e)}",
+            error=f"Error during dolt_checkout: {str(e)}",
+        ).model_dump(mode="json")
+
+
+# Register the DoltAdd tool
+@mcp.tool("DoltAdd")
+async def dolt_add(input):
+    """Stage working changes in Dolt for the current session.
+
+    Args:
+        tables: Optional list of specific tables to add. If not provided, all changes will be staged.
+
+    Returns:
+        success: Whether the add operation succeeded
+        message: Human-readable result message
+        error: Error message if operation failed
+        timestamp: Timestamp of operation
+    """
+    try:
+        parsed_input = DoltAddInput(**input)
+        result = dolt_add_tool(parsed_input, memory_bank=memory_bank)
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error in DoltAdd MCP tool: {e}")
+        return DoltAddOutput(
+            success=False,
+            message=f"Add failed: {str(e)}",
+            error=f"Error during dolt_add: {str(e)}",
+        ).model_dump(mode="json")
+
+
 # Register the DoltPush tool
 @mcp.tool("DoltPush")
-async def mcp_dolt_push(
-    remote_name: str = "origin",
-    branch: str = "main",
-    force: bool = False,
-) -> str:
-    """
-    Push changes to a remote repository using Dolt.
+async def dolt_push(input):
+    """Push changes to a remote repository using Dolt.
 
     Args:
         remote_name: Name of the remote to push to (default: 'origin')
@@ -566,18 +629,8 @@ async def mcp_dolt_push(
         JSON string with push results including success status and message
     """
     try:
-        # Import the dolt_push_tool function and input model
-        from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
-            DoltPushInput,
-            dolt_push_tool,
-        )
-
         # Create input object
-        input_data = DoltPushInput(
-            remote_name=remote_name,
-            branch=branch,
-            force=force,
-        )
+        input_data = DoltPushInput(**input)
 
         # Execute the push operation
         result = dolt_push_tool(input_data, memory_bank)
@@ -630,15 +683,8 @@ async def dolt_status(input):
 
 # Register the DoltPull tool
 @mcp.tool("DoltPull")
-async def mcp_dolt_pull(
-    remote_name: str = "origin",
-    branch: str = "main",
-    force: bool = False,
-    no_ff: bool = False,
-    squash: bool = False,
-) -> str:
-    """
-    Pull changes from a remote repository using Dolt.
+async def dolt_pull(input):
+    """Pull changes from a remote repository using Dolt.
 
     Args:
         remote_name: Name of the remote to pull from (default: 'origin')
@@ -652,13 +698,7 @@ async def mcp_dolt_pull(
     """
     try:
         # Create input object
-        input_data = DoltPullInput(
-            remote_name=remote_name,
-            branch=branch,
-            force=force,
-            no_ff=no_ff,
-            squash=squash,
-        )
+        input_data = DoltPullInput(**input)
 
         # Execute the pull operation
         result = dolt_pull_tool(input_data, memory_bank)
@@ -672,13 +712,8 @@ async def mcp_dolt_pull(
 
 
 @mcp.tool("DoltBranch")
-async def mcp_dolt_branch(
-    branch_name: str,
-    start_point: str = None,
-    force: bool = False,
-) -> str:
-    """
-    Create a new branch using Dolt.
+async def dolt_branch(input):
+    """Create a new branch using Dolt.
 
     Args:
         branch_name: Name of the new branch to create
@@ -690,11 +725,7 @@ async def mcp_dolt_branch(
     """
     try:
         # Create input object
-        input_data = DoltBranchInput(
-            branch_name=branch_name,
-            start_point=start_point,
-            force=force,
-        )
+        input_data = DoltBranchInput(**input)
 
         # Execute the branch creation operation
         result = dolt_branch_tool(input_data, memory_bank)
@@ -720,13 +751,6 @@ async def dolt_list_branches(input):
         timestamp: Timestamp of operation
     """
     try:
-        # Import the function locally for now
-        from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
-            DoltListBranchesInput,
-            DoltListBranchesOutput,
-            dolt_list_branches_tool,
-        )
-
         # Parse dict input into Pydantic model
         parsed_input = DoltListBranchesInput(**input)
         result = dolt_list_branches_tool(parsed_input, memory_bank=memory_bank)
@@ -741,10 +765,32 @@ async def dolt_list_branches(input):
 
         return DoltListBranchesOutput(
             success=False,
-            branches=[],
-            current_branch="unknown",
-            message=f"Failed to list branches: {str(e)}",
-            error=f"Error during branch listing: {str(e)}",
+            message=f"Branch listing failed: {str(e)}",
+            error=f"Error during dolt_list_branches: {str(e)}",
+        ).model_dump(mode="json")
+
+
+# Register the DoltDiff tool
+@mcp.tool("DoltDiff")
+async def dolt_diff(input):
+    """Get a summary of differences between two revisions in Dolt.
+
+    Args:
+        mode: Diff mode. 'working' for unstaged changes, 'staged' for staged changes.
+        from_revision: The starting revision (e.g., 'HEAD', 'main').
+        to_revision: The ending revision (e.g., 'WORKING', 'STAGED').
+    """
+    try:
+        input_data = DoltDiffInput(**input)
+        result = dolt_diff_tool(input_data, memory_bank)
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error getting Dolt diff: {e}", exc_info=True)
+        return DoltDiffOutput(
+            success=False,
+            diff_summary=[],
+            message=f"An unexpected error occurred: {e}",
+            error=str(e),
         ).model_dump(mode="json")
 
 

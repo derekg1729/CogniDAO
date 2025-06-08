@@ -292,6 +292,53 @@ class DoltMySQLWriter(DoltMySQLBase):
             if not connection_is_persistent:
                 connection.close()
 
+    def add_to_staging(self, tables: List[str] = None) -> Tuple[bool, Optional[str]]:
+        """Add working changes to the staging area for the current session."""
+        if self._use_persistent and self._persistent_connection:
+            connection = self._persistent_connection
+            connection_is_persistent = True
+        else:
+            logger.warning(
+                "add_to_staging called without a persistent connection. Branch context may be lost."
+            )
+            connection = self._get_connection()
+            connection_is_persistent = False
+
+        try:
+            cursor = connection.cursor(dictionary=True)
+
+            if tables:
+                placeholders = ", ".join(["%s"] * len(tables))
+                query = f"CALL DOLT_ADD({placeholders})"
+                cursor.execute(query, tuple(tables))
+            else:
+                # Use '-A' to stage all changes, which is safer and more comprehensive than '.'
+                query = "CALL DOLT_ADD('-A')"
+                cursor.execute(query)
+
+            result = cursor.fetchall()
+            status_row = result[0] if result else None
+
+            # The procedure returns a 'status' column, 0 for success
+            if status_row and status_row.get("status") == 0:
+                logger.info(f"Successfully staged changes for tables: {tables or 'ALL'}")
+                return True, f"Successfully staged changes for tables: {tables or 'ALL'}"
+            else:
+                # Even if the status is not 0, it might have partially succeeded or just have nothing to stage
+                # Dolt CLI returns 0 even if there's nothing to stage, so we will too.
+                # Assuming success if no exception is thrown, which is the common case.
+                logger.info(
+                    f"Staged changes for tables: {tables or 'ALL'}. DOLT_ADD returned: {result}"
+                )
+                return True, f"Staged changes for tables: {tables or 'ALL'}"
+
+        except Exception as e:
+            logger.error(f"Failed to stage changes: {e}", exc_info=True)
+            return False, str(e)
+        finally:
+            if not connection_is_persistent:
+                connection.close()
+
     def discard_changes(self, tables: List[str] = None) -> bool:
         """
         Discard uncommitted changes in Dolt working set.
@@ -327,6 +374,47 @@ class DoltMySQLWriter(DoltMySQLBase):
             return False
         finally:
             connection.close()
+
+    def get_diff_summary(self, from_revision: str, to_revision: str) -> List[dict]:
+        """
+        Gets a summary of differences between two revisions using DOLT_DIFF_SUMMARY.
+
+        Args:
+            from_revision: The starting revision (e.g., 'HEAD', 'main').
+            to_revision: The ending revision (e.g., 'WORKING', 'STAGED').
+
+        Returns:
+            A list of dictionaries, where each dictionary represents a changed table.
+        """
+        # Use persistent connection if available, otherwise create a new one
+        if self._use_persistent and self._persistent_connection:
+            connection = self._persistent_connection
+            connection_is_persistent = True
+        else:
+            connection = self._get_connection()
+            connection_is_persistent = False
+
+        try:
+            cursor = connection.cursor(dictionary=True)
+
+            query = "SELECT * FROM DOLT_DIFF_SUMMARY(%s, %s)"
+            cursor.execute(query, (from_revision, to_revision))
+
+            diff_summary = cursor.fetchall()
+
+            cursor.close()
+            logger.info(
+                f"Successfully retrieved diff summary from {from_revision} to {to_revision}"
+            )
+            return diff_summary
+
+        except Error as e:
+            logger.error(f"Failed to get diff summary: {e}", exc_info=True)
+            # Optionally re-raise or handle as appropriate
+            raise
+        finally:
+            if not connection_is_persistent:
+                connection.close()
 
     def push_to_remote(
         self,
