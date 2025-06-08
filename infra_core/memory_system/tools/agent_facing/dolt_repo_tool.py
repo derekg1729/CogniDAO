@@ -19,6 +19,24 @@ from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 logger = logging.getLogger(__name__)
 
 
+class DoltAddInput(BaseModel):
+    """Input model for the dolt_add tool."""
+
+    tables: Optional[List[str]] = Field(
+        default=None,
+        description="Optional list of specific tables to add. If not provided, all changes will be staged.",
+    )
+
+
+class DoltAddOutput(BaseModel):
+    """Output model for the dolt_add tool."""
+
+    success: bool = Field(..., description="Whether the add operation succeeded")
+    message: str = Field(..., description="Human-readable result message")
+    error: Optional[str] = Field(default=None, description="Error message if operation failed")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
+
+
 class DoltCommitInput(BaseModel):
     """Input model for the dolt_commit tool."""
 
@@ -222,6 +240,70 @@ class DoltListBranchesOutput(BaseModel):
     message: str = Field(..., description="Human-readable result message")
     error: Optional[str] = Field(default=None, description="Error message if operation failed")
     timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
+
+
+class DoltCheckoutInput(BaseModel):
+    """Input model for the dolt_checkout tool."""
+
+    branch_name: str = Field(
+        ...,
+        description="Name of the branch to checkout.",
+        min_length=1,
+        max_length=100,
+    )
+    force: bool = Field(
+        default=False,
+        description="Whether to force checkout, discarding uncommitted changes.",
+    )
+
+
+class DoltCheckoutOutput(BaseModel):
+    """Output model for the dolt_checkout tool."""
+
+    success: bool = Field(..., description="Whether the checkout operation succeeded")
+    message: str = Field(..., description="Human-readable result message")
+    error: Optional[str] = Field(default=None, description="Error message if operation failed")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
+
+
+class DoltDiffInput(BaseModel):
+    """Input model for the dolt_diff tool."""
+
+    mode: Optional[str] = Field(
+        default="working",
+        description="Diff mode. 'working' for unstaged changes, 'staged' for staged changes. Overridden if from/to are set.",
+        enum=["working", "staged"],
+    )
+    from_revision: Optional[str] = Field(
+        default=None, description="The starting revision (e.g., 'HEAD', 'main')."
+    )
+    to_revision: Optional[str] = Field(
+        default=None, description="The ending revision (e.g., 'WORKING', 'STAGED')."
+    )
+
+
+class DiffSummary(BaseModel):
+    """Summary of a single table's diff."""
+
+    from_table_name: Optional[str] = Field(
+        None, description="The original table name, if it was renamed."
+    )
+    to_table_name: str = Field(..., description="The new table name.")
+    diff_type: str = Field(
+        ..., description="Type of diff: 'added', 'dropped', 'modified', 'renamed'."
+    )
+    data_change: bool = Field(..., description="True if data has changed.")
+    schema_change: bool = Field(..., description="True if schema has changed.")
+
+
+class DoltDiffOutput(BaseModel):
+    """Output model for the dolt_diff tool."""
+
+    success: bool = Field(..., description="Whether the diff operation succeeded.")
+    diff_summary: List[DiffSummary] = Field(..., description="A list of table diff summaries.")
+    message: str = Field(..., description="Human-readable result message.")
+    error: Optional[str] = Field(default=None, description="Error message if operation failed.")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation.")
 
 
 def dolt_repo_tool(
@@ -585,64 +667,179 @@ def dolt_list_branches_tool(
     input_data: DoltListBranchesInput, memory_bank: StructuredMemoryBank
 ) -> DoltListBranchesOutput:
     """
-    List all branches using the memory bank's writer.
+    List all Dolt branches with their information.
 
     Args:
-        input_data: The list branches parameters (none needed)
+        input_data: The listing parameters
         memory_bank: StructuredMemoryBank instance with Dolt writer access
 
     Returns:
-        DoltListBranchesOutput with success status and branch details
+        DoltListBranchesOutput with list of branches and status
     """
     try:
         logger.info("Listing Dolt branches")
 
-        # Get current branch
-        try:
-            current_branch_result = memory_bank.dolt_writer._execute_query(
-                "SELECT active_branch() as branch"
-            )
-            current_branch = current_branch_result[0]["branch"] if current_branch_result else "main"
-        except Exception as e:
-            logger.error(f"Failed to get current branch: {e}")
-            current_branch = "unknown"
+        # Execute the branch listing using the memory bank's writer
+        branches, current_branch = memory_bank.dolt_writer.list_branches()
 
-        # Get all branches using dolt_branches system table
-        branches_result = memory_bank.dolt_writer._execute_query("SELECT * FROM dolt_branches")
+        # Build success message
+        message = (
+            f"Found {len(branches)} branches. Current branch: {current_branch}"
+            if branches
+            else f"Found 0 branches. Current branch: {current_branch}"
+        )
 
-        branches = []
-        for row in branches_result:
-            branch_info = DoltBranchInfo(
-                name=row["name"],
-                hash=row["hash"],
-                latest_committer=row["latest_committer"],
-                latest_committer_email=row["latest_committer_email"],
-                latest_commit_date=row["latest_commit_date"],
-                latest_commit_message=row["latest_commit_message"],
-                remote=row["remote"],
-                branch=row["branch"],
-                dirty=bool(row["dirty"]),
-            )
-            branches.append(branch_info)
-
-        message = f"Found {len(branches)} branches. Current branch: {current_branch}"
         logger.info(message)
 
         return DoltListBranchesOutput(
             success=True,
-            branches=branches,
+            branches=[DoltBranchInfo(**b) for b in branches],
             current_branch=current_branch,
             message=message,
         )
 
     except Exception as e:
-        error_msg = f"Exception during branch listing: {e}"
+        error_msg = f"Exception during branch listing: {str(e)}"
         logger.error(error_msg, exc_info=True)
-
         return DoltListBranchesOutput(
             success=False,
             branches=[],
             current_branch="unknown",
-            message="Failed to list branches",
+            message=f"Failed to list branches: {str(e)}",
             error=error_msg,
+        )
+
+
+def dolt_add_tool(input_data: DoltAddInput, memory_bank: StructuredMemoryBank) -> DoltAddOutput:
+    """
+    Stage working changes to Dolt using the memory bank's writer.
+
+    Args:
+        input_data: The add parameters
+        memory_bank: StructuredMemoryBank instance with Dolt writer access
+
+    Returns:
+        DoltAddOutput with success status and message
+    """
+    try:
+        tables_to_add = input_data.tables
+        logger.info(f"Staging Dolt changes for tables: {tables_to_add or 'ALL'}")
+
+        success, message = memory_bank.dolt_writer.add_to_staging(tables=tables_to_add)
+
+        if success:
+            logger.info(message)
+            return DoltAddOutput(success=True, message=message)
+        else:
+            error_msg = f"Dolt add operation failed: {message}"
+            logger.error(error_msg)
+            return DoltAddOutput(success=False, message=error_msg, error=message)
+
+    except Exception as e:
+        error_msg = f"Exception during dolt_add: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        return DoltAddOutput(
+            success=False,
+            message=f"Add failed: {str(e)}",
+            error=error_msg,
+        )
+
+
+def dolt_checkout_tool(
+    input_data: DoltCheckoutInput, memory_bank: StructuredMemoryBank
+) -> DoltCheckoutOutput:
+    """
+    Checkout a branch using the memory bank's writer.
+
+    Args:
+        input_data: The checkout parameters
+        memory_bank: StructuredMemoryBank instance with Dolt writer access
+
+    Returns:
+        DoltCheckoutOutput with success status and message
+    """
+    try:
+        branch_name = input_data.branch_name
+        force = input_data.force
+        logger.info(f"Checking out Dolt branch: {branch_name} (force={force})")
+
+        success, message = memory_bank.dolt_writer.checkout_branch(
+            branch_name=branch_name, force=force
+        )
+
+        if success:
+            logger.info(message)
+            return DoltCheckoutOutput(success=True, message=message)
+        else:
+            error_msg = f"Dolt checkout operation failed: {message}"
+            logger.error(error_msg)
+            return DoltCheckoutOutput(success=False, message=error_msg, error=message)
+
+    except Exception as e:
+        error_msg = f"Exception during dolt_checkout: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        return DoltCheckoutOutput(
+            success=False,
+            message=f"Checkout failed: {str(e)}",
+            error=error_msg,
+        )
+
+
+def dolt_diff_tool(input_data: DoltDiffInput, memory_bank: StructuredMemoryBank) -> DoltDiffOutput:
+    """
+    Get a summary of differences between two revisions in Dolt.
+
+    Args:
+        input_data: The input data for the diff tool.
+        memory_bank: The StructuredMemoryBank instance.
+
+    Returns:
+        The output data with the diff summary.
+    """
+    logger.info(f"Received request for dolt_diff_tool with input: {input_data}")
+
+    try:
+        writer = memory_bank.dolt_writer
+
+        from_rev = input_data.from_revision
+        to_rev = input_data.to_revision
+
+        if not from_rev and not to_rev:
+            if input_data.mode == "staged":
+                from_rev = "HEAD"
+                to_rev = "STAGED"
+            else:  # 'working'
+                from_rev = "HEAD"
+                to_rev = "WORKING"
+
+        if not from_rev or not to_rev:
+            return DoltDiffOutput(
+                success=False,
+                diff_summary=[],
+                message="Both from_revision and to_revision must be provided if not using a mode.",
+                error="Invalid revision arguments.",
+            )
+
+        summary_dicts = writer.get_diff_summary(from_revision=from_rev, to_revision=to_rev)
+
+        # Convert dicts to Pydantic models
+        diff_summary = [DiffSummary(**item) for item in summary_dicts]
+
+        message = f"Successfully retrieved diff summary from {from_rev} to {to_rev}."
+        if not diff_summary:
+            message = f"No changes found between {from_rev} and {to_rev}."
+
+        return DoltDiffOutput(
+            success=True,
+            diff_summary=diff_summary,
+            message=message,
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting diff summary: {e}", exc_info=True)
+        return DoltDiffOutput(
+            success=False,
+            diff_summary=[],
+            message=f"An unexpected error occurred: {e}",
+            error=str(e),
         )
