@@ -3,6 +3,8 @@ services:
     image: ${DOLT_IMAGE:-ghcr.io/cogni-1729/cogni-dolt:latest}
     build: ""
     env_file: ./.env
+    environment:
+      - DOLT_ROOT_HOST=%
     
   api:
     image: ${API_IMAGE:-ghcr.io/cogni-1729/cogni-backend:latest}

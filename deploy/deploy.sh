@@ -17,6 +17,21 @@ NC='\033[0m'
 
 # Configuration
 MAX_RETRIES=20
+NO_CACHE_FLAG=""
+
+# Parse flags
+while [[ "$1" == --* ]]; do
+    case "$1" in
+        --no-cache)
+            NO_CACHE_FLAG="--no-cache"
+            shift
+            ;;
+        *)
+            warning "❌ Unknown flag: $1"
+            exit 1
+            ;;
+    esac
+done
 
 # Ensure we're in the deploy directory initially, then move to project root like the working script
 cd "$(dirname "${BASH_SOURCE[0]}")"
@@ -57,12 +72,12 @@ build_and_push_image() {
     local dolt_image="ghcr.io/cogni-1729/cogni-dolt:$tag"
     
     # Build and push API image
-    docker build --platform linux/amd64 -t "$api_image" -f services/web_api/Dockerfile.api .
+    docker build $NO_CACHE_FLAG --platform linux/amd64 -t "$api_image" -f services/web_api/Dockerfile.api .
     docker tag "$api_image" "ghcr.io/cogni-1729/cogni-backend:latest"
     docker push "ghcr.io/cogni-1729/cogni-backend:latest"
     
     # Build and push Dolt image
-    docker build --platform linux/amd64 -t "$dolt_image" -f services/dolt_memory/cogni-cogni-dao-memory.dockerfile .
+    docker build $NO_CACHE_FLAG --platform linux/amd64 -t "$dolt_image" -f services/dolt_memory/cogni-cogni-dao-memory.dockerfile .
     docker tag "$dolt_image" "ghcr.io/cogni-1729/cogni-dolt:latest"
     docker push "ghcr.io/cogni-1729/cogni-dolt:latest"
     
@@ -79,14 +94,20 @@ create_env_file() {
     OPENAI_API_KEY=$(grep "^OPENAI_API_KEY=" "$secrets_file" | cut -d= -f2)
     DOLT_ROOT_PASSWORD=$(grep "^DOLT_ROOT_PASSWORD=" "$secrets_file" | cut -d= -f2)
     
+    # Load DoltHub credentials (needed for Dolt pull infrastructure)
+    DOLTHUB_MCP_ACCESS_WRITE=$(grep "^DOLTHUB_MCP_ACCESS_WRITE=" "$secrets_file" | cut -d= -f2)
+    DOLTHUB_JWK_CREDENTIAL=$(grep "^DOLTHUB_JWK_CREDENTIAL=" "$secrets_file" | cut -d= -f2)
+    
     # Create .env file for the environment in the deploy directory
     cat > "deploy/.env.$env" << EOF
 COGNI_API_KEY=$COGNI_API_KEY
 OPENAI_API_KEY=$OPENAI_API_KEY
 DOLT_ROOT_PASSWORD=$DOLT_ROOT_PASSWORD
+DOLTHUB_MCP_ACCESS_WRITE=$DOLTHUB_MCP_ACCESS_WRITE
+DOLTHUB_JWK_CREDENTIAL=$DOLTHUB_JWK_CREDENTIAL
 EOF
     
-    status "✅ Created deploy/.env.$env"
+    status "✅ Created deploy/.env.$env with DoltHub credentials"
 }
 
 deploy_local() {
@@ -191,6 +212,14 @@ services:
       - PORT=3306
       - DOLT_ROOT_PASSWORD=${DOLT_ROOT_PASSWORD}
       - DOLT_ROOT_HOST=%
+      - DATABASE_REMOTE=https://doltremoteapi.dolthub.com/cogni/cogni-dao-memory
+      - DATABASE_NAME=cogni-dao-memory
+      - DOLTHUB_USER=cogni
+      - DOLTHUB_EMAIL=steward@cognidao.org
+      - DATA_DIR=/dolthub-dbs/cogni/cogni-dao-memory
+      # Temporarily disabled JWK auth - newline characters in credential causing parsing errors
+      # - CREDS_KEY=g3ld8if3kr1kl5ajm6ptl1kii5hvgo1t6vka5ms02arv2
+      # - CREDS_VALUE=${DOLTHUB_JWK_CREDENTIAL}
     volumes:
       - dolt_data:/dolthub-dbs
     ports: ["3306:3306"]
@@ -205,6 +234,8 @@ services:
       - DOLT_USER=root
       - DOLT_PASSWORD=${DOLT_ROOT_PASSWORD}
       - DOLT_DATABASE=cogni-dao-memory
+      - DOLT_REMOTE_URL=https://doltremoteapi.dolthub.com/cogni/cogni-dao-memory
+      - DOLT_REMOTE_PASSWORD=${DOLTHUB_MCP_ACCESS_WRITE}
     ports: ["8000:8000"]
     depends_on:
       dolt-db:
@@ -259,7 +290,7 @@ REMOTE_COMPOSE
 
     # Run docker compose on remote server using the clean compose file
     ssh -i "$expanded_ssh_key_path" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        ubuntu@$SERVER_IP "cd ~/cogni-deploy && API_IMAGE='ghcr.io/cogni-1729/cogni-backend:latest' DOLT_IMAGE='ghcr.io/cogni-1729/cogni-dolt:latest' docker compose up -d --pull always"
+        ubuntu@$SERVER_IP "cd ~/cogni-deploy && API_IMAGE='ghcr.io/cogni-1729/cogni-backend:latest' DOLT_IMAGE='ghcr.io/cogni-1729/cogni-dolt:latest' docker compose pull && docker compose up -d"
 
     # Wait for deployment
     sleep 10
@@ -371,11 +402,15 @@ case "$1" in
         cleanup_remote "$2"
         ;;
     *)
-        echo "Usage: $0 {local|preview|prod|cleanup preview|cleanup prod}"
+        echo "Usage: $0 [--no-cache] {local|preview|prod|cleanup preview|cleanup prod}"
+        echo ""
+        echo "Flags:"
+        echo "  --no-cache         # Force Docker to rebuild without cache"
         echo ""
         echo "Examples:"
         echo "  $0 local           # Start local development"
         echo "  $0 preview         # Deploy to preview server"
+        echo "  $0 --no-cache preview # Deploy to preview with fresh builds"
         echo "  $0 prod            # Deploy to production server"
         echo "  $0 cleanup preview # Clean up preview server"
         echo "  $0 cleanup prod    # Clean up production server"
