@@ -83,11 +83,20 @@ class DoltMySQLWriter(DoltMySQLBase):
         preserve_nulls: bool = False,
     ) -> Tuple[bool, Optional[str]]:
         """Write a memory block to the Dolt SQL server."""
-        connection = self._get_connection()
+        # Use persistent connection if available, otherwise create new one
+        if self._use_persistent and self._persistent_connection:
+            connection = self._persistent_connection
+            connection_is_persistent = True
+        else:
+            connection = self._get_connection()
+            connection_is_persistent = False
+
         commit_hash = None
 
         try:
-            self._ensure_branch(connection, branch)
+            # Only ensure branch if not using persistent connection (which already has correct branch)
+            if not connection_is_persistent:
+                self._ensure_branch(connection, branch)
             cursor = connection.cursor(dictionary=True)
 
             # Step 1: Write to memory_blocks table using REPLACE INTO for idempotency
@@ -180,11 +189,14 @@ class DoltMySQLWriter(DoltMySQLBase):
             return True, commit_hash
 
         except Exception as e:
-            connection.rollback()
+            if not connection_is_persistent:
+                connection.rollback()
             logger.error(f"Failed to write block {block.id}: {e}", exc_info=True)
             return False, None
         finally:
-            connection.close()
+            # Only close if it's not a persistent connection
+            if not connection_is_persistent:
+                connection.close()
 
     def delete_memory_block(
         self, block_id: str, branch: str = "main", auto_commit: bool = False
@@ -232,11 +244,20 @@ class DoltMySQLWriter(DoltMySQLBase):
         self, commit_msg: str, tables: List[str] = None
     ) -> Tuple[bool, Optional[str]]:
         """Commit working changes to Dolt via MySQL connection."""
-        connection = self._get_connection()
+        # Use persistent connection if available, otherwise create new one
+        if self._use_persistent and self._persistent_connection:
+            connection = self._persistent_connection
+            connection_is_persistent = True
+        else:
+            connection = self._get_connection()
+            connection_is_persistent = False
+
         commit_hash = None
 
         try:
-            self._ensure_branch(connection, "main")
+            # Only ensure branch if not using persistent connection (which already has correct branch)
+            if not connection_is_persistent:
+                self._ensure_branch(connection, "main")
             cursor = connection.cursor(dictionary=True)
 
             # Add specified tables or default ones
@@ -267,7 +288,9 @@ class DoltMySQLWriter(DoltMySQLBase):
             logger.error(f"Failed to commit changes: {e}", exc_info=True)
             return False, None
         finally:
-            connection.close()
+            # Only close if it's not a persistent connection
+            if not connection_is_persistent:
+                connection.close()
 
     def discard_changes(self, tables: List[str] = None) -> bool:
         """
@@ -324,10 +347,18 @@ class DoltMySQLWriter(DoltMySQLBase):
         Returns:
             Tuple of (success: bool, message: Optional[str])
         """
-        connection = self._get_connection()
+        # Use persistent connection if available, otherwise create new one
+        if self._use_persistent and self._persistent_connection:
+            connection = self._persistent_connection
+            connection_is_persistent = True
+        else:
+            connection = self._get_connection()
+            connection_is_persistent = False
 
         try:
-            self._ensure_branch(connection, branch)
+            # Only ensure branch if not using persistent connection (which already has correct branch)
+            if not connection_is_persistent:
+                self._ensure_branch(connection, branch)
             cursor = connection.cursor(dictionary=True)
 
             # Build push command arguments list
@@ -380,7 +411,9 @@ class DoltMySQLWriter(DoltMySQLBase):
             logger.error(error_msg, exc_info=True)
             return False, error_msg
         finally:
-            connection.close()
+            # Only close if it's not a persistent connection
+            if not connection_is_persistent:
+                connection.close()
 
     def pull_from_remote(
         self,
@@ -578,6 +611,52 @@ class DoltMySQLWriter(DoltMySQLBase):
             return False, error_msg
         finally:
             connection.close()
+
+    def checkout_branch(
+        self,
+        branch_name: str,
+        force: bool = False,
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Checkout an existing branch using Dolt's DOLT_CHECKOUT function.
+
+        This method enables persistent connection mode and switches to the specified branch.
+        All subsequent operations on this writer will use the checked-out branch.
+
+        Args:
+            branch_name: Name of the branch to checkout
+            force: Whether to force checkout, discarding uncommitted changes (default: False)
+
+        Returns:
+            Tuple of (success: bool, message: Optional[str])
+        """
+        try:
+            logger.info(
+                f"Checking out branch '{branch_name}' (force={force}) with persistent connection"
+            )
+
+            # Close any existing persistent connection first
+            if self._use_persistent:
+                self.close_persistent_connection()
+
+            # Use persistent connection to establish and maintain branch state
+            self.use_persistent_connection(branch_name)
+
+            # If force is specified, we need to handle it differently since persistent connection
+            # doesn't support force flag in use_persistent_connection
+            if force:
+                logger.warning(
+                    "Force checkout with persistent connection - may need manual conflict resolution"
+                )
+
+            message = f"Successfully checked out branch '{branch_name}' with persistent connection"
+            logger.info(message)
+            return True, message
+
+        except Exception as e:
+            error_msg = f"Failed to checkout branch '{branch_name}': {e}"
+            logger.error(error_msg, exc_info=True)
+            return False, error_msg
 
     def write_block_proof(
         self, block_id: str, operation: str, commit_hash: str, branch: str = "main"

@@ -109,6 +109,18 @@ class StructuredMemoryBank:
         self.dolt_reader = DoltMySQLReader(dolt_connection_config)
         self.dolt_writer = DoltMySQLWriter(dolt_connection_config)
 
+        # ═════════════════════════════════════════════
+        # ✅ ENSURE WE'RE ON THE RIGHT BRANCH BEFORE ANY COMMITS
+        try:
+            conn = self.dolt_writer._get_connection()
+            self.dolt_writer._ensure_branch(conn, self.branch)
+            conn.close()
+            logger.info(f"Checked out Dolt branch '{self.branch}' on new connection")
+        except Exception as e:
+            logger.error(f"Failed to checkout branch '{self.branch}': {e}", exc_info=True)
+            raise
+        # ═════════════════════════════════════════════
+
         logger.info(
             f"StructuredMemoryBank using secure MySQL connection to {dolt_connection_config.host}:{dolt_connection_config.port}"
         )
@@ -989,3 +1001,90 @@ class StructuredMemoryBank:
             message += f" [{extra_info}]"
 
         return message
+
+    def use_persistent_connections(self, branch: str = None) -> None:
+        """
+        Enable persistent connection mode on both reader and writer with coordinated branch state.
+
+        This ensures that branch checkouts persist across all memory bank operations.
+
+        Args:
+            branch: Branch to checkout and maintain (defaults to self.branch)
+        """
+        target_branch = branch or self.branch
+
+        try:
+            # Enable persistent connections on both reader and writer
+            self.dolt_reader.use_persistent_connection(target_branch)
+            reader_actual_branch = getattr(self.dolt_reader, "_current_branch", None)
+
+            self.dolt_writer.use_persistent_connection(target_branch)
+            writer_actual_branch = getattr(self.dolt_writer, "_current_branch", None)
+
+            # Verify both connections are on the same branch (session synchronization)
+            if reader_actual_branch != writer_actual_branch:
+                self.close_persistent_connections()
+                raise Exception(
+                    f"Branch synchronization failed: reader on '{reader_actual_branch}', "
+                    f"writer on '{writer_actual_branch}'. Both must be on same branch for consistent operations."
+                )
+
+            # Update the memory bank's branch to match the verified database session state
+            self.branch = reader_actual_branch  # Use verified branch from database session
+
+            logger.info(
+                f"StructuredMemoryBank enabled persistent connections on verified branch '{self.branch}'"
+            )
+
+        except Exception as e:
+            logger.error(f"Exception in use_persistent_connections: {e}", exc_info=True)
+            # Cleanup on failure
+            try:
+                self.close_persistent_connections()
+            except Exception:
+                pass
+            raise Exception(f"Failed to enable persistent connections: {e}")
+
+    def close_persistent_connections(self) -> None:
+        """
+        Close persistent connections on both reader and writer.
+        """
+        try:
+            if hasattr(self.dolt_reader, "close_persistent_connection"):
+                self.dolt_reader.close_persistent_connection()
+        except Exception as e:
+            logger.warning(f"Error closing reader persistent connection: {e}")
+
+        try:
+            if hasattr(self.dolt_writer, "close_persistent_connection"):
+                self.dolt_writer.close_persistent_connection()
+        except Exception as e:
+            logger.warning(f"Error closing writer persistent connection: {e}")
+
+        logger.info("StructuredMemoryBank closed persistent connections")
+
+    def test_commit_without_persistent(self) -> str:
+        """
+        Test method to close persistent connections and check if commits work.
+        """
+        self.close_persistent_connections()
+        return "Persistent connections closed - ready for commit test"
+
+    def debug_persistent_state(self) -> Dict[str, Any]:
+        """
+        Debug method to check persistent connection state.
+
+        Returns:
+            Dictionary with debug information about persistent connections
+        """
+        return {
+            "memory_bank_branch": self.branch,
+            "reader_use_persistent": getattr(self.dolt_reader, "_use_persistent", "UNKNOWN"),
+            "reader_current_branch": getattr(self.dolt_reader, "_current_branch", "UNKNOWN"),
+            "writer_use_persistent": getattr(self.dolt_writer, "_use_persistent", "UNKNOWN"),
+            "writer_current_branch": getattr(self.dolt_writer, "_current_branch", "UNKNOWN"),
+            "reader_has_connection": getattr(self.dolt_reader, "_persistent_connection", None)
+            is not None,
+            "writer_has_connection": getattr(self.dolt_writer, "_persistent_connection", None)
+            is not None,
+        }

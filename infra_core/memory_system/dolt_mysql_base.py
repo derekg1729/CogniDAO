@@ -48,7 +48,7 @@ class DoltConnectionConfig:
         default_factory=lambda: int(os.getenv("MYSQL_PORT") or os.getenv("DB_PORT", "3306"))
     )
     user: str = field(
-        default_factory=lambda: os.getenv("MYSQL_USER") or os.getenv("DB_USER", "root")
+        default_factory=lambda: os.getenv("MYSQL_USER") or os.getenv("DB_USER", "cogni_mcp")
     )
     password: str = field(
         default_factory=lambda: os.getenv("MYSQL_PASSWORD") or os.getenv("DB_PASSWORD", "")
@@ -56,6 +56,12 @@ class DoltConnectionConfig:
     database: str = field(
         default_factory=lambda: os.getenv("MYSQL_DATABASE") or os.getenv("DB_NAME", "memory_dolt")
     )
+
+    def __post_init__(self):
+        """Log connection configuration for debugging."""
+        logger.info(
+            f"DoltConnectionConfig: host={self.host}, port={self.port}, user={self.user}, database={self.database}"
+        )
 
 
 class DoltMySQLBase:
@@ -72,6 +78,10 @@ class DoltMySQLBase:
     def __init__(self, config: DoltConnectionConfig):
         """Initialize with connection configuration."""
         self.config = config
+        # Persistent connection support (opt-in)
+        self._persistent_connection = None
+        self._current_branch = None
+        self._use_persistent = False
 
     def _get_connection(self):
         """Get a new MySQL connection to the Dolt SQL server.
@@ -107,9 +117,99 @@ class DoltMySQLBase:
         except Error as e:
             raise Exception(f"Failed to checkout branch '{branch}': {e}")
 
+    def _verify_current_branch(self, connection: mysql.connector.MySQLConnection) -> str:
+        """
+        Verify and return the current branch for this session.
+
+        According to Dolt documentation, each session has its own branch state.
+        This method queries the session's current branch to ensure synchronization.
+
+        Returns:
+            The name of the current branch for this session
+        """
+        try:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT active_branch() as current_branch")
+            result = cursor.fetchone()
+            cursor.close()
+
+            if result and result.get("current_branch"):
+                return result["current_branch"]
+            else:
+                raise Exception("Could not determine current branch from session")
+
+        except Error as e:
+            raise Exception(f"Failed to verify current branch: {e}")
+
+    def use_persistent_connection(self, branch: str = "main") -> None:
+        """
+        Enable persistent connection mode and checkout the specified branch.
+
+        This allows multiple operations to reuse the same connection and maintain
+        branch state across operations. Call close_persistent_connection() when done.
+
+        Args:
+            branch: Branch to checkout and maintain for all subsequent operations
+        """
+        if self._persistent_connection:
+            logger.warning("Persistent connection already active, closing previous connection")
+            self.close_persistent_connection()
+
+        try:
+            # Create persistent connection
+            self._persistent_connection = self._get_connection()
+
+            # Checkout the specified branch
+            self._ensure_branch(self._persistent_connection, branch)
+
+            # Verify the actual branch state according to Dolt session behavior
+            actual_branch = self._verify_current_branch(self._persistent_connection)
+            self._current_branch = actual_branch
+            self._use_persistent = True
+
+            logger.info(
+                f"Persistent connection established on branch '{actual_branch}' (requested: '{branch}')"
+            )
+
+        except Exception as e:
+            # Cleanup on failure
+            if self._persistent_connection:
+                try:
+                    self._persistent_connection.close()
+                except Exception:
+                    pass
+            self._persistent_connection = None
+            self._current_branch = None
+            self._use_persistent = False
+            raise Exception(f"Failed to establish persistent connection: {e}")
+
+    def close_persistent_connection(self) -> None:
+        """
+        Close the persistent connection and return to per-operation connection mode.
+        """
+        if self._persistent_connection:
+            try:
+                self._persistent_connection.close()
+                logger.info(
+                    f"Closed persistent connection (was on branch '{self._current_branch}')"
+                )
+            except Exception as e:
+                logger.warning(f"Error closing persistent connection: {e}")
+            finally:
+                self._persistent_connection = None
+                self._current_branch = None
+                self._use_persistent = False
+
     def _execute_query(self, query: str, params: tuple = None) -> List[Dict[str, Any]]:
         """Execute a query and return results as list of dictionaries."""
-        connection = self._get_connection()
+        # Use persistent connection if available, otherwise create new one
+        if self._use_persistent and self._persistent_connection:
+            connection = self._persistent_connection
+            connection_is_persistent = True
+        else:
+            connection = self._get_connection()
+            connection_is_persistent = False
+
         try:
             cursor = connection.cursor(dictionary=True)
             cursor.execute(query, params or ())
@@ -119,11 +219,20 @@ class DoltMySQLBase:
         except Error as e:
             raise Exception(f"Query failed: {e}")
         finally:
-            connection.close()
+            # Only close if it's not a persistent connection
+            if not connection_is_persistent:
+                connection.close()
 
     def _execute_update(self, query: str, params: tuple = None) -> int:
         """Execute an update/insert/delete query and return affected rows."""
-        connection = self._get_connection()
+        # Use persistent connection if available, otherwise create new one
+        if self._use_persistent and self._persistent_connection:
+            connection = self._persistent_connection
+            connection_is_persistent = True
+        else:
+            connection = self._get_connection()
+            connection_is_persistent = False
+
         try:
             cursor = connection.cursor()
             cursor.execute(query, params or ())
@@ -135,4 +244,6 @@ class DoltMySQLBase:
             connection.rollback()
             raise Exception(f"Update failed: {e}")
         finally:
-            connection.close()
+            # Only close if it's not a persistent connection
+            if not connection_is_persistent:
+                connection.close()
