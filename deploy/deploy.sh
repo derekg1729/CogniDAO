@@ -143,6 +143,35 @@ EOF
                 if [ "$health_status" = "healthy" ]; then
                     status "✅ Local development environment ready at http://localhost:8000"
                     rm -f /tmp/health_response.json
+                    
+                    # Set up Prefect work pool and verify
+                    status "Setting up Prefect work pool..."
+                    
+                    # Wait for Prefect server to be fully ready
+                    for j in {1..10}; do
+                        if curl -fs http://localhost:4200/api/health >/dev/null 2>&1; then
+                            status "✅ Prefect server is ready"
+                            break
+                        elif [ $j -eq 10 ]; then
+                            warning "⚠️ Prefect server not responding, continuing anyway..."
+                        else
+                            echo "⏳ Waiting for Prefect server... (attempt $j/10)"
+                            sleep 2
+                        fi
+                    done
+                    
+                    # Create work pool (idempotent)
+                    if command -v prefect >/dev/null 2>&1; then
+                        # Set Prefect API URL to connect to containerized server
+                        export PREFECT_API_URL="http://localhost:4200/api"
+                        
+                        # Create work pool (|| true makes it idempotent)
+                        prefect work-pool create --type docker cogni-pool 2>/dev/null || true
+                        status "✅ Prefect work pool 'cogni-pool' configured"
+                    else
+                        warning "⚠️ Prefect CLI not available in host - work pool will be auto-created by worker"
+                    fi
+                    
                     break
                 else
                     echo "⏳ API responding but status is: $health_status (attempt $i/20)"
@@ -151,6 +180,35 @@ EOF
                 # Fallback: if jq not available, trust the 200 status code
                 status "✅ Local development environment ready at http://localhost:8000 (200 OK)"
                 rm -f /tmp/health_response.json
+                
+                # Set up Prefect work pool and verify
+                status "Setting up Prefect work pool..."
+                
+                # Wait for Prefect server to be fully ready
+                for j in {1..10}; do
+                    if curl -fs http://localhost:4200/api/health >/dev/null 2>&1; then
+                        status "✅ Prefect server is ready"
+                        break
+                    elif [ $j -eq 10 ]; then
+                        warning "⚠️ Prefect server not responding, continuing anyway..."
+                    else
+                        echo "⏳ Waiting for Prefect server... (attempt $j/10)"
+                        sleep 2
+                    fi
+                done
+                
+                # Create work pool (idempotent)
+                if command -v prefect >/dev/null 2>&1; then
+                    # Set Prefect API URL to connect to containerized server
+                    export PREFECT_API_URL="http://localhost:4200/api"
+                    
+                    # Create work pool (|| true makes it idempotent)
+                    prefect work-pool create --type docker cogni-pool 2>/dev/null || true
+                    status "✅ Prefect work pool 'cogni-pool' configured"
+                else
+                    warning "⚠️ Prefect CLI not available in host - work pool will be auto-created by worker"
+                fi
+                
                 break
             fi
         elif [ $i -eq 20 ]; then

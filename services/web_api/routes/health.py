@@ -23,6 +23,8 @@ async def health_check(request: Request):
         "memory_bank_available": False,
         "database_connected": False,
         "prefect_server_available": False,
+        "prefect_work_pool_available": False,
+        "prefect_worker_available": False,
         "details": {},
     }
 
@@ -82,6 +84,89 @@ async def health_check(request: Request):
         except Exception as prefect_error:
             health_status["details"]["prefect_server"] = f"connection failed: {prefect_error!r}"
             logger.exception("Prefect health check HTTP request failed")
+
+        # Test Prefect work pool availability
+        try:
+            # Check if cogni-pool work pool exists and is accessible
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                work_pool_response = await client.get(
+                    "http://prefect-server:4200/api/work_pools/cogni-pool"
+                )
+                if work_pool_response.status_code == 200:
+                    health_status["prefect_work_pool_available"] = True
+                    health_status["details"]["prefect_work_pool"] = (
+                        "cogni-pool found and accessible"
+                    )
+                    logger.debug("Health check passed: Prefect work pool cogni-pool accessible")
+                else:
+                    health_status["details"]["prefect_work_pool"] = (
+                        f"cogni-pool responded with status {work_pool_response.status_code}"
+                    )
+                    logger.warning(
+                        f"Prefect work pool cogni-pool responded with status {work_pool_response.status_code}"
+                    )
+        except Exception as work_pool_error:
+            health_status["details"]["prefect_work_pool"] = (
+                f"connection failed: {work_pool_error!r}"
+            )
+            logger.exception("Prefect work pool health check failed")
+
+        # Test Prefect worker availability
+        try:
+            # First check if work pool exists and get its workers via work pool endpoint
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                # Use the correct POST endpoint to get workers for cogni-pool
+                pool_response = await client.post(
+                    "http://prefect-server:4200/api/work_pools/cogni-pool/workers/filter",
+                    json={},
+                    headers={"Content-Type": "application/json"},
+                )
+                if pool_response.status_code == 200:
+                    workers_data = pool_response.json()
+                    online_workers = [w for w in workers_data if w.get("status") == "ONLINE"]
+                    if online_workers:
+                        health_status["prefect_worker_available"] = True
+                        health_status["details"]["prefect_worker"] = (
+                            f"{len(online_workers)} worker(s) online in cogni-pool"
+                        )
+                        logger.debug(
+                            f"Health check passed: {len(online_workers)} Prefect workers online"
+                        )
+                    else:
+                        health_status["details"]["prefect_worker"] = (
+                            f"found {len(workers_data)} workers but none are ONLINE"
+                        )
+                        logger.warning("Prefect workers found but none are ONLINE")
+                elif pool_response.status_code == 404:
+                    # Work pool might not exist yet, check general workers endpoint
+                    workers_response = await client.get("http://prefect-server:4200/api/work_pools")
+                    if workers_response.status_code == 200:
+                        pools_data = workers_response.json()
+                        cogni_pool = next(
+                            (p for p in pools_data if p.get("name") == "cogni-pool"), None
+                        )
+                        if cogni_pool:
+                            health_status["details"]["prefect_worker"] = (
+                                "cogni-pool exists but no workers accessible"
+                            )
+                        else:
+                            health_status["details"]["prefect_worker"] = (
+                                "cogni-pool not found - will be auto-created by worker"
+                            )
+                    else:
+                        health_status["details"]["prefect_worker"] = (
+                            f"work pools endpoint responded with status {workers_response.status_code}"
+                        )
+                else:
+                    health_status["details"]["prefect_worker"] = (
+                        f"pool workers endpoint responded with status {pool_response.status_code}"
+                    )
+                    logger.warning(
+                        f"Prefect pool workers endpoint responded with status {pool_response.status_code}"
+                    )
+        except Exception as worker_error:
+            health_status["details"]["prefect_worker"] = f"connection failed: {worker_error!r}"
+            logger.exception("Prefect worker health check failed")
 
     except Exception as e:
         health_status["status"] = "unhealthy"
