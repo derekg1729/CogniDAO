@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request
 import logging
 from datetime import datetime
+import httpx
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -21,6 +22,7 @@ async def health_check(request: Request):
         "status": "healthy",
         "memory_bank_available": False,
         "database_connected": False,
+        "prefect_server_available": False,
         "details": {},
     }
 
@@ -60,6 +62,26 @@ async def health_check(request: Request):
             health_status["status"] = "unhealthy"
             health_status["details"]["database"] = f"connection failed: {str(db_error)}"
             logger.error(f"Health check failed: database connection error - {db_error}")
+
+        # Test Prefect server connectivity
+        try:
+            # Check if Prefect server is accessible via Docker network
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                prefect_response = await client.get("http://prefect-server:4200/api/health")
+                if prefect_response.status_code == 200:
+                    health_status["prefect_server_available"] = True
+                    health_status["details"]["prefect_server"] = "connected and healthy"
+                    logger.debug("Health check passed: Prefect server connection successful")
+                else:
+                    health_status["details"]["prefect_server"] = (
+                        f"responded with status {prefect_response.status_code}"
+                    )
+                    logger.warning(
+                        f"Prefect server responded with status {prefect_response.status_code}"
+                    )
+        except Exception as prefect_error:
+            health_status["details"]["prefect_server"] = f"connection failed: {prefect_error!r}"
+            logger.exception("Prefect health check HTTP request failed")
 
     except Exception as e:
         health_status["status"] = "unhealthy"
