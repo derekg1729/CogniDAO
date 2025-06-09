@@ -160,17 +160,28 @@ EOF
                         fi
                     done
                     
-                    # Create work pool (idempotent)
-                    if command -v prefect >/dev/null 2>&1; then
-                        # Set Prefect API URL to connect to containerized server
-                        export PREFECT_API_URL="http://localhost:4200/api"
-                        
-                        # Create work pool (|| true makes it idempotent)
-                        prefect work-pool create --type docker cogni-pool 2>/dev/null || true
-                        status "✅ Prefect work pool 'cogni-pool' configured"
+                                        # Create work pool and deploy flows (idempotent)
+                if command -v prefect >/dev/null 2>&1; then
+                    # Set Prefect API URL to connect to containerized server
+                    export PREFECT_API_URL="http://localhost:4200/api"
+                    
+                    # Create work pool (|| true makes it idempotent)
+                    prefect work-pool create --type docker cogni-pool 2>/dev/null || true
+                    status "✅ Prefect work pool 'cogni-pool' configured"
+                    
+                    # Deploy ritual_of_presence flow from YAML
+                    status "Deploying Prefect flows..."
+                    if [ -f "legacy_logseq/flows/rituals/prefect.yaml" ]; then
+                        cd legacy_logseq/flows/rituals
+                        prefect deploy --all || warning "⚠️ Prefect flow deployment failed, continuing..."
+                        cd ../../..  # Return to project root
+                        status "✅ Prefect flows deployed"
                     else
-                        warning "⚠️ Prefect CLI not available in host - work pool will be auto-created by worker"
+                        warning "⚠️ Prefect flow configuration not found: legacy_logseq/flows/rituals/prefect.yaml"
                     fi
+                else
+                    warning "⚠️ Prefect CLI not available in host - work pool will be auto-created by worker"
+                fi
                     
                     break
                 else
@@ -197,7 +208,7 @@ EOF
                     fi
                 done
                 
-                # Create work pool (idempotent)
+                # Create work pool and deploy flows (idempotent)
                 if command -v prefect >/dev/null 2>&1; then
                     # Set Prefect API URL to connect to containerized server
                     export PREFECT_API_URL="http://localhost:4200/api"
@@ -205,6 +216,17 @@ EOF
                     # Create work pool (|| true makes it idempotent)
                     prefect work-pool create --type docker cogni-pool 2>/dev/null || true
                     status "✅ Prefect work pool 'cogni-pool' configured"
+                    
+                    # Deploy ritual_of_presence flow from YAML
+                    status "Deploying Prefect flows..."
+                    if [ -f "legacy_logseq/flows/rituals/prefect.yaml" ]; then
+                        cd legacy_logseq/flows/rituals
+                        prefect deploy --all || warning "⚠️ Prefect flow deployment failed, continuing..."
+                        cd ../../..  # Return to project root
+                        status "✅ Prefect flows deployed"
+                    else
+                        warning "⚠️ Prefect flow configuration not found: legacy_logseq/flows/rituals/prefect.yaml"
+                    fi
                 else
                     warning "⚠️ Prefect CLI not available in host - work pool will be auto-created by worker"
                 fi

@@ -4,7 +4,7 @@ services:
     image: ${DOLT_IMAGE:-deploy-dolt-db}
     build:
       context: ..
-      dockerfile: services/dolt_memory/cogni-dao-memory.dockerfile
+      dockerfile: services/dolt_memory/cogni-cogni-dao-memory.dockerfile
     env_file: ./.env
     environment:
       - HOST=0.0.0.0
