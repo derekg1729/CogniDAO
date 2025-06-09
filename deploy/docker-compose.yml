@@ -4,7 +4,7 @@ services:
     image: ${DOLT_IMAGE:-deploy-dolt-db}
     build:
       context: ..
-      dockerfile: services/dolt_memory/cogni-cogni-dao-memory.dockerfile
+      dockerfile: services/dolt_memory/cogni-dao-memory.dockerfile
     env_file: ./.env
     environment:
       - HOST=0.0.0.0
@@ -21,8 +21,8 @@ services:
       - CREDS_VALUE=${DOLTHUB_JWK_CREDENTIAL}
     volumes:
       - dolt_data:/dolthub-dbs
-    expose:
-      - "3306"
+    ports:
+      - "3306:3306"
     healthcheck:
       test: ["CMD", "dolt", "sql", "-q", "SELECT 1;"]
       interval: 30s
