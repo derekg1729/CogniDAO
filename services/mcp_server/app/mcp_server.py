@@ -820,4 +820,9 @@ async def health_check():
 
 # When this file is executed directly, use the MCP CLI
 if __name__ == "__main__":
-    mcp.run()
+    import os
+
+    # Allow transport to be controlled via environment variable
+    # Default to stdio for Cursor, use MCP_TRANSPORT=sse for ToolHive
+    transport = os.getenv("MCP_TRANSPORT", "stdio")
+    mcp.run(transport=transport)
