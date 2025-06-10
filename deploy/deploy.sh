@@ -176,6 +176,15 @@ EOF
                         prefect deploy --all || warning "⚠️ Prefect flow deployment failed, continuing..."
                         cd ../..  # Return to project root
                         status "✅ Prefect flows deployed"
+                        
+                        # Deploy MCP server with ToolHive
+                        status "Deploying MCP server with ToolHive..."
+                        if command -v thv >/dev/null 2>&1; then
+                            thv run --name cogni-mcp --env DOLT_ROOT_PASSWORD="${DOLT_ROOT_PASSWORD}" cogni-mcp:latest || warning "⚠️ MCP server deployment failed, continuing..."
+                            status "✅ MCP server deployed via ToolHive"
+                        else
+                            warning "⚠️ ToolHive (thv) not available - MCP server not deployed"
+                        fi
                     else
                         warning "⚠️ Prefect flow configuration not found: flows/presence/prefect.yaml"
                     fi
@@ -224,6 +233,15 @@ EOF
                         prefect deploy --all || warning "⚠️ Prefect flow deployment failed, continuing..."
                         cd ../..  # Return to project root
                         status "✅ Prefect flows deployed"
+                        
+                        # Deploy MCP server with ToolHive
+                        status "Deploying MCP server with ToolHive..."
+                        if command -v thv >/dev/null 2>&1; then
+                            thv run --name cogni-mcp --env DOLT_ROOT_PASSWORD="${DOLT_ROOT_PASSWORD}" cogni-mcp:latest || warning "⚠️ MCP server deployment failed, continuing..."
+                            status "✅ MCP server deployed via ToolHive"
+                        else
+                            warning "⚠️ ToolHive (thv) not available - MCP server not deployed"
+                        fi
                     else
                         warning "⚠️ Prefect flow configuration not found: flows/presence/prefect.yaml"
                     fi
