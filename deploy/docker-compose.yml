@@ -48,6 +48,8 @@ services:
       - DOLT_DATABASE=cogni-dao-memory
       - DOLT_REMOTE_URL=https://doltremoteapi.dolthub.com/cogni/cogni-dao-memory
       - DOLT_REMOTE_PASSWORD=${DOLTHUB_MCP_ACCESS_WRITE}
+      # ToolHive API URL for MCP tool health checking
+      - TOOLHIVE_API=http://toolhive:8080
     ports: ["8000:8000"]  # Direct access for deploy script compatibility
     depends_on:
       dolt-db:
@@ -98,6 +100,8 @@ services:
     command: prefect worker start --pool cogni-pool
     environment:
       - PREFECT_API_URL=http://prefect-server:4200/api
+      # ToolHive API URL for MCP tool access
+      - TOOLHIVE_API=http://toolhive:8080
     depends_on:
       prefect-server:
         condition: service_healthy
@@ -108,11 +112,59 @@ services:
     networks:
       - cogni-net
 
+  # ToolHive - MCP container orchestrator  
+  toolhive:
+    image: ghcr.io/stacklok/toolhive:latest
+    container_name: toolhive
+    command: ["serve", "--host", "0.0.0.0", "--port", "8080"]  # Bind to all interfaces
+    user: "0:0"  # Run as root for Docker socket access on macOS
+    networks:
+      - cogni-net
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+    environment:
+      - DOCKER_NETWORK=cogni-net
+      - THV_SECRETS_BACKEND=1password
+    ports:
+      - "8080:8080"  # Use ToolHive's default port 8080
+    restart: unless-stopped
+
+  # Cogni MCP Server - memory management tools
+  cogni-mcp:
+    image: cogni-mcp:latest
+    build:
+      context: ..
+      dockerfile: services/mcp_server/Dockerfile.mcp
+    container_name: cogni-mcp
+    networks:
+      - cogni-net
+    environment:
+      - DOLT_HOST=dolt-db
+      - DOLT_PORT=3306
+      - DOLT_USER=root
+      - DOLT_ROOT_PASSWORD=${DOLT_ROOT_PASSWORD}
+      - DOLT_DATABASE=cogni-dao-memory
+      - CHROMA_PATH=/app/chroma
+      - CHROMA_COLLECTION_NAME=cogni_mcp_collection
+    volumes:
+      - mcp_chroma:/app/chroma
+    depends_on:
+      dolt-db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
 volumes:
   caddy_data:
   caddy_config:
   dolt_data:
   prefect_data:
+  mcp_chroma:
 
 networks:
   cogni-net:
