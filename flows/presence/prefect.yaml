@@ -15,7 +15,7 @@ push:
 # pull section allows you to provide instructions for cloning this project in remote locations
 pull:
 - prefect.deployments.steps.set_working_directory:
-    directory: /Users/derek/dev/cogni/legacy_logseq/flows/rituals
+    directory: /Users/derek/dev/cogni/flows/presence
 
 # the deployments section allows you to provide configuration for deploying flows
 deployments:

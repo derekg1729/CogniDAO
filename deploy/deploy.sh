@@ -171,13 +171,13 @@ EOF
                     
                     # Deploy ritual_of_presence flow from YAML
                     status "Deploying Prefect flows..."
-                    if [ -f "legacy_logseq/flows/rituals/prefect.yaml" ]; then
-                        cd legacy_logseq/flows/rituals
+                    if [ -f "flows/presence/prefect.yaml" ]; then
+                        cd flows/presence
                         prefect deploy --all || warning "⚠️ Prefect flow deployment failed, continuing..."
-                        cd ../../..  # Return to project root
+                        cd ../..  # Return to project root
                         status "✅ Prefect flows deployed"
                     else
-                        warning "⚠️ Prefect flow configuration not found: legacy_logseq/flows/rituals/prefect.yaml"
+                        warning "⚠️ Prefect flow configuration not found: flows/presence/prefect.yaml"
                     fi
                 else
                     warning "⚠️ Prefect CLI not available in host - work pool will be auto-created by worker"
@@ -219,13 +219,13 @@ EOF
                     
                     # Deploy ritual_of_presence flow from YAML
                     status "Deploying Prefect flows..."
-                    if [ -f "legacy_logseq/flows/rituals/prefect.yaml" ]; then
-                        cd legacy_logseq/flows/rituals
+                    if [ -f "flows/presence/prefect.yaml" ]; then
+                        cd flows/presence
                         prefect deploy --all || warning "⚠️ Prefect flow deployment failed, continuing..."
-                        cd ../../..  # Return to project root
+                        cd ../..  # Return to project root
                         status "✅ Prefect flows deployed"
                     else
-                        warning "⚠️ Prefect flow configuration not found: legacy_logseq/flows/rituals/prefect.yaml"
+                        warning "⚠️ Prefect flow configuration not found: flows/presence/prefect.yaml"
                     fi
                 else
                     warning "⚠️ Prefect CLI not available in host - work pool will be auto-created by worker"
