@@ -173,33 +173,28 @@ async def health_check(request: Request):
 
         # Test Cogni MCP container availability
         try:
-            # Check if cogni-mcp container is running and healthy
-            # Since MCP uses stdio/JSON-RPC, we test container network connectivity
-            import socket
-
-            try:
-                # Test if cogni-mcp container is reachable on the network
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(2)
-                # MCP servers typically don't expose HTTP ports, so we check if container is reachable
-                # by testing if we can resolve the hostname (container is on network)
-                import socket
-
+            # Check if cogni-mcp container is running and responding via HTTP SSE
+            async with httpx.AsyncClient(timeout=5.0) as client:
                 try:
-                    socket.gethostbyname("cogni-mcp")
-                    health_status["cogni_mcp_available"] = True
-                    health_status["details"]["cogni_mcp"] = "container reachable on network"
-                    logger.debug("Health check passed: cogni-mcp container connectivity successful")
-                except socket.gaierror:
-                    health_status["details"]["cogni_mcp"] = "container not found on network"
-                    logger.warning("cogni-mcp container not found on network")
-                finally:
-                    sock.close()
-            except Exception as socket_error:
-                health_status["details"]["cogni_mcp"] = (
-                    f"container connectivity failed: {socket_error!r}"
-                )
-                logger.warning(f"cogni-mcp container connectivity test failed: {socket_error}")
+                    # Test MCP server HTTP endpoint - use GET to test SSE connection availability
+                    mcp_response = await client.get("http://cogni-mcp:8081/sse")
+                    # Any HTTP response (even 405 Method Not Allowed) means server is running
+                    if mcp_response.status_code in [200, 405]:
+                        health_status["cogni_mcp_available"] = True
+                        health_status["details"]["cogni_mcp"] = "MCP SSE server responding"
+                        logger.debug("Health check passed: cogni-mcp SSE server responding")
+                    else:
+                        health_status["details"]["cogni_mcp"] = (
+                            f"MCP server returned {mcp_response.status_code}"
+                        )
+                        logger.warning(
+                            f"cogni-mcp SSE server returned status {mcp_response.status_code}"
+                        )
+                except Exception as http_error:
+                    health_status["details"]["cogni_mcp"] = (
+                        f"MCP server not reachable: {http_error!r}"
+                    )
+                    logger.warning(f"cogni-mcp SSE server connectivity test failed: {http_error}")
 
         except Exception as cogni_mcp_error:
             health_status["details"]["cogni_mcp"] = f"container check failed: {cogni_mcp_error!r}"

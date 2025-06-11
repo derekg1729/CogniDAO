@@ -236,11 +236,21 @@ EOF
                         
                         # Deploy MCP server with ToolHive
                         status "Deploying MCP server with ToolHive..."
-                        if command -v thv >/dev/null 2>&1; then
-                            thv run --name cogni-mcp --env DOLT_ROOT_PASSWORD="${DOLT_ROOT_PASSWORD}" cogni-mcp:latest || warning "⚠️ MCP server deployment failed, continuing..."
-                            status "✅ MCP server deployed via ToolHive"
+                        if docker ps | grep -q toolhive; then
+                            docker exec toolhive thv run \
+                              --name cogni-mcp \
+                              --env DOLT_HOST=host.docker.internal \
+                              --env DOLT_PORT=3306 \
+                              --env DOLT_USER=root \
+                              --env DOLT_ROOT_PASSWORD="${DOLT_ROOT_PASSWORD}" \
+                              --env DOLT_DATABASE=cogni-dao-memory \
+                              --env CHROMA_PATH=/app/chroma \
+                              --env CHROMA_COLLECTION_NAME=cogni_mcp_collection \
+                              --env MCP_TRANSPORT=sse \
+                              cogni-mcp:latest || warning "⚠️ MCP server deployment failed, continuing..."
+                            status "✅ MCP server deployed via containerized ToolHive"
                         else
-                            warning "⚠️ ToolHive (thv) not available - MCP server not deployed"
+                            warning "⚠️ ToolHive container not running - MCP server not deployed"
                         fi
                     else
                         warning "⚠️ Prefect flow configuration not found: flows/presence/prefect.yaml"

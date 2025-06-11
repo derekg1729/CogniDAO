@@ -129,35 +129,7 @@ services:
       - "8080:8080"  # Use ToolHive's default port 8080
     restart: unless-stopped
 
-  # Cogni MCP Server - memory management tools
-  cogni-mcp:
-    image: cogni-mcp:latest
-    build:
-      context: ..
-      dockerfile: services/mcp_server/Dockerfile.mcp
-    container_name: cogni-mcp
-    networks:
-      - cogni-net
-    environment:
-      - DOLT_HOST=dolt-db
-      - DOLT_PORT=3306
-      - DOLT_USER=root
-      - DOLT_ROOT_PASSWORD=${DOLT_ROOT_PASSWORD}
-      - DOLT_DATABASE=cogni-dao-memory
-      - CHROMA_PATH=/app/chroma
-      - CHROMA_COLLECTION_NAME=cogni_mcp_collection
-    volumes:
-      - mcp_chroma:/app/chroma
-    depends_on:
-      dolt-db:
-        condition: service_healthy
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 5s
+
 
 volumes:
   caddy_data:

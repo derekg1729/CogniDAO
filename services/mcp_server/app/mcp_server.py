@@ -825,4 +825,7 @@ if __name__ == "__main__":
     # Allow transport to be controlled via environment variable
     # Default to stdio for Cursor, use MCP_TRANSPORT=sse for ToolHive
     transport = os.getenv("MCP_TRANSPORT", "stdio")
+
+    # For SSE/HTTP transports, simply pass the environment variables and let FastMCP handle them
+    # According to FastMCP docs, it reads from environment variables automatically
     mcp.run(transport=transport)
