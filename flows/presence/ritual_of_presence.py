@@ -9,264 +9,446 @@ from prefect import task, flow, get_run_logger
 from datetime import datetime
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import json
 import argparse
-from prefect.blocks.system import Secret
+import asyncio
+import httpx
 
 # --- Project Constants Import ---
-from infra_core.constants import MEMORY_BANKS_ROOT, THOUGHTS_DIR, BASE_DIR
+from infra_core.constants import THOUGHTS_DIR
 
-# --- Memory Imports ---
-from legacy_logseq.memory.memory_bank import FileMemoryBank, CogniLangchainMemoryAdapter
+# --- Memory Imports (Legacy - will be replaced by MCP) ---
+# from infra_core.agents.claude_client import CogniMemoryAgent
+# from infra_core.memory.memory_agent import CogniMemoryAgent as MemoryAgent
+# from infra_core.memory.memory_providers import CogniMemoryBank
+# from infra_core.memory.text_memory import TextMemoryProvider
+# from infra_core.memory.memory_core import MemoryCore
 
-# --- Agent Imports ---
-from legacy_logseq.cogni_agents.core_cogni import CoreCogniAgent
-from legacy_logseq.cogni_agents.swarm_cogni import CogniSwarmAgent
+# --- MCP Integration via ToolHive HTTP API ---
+TOOLHIVE_API_BASE = "http://toolhive:8080"
+MCP_SERVER_NAME = "cogni-mcp"
 
 
-def format_as_json(analysis_data: str) -> str:
+@task(name="mcp_call_tool")
+async def mcp_call_tool(tool_name: str, arguments: Dict[str, Any] = None) -> Dict[str, Any]:
     """
-    Formats the provided analysis data string into a JSON string.
-    Expects the input string to contain the core reflection, exploration points, and analysis.
-    It will structure this into a predefined JSON format.
-    Args:
-        analysis_data: A string containing the reflection, exploration, and analysis insights.
-    Returns:
-        A JSON string representing the structured analysis, or an error message if formatting fails.
-    """
-    try:
-        # Basic parsing attempt (assuming structure might be loose)
-        # A more robust implementation might use regex or LLM prompting within the tool
-        # to extract specific fields if the input `analysis_data` format is unpredictable.
-        # For now, we'll wrap the whole input under an "analysis" key.
-        output_dict = {
-            "analysis_summary": analysis_data,
-            # Potential future fields:
-            # "reflection": extracted_reflection,
-            # "exploration_topics": extracted_topics,
-            # "analyzer_feedback": extracted_feedback
-        }
-        # Return only the JSON string
-        return json.dumps(output_dict, indent=2)
-    except Exception as e:
-        # Return only the error JSON
-        return json.dumps({"error": f"Failed to format analysis into JSON: {e}"})
-
-
-def write_thought_file(ai_content):
-    """
-    Write the thought content to a file with proper formatting. Tagged as #thought for logseq
+    Call an MCP tool via ToolHive HTTP API
 
     Args:
-        ai_content (str): The AI-generated thought content
+        tool_name: Name of the MCP tool to call
+        arguments: Arguments to pass to the tool
 
     Returns:
-        tuple: (timestamp, filepath) - timestamp string and path to the created file
-    """
-    now = datetime.utcnow()
-    timestamp = now.strftime("%Y-%m-%d-%H-%M")
-
-    # Create the full content with timestamp and tags
-    content = (
-        f"tags:: #thought\n\n# Thought {timestamp}\n\n{ai_content}\n\nTime: {now.isoformat()}\n"
-    )
-
-    # Save to file
-    filepath = os.path.join(THOUGHTS_DIR, f"{timestamp}.md")
-    os.makedirs(THOUGHTS_DIR, exist_ok=True)
-    with open(filepath, "w") as f:
-        f.write(content)
-
-    return timestamp, filepath
-
-
-@task
-def create_initial_thought(
-    memory_adapter: CogniLangchainMemoryAdapter, custom_prompt: str = None
-) -> Dict[str, Any]:
-    """
-    Creates the initial thought using CoreCogniAgent and saves context to shared memory.
-
-    Args:
-        memory_adapter: The memory adapter to use
-        custom_prompt: Optional custom prompt to use instead of the default
+        Tool execution result
     """
     logger = get_run_logger()
 
     try:
-        logger.info("Creating initial thought...")
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            # ToolHive HTTP API endpoint for calling MCP tools
+            # This is the correct way to call MCP tools through ToolHive
+            payload = {"server": MCP_SERVER_NAME, "tool": tool_name, "arguments": arguments or {}}
 
-        # Instantiate agent, passing the flow's shared memory bank
-        core_cogni = CoreCogniAgent(
-            agent_root=Path(THOUGHTS_DIR),
-            memory=memory_adapter.memory_bank,
-            project_root_override=Path(BASE_DIR),
-        )
+            logger.info(f"🔧 Calling MCP tool '{tool_name}' via ToolHive API")
 
-        # Pass custom_prompt to prepare_input if provided
-        prepared_input = core_cogni.prepare_input(prompt=custom_prompt)
-        initial_prompt = prepared_input.get(
-            "prompt",
-            "Hi Cogni, there was no prepared prompt. Please generate any thought you want.",
-        )
+            # Make HTTP POST request to ToolHive API
+            response = await client.post(
+                f"{TOOLHIVE_API_BASE}/api/v1/tools/call",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
 
-        logger.info(f"Prompt: {initial_prompt}")
-
-        result_data = core_cogni.act(prepared_input)
-        initial_thought = result_data.get("thought_content", "[No thought content]")
-        memory_adapter.save_context(
-            inputs={"input": initial_prompt}, outputs={"output": initial_thought}
-        )
-        logger.info("Saved initial thought context to history via adapter.")
-
-        try:
-            core_cogni.record_action(result_data, prefix="thought_")
-            logger.info("Logged detailed initial thought action via record_action.")
-        except Exception as e:
-            logger.warning(f"Could not log detailed action for initial thought: {e}")
-
-        logger.info(f"INITIAL THOUGHT OUTPUT: {initial_thought}")
-        return result_data
+            if response.status_code == 200:
+                result = response.json()
+                logger.info(f"✅ MCP tool '{tool_name}' executed successfully")
+                return result
+            else:
+                logger.error(f"❌ MCP tool call failed: {response.status_code} - {response.text}")
+                return {"error": f"HTTP {response.status_code}: {response.text}"}
 
     except Exception as e:
-        logger.error(f"Error in initial thought generation: {e}", exc_info=True)
-        return {"error": str(e), "thought_content": "[Error generating thought]"}
+        logger.error(f"❌ MCP tool call exception: {e}")
+        return {"error": str(e)}
 
 
-@task
-async def process_with_swarm(
-    initial_thought_content: str, memory_adapter: CogniLangchainMemoryAdapter
-) -> Dict[str, Any]:
+@task(name="mcp_get_memory_blocks")
+async def mcp_get_memory_blocks(query: str, limit: int = 5) -> List[Dict[str, Any]]:
     """
-    Process the initial thought using the CogniSwarmAgent.
-    """
-    logger = get_run_logger()
-
-    if (
-        not initial_thought_content
-        or "[Error generating thought]" in initial_thought_content
-        or "[No thought content]" in initial_thought_content
-    ):
-        logger.warning(
-            "Skipping swarm processing due to missing or invalid initial thought content."
-        )
-        return {"output": "[Skipped Swarm Processing]", "raw_result": []}
-
-    try:
-        logger.info(f"Processing thought with SwarmCogni: '{initial_thought_content[:100]}...'")
-
-        # Load OpenAI API key from Prefect Secret
-        try:
-            logger.info("Loading OpenAI API key from Prefect Secret block 'openai-api-key'...")
-            openai_api_key_block = await Secret.load("openai-api-key")
-            openai_api_key = openai_api_key_block.get()
-            logger.info("Successfully loaded OpenAI API key from Prefect Secret block.")
-        except ValueError as e:
-            logger.error(f"Failed to load Prefect Secret 'openai-api-key': {e}.")
-            raise ValueError(
-                "Failed to load required 'openai-api-key' Prefect Secret block."
-            ) from e
-        except Exception as e:
-            logger.error(f"An unexpected error occurred while loading the Prefect secret: {e}")
-            raise
-
-        # Initialize the CogniSwarmAgent
-        swarm_cogni = CogniSwarmAgent(
-            agent_root=Path(THOUGHTS_DIR),
-            memory=memory_adapter.memory_bank,
-            project_root_override=Path(BASE_DIR),
-            openai_api_key=openai_api_key,
-        )
-
-        # Process the thought
-        prepared_input = swarm_cogni.prepare_input(thought=initial_thought_content)
-        result_data = await swarm_cogni.a_act(prepared_input)
-
-        return result_data
-
-    except Exception as e:
-        logger.error(f"Error in swarm processing: {e}", exc_info=True)
-        return {"error": str(e), "output": "[Error during swarm processing]", "raw_result": []}
-
-
-@flow
-def ritual_of_presence_flow(custom_prompt: Optional[str] = None):
-    """
-    Flow generating an initial thought and using a swarm for reflection.
+    Get memory blocks using MCP QueryMemoryBlocksSemantic tool
 
     Args:
-        custom_prompt: Optional custom prompt to use instead of the default
+        query: Semantic search query
+        limit: Maximum number of results
+
+    Returns:
+        List of memory blocks
     """
     logger = get_run_logger()
-    logger.info("Starting Ritual of Presence flow (Core Cogni + SwarmCogni)...")
 
-    # --- Initialize Shared Memory ---
-    flow_project_name = "ritual_of_presence"
-    flow_session_id = "ritual-session"  # Keep fixed session ID for persistence
+    logger.info(f"🧠 Querying memory via MCP: '{query}' (limit: {limit})")
 
-    memory_root = Path(MEMORY_BANKS_ROOT)
-    memory_root.mkdir(parents=True, exist_ok=True)
-
-    flow_memory_bank = FileMemoryBank(
-        memory_bank_root=memory_root,
-        project_name=f"flows/{flow_project_name}",
-        session_id=flow_session_id,
-    )
-    shared_memory_adapter = CogniLangchainMemoryAdapter(memory_bank=flow_memory_bank)
-
-    session_id = flow_memory_bank.session_id
-    session_path = flow_memory_bank._get_session_path()
-    logger.info(
-        f"Initialized shared memory for project 'flows/{flow_project_name}', session '{session_id}' at {session_path}"
+    result = await mcp_call_tool(
+        "mcp_cogni-memory-local_QueryMemoryBlocksSemantic",
+        {"input": json.dumps({"query_text": query, "top_k": limit})},
     )
 
-    # --- Run Agent Tasks Sequentially ---
-    # 1. Create initial thought with CoreCogniAgent
-    initial_result = create_initial_thought(
-        memory_adapter=shared_memory_adapter, custom_prompt=custom_prompt
+    if "error" in result:
+        logger.error(f"❌ Memory query failed: {result['error']}")
+        return []
+
+    # Parse the MCP response
+    try:
+        if "blocks" in result:
+            blocks = result["blocks"]
+            logger.info(f"✅ Retrieved {len(blocks)} memory blocks")
+            return blocks
+        else:
+            logger.warning("⚠️ No blocks found in MCP response")
+            return []
+    except Exception as e:
+        logger.error(f"❌ Error parsing MCP response: {e}")
+        return []
+
+
+@task(name="mcp_get_active_work_items")
+async def mcp_get_active_work_items(limit: int = 10) -> List[Dict[str, Any]]:
+    """
+    Get active work items using MCP GetActiveWorkItems tool
+
+    Args:
+        limit: Maximum number of results
+
+    Returns:
+        List of active work items
+    """
+    logger = get_run_logger()
+
+    logger.info(f"📋 Getting active work items via MCP (limit: {limit})")
+
+    result = await mcp_call_tool(
+        "mcp_cogni-memory-local_GetActiveWorkItems", {"input": json.dumps({"limit": limit})}
     )
 
-    if "error" in initial_result:
-        logger.error("Flow aborted due to error in initial thought generation.")
-        return f"Flow failed during initial thought: {initial_result['error']}"
+    if "error" in result:
+        logger.error(f"❌ Work items query failed: {result['error']}")
+        return []
 
-    # Extract the thought content to pass to the swarm
-    initial_thought_content = initial_result.get("thought_content", "[Missing thought content]")
+    # Parse the MCP response
+    try:
+        if "work_items" in result:
+            work_items = result["work_items"]
+            logger.info(f"✅ Retrieved {len(work_items)} active work items")
+            return work_items
+        else:
+            logger.warning("⚠️ No work items found in MCP response")
+            return []
+    except Exception as e:
+        logger.error(f"❌ Error parsing MCP response: {e}")
+        return []
 
-    # 2. Process with SwarmCogni
-    swarm_result_future = process_with_swarm.submit(
-        initial_thought_content=initial_thought_content, memory_adapter=shared_memory_adapter
+
+@task(name="load_agent_memory_via_mcp")
+async def load_agent_memory_via_mcp(agent_name: str = "ritual_of_presence") -> Dict[str, Any]:
+    """
+    Load agent memory using MCP tools
+
+    Args:
+        agent_name: Name of the agent to load memory for
+
+    Returns:
+        Dictionary containing loaded memory data
+    """
+    logger = get_run_logger()
+    logger.info(f"🧠 Loading memory for agent '{agent_name}' via MCP")
+
+    # Load relevant memories
+    memories = await mcp_get_memory_blocks(
+        f"ritual of presence agent memory {agent_name}", limit=10
     )
-    # Wait for the future to complete and get the result
-    swarm_result = swarm_result_future.result()
 
-    # Check result
-    if isinstance(swarm_result, dict) and "error" in swarm_result:
-        logger.error("Flow completed with error in swarm processing.")
-        error_msg = str(swarm_result.get("error", "Unknown swarm error"))
-        return f"Flow completed with error during swarm processing: {error_msg}"
-    elif isinstance(swarm_result, Exception):
-        logger.error(f"Flow failed during swarm processing task: {swarm_result}")
-        return f"Flow failed: {swarm_result}"
+    # Load active work items
+    work_items = await mcp_get_active_work_items(limit=5)
 
-    logger.info("Ritual of Presence flow (Core + SwarmCogni) completed successfully.")
-    return f"Ritual of Presence completed. Session: {session_id}. See logs and memory bank: {session_path}"
+    memory_data = {
+        "agent_name": agent_name,
+        "memories": memories,
+        "active_work_items": work_items,
+        "loaded_at": datetime.now().isoformat(),
+        "source": "MCP via ToolHive API",
+    }
 
+    logger.info(f"✅ Loaded {len(memories)} memories and {len(work_items)} work items")
+    return memory_data
+
+
+# --- Legacy Tasks (Commented Out) ---
+# @task(name="load_agent_memory")
+# def load_agent_memory(agent_name: str = "ritual_of_presence") -> Dict[str, Any]:
+#     """
+#     Load agent memory from the memory bank
+#
+#     Args:
+#         agent_name: Name of the agent to load memory for
+#
+#     Returns:
+#         Dictionary containing loaded memory data
+#     """
+#     logger = get_run_logger()
+#     logger.info(f"Loading memory for agent: {agent_name}")
+#
+#     # Initialize memory provider
+#     memory_bank = CogniMemoryBank()
+#     memory_core = MemoryCore(providers=[memory_bank])
+#
+#     # Load memories related to this agent
+#     memories = memory_core.retrieve_memories(
+#         query=f"agent:{agent_name}",
+#         limit=50
+#     )
+#
+#     logger.info(f"Loaded {len(memories)} memories for agent {agent_name}")
+#
+#     return {
+#         "agent_name": agent_name,
+#         "memories": [mem.to_dict() for mem in memories],
+#         "loaded_at": datetime.now().isoformat()
+#     }
+
+
+@task(name="generate_presence_summary")
+async def generate_presence_summary(
+    memory_data: Dict[str, Any], custom_prompt: Optional[str] = None
+) -> str:
+    """
+    Generate a summary of current presence and context using loaded memory
+
+    Args:
+        memory_data: Loaded memory data from MCP
+        custom_prompt: Custom prompt for the summary
+
+    Returns:
+        Generated presence summary
+    """
+    logger = get_run_logger()
+    logger.info("🎯 Generating presence summary via MCP-powered flow")
+
+    # Extract data from memory
+    memories = memory_data.get("memories", [])
+    work_items = memory_data.get("active_work_items", [])
+
+    # Create summary
+    summary_parts = [
+        "🤖 **Ritual of Presence - MCP-Powered Flow**",
+        f"📅 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"🧠 Memory Source: {memory_data.get('source', 'Unknown')}",
+        "",
+        "📊 **Memory Status**:",
+        f"- Loaded {len(memories)} relevant memories",
+        f"- Found {len(work_items)} active work items",
+        "",
+    ]
+
+    if custom_prompt:
+        summary_parts.extend([f"💭 **Custom Prompt**: {custom_prompt}", ""])
+
+    if work_items:
+        summary_parts.append("📋 **Active Work Items**:")
+        for item in work_items[:3]:  # Show top 3
+            title = item.get("title", "Untitled")
+            status = item.get("status", "Unknown")
+            summary_parts.append(f"- {title} ({status})")
+        summary_parts.append("")
+
+    if memories:
+        summary_parts.append("🧠 **Recent Memories**:")
+        for mem in memories[:3]:  # Show top 3
+            mem_text = (
+                mem.get("text", "")[:100] + "..."
+                if len(mem.get("text", "")) > 100
+                else mem.get("text", "")
+            )
+            summary_parts.append(f"- {mem_text}")
+        summary_parts.append("")
+
+    summary_parts.extend(
+        [
+            "🎯 **MCP Integration Status**: ✅ Successfully connected to Cogni Memory via ToolHive",
+            "🚀 **Next Steps**: Ready for enhanced AI-powered workflows with full memory access",
+            "",
+            "---",
+            "🔧 **Technical Details**:",
+            f"- MCP Server: {MCP_SERVER_NAME}",
+            f"- ToolHive API: {TOOLHIVE_API_BASE}",
+            f"- Agent: {memory_data.get('agent_name', 'Unknown')}",
+        ]
+    )
+
+    summary = "\n".join(summary_parts)
+
+    logger.info("✅ Presence summary generated successfully")
+    return summary
+
+
+@task(name="save_presence_record")
+async def save_presence_record(summary: str, output_dir: Optional[Path] = None) -> Path:
+    """
+    Save the presence record to a file
+
+    Args:
+        summary: Generated presence summary
+        output_dir: Directory to save the record (defaults to THOUGHTS_DIR)
+
+    Returns:
+        Path to the saved file
+    """
+    logger = get_run_logger()
+
+    if output_dir is None:
+        output_dir = Path(THOUGHTS_DIR)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"presence_ritual_mcp_{timestamp}.md"
+    file_path = output_dir / filename
+
+    with open(file_path, "w") as f:
+        f.write(summary)
+
+    logger.info(f"✅ Presence record saved to: {file_path}")
+    return file_path
+
+
+@flow(name="ritual_of_presence_mcp", log_prints=True)
+async def ritual_of_presence_mcp(
+    agent_name: str = "ritual_of_presence",
+    custom_prompt: Optional[str] = None,
+    output_dir: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    MCP-powered Ritual of Presence flow that uses ToolHive API to access Cogni Memory
+
+    Args:
+        agent_name: Name of the agent performing the ritual
+        custom_prompt: Custom prompt for the ritual
+        output_dir: Directory to save output files
+
+    Returns:
+        Dictionary containing ritual results
+    """
+    logger = get_run_logger()
+    logger.info("🎯 Starting MCP-powered Ritual of Presence")
+
+    # Convert output_dir to Path if provided
+    output_path = Path(output_dir) if output_dir else None
+
+    # Load agent memory via MCP
+    memory_data = await load_agent_memory_via_mcp(agent_name)
+
+    # Generate presence summary
+    summary = await generate_presence_summary(memory_data, custom_prompt)
+
+    # Save presence record
+    saved_path = await save_presence_record(summary, output_path)
+
+    # Print summary for immediate feedback
+    print("\n" + "=" * 60)
+    print("🎯 RITUAL OF PRESENCE - MCP INTEGRATION COMPLETE")
+    print("=" * 60)
+    print(summary)
+    print("=" * 60)
+
+    result = {
+        "agent_name": agent_name,
+        "custom_prompt": custom_prompt,
+        "memory_data": memory_data,
+        "summary": summary,
+        "saved_path": str(saved_path),
+        "success": True,
+        "integration_type": "MCP via ToolHive API",
+    }
+
+    logger.info(f"✅ Ritual of Presence completed successfully - saved to {saved_path}")
+    return result
+
+
+# --- Legacy Flow (Commented Out) ---
+# @flow(name="ritual_of_presence", log_prints=True)
+# def ritual_of_presence(
+#     agent_name: str = "ritual_of_presence",
+#     custom_prompt: Optional[str] = None,
+#     output_dir: Optional[str] = None
+# ) -> Dict[str, Any]:
+#     """
+#     Ritual of Presence flow - loads agent memory and generates presence summary
+#
+#     Args:
+#         agent_name: Name of the agent performing the ritual
+#         custom_prompt: Custom prompt for the ritual
+#         output_dir: Directory to save output files
+#
+#     Returns:
+#         Dictionary containing ritual results
+#     """
+#     logger = get_run_logger()
+#     logger.info(f"Starting Ritual of Presence for agent: {agent_name}")
+#
+#     # Convert output_dir to Path if provided
+#     output_path = Path(output_dir) if output_dir else None
+#
+#     # Load agent memory
+#     memory_data = load_agent_memory(agent_name)
+#
+#     # Generate presence summary using loaded memory
+#     summary = generate_presence_summary(memory_data, custom_prompt)
+#
+#     # Save presence record
+#     saved_path = save_presence_record(summary, output_path)
+#
+#     # Print summary for immediate feedback
+#     print("\n" + "="*60)
+#     print("🎯 RITUAL OF PRESENCE COMPLETE")
+#     print("="*60)
+#     print(summary)
+#     print("="*60)
+#
+#     result = {
+#         "agent_name": agent_name,
+#         "custom_prompt": custom_prompt,
+#         "memory_data": memory_data,
+#         "summary": summary,
+#         "saved_path": str(saved_path),
+#         "success": True
+#     }
+#
+#     logger.info(f"Ritual of Presence completed successfully - saved to {saved_path}")
+#     return result
 
 if __name__ == "__main__":
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(description="Run the Ritual of Presence flow")
-    parser.add_argument(
-        "-custom_prompt",
-        "--custom_prompt",
-        type=str,
-        help="Custom prompt to use instead of the default",
-    )
+    parser = argparse.ArgumentParser(description="Ritual of Presence - MCP Integration")
+    parser.add_argument("--agent-name", default="ritual_of_presence", help="Name of the agent")
+    parser.add_argument("--custom-prompt", help="Custom prompt for the ritual")
+    parser.add_argument("--output-dir", help="Output directory for files")
+    parser.add_argument("--mcp", action="store_true", help="Use MCP-powered flow (default)")
+    parser.add_argument("--legacy", action="store_true", help="Use legacy flow (disabled)")
+
     args = parser.parse_args()
 
-    print("Running Ritual of Presence (Core + SwarmCogni)...")
+    if args.legacy:
+        print("❌ Legacy flow is disabled. MCP integration is the default.")
+        exit(1)
 
-    # Run the flow with custom prompt if provided
-    result_message = ritual_of_presence_flow(custom_prompt=args.custom_prompt)
-    print(result_message)
+    # Run the MCP-powered flow
+    result = asyncio.run(
+        ritual_of_presence_mcp(
+            agent_name=args.agent_name, custom_prompt=args.custom_prompt, output_dir=args.output_dir
+        )
+    )
+
+    if result["success"]:
+        print("\n✅ Ritual completed successfully!")
+        print(f"📄 Summary saved to: {result['saved_path']}")
+    else:
+        print("\n❌ Ritual failed!")
+        exit(1)

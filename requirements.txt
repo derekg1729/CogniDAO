@@ -47,7 +47,8 @@ llama-index-embeddings-huggingface  # For HuggingFace embedding models
 llama-index-readers-file
 
 # MCP (Model Context Protocol)
-fastmcp  # FastMCP server framework
+fastmcp  # FastMCP server framework  
+mcp      # MCP client SDK for connecting to MCP servers
 
 # Legacy dependencies
 python-frontmatter  # For parsing YAML frontmatter in markdown files
