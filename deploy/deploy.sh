@@ -179,11 +179,30 @@ EOF
                         
                         # Deploy MCP server with ToolHive
                         status "Deploying MCP server with ToolHive..."
-                        if command -v thv >/dev/null 2>&1; then
-                            thv run --name cogni-mcp --env DOLT_ROOT_PASSWORD="${DOLT_ROOT_PASSWORD}" cogni-mcp:latest || warning "⚠️ MCP server deployment failed, continuing..."
-                            status "✅ MCP server deployed via ToolHive"
+                        if docker ps | grep -q toolhive; then
+                            docker exec toolhive thv run \
+                              --name cogni-mcp \
+                              --env DOLT_HOST=dolt-db \
+                              --env DOLT_PORT=3306 \
+                              --env DOLT_USER=root \
+                              --env DOLT_ROOT_PASSWORD="${DOLT_ROOT_PASSWORD}" \
+                              --env DOLT_DATABASE=cogni-dao-memory \
+                              --env CHROMA_PATH=/app/chroma \
+                              --env CHROMA_COLLECTION_NAME=cogni_mcp_collection \
+                              --env MCP_TRANSPORT=sse \
+                              cogni-mcp:latest || warning "⚠️ MCP server deployment failed, continuing..."
+                            
+                            # Wait for container to start, then connect to correct network
+                            sleep 3
+                            if docker ps | grep -q cogni-mcp; then
+                                status "Connecting MCP container to cogni-net network..."
+                                docker network connect deploy_cogni-net cogni-mcp 2>/dev/null || warning "⚠️ Network connection may have failed"
+                                status "✅ MCP server deployed and networked"
+                            else
+                                warning "⚠️ MCP container not running after deployment"
+                            fi
                         else
-                            warning "⚠️ ToolHive (thv) not available - MCP server not deployed"
+                            warning "⚠️ ToolHive container not running - MCP server not deployed"
                         fi
                     else
                         warning "⚠️ Prefect flow configuration not found: flows/presence/prefect.yaml"
@@ -239,7 +258,7 @@ EOF
                         if docker ps | grep -q toolhive; then
                             docker exec toolhive thv run \
                               --name cogni-mcp \
-                              --env DOLT_HOST=host.docker.internal \
+                              --env DOLT_HOST=dolt-db \
                               --env DOLT_PORT=3306 \
                               --env DOLT_USER=root \
                               --env DOLT_ROOT_PASSWORD="${DOLT_ROOT_PASSWORD}" \
@@ -248,7 +267,16 @@ EOF
                               --env CHROMA_COLLECTION_NAME=cogni_mcp_collection \
                               --env MCP_TRANSPORT=sse \
                               cogni-mcp:latest || warning "⚠️ MCP server deployment failed, continuing..."
-                            status "✅ MCP server deployed via containerized ToolHive"
+                            
+                            # Wait for container to start, then connect to correct network
+                            sleep 3
+                            if docker ps | grep -q cogni-mcp; then
+                                status "Connecting MCP container to cogni-net network..."
+                                docker network connect deploy_cogni-net cogni-mcp 2>/dev/null || warning "⚠️ Network connection may have failed"
+                                status "✅ MCP server deployed and networked"
+                            else
+                                warning "⚠️ MCP container not running after deployment"
+                            fi
                         else
                             warning "⚠️ ToolHive container not running - MCP server not deployed"
                         fi

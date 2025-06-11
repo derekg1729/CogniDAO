@@ -123,7 +123,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:rw
     environment:
-      - DOCKER_NETWORK=cogni-net
+      - DOCKER_NETWORK=deploy_cogni-net
       - THV_SECRETS_BACKEND=1password
     ports:
       - "8080:8080"  # Use ToolHive's default port 8080
