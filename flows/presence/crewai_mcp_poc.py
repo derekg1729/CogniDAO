@@ -5,7 +5,7 @@ Implements native MCP integration using MCPServerAdapter with ToolHive MCP serve
 
 Based on research findings:
 - Uses crewai-tools[mcp] MCPServerAdapter (official CrewAI MCP integration)
-- Connects to ToolHive MCP server via stdio/command parameters
+- Connects to ToolHive MCP server via correct SSE endpoint pattern
 - Replaces HTTP glue approach with official MCP protocol
 
 Phase 3 of MCP Integration Implementation Task
@@ -13,7 +13,6 @@ Phase 3 of MCP Integration Implementation Task
 
 import asyncio
 import logging
-import os
 from typing import List, Any
 
 # CrewAI MCP Integration - CORRECT OFFICIAL IMPLEMENTATION
@@ -34,34 +33,7 @@ class CrewAIMCPProofOfConcept:
     """
 
     def __init__(self):
-        self.mcp_adapter = None
         self.crew = None
-
-    async def setup_mcp_adapter(self):
-        """Setup MCP adapter with ToolHive connection"""
-        try:
-            # Use ToolHive to run cogni-mcp server via stdio
-            # This is the correct way to connect to ToolHive MCP server
-            server_params = {
-                "command": "docker",
-                "args": ["exec", "toolhive", "thv", "run", "cogni-mcp"],
-                "env": {**os.environ},
-            }
-
-            logger.info("Setting up MCP adapter with ToolHive...")
-            # Note: MCPServerAdapter should be used as context manager in real usage
-            self.mcp_adapter = MCPServerAdapter(server_params)
-
-            # In real implementation, we'd use:
-            # async with MCPServerAdapter(server_params) as mcp_tools:
-            #     # Use mcp_tools with agents
-
-            logger.info("✅ MCP adapter setup complete")
-            return True
-
-        except Exception as e:
-            logger.error(f"❌ Failed to setup MCP adapter: {e}")
-            return False
 
     def create_crew(self, mcp_tools: List[Any]) -> Crew:
         """Create CrewAI crew with MCP-enabled agents"""
@@ -79,6 +51,7 @@ class CrewAIMCPProofOfConcept:
             role="Analysis Specialist",
             goal="Analyze retrieved information and provide insights",
             backstory="You excel at synthesizing information and providing actionable insights.",
+            tools=mcp_tools,  # Also provide tools to analysis agent
             verbose=True,
         )
 
@@ -117,28 +90,33 @@ class CrewAIMCPProofOfConcept:
         logger.info("🚀 Starting CrewAI MCP Proof-of-Concept")
 
         try:
-            # In real implementation, use context manager
-            server_params = {
-                "command": "docker",
-                "args": ["exec", "toolhive", "thv", "run", "cogni-mcp"],
-                "env": {**os.environ},
-            }
+            # Use correct ToolHive SSE endpoint from thv list output
+            # The server is running on port 26902 with SSE transport
+            server_params = {"url": "http://localhost:26902/sse#cogni-mcp", "transport": "sse"}
 
             # This is the CORRECT usage pattern from CrewAI docs
+            logger.info(f"🔌 Attempting MCP connection to: {server_params['url']}")
             async with MCPServerAdapter(server_params) as mcp_tools:
                 logger.info(f"✅ Connected to MCP server with {len(mcp_tools)} tools")
                 logger.info(f"Available tools: {[tool.name for tool in mcp_tools]}")
 
+                # Add detailed tool inspection for debugging
+                for i, tool in enumerate(mcp_tools):
+                    logger.info(
+                        f"Tool {i + 1}: {tool.name} - {getattr(tool, 'description', 'No description')}"
+                    )
+
                 if not mcp_tools:
                     logger.warning("⚠️ No MCP tools available - check server connection")
+                    logger.info("🔍 Debugging: Returning False due to no tools")
                     return False
 
                 # Create crew with MCP tools
                 crew = self.create_crew(mcp_tools)
 
-                # Run the crew
+                # Run the crew with async kickoff
                 logger.info("🔄 Running CrewAI crew with MCP tools...")
-                result = crew.kickoff(inputs={"topic": "current project status"})
+                result = await crew.kickoff_async(inputs={"topic": "current project status"})
 
                 logger.info("✅ CrewAI MCP proof-of-concept completed successfully!")
                 logger.info(f"Result: {result}")

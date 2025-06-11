@@ -106,16 +106,21 @@ async def crewai_mcp_poc_flow(output_dir: Optional[str] = None) -> Dict[str, Any
     output_file = await save_poc_results(poc_results, output_dir)
 
     # Return comprehensive results
+    # Handle both boolean (success) and dict (error) results from PoC
+    is_success = poc_results is True or (
+        isinstance(poc_results, dict) and "error" not in poc_results
+    )
+
     flow_results = {
         "flow_name": "crewai_mcp_poc_flow",
-        "status": "completed" if "error" not in poc_results else "failed",
+        "status": "completed" if is_success else "failed",
         "poc_results": poc_results,
         "output_file": str(output_file),
         "timestamp": datetime.now().isoformat(),
         "approach": "Native MCP Integration via CrewAI MCPServerAdapter",
     }
 
-    if "error" in poc_results:
+    if isinstance(poc_results, dict) and "error" in poc_results:
         logger.error(f"❌ Flow completed with errors: {poc_results['error']}")
     else:
         logger.info("✅ CrewAI MCP Flow completed successfully")
