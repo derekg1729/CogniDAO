@@ -10,7 +10,7 @@ authors = [
     { name = "CogniDAO" }
 ]
 dependencies = [
-    "crewai>=0.1,<0.2",
+    "crewai>=0.121.1",
     "llama-index>=0.10,<=0.12.32",
     "doltpy",
     "rpds-py"

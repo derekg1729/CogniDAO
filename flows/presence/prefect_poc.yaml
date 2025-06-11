@@ -1,0 +1,33 @@
+# Temporary prefect deployment config for CrewAI MCP PoC testing
+name: crewai-mcp-poc
+prefect-version: 3.3.3
+
+# build section allows you to manage and build docker images
+build:
+
+# push section allows you to manage if and how this project is uploaded to remote locations
+push:
+
+# pull section allows you to provide instructions for cloning this project in remote locations
+pull:
+- prefect.deployments.steps.set_working_directory:
+    directory: /workspace/flows/presence
+
+# the deployments section allows you to provide configuration for deploying flows
+deployments:
+- name: crewai-mcp-poc-test
+  version:
+  tags:
+  - cogni
+  - mcp
+  - poc
+  - test
+  concurrency_limit:
+  description: 'CrewAI MCP PoC: Test native MCP integration using CrewAI MCPServerAdapter'
+  entrypoint: crewai_mcp_flow.py:crewai_mcp_poc_flow
+  parameters: {}
+  work_pool:
+    name: cogni-pool
+    work_queue_name:
+    job_variables: {}
+  schedules: [] 

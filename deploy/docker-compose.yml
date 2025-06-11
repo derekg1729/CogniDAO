@@ -96,7 +96,10 @@ services:
 
   # Prefect Worker - connects to containerized Prefect server
   prefect-worker:
-    image: prefecthq/prefect:3-python3.12
+    image: ${PREFECT_WORKER_IMAGE:-cogni-prefect-worker-local}
+    build:
+      context: ..
+      dockerfile: services/prefect_worker/Dockerfile.prefect-worker
     command: prefect worker start --pool cogni-pool
     environment:
       - PREFECT_API_URL=http://prefect-server:4200/api
@@ -125,6 +128,7 @@ services:
     environment:
       - DOCKER_NETWORK=deploy_cogni-net
       - THV_SECRETS_BACKEND=1password
+      - THV_NO_UPDATES=1  # Prevent version checks to avoid startup lag
     ports:
       - "8080:8080"  # Use ToolHive's default port 8080
     restart: unless-stopped
