@@ -1,44 +1,49 @@
 #!/usr/bin/env python3
 """
-CrewAI MCP Proof-of-Concept
-Implements native MCP integration using MCPServerAdapter with ToolHive MCP server
+COMMENTED OUT - CrewAI MCP Proof-of-Concept
+THIS FILE IS TEMPORARILY DISABLED DUE TO DEPENDENCY CONFLICTS
 
-Based on research findings:
-- Uses crewai-tools[mcp] MCPServerAdapter (official CrewAI MCP integration)
-- Connects to ToolHive MCP server via stdio/command parameters
-- Replaces HTTP glue approach with official MCP protocol
+The crewai-tools[mcp] dependency causes chromadb<0.6.0 constraints
+that conflict with our MCP server requiring chromadb>=1.0.8
 
-Phase 3 of MCP Integration Implementation Task
+Will be re-enabled once dependency conflicts are resolved.
 """
+
+# Implements native MCP integration using MCPServerAdapter with ToolHive MCP server
+#
+# Based on research findings:
+# - Uses crewai-tools[mcp] MCPServerAdapter (official CrewAI MCP integration)
+# - Connects to ToolHive MCP server via stdio/command parameters
+# - Replaces HTTP glue approach with official MCP protocol
+#
+# Phase 3 of MCP Integration Implementation Task
 
 import asyncio
 import logging
-import os
-from typing import List, Any
 
+# COMMENTED OUT - CAUSES DEPENDENCY CONFLICTS
 # CrewAI MCP Integration - CORRECT OFFICIAL IMPLEMENTATION
-from crewai import Agent, Task, Crew
-from crewai_tools import MCPServerAdapter
+# from crewai import Agent, Task, Crew
+# from crewai_tools import MCPServerAdapter
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
+# ENTIRE CLASS COMMENTED OUT DUE TO DEPENDENCY CONFLICTS
+"""
 class CrewAIMCPProofOfConcept:
-    """
     Proof-of-concept demonstrating official CrewAI MCP integration
 
     Uses official MCPServerAdapter from crewai-tools to connect to
     ToolHive MCP server and access Cogni memory tools
-    """
 
     def __init__(self):
         self.mcp_adapter = None
         self.crew = None
 
     async def setup_mcp_adapter(self):
-        """Setup MCP adapter with ToolHive connection"""
+        Setup MCP adapter with ToolHive connection
         try:
             # Use ToolHive to run cogni-mcp server via stdio
             # This is the correct way to connect to ToolHive MCP server
@@ -64,7 +69,7 @@ class CrewAIMCPProofOfConcept:
             return False
 
     def create_crew(self, mcp_tools: List[Any]) -> Crew:
-        """Create CrewAI crew with MCP-enabled agents"""
+        Create CrewAI crew with MCP-enabled agents
 
         # Create agents with MCP tools
         memory_agent = Agent(
@@ -84,23 +89,23 @@ class CrewAIMCPProofOfConcept:
 
         # Create tasks
         memory_task = Task(
-            description="""
+            description='''
             Use the available MCP tools to:
             1. Retrieve active work items from the memory system
             2. Search for relevant memory blocks about current projects
             3. Summarize findings for the analysis agent
-            """,
+            ''',
             agent=memory_agent,
             expected_output="A comprehensive summary of active work items and relevant memory blocks",
         )
 
         analysis_task = Task(
-            description="""
+            description='''
             Analyze the memory retrieval results and provide:
             1. Key insights about current project status
             2. Recommendations for next steps
             3. Priority areas requiring attention
-            """,
+            ''',
             agent=analysis_agent,
             expected_output="Strategic analysis with actionable recommendations",
         )
@@ -113,7 +118,7 @@ class CrewAIMCPProofOfConcept:
         return crew
 
     async def run_proof_of_concept(self):
-        """Run the CrewAI MCP proof-of-concept"""
+        Run the CrewAI MCP proof-of-concept
         logger.info("🚀 Starting CrewAI MCP Proof-of-Concept")
 
         try:
@@ -147,17 +152,14 @@ class CrewAIMCPProofOfConcept:
         except Exception as e:
             logger.error(f"❌ CrewAI MCP proof-of-concept failed: {e}")
             return False
+"""
 
 
 async def main():
-    """Main execution function"""
-    poc = CrewAIMCPProofOfConcept()
-    success = await poc.run_proof_of_concept()
-
-    if success:
-        print("\n✅ CrewAI MCP Integration Proof-of-Concept: SUCCESS")
-    else:
-        print("\n❌ CrewAI MCP Integration Proof-of-Concept: FAILED")
+    """Main execution function - DISABLED"""
+    logger.info("❌ CrewAI MCP PoC is disabled due to dependency conflicts")
+    print("\n❌ CrewAI MCP Integration Proof-of-Concept: DISABLED")
+    print("Reason: crewai-tools[mcp] dependency conflicts with chromadb versions")
 
 
 if __name__ == "__main__":

@@ -1,35 +1,41 @@
 #!/usr/bin/env python3
 """
-Deployable CrewAI MCP Prefect Flow
-Wraps our tested CrewAI MCP proof-of-concept in a Prefect flow for deployment testing
+COMMENTED OUT - Deployable CrewAI MCP Prefect Flow
+THIS FILE IS TEMPORARILY DISABLED DUE TO DEPENDENCY CONFLICTS
 
-Based on tested crewai_mcp_poc.py with native MCP integration
+The crewai-tools[mcp] dependency in the underlying PoC causes chromadb<0.6.0 constraints
+that conflict with our MCP server requiring chromadb>=1.0.8
+
+Will be re-enabled once dependency conflicts are resolved.
 """
+
+# Wraps our tested CrewAI MCP proof-of-concept in a Prefect flow for deployment testing
+#
+# Based on tested crewai_mcp_poc.py with native MCP integration
 
 import asyncio
 import logging
-from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional
 
-from prefect import flow, task
+from prefect import flow
 from prefect.logging import get_run_logger
 
+# COMMENTED OUT - CAUSES DEPENDENCY CONFLICTS
 # Import our tested PoC
-from .crewai_mcp_poc import CrewAIMCPProofOfConcept
+# from .crewai_mcp_poc import CrewAIMCPProofOfConcept
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
-
+# ALL TASKS COMMENTED OUT DUE TO DEPENDENCY CONFLICTS
+"""
 @task(name="run_crewai_mcp_poc")
 async def run_crewai_mcp_poc() -> Dict[str, Any]:
-    """
     Run the CrewAI MCP proof-of-concept
 
     Returns:
         Results from the CrewAI MCP integration test
-    """
     logger = get_run_logger()
     logger.info("🚀 Starting CrewAI MCP Proof-of-Concept")
 
@@ -48,7 +54,6 @@ async def run_crewai_mcp_poc() -> Dict[str, Any]:
 
 @task(name="save_poc_results")
 async def save_poc_results(results: Dict[str, Any], output_dir: Optional[str] = None) -> Path:
-    """
     Save PoC results to file
 
     Args:
@@ -57,7 +62,6 @@ async def save_poc_results(results: Dict[str, Any], output_dir: Optional[str] = 
 
     Returns:
         Path to saved file
-    """
     logger = get_run_logger()
 
     # Default output directory
@@ -84,7 +88,6 @@ async def save_poc_results(results: Dict[str, Any], output_dir: Optional[str] = 
 
 @flow(name="crewai_mcp_poc_flow", log_prints=True)
 async def crewai_mcp_poc_flow(output_dir: Optional[str] = None) -> Dict[str, Any]:
-    """
     Deployable Prefect Flow: CrewAI MCP Proof-of-Concept
 
     Tests native MCP integration using CrewAI MCPServerAdapter
@@ -95,7 +98,6 @@ async def crewai_mcp_poc_flow(output_dir: Optional[str] = None) -> Dict[str, Any
 
     Returns:
         Flow execution results
-    """
     logger = get_run_logger()
     logger.info("🎯 Starting CrewAI MCP Prefect Flow")
 
@@ -121,8 +123,23 @@ async def crewai_mcp_poc_flow(output_dir: Optional[str] = None) -> Dict[str, Any
         logger.info("✅ CrewAI MCP Flow completed successfully")
 
     return flow_results
+"""
+
+
+@flow(name="crewai_mcp_poc_flow_disabled", log_prints=True)
+async def crewai_mcp_poc_flow(output_dir: Optional[str] = None) -> Dict[str, Any]:
+    """DISABLED Flow - CrewAI MCP dependency conflicts"""
+    logger = get_run_logger()
+    logger.info("❌ CrewAI MCP Flow is disabled due to dependency conflicts")
+
+    return {
+        "flow_name": "crewai_mcp_poc_flow",
+        "status": "disabled",
+        "reason": "crewai-tools[mcp] dependency conflicts with chromadb versions",
+        "timestamp": datetime.now().isoformat(),
+    }
 
 
 if __name__ == "__main__":
-    # For local testing
+    # For local testing - DISABLED
     asyncio.run(crewai_mcp_poc_flow())
