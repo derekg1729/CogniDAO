@@ -122,27 +122,31 @@ def get_current_branch() -> str:
         logger.info(f"Using branch from DOLT_BRANCH environment variable: {env_branch}")
         return env_branch
 
-    # Try to detect Git branch
-    try:
-        import subprocess
-
-        result = subprocess.run(
-            ["git", "branch", "--show-current"],
-            cwd=project_root,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            git_branch = result.stdout.strip()
-            logger.info(f"Detected Git branch: {git_branch}")
-            return git_branch
-    except Exception as e:
-        logger.warning(f"Could not detect Git branch: {e}")
-
-    # Fallback to main
-    logger.info("Falling back to 'main' branch")
+    # STUBBED: Always return "main" for now to ensure consistent Dolt branch usage
+    logger.info("STUBBED: Always returning 'main' branch (Git detection disabled)")
     return "main"
+
+    # # Try to detect Git branch
+    # try:
+    #     import subprocess
+
+    #     result = subprocess.run(
+    #         ["git", "branch", "--show-current"],
+    #         cwd=project_root,
+    #         capture_output=True,
+    #         text=True,
+    #         timeout=5,
+    #     )
+    #     if result.returncode == 0 and result.stdout.strip():
+    #         git_branch = result.stdout.strip()
+    #         logger.info(f"Detected Git branch: {git_branch}")
+    #         return git_branch
+    # except Exception as e:
+    #     logger.warning(f"Could not detect Git branch: {e}")
+
+    # # Fallback to main
+    # logger.info("Falling back to 'main' branch")
+    # return "main"
 
 
 # Get the branch to use for Dolt operations
