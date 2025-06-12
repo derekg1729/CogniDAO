@@ -7,27 +7,91 @@ Minimal Prefect flow that uses our PROVEN working MCP integration.
 Based on autogen_mcp_cogni_simple_working.py that achieved 21/21 tools discovery.
 
 Goal: 3 agents read active work items and summarize them.
+Enhanced with DoltMySQLReader to provide work item context in agent prompts.
 """
 
 import asyncio
 import logging
+import sys
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any
 
-from prefect import flow, task
-from prefect.logging import get_run_logger
+# Ensure proper Python path for container environment
+# In container: working dir is /workspace/flows/presence, but infra_core is at /workspace/infra_core
+current_dir = Path(__file__).parent
+workspace_root = current_dir.parent.parent  # Go up two levels: flows/presence -> flows -> workspace
+if str(workspace_root) not in sys.path:
+    sys.path.insert(0, str(workspace_root))
+
+from prefect import flow, task  # noqa: E402
+from prefect.logging import get_run_logger  # noqa: E402
 
 # AutoGen MCP Integration - Using PROVEN working pattern
-from autogen_agentchat.agents import AssistantAgent
-from autogen_agentchat.teams import RoundRobinGroupChat
-from autogen_agentchat.conditions import MaxMessageTermination
-from autogen_agentchat.ui import Console
-from autogen_ext.models.openai import OpenAIChatCompletionClient
-from autogen_ext.tools.mcp import StdioServerParams, mcp_server_tools
+from autogen_agentchat.agents import AssistantAgent  # noqa: E402
+from autogen_agentchat.teams import RoundRobinGroupChat  # noqa: E402
+from autogen_agentchat.conditions import MaxMessageTermination  # noqa: E402
+from autogen_agentchat.ui import Console  # noqa: E402
+from autogen_ext.models.openai import OpenAIChatCompletionClient  # noqa: E402
+from autogen_ext.tools.mcp import StdioServerParams, mcp_server_tools  # noqa: E402
+
+# Dolt integration for work item context
+from infra_core.memory_system.dolt_reader import DoltMySQLReader  # noqa: E402
+from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig  # noqa: E402
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
+
+
+@task(name="read_current_work_items")
+async def read_current_work_items() -> Dict[str, Any]:
+    """Read current work items using DoltMySQLReader for agent context"""
+    logger = get_run_logger()
+
+    try:
+        # Setup Dolt connection
+        config = DoltConnectionConfig()
+        reader = DoltMySQLReader(config)
+
+        logger.info("🔍 Reading current work items from work_items_core view...")
+
+        # Read latest work items (limit 10 for context)
+        work_items = reader.read_work_items_core_view(limit=10, branch="main")
+
+        if work_items:
+            logger.info(f"✅ Found {len(work_items)} work items for agent context")
+
+            # Create summary for agent prompts
+            summary_lines = ["## Current Work Items Context:"]
+            for item in work_items:
+                item_line = f"- {item['work_item_type'].upper()}: {item['id']} | {item['state']} | by {item['created_by']} | {item['created_at']}"
+                summary_lines.append(item_line)
+
+            work_items_summary = "\n".join(summary_lines)
+
+            return {
+                "success": True,
+                "work_items": work_items,
+                "work_items_summary": work_items_summary,
+                "count": len(work_items),
+            }
+        else:
+            logger.info("📝 No work items found in work_items_core view")
+            return {
+                "success": True,
+                "work_items": [],
+                "work_items_summary": "## Current Work Items Context:\n- No active work items found in the system.",
+                "count": 0,
+            }
+
+    except Exception as e:
+        logger.error(f"❌ Failed to read work items: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "work_items_summary": "## Current Work Items Context:\n- Error reading work items from database.",
+            "count": 0,
+        }
 
 
 @task(name="setup_simple_mcp_connection")
@@ -85,8 +149,10 @@ async def setup_simple_mcp_connection() -> Dict[str, Any]:
 
 
 @task(name="run_simple_3_agent_summary")
-async def run_simple_3_agent_summary(mcp_setup: Dict[str, Any]) -> Dict[str, Any]:
-    """Run 3 agents to read and summarize active work items - ULTRA SIMPLE"""
+async def run_simple_3_agent_summary(
+    mcp_setup: Dict[str, Any], work_items_context: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Run 3 agents to read and summarize active work items - Enhanced with work item context"""
     logger = get_run_logger()
 
     if not mcp_setup.get("success"):
@@ -99,32 +165,49 @@ async def run_simple_3_agent_summary(mcp_setup: Dict[str, Any]) -> Dict[str, Any
 
         cogni_tools = mcp_setup["tools"]
 
-        # Create 3 ultra-simple agents
+        # Get work items context for agent prompts
+        work_items_summary = work_items_context.get(
+            "work_items_summary", "## Current Work Items Context:\n- No context available."
+        )
+
+        # Create 3 enhanced agents with work item context
         agents = []
 
-        # Agent 1: Work Item Reader
+        # Agent 1: Work Item Reader - Enhanced with current context
         work_reader = AssistantAgent(
             name="work_reader",
             model_client=model_client,
             tools=cogni_tools,
-            system_message="You read active work items from Cogni memory. Use GetActiveWorkItems to retrieve current work items and report what you find.",
+            system_message=f"""You read active work items from Cogni memory. Use GetActiveWorkItems to retrieve current work items and report what you find.
+
+{work_items_summary}
+
+Based on this context, focus on identifying any new or changed work items.""",
         )
         agents.append(work_reader)
 
-        # Agent 2: Priority Analyzer
+        # Agent 2: Priority Analyzer - Enhanced with current context
         priority_analyzer = AssistantAgent(
             name="priority_analyzer",
             model_client=model_client,
             tools=cogni_tools,
-            system_message="You analyze work item priorities. Look at the work items and identify which are highest priority (P0, P1) and what needs attention.",
+            system_message=f"""You analyze work item priorities. Look at the work items and identify which are highest priority (P0, P1) and what needs attention.
+
+{work_items_summary}
+
+Based on this context, analyze priority distribution and identify urgent items.""",
         )
         agents.append(priority_analyzer)
 
-        # Agent 3: Summary Writer
+        # Agent 3: Summary Writer - Enhanced with current context
         summary_writer = AssistantAgent(
             name="summary_writer",
             model_client=model_client,
-            system_message="You write concise summaries. Based on what the other agents found, create a brief, clear summary of the current work status.",
+            system_message=f"""You write concise summaries. Based on what the other agents found, create a brief, clear summary of the current work status.
+
+{work_items_summary}
+
+Use this context to provide a comprehensive summary including trends and status updates.""",
         )
         agents.append(summary_writer)
 
@@ -134,20 +217,27 @@ async def run_simple_3_agent_summary(mcp_setup: Dict[str, Any]) -> Dict[str, Any
             termination_condition=MaxMessageTermination(max_messages=6),  # 2 rounds
         )
 
-        logger.info("🚀 Starting 3-agent work item summary...")
+        logger.info("🚀 Starting 3-agent work item summary with enhanced context...")
 
-        # Ultra-simple task
-        simple_task = "Please work together to: 1) Read the current active work items, 2) Analyze their priorities, 3) Write a brief summary of what's currently being worked on."
+        # Enhanced task with context awareness
+        enhanced_task = f"""Please work together to: 
+1) Read the current active work items using GetActiveWorkItems
+2) Analyze their priorities and status  
+3) Write a brief summary of what's currently being worked on
+
+You have the following context about recent work items:
+{work_items_summary}"""
 
         # Run the team
-        await Console(team.run_stream(task=simple_task))
+        await Console(team.run_stream(task=enhanced_task))
 
-        logger.info("✅ 3-agent summary completed successfully!")
+        logger.info("✅ 3-agent summary with enhanced context completed successfully!")
 
         return {
             "success": True,
             "agents_count": len(agents),
             "tools_count": len(cogni_tools),
+            "work_items_count": work_items_context.get("count", 0),
             "timestamp": datetime.now().isoformat(),
         }
 
@@ -159,19 +249,30 @@ async def run_simple_3_agent_summary(mcp_setup: Dict[str, Any]) -> Dict[str, Any
 @flow(name="simple_working_mcp_flow", log_prints=True)
 async def simple_working_mcp_flow() -> Dict[str, Any]:
     """
-    Ultra-Simple Working MCP Flow
+    Ultra-Simple Working MCP Flow - Enhanced with Work Item Context
 
     Uses proven working MCP integration to run 3 agents that:
-    1. Read active work items
-    2. Analyze priorities
-    3. Write summary
+    1. Read current work items context using DoltMySQLReader
+    2. Read active work items via MCP tools
+    3. Analyze priorities with enhanced context
+    4. Write summary with full context awareness
     """
     logger = get_run_logger()
-    logger.info("🎯 Starting Ultra-Simple Working MCP Flow")
-    logger.info("🔧 Using PROVEN working stdio MCP transport")
+    logger.info("🎯 Starting Enhanced Simple Working MCP Flow")
+    logger.info("🔧 Using PROVEN working stdio MCP transport + DoltMySQLReader context")
 
     try:
-        # Setup MCP connection
+        # Step 1: Read current work items for context
+        work_items_context = await read_current_work_items()
+
+        if work_items_context.get("success"):
+            logger.info(f"✅ Work items context loaded: {work_items_context.get('count', 0)} items")
+        else:
+            logger.warning(
+                f"⚠️ Work items context failed: {work_items_context.get('error', 'Unknown error')}"
+            )
+
+        # Step 2: Setup MCP connection
         mcp_setup = await setup_simple_mcp_connection()
 
         if not mcp_setup.get("success"):
@@ -180,15 +281,16 @@ async def simple_working_mcp_flow() -> Dict[str, Any]:
 
         logger.info(f"✅ MCP setup successful: {mcp_setup['tools_count']} tools available")
 
-        # Run 3-agent summary
-        summary_result = await run_simple_3_agent_summary(mcp_setup)
+        # Step 3: Run 3-agent summary with enhanced context
+        summary_result = await run_simple_3_agent_summary(mcp_setup, work_items_context)
 
         if summary_result.get("success"):
-            logger.info("🎉 FLOW SUCCESS: Simple working MCP flow completed!")
+            logger.info("🎉 FLOW SUCCESS: Enhanced simple working MCP flow completed!")
             return {
                 "status": "success",
                 "tools_count": summary_result.get("tools_count", 0),
                 "agents_count": summary_result.get("agents_count", 0),
+                "work_items_count": summary_result.get("work_items_count", 0),
                 "timestamp": datetime.now().isoformat(),
             }
         else:
@@ -201,5 +303,7 @@ async def simple_working_mcp_flow() -> Dict[str, Any]:
 
 
 if __name__ == "__main__":
-    # For local testing
+    # For testing the flow locally
+    import asyncio
+
     asyncio.run(simple_working_mcp_flow())
