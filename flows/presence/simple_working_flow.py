@@ -96,7 +96,7 @@ async def read_current_work_items() -> Dict[str, Any]:
 
 @task(name="setup_simple_mcp_connection")
 async def setup_simple_mcp_connection() -> Dict[str, Any]:
-    """Setup MCP connection using the PROVEN working approach"""
+    """Setup MCP connection and generate tool specifications for agents"""
     logger = get_run_logger()
 
     try:
@@ -136,11 +136,53 @@ async def setup_simple_mcp_connection() -> Dict[str, Any]:
         logger.info(f"✅ Cogni MCP tools setup complete: {len(cogni_tools)} tools")
         logger.info(f"🔧 Available tools: {[tool.name for tool in cogni_tools]}")
 
+        # 🔧 NEW: Generate tool specifications for better agent discovery
+        tool_specs = []
+        for tool in cogni_tools:
+            # Extract schema information safely
+            schema_info = ""
+            if hasattr(tool, "schema") and tool.schema:
+                # Get input schema if available
+                input_schema = tool.schema.get("input_schema", {})
+                properties = input_schema.get("properties", {})
+                required = input_schema.get("required", [])
+
+                if properties:
+                    args_info = []
+                    for prop_name, prop_details in properties.items():
+                        prop_type = prop_details.get("type", "unknown")
+                        is_required = "(required)" if prop_name in required else "(optional)"
+                        args_info.append(f"{prop_name}: {prop_type} {is_required}")
+                    schema_info = f" | Args: {', '.join(args_info)}"
+
+            # Build concise tool specification
+            tool_spec = (
+                f"{tool.name}: {getattr(tool, 'description', 'No description')}{schema_info}"
+            )
+            tool_specs.append(tool_spec)
+
+        # Create formatted tool specs string (keep under 1.5k tokens)
+        tool_specs_text = """## Available MCP Tools:
+**CRITICAL: All tools expect a single 'input' parameter containing JSON string with the actual arguments**
+
+Example usage pattern:
+- GetActiveWorkItems: input='{"limit": 10}' 
+- CreateWorkItem: input='{"type": "task", "title": "My Task", "description": "..."}'
+
+Tools:
+""" + "\\n".join(f"• {spec}" for spec in tool_specs[:12])  # Limit to top 12 tools
+
+        if len(tool_specs_text) > 1400:  # Trim if too long
+            tool_specs_text = tool_specs_text[:1400] + "\\n... (more tools available)"
+
+        logger.info(f"📋 Generated tool specs: {len(tool_specs)} tools documented")
+
         return {
             "success": True,
             "tools_count": len(cogni_tools),
             "tools": cogni_tools,
             "tool_names": [tool.name for tool in cogni_tools],
+            "tool_specs": tool_specs_text,  # NEW: Tool specifications for agents
         }
 
     except Exception as e:
@@ -152,7 +194,7 @@ async def setup_simple_mcp_connection() -> Dict[str, Any]:
 async def run_simple_3_agent_summary(
     mcp_setup: Dict[str, Any], work_items_context: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Run 3 agents to read and summarize active work items - Enhanced with work item context"""
+    """Run 3 agents to read and summarize active work items - Enhanced with work item context and tool specs"""
     logger = get_run_logger()
 
     if not mcp_setup.get("success"):
@@ -164,50 +206,59 @@ async def run_simple_3_agent_summary(
         logger.info("✅ OpenAI client configured")
 
         cogni_tools = mcp_setup["tools"]
+        tool_specs = mcp_setup.get(
+            "tool_specs", "## Available MCP Tools: (tool specs not available)"
+        )
 
         # Get work items context for agent prompts
         work_items_summary = work_items_context.get(
-            "work_items_summary", "## Current Work Items Context:\n- No context available."
+            "work_items_summary", "## Current Work Items Context:\\n- No context available."
         )
 
-        # Create 3 enhanced agents with work item context
+        # Create 3 enhanced agents with work item context AND tool specifications
         agents = []
 
-        # Agent 1: Work Item Reader - Enhanced with current context
+        # Agent 1: Work Item Reader - Enhanced with context and tool specs
         work_reader = AssistantAgent(
             name="work_reader",
             model_client=model_client,
             tools=cogni_tools,
             system_message=f"""You read active work items from Cogni memory. Use GetActiveWorkItems to retrieve current work items and report what you find.
 
+{tool_specs}
+
 {work_items_summary}
 
-Based on this context, focus on identifying any new or changed work items.""",
+Based on this context, focus on identifying any new or changed work items. Use the correct input format for tools as specified above.""",
         )
         agents.append(work_reader)
 
-        # Agent 2: Priority Analyzer - Enhanced with current context
+        # Agent 2: Priority Analyzer - Enhanced with context and tool specs
         priority_analyzer = AssistantAgent(
             name="priority_analyzer",
             model_client=model_client,
             tools=cogni_tools,
             system_message=f"""You analyze work item priorities. Look at the work items and identify which are highest priority (P0, P1) and what needs attention.
 
+{tool_specs}
+
 {work_items_summary}
 
-Based on this context, analyze priority distribution and identify urgent items.""",
+Based on this context, analyze priority distribution and identify urgent items. Use the correct input format for tools as specified above.""",
         )
         agents.append(priority_analyzer)
 
-        # Agent 3: Summary Writer - Enhanced with current context
+        # Agent 3: Summary Writer - Enhanced with context and tool specs
         summary_writer = AssistantAgent(
             name="summary_writer",
             model_client=model_client,
             system_message=f"""You write concise summaries. Based on what the other agents found, create a brief, clear summary of the current work status.
 
+{tool_specs}
+
 {work_items_summary}
 
-Use this context to provide a comprehensive summary including trends and status updates.""",
+Use this context to provide a comprehensive summary including trends and status updates. Use the correct input format for tools as specified above.""",
         )
         agents.append(summary_writer)
 
@@ -217,21 +268,25 @@ Use this context to provide a comprehensive summary including trends and status 
             termination_condition=MaxMessageTermination(max_messages=6),  # 2 rounds
         )
 
-        logger.info("🚀 Starting 3-agent work item summary with enhanced context...")
+        logger.info("🚀 Starting 3-agent work item summary with enhanced context and tool specs...")
 
-        # Enhanced task with context awareness
+        # Enhanced task with context awareness and tool guidance
         enhanced_task = f"""Please work together to: 
 1) Read the current active work items using GetActiveWorkItems
 2) Analyze their priorities and status  
 3) Write a brief summary of what's currently being worked on
 
 You have the following context about recent work items:
-{work_items_summary}"""
+{work_items_summary}
+
+Important: Use the tool specifications provided in your system message to ensure correct input formats and avoid validation errors."""
 
         # Run the team
         await Console(team.run_stream(task=enhanced_task))
 
-        logger.info("✅ 3-agent summary with enhanced context completed successfully!")
+        logger.info(
+            "✅ 3-agent summary with enhanced context and tool specs completed successfully!"
+        )
 
         return {
             "success": True,
