@@ -18,10 +18,10 @@ from prefect.logging import get_run_logger
 
 # Import our tested integration
 try:
-    from .autogen_mcp_cogni_simple import AutoGenCogniSimple
+    from .autogen_mcp_cogni_simple import AutoGenCogniMCPIntegration
 except ImportError:
     # For direct execution
-    from autogen_mcp_cogni_simple import AutoGenCogniSimple
+    pass
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -32,88 +32,42 @@ async def run_autogen_cogni_integration() -> Dict[str, Any]:
     """Run AutoGen Cogni MCP integration with fail-fast approach"""
     logger = get_run_logger()
 
-    logger.info("🎯 Starting AutoGen Cogni MCP Prefect Flow")
-    logger.info("🔍 Flow Configuration:")
-    logger.info("   - Transport: SSE to containerized MCP server")
-    logger.info("   - Expected Tools: 21 Cogni MCP tools")
-    logger.info("   - Failure Mode: FAIL FAST on MCP connection issues")
+    logger.info("🎯 Starting AutoGen Cogni MCP Integration")
+    logger.info("🔍 Expected: 21 Cogni MCP tools via SSE transport")
 
-    integration = AutoGenCogniSimple()
+    integration = AutoGenCogniMCPIntegration()
 
     try:
-        # Step 1: Setup OpenAI client
-        logger.info("🔧 Step 1: Setting up OpenAI client...")
-        await integration.setup_openai_client()
-        logger.info("✅ Step 1 Complete: OpenAI client configured")
+        # Run the simplified demonstration - following minimal pattern
+        logger.info("🔧 Running simplified AutoGen Cogni MCP demonstration...")
+        result = await integration.run_demonstration()
 
-        # Step 2: Setup MCP tools (CRITICAL - FAIL FAST if this doesn't work)
-        logger.info("🔧 Step 2: Connecting to Cogni MCP server...")
-        try:
-            mcp_success = await integration.setup_cogni_tools_sse()
-            if not mcp_success:
-                # Show full debug state and fail immediately
-                debug_state = integration.get_debug_state()
-                logger.error("❌ CRITICAL FAILURE: MCP connection failed")
-                logger.error("🔍 Integration Debug State:")
-                for key, value in debug_state.items():
-                    logger.error(f"   - {key}: {value}")
-                raise Exception("MCP connection failed - cannot proceed without Cogni tools")
+        if not result["success"]:
+            # Surface the specific error details prominently
+            logger.error("❌ CRITICAL FAILURE: MCP Connection Failed")
+            logger.error(f"🔍 Root Cause: {result['error']}")
 
-        except Exception as mcp_error:
-            # MCP connection failed - show debug state and fail fast
+            # Show minimal debug state
             debug_state = integration.get_debug_state()
-            logger.error("❌ CRITICAL FAILURE: MCP connection exception")
-            logger.error("🔍 Integration Debug State:")
-            for key, value in debug_state.items():
-                logger.error(f"   - {key}: {value}")
-            logger.error("🔍 Original MCP Error (logged above with full details)")
-            # Re-raise the original exception to preserve the root cause
-            raise mcp_error
+            logger.error(f"🔍 Tools Discovered: {debug_state['cogni_tools_count']} (expected 21)")
 
-        logger.info("✅ Step 2 Complete: MCP tools connected successfully")
+            raise Exception(f"MCP Connection Failed: {result['error']}")
 
-        # Step 3: Create agent
-        logger.info("🔧 Step 3: Creating AutoGen agent...")
-        await integration.setup_agent()
-        logger.info("✅ Step 3 Complete: Agent created with Cogni MCP tools")
-
-        # Step 4: Run integration test
-        logger.info("🔧 Step 4: Running integration test...")
-        result = await integration.run_conversation_test()
-
-        if not result:
-            debug_state = integration.get_debug_state()
-            logger.error("❌ CRITICAL FAILURE: Integration test failed")
-            logger.error("🔍 Integration Debug State:")
-            for key, value in debug_state.items():
-                logger.error(f"   - {key}: {value}")
-            raise Exception(
-                "Integration test failed - AutoGen could not successfully use Cogni MCP tools"
-            )
-
-        logger.info("✅ Step 4 Complete: Integration test successful")
-
-        # Success - show final state
-        debug_state = integration.get_debug_state()
-        logger.info("🎉 SUCCESS: AutoGen Cogni MCP Integration completed successfully")
-        logger.info("🔍 Final Integration State:")
-        for key, value in debug_state.items():
-            logger.info(f"   - {key}: {value}")
+        logger.info(f"✅ SUCCESS: {result['tools_count']} MCP tools connected")
+        logger.info(f"🔗 Endpoint: {result['endpoint']}")
+        logger.info(f"🔧 Tools: {result['tools']}")
 
         return {
             "success": True,
-            "tools_discovered": len(integration.cogni_tools),
-            "debug_state": debug_state,
+            "tools_discovered": result["tools_count"],
+            "endpoint": result["endpoint"],
+            "tools": result["tools"],
             "timestamp": datetime.now().isoformat(),
         }
 
     except Exception as e:
-        # Final catch-all with debug state
-        debug_state = integration.get_debug_state()
+        # Final catch-all - keep it simple
         logger.error(f"❌ AutoGen Cogni MCP Integration FAILED: {str(e)}")
-        logger.error("🔍 Final Debug State:")
-        for key, value in debug_state.items():
-            logger.error(f"   - {key}: {value}")
         raise e
 
 
