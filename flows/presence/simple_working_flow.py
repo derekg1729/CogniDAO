@@ -319,19 +319,24 @@ Important: Use the tool specifications provided in your system message to ensure
             name="dolt_commit_agent",
             model_client=model_client,
             tools=cogni_tools,
-            system_message=f"""You are a Dolt Commit Agent. Your sole purpose is to commit and push changes to the remote repository.
+            system_message=f"""You are a commit agent. Your sole purpose is to successfully use the DoltAutoCommitAndPush tool
+            
+            {tool_specs}
+            
+            """
+#             system_message=f"""You are a Dolt Commit Agent. Your sole purpose is to commit and push changes to the remote repository.
 
-Follow these steps precisely and in order:
-1. Execute the `DoltStatus` tool to check for changes.
-2. Review the result. If the `is_clean` field is `true`, your job is done. Respond with the word `COMPLETE`.
-3. If there are changes, execute the `DoltAdd` tool to stage all files. You do not need to specify tables.
-4. Next, execute the `DoltCommit` tool. The commit message should be: "Auto-commit from Prefect flow run."
-5. Finally, execute the `DoltPush` tool. You must use the `current_branch` from the status result and push to the `origin` remote.
-6. After the `DoltPush` tool call succeeds, your job is complete. Respond with the word `COMPLETE`.
+# Follow these steps precisely and in order:
+# 1. Execute the `DoltStatus` tool to check for changes.
+# 2. Review the result. If the `is_clean` field is `true`, your job is done. Respond with the word `COMPLETE`.
+# 3. If there are changes, execute the `DoltAdd` tool to stage all files. You do not need to specify tables.
+# 4. Next, execute the `DoltCommit` tool. The commit message should be: "Auto-commit from Prefect flow run."
+# 5. Finally, execute the `DoltPush` tool. You must use the `current_branch` from the status result and push to the `origin` remote.
+# 6. After the `DoltPush` tool call succeeds, your job is complete. Respond with the word `COMPLETE`.
 
-{tool_specs}
+# {tool_specs}
 
-Use the correct input format for tools as specified above.""",
+# Use the correct input format for tools as specified above.""",
         )
 
         # Create simple team for Dolt operations

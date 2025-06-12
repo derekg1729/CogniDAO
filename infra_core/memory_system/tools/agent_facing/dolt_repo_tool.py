@@ -306,6 +306,72 @@ class DoltDiffOutput(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation.")
 
 
+class DoltAutoCommitInput(BaseModel):
+    """Input model for the dolt_auto_commit_and_push tool."""
+
+    commit_message: str = Field(
+        ...,
+        description="Commit message for the Dolt changes",
+        min_length=1,
+        max_length=500,
+    )
+    author: Optional[str] = Field(
+        default=None,
+        description="Optional author attribution for the commit",
+        max_length=100,
+    )
+    tables: Optional[List[str]] = Field(
+        default=None,
+        description="Optional list of specific tables to add/commit. If not provided, all standard tables will be committed.",
+    )
+    remote_name: str = Field(
+        default="origin",
+        description="Name of the remote to push to (default: 'origin')",
+        min_length=1,
+        max_length=100,
+    )
+    branch: Optional[str] = Field(
+        default=None,
+        description="Branch to push (default: current branch from status)",
+        min_length=1,
+        max_length=100,
+    )
+    skip_if_clean: bool = Field(
+        default=True,
+        description="Skip commit/push if repository is clean (default: True)",
+    )
+
+
+class DoltAutoCommitOutput(BaseModel):
+    """Output model for the dolt_auto_commit_and_push tool."""
+
+    success: bool = Field(..., description="Whether the entire operation succeeded")
+    message: str = Field(..., description="Human-readable result message")
+    operations_performed: List[str] = Field(
+        default=[], description="List of operations that were performed"
+    )
+
+    # Status info
+    was_clean: bool = Field(..., description="Whether the repository was clean initially")
+    current_branch: str = Field(..., description="Current active branch")
+
+    # Commit info (if performed)
+    commit_hash: Optional[str] = Field(
+        default=None, description="The Dolt commit hash if commit was performed"
+    )
+    tables_committed: Optional[List[str]] = Field(
+        default=None, description="List of tables that were committed"
+    )
+
+    # Push info (if performed)
+    pushed_to_remote: Optional[str] = Field(
+        default=None, description="Remote name that was pushed to"
+    )
+
+    error: Optional[str] = Field(default=None, description="Error message if operation failed")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
+
+
 def dolt_repo_tool(
     input_data: DoltCommitInput, memory_bank: StructuredMemoryBank
 ) -> DoltCommitOutput:
@@ -842,4 +908,161 @@ def dolt_diff_tool(input_data: DoltDiffInput, memory_bank: StructuredMemoryBank)
             diff_summary=[],
             message=f"An unexpected error occurred: {e}",
             error=str(e),
+        )
+
+
+def dolt_auto_commit_and_push_tool(
+    input_data: DoltAutoCommitInput, memory_bank: StructuredMemoryBank
+) -> DoltAutoCommitOutput:
+    """
+    Automatically handle the complete Dolt workflow: Status -> Add -> Commit -> Push
+
+    This is a composite tool that performs the entire sequence atomically,
+    perfect for automated flows where you want to persist all changes.
+
+    Args:
+        input_data: The auto commit parameters
+        memory_bank: StructuredMemoryBank instance with Dolt writer access
+
+    Returns:
+        DoltAutoCommitOutput with comprehensive results of all operations
+    """
+    operations_performed = []
+
+    try:
+        logger.info(
+            f"Starting auto commit and push workflow with message: {input_data.commit_message}"
+        )
+
+        # Step 1: Get Status
+        logger.info("🔍 Step 1: Checking Dolt repository status...")
+        status_result = dolt_status_tool(DoltStatusInput(), memory_bank)
+        operations_performed.append("status")
+
+        if not status_result.success:
+            return DoltAutoCommitOutput(
+                success=False,
+                message=f"Status check failed: {status_result.error}",
+                operations_performed=operations_performed,
+                was_clean=False,
+                current_branch="unknown",
+                error=status_result.error,
+            )
+
+        current_branch = status_result.current_branch
+        was_clean = status_result.is_clean
+
+        logger.info(
+            f"Repository status - Branch: {current_branch}, Clean: {was_clean}, Changes: {status_result.total_changes}"
+        )
+
+        # Step 2: Check if we should skip (if clean and skip_if_clean=True)
+        if was_clean and input_data.skip_if_clean:
+            logger.info("✅ Repository is clean, skipping commit and push")
+            return DoltAutoCommitOutput(
+                success=True,
+                message="Repository is clean, no changes to commit",
+                operations_performed=operations_performed,
+                was_clean=True,
+                current_branch=current_branch,
+            )
+
+        # Step 3: Add changes to staging
+        logger.info("📝 Step 2: Adding changes to staging...")
+        add_result = dolt_add_tool(DoltAddInput(tables=input_data.tables), memory_bank)
+        operations_performed.append("add")
+
+        if not add_result.success:
+            return DoltAutoCommitOutput(
+                success=False,
+                message=f"Add operation failed: {add_result.error}",
+                operations_performed=operations_performed,
+                was_clean=was_clean,
+                current_branch=current_branch,
+                error=add_result.error,
+            )
+
+        logger.info(f"Add successful: {add_result.message}")
+
+        # Step 4: Commit changes
+        logger.info("💾 Step 3: Committing changes...")
+        commit_result = dolt_repo_tool(
+            DoltCommitInput(
+                commit_message=input_data.commit_message,
+                tables=input_data.tables,
+                author=input_data.author,
+            ),
+            memory_bank,
+        )
+        operations_performed.append("commit")
+
+        if not commit_result.success:
+            return DoltAutoCommitOutput(
+                success=False,
+                message=f"Commit operation failed: {commit_result.error}",
+                operations_performed=operations_performed,
+                was_clean=was_clean,
+                current_branch=current_branch,
+                error=commit_result.error,
+            )
+
+        logger.info(f"Commit successful - Hash: {commit_result.commit_hash}")
+
+        # Step 5: Push to remote
+        target_branch = input_data.branch or current_branch
+        logger.info(
+            f"🚀 Step 4: Pushing to remote '{input_data.remote_name}' branch '{target_branch}'..."
+        )
+
+        push_result = dolt_push_tool(
+            DoltPushInput(
+                remote_name=input_data.remote_name,
+                branch=target_branch,
+                force=False,  # Never force push in auto mode
+                set_upstream=False,
+            ),
+            memory_bank,
+        )
+        operations_performed.append("push")
+
+        if not push_result.success:
+            return DoltAutoCommitOutput(
+                success=False,
+                message=f"Push operation failed: {push_result.error}",
+                operations_performed=operations_performed,
+                was_clean=was_clean,
+                current_branch=current_branch,
+                commit_hash=commit_result.commit_hash,
+                tables_committed=commit_result.tables_committed,
+                error=push_result.error,
+            )
+
+        logger.info(f"Push successful: {push_result.message}")
+
+        # Success! All operations completed
+        final_message = f"✅ Auto commit and push completed successfully! Commit: {commit_result.commit_hash}, Push: {input_data.remote_name}/{target_branch}"
+        logger.info(final_message)
+
+        return DoltAutoCommitOutput(
+            success=True,
+            message=final_message,
+            operations_performed=operations_performed,
+            was_clean=was_clean,
+            current_branch=current_branch,
+            commit_hash=commit_result.commit_hash,
+            tables_committed=commit_result.tables_committed,
+            pushed_to_remote=input_data.remote_name,
+        )
+
+    except Exception as e:
+        error_msg = f"Exception during auto commit and push: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+
+        return DoltAutoCommitOutput(
+            success=False,
+            message=f"Auto commit and push failed: {str(e)}",
+            operations_performed=operations_performed,
+            was_clean=False,
+            current_branch="unknown",
+            error=error_msg,
         )

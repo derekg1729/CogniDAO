@@ -84,6 +84,9 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     dolt_diff_tool,
     DoltDiffInput,
     DoltDiffOutput,
+    dolt_auto_commit_and_push_tool,
+    DoltAutoCommitInput,
+    DoltAutoCommitOutput,
 )
 
 # Configure logging
@@ -831,6 +834,48 @@ async def dolt_diff(input):
             success=False,
             diff_summary=[],
             message=f"An unexpected error occurred: {e}",
+            error=str(e),
+        ).model_dump(mode="json")
+
+
+# Register the DoltAutoCommitAndPush tool
+@mcp.tool("DoltAutoCommitAndPush")
+async def dolt_auto_commit_and_push(input):
+    """Automatically handle the complete Dolt workflow: Status -> Add -> Commit -> Push
+
+    This is a composite tool that performs the entire sequence atomically,
+    perfect for automated flows where you want to persist all changes.
+
+    Args:
+        commit_message: Commit message for the Dolt changes (required)
+        author: Optional author attribution for the commit
+        tables: Optional list of specific tables to add/commit (default: all standard tables)
+        remote_name: Name of the remote to push to (default: 'origin')
+        branch: Branch to push (default: current branch from status)
+        skip_if_clean: Skip commit/push if repository is clean (default: True)
+
+    Returns:
+        JSON with comprehensive results of all operations including success status,
+        operations performed, commit hash, and push details
+    """
+    try:
+        # Parse input
+        input_data = DoltAutoCommitInput(**input)
+
+        # Execute the composite operation
+        result = dolt_auto_commit_and_push_tool(input_data, memory_bank)
+
+        # Return JSON representation
+        return result.model_dump(mode="json")
+
+    except Exception as e:
+        logger.error(f"Error in DoltAutoCommitAndPush tool: {e}", exc_info=True)
+        return DoltAutoCommitOutput(
+            success=False,
+            message=f"Auto commit and push failed: {str(e)}",
+            operations_performed=["failed"],
+            was_clean=False,
+            current_branch="unknown",
             error=str(e),
         ).model_dump(mode="json")
 
