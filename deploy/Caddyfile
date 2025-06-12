@@ -8,6 +8,11 @@ localhost {
     # Enable gzip compression like preview
     encode gzip
 
+    # Handle ToolHive MCP SSE routes for local development
+    handle /toolhive* {
+        reverse_proxy toolhive:8080
+    }
+
     # Handle Prefect UI routes
     handle /prefect* {
         reverse_proxy prefect-server:4200

@@ -101,7 +101,7 @@ async def autogen_cogni_mcp_flow(output_dir: Optional[str] = None) -> Dict[str, 
     Deployable Prefect Flow: AutoGen Cogni MCP Integration
 
     Tests AutoGen with Cogni memory system via MCP protocol
-    using our proven stdio transport approach
+    using SSE transport to containerized MCP server (with stdio fallback)
 
     Args:
         output_dir: Optional output directory for results
@@ -130,7 +130,7 @@ async def autogen_cogni_mcp_flow(output_dir: Optional[str] = None) -> Dict[str, 
         "integration_results": integration_results,
         "output_file": str(output_file),
         "timestamp": datetime.now().isoformat(),
-        "approach": "AutoGen + Cogni Memory via MCP stdio transport",
+        "approach": "AutoGen + Cogni Memory via MCP SSE transport (stdio fallback)",
         "tools_discovered": integration_results.get("tools_discovered", 0),
         "target_tools": 21,  # We know 21 tools should be available
     }

@@ -101,15 +101,19 @@ services:
       context: ..
       dockerfile: services/prefect_worker/Dockerfile.prefect-worker
     command: prefect worker start --pool cogni-pool
+    env_file: ./.env
     environment:
       - PREFECT_API_URL=http://prefect-server:4200/api
       # ToolHive API URL for MCP tool access
       - TOOLHIVE_API=http://toolhive:8080
+      # OpenAI API Key for AutoGen flows (explicit override)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
       prefect-server:
         condition: service_healthy
     volumes:
       - ../:/workspace  # Mount the entire project for flow access
+      - ./.env:/workspace/.env  # Explicitly mount .env file
     working_dir: /workspace
     restart: unless-stopped
     networks:

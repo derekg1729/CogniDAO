@@ -41,3 +41,20 @@ deployments:
     timezone:
     day_or: true
     active: true
+
+- name: autogen-cogni-mcp
+  version:
+  tags:
+  - cogni
+  - autogen
+  - mcp
+  - sse
+  concurrency_limit:
+  description: 'AutoGen + Cogni MCP Integration: Test SSE connection to containerized MCP server'
+  entrypoint: autogen_mcp_cogni_flow.py:autogen_cogni_mcp_flow
+  parameters: {}
+  work_pool:
+    name: cogni-pool
+    work_queue_name:
+    job_variables: {}
+  schedules: []
