@@ -24,6 +24,17 @@ from autogen_ext.tools.mcp import SseServerParams, mcp_server_tools
 # Prefect for secret management
 from prefect.blocks.system import Secret
 
+# Python version compatibility for ExceptionGroup
+try:
+    ExceptionGroup
+except NameError:
+    # Python < 3.11 compatibility
+    class ExceptionGroup(Exception):
+        def __init__(self, message, exceptions):
+            super().__init__(message)
+            self.exceptions = exceptions
+
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -81,13 +92,30 @@ class AutoGenCogniSimple:
                 "http://127.0.0.1:30758/sse",  # Local development fallback
             ]
 
+            logger.info("🔍 ToolHive SSE Endpoint Discovery:")
+            logger.info(
+                f"   - Environment Variable COGNI_MCP_SSE_ENDPOINT: {os.getenv('COGNI_MCP_SSE_ENDPOINT', 'Not Set')}"
+            )
+            logger.info(f"   - Available Endpoints: {container_endpoints}")
+
             # Use the first available endpoint (prioritize container network)
             sse_endpoint = container_endpoints[0]
-            logger.info(f"🔍 Using ToolHive SSE endpoint: {sse_endpoint}")
+            logger.info(f"🎯 Selected SSE endpoint: {sse_endpoint}")
+            logger.info(
+                "   - Selection Logic: Using first endpoint (environment override or default)"
+            )
+            logger.info(
+                f"   - Container Network: {'Yes' if 'toolhive:8080' in sse_endpoint else 'No'}"
+            )
+            logger.info(f"   - Local Development: {'Yes' if '127.0.0.1' in sse_endpoint else 'No'}")
+
             return sse_endpoint
 
         except Exception as e:
             logger.error(f"❌ Failed to determine ToolHive endpoint: {e}")
+            logger.error("🔍 Endpoint Discovery Failure Debug:")
+            logger.error(f"   - Exception Type: {type(e).__name__}")
+            logger.error(f"   - Exception Details: {str(e)}")
             raise
 
     async def setup_cogni_tools_sse(self):
@@ -105,14 +133,70 @@ class AutoGenCogniSimple:
             )
 
             logger.info(f"🔧 Connecting to existing Cogni MCP container at {sse_endpoint}...")
-            self.cogni_tools = await mcp_server_tools(server_params)
+            logger.info("🔍 SSE Connection Debug Details:")
+            logger.info(f"   - URL: {server_params.url}")
+            logger.info(f"   - Headers: {server_params.headers}")
+            logger.info(f"   - Timeout: {server_params.timeout}s")
+            logger.info(f"   - SSE Read Timeout: {server_params.sse_read_timeout}s")
+
+            # Attempt connection with detailed error capture
+            try:
+                logger.info("🔄 Attempting MCP server tools connection...")
+                self.cogni_tools = await mcp_server_tools(server_params)
+                logger.info(
+                    f"✅ MCP connection successful - raw tools count: {len(self.cogni_tools)}"
+                )
+
+            except Exception as connection_error:
+                logger.error("❌ MCP Connection Failed - Detailed Error Analysis:")
+                logger.error(f"   - Error Type: {type(connection_error).__name__}")
+                logger.error(f"   - Error Message: {str(connection_error)}")
+                logger.error(f"   - Attempted URL: {sse_endpoint}")
+
+                # Extract sub-exceptions from ExceptionGroup
+                if isinstance(connection_error, ExceptionGroup):
+                    logger.error("🔍 ExceptionGroup Sub-Exceptions:")
+                    for i, sub_exc in enumerate(connection_error.exceptions):
+                        logger.error(f"   Sub-Exception {i + 1}:")
+                        logger.error(f"     - Type: {type(sub_exc).__name__}")
+                        logger.error(f"     - Message: {str(sub_exc)}")
+                        if hasattr(sub_exc, "__cause__") and sub_exc.__cause__:
+                            logger.error(f"     - Cause: {sub_exc.__cause__}")
+
+                # Try to extract more specific error details
+                if hasattr(connection_error, "response"):
+                    logger.error(f"   - HTTP Response: {connection_error.response}")
+                if hasattr(connection_error, "status_code"):
+                    logger.error(f"   - Status Code: {connection_error.status_code}")
+                if hasattr(connection_error, "__cause__") and connection_error.__cause__:
+                    logger.error(f"   - Root Cause: {connection_error.__cause__}")
+
+                # Re-raise the ORIGINAL exception to preserve stack trace and details
+                raise connection_error
 
             logger.info(f"✅ Cogni MCP tools connected: {len(self.cogni_tools)} tools")
-            logger.info(f"Cogni tools: {[tool.name for tool in self.cogni_tools]}")
+            logger.info(f"🔧 Available tools: {[tool.name for tool in self.cogni_tools]}")
+
+            # Additional debug info about the tools
+            if self.cogni_tools:
+                logger.info("🔍 Tool Details:")
+                for i, tool in enumerate(self.cogni_tools[:5]):  # Show first 5 tools
+                    logger.info(
+                        f"   {i + 1}. {tool.name} - {getattr(tool, 'description', 'No description')[:50]}..."
+                    )
+                if len(self.cogni_tools) > 5:
+                    logger.info(f"   ... and {len(self.cogni_tools) - 5} more tools")
+
             return True
 
         except Exception as e:
             logger.error(f"❌ Failed to connect to Cogni MCP container via SSE: {e}")
+            logger.error("🔍 SSE Setup Failure Debug:")
+            logger.error(f"   - Exception Type: {type(e).__name__}")
+            logger.error(f"   - Exception Details: {str(e)}")
+            logger.error(
+                f"   - Tools Discovered: {len(self.cogni_tools) if hasattr(self, 'cogni_tools') else 'N/A'}"
+            )
             return False
 
     def create_agent(self) -> AssistantAgent:
@@ -149,6 +233,38 @@ Be specific about which memory tools you're using and why.""",
 
         logger.info("✅ Cogni assistant agent created successfully")
         return agent
+
+    async def run_conversation_test(self) -> bool:
+        """Run just the conversation test part - assumes setup is already complete"""
+        logger.info("🧠 Running AutoGen conversation test with Cogni MCP tools...")
+
+        try:
+            if not self.agent:
+                raise RuntimeError("Agent must be created before running conversation test")
+
+            # Create simple team
+            team = RoundRobinGroupChat(
+                participants=[self.agent],
+                termination_condition=MaxMessageTermination(max_messages=3),
+            )
+
+            logger.info("\n" + "=" * 50)
+            logger.info("🧠 Testing Cogni Memory Access...")
+
+            # Simple memory query task
+            memory_task = (
+                "Please see what Active Work Items are in the system. Show me a concise summary."
+            )
+            logger.info(f"📝 Task: {memory_task}")
+
+            await Console(team.run_stream(task=memory_task))
+
+            logger.info("✅ AutoGen conversation test completed successfully!")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ AutoGen conversation test failed: {e}")
+            return False
 
     async def run_simple_test(self) -> bool:
         """Run simple test of Cogni MCP integration"""
@@ -189,6 +305,23 @@ Be specific about which memory tools you're using and why.""",
         except Exception as e:
             logger.error(f"❌ AutoGen + Cogni MCP test failed: {e}")
             return False
+
+    def get_debug_state(self) -> dict:
+        """Get current state of integration for debugging"""
+        return {
+            "openai_client": "✅ Configured" if self.model_client else "❌ Not configured",
+            "cogni_tools_count": len(self.cogni_tools) if self.cogni_tools else 0,
+            "cogni_tools_list": [tool.name for tool in self.cogni_tools]
+            if self.cogni_tools
+            else [],
+            "agent": "✅ Created" if self.agent else "❌ Not created",
+            "has_memory_tools": any("memory" in tool.name.lower() for tool in self.cogni_tools)
+            if self.cogni_tools
+            else False,
+            "has_work_item_tools": any("work" in tool.name.lower() for tool in self.cogni_tools)
+            if self.cogni_tools
+            else False,
+        }
 
 
 async def main():
