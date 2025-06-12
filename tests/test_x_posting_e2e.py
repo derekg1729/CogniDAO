@@ -149,6 +149,7 @@ class MockMemoryBank:
             json.dump(data, f, indent=2)
 
 
+@pytest.mark.skip(reason="Requires X API credentials not available in test environment")
 @pytest.mark.asyncio
 async def test_x_posting_flow_e2e(setup_test_queue):
     """
