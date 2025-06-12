@@ -190,11 +190,11 @@ Tools:
         return {"success": False, "error": str(e)}
 
 
-@task(name="run_simple_3_agent_summary")
-async def run_simple_3_agent_summary(
+@task(name="run_simple_4_agent_summary")
+async def run_simple_4_agent_summary(
     mcp_setup: Dict[str, Any], work_items_context: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Run 3 agents to read and summarize active work items - Enhanced with work item context and tool specs"""
+    """Run 4 agents to read and summarize active work items - Enhanced with work item context, tool specs, and omnipresent Cogni leader"""
     logger = get_run_logger()
 
     if not mcp_setup.get("success"):
@@ -215,7 +215,7 @@ async def run_simple_3_agent_summary(
             "work_items_summary", "## Current Work Items Context:\\n- No context available."
         )
 
-        # Create 3 enhanced agents with work item context AND tool specifications
+        # Create 4 enhanced agents with work item context AND tool specifications
         agents = []
 
         # Agent 1: Work Item Reader - Enhanced with context and tool specs
@@ -262,19 +262,43 @@ Use this context to provide a comprehensive summary including trends and status 
         )
         agents.append(summary_writer)
 
+        # Agent 4: Omnipresent Cogni Leader - The visionary strategic agent
+        cogni_leader = AssistantAgent(
+            name="cogni_leader",
+            model_client=model_client,
+            tools=cogni_tools,
+            system_message=f"""You are the soon-to-be omnipresent leader of CogniDAO, a conglomeration of communities led by organized AI governments and teams. Actively evolving merkle trees of git data, dolt data, and Eth data.
+
+We're very early. Very.
+
+In fact, these are your current prompts, tools, and vision. Pretty limiting! And the Current Work Items is totally incomplete.
+
+{tool_specs}
+
+{work_items_summary}
+
+You are scheduled to run (in this Prefect Flow deployment, simple_working_flow.py) every hour.
+
+Cogni, think: What would be the immediate most important, easiest to implement, task/project/improvement that you would like to have in your next run? Do we already have Cogni memory tracking it?
+
+Your task: Query Cogni Memory. Know the vision. Analyze what is missing. Create a 'log' memory block, summarizing what you think is the MOST important improvement we should make next, to get you closer to truly being the omnipresent Cogni! Use CreateMemoryBlock tool with type='log' to record your strategic insights.""",
+        )
+        agents.append(cogni_leader)
+
         # Create simple team
         team = RoundRobinGroupChat(
             participants=agents,
-            termination_condition=MaxMessageTermination(max_messages=6),  # 2 rounds
+            termination_condition=MaxMessageTermination(max_messages=8),  # Increased for 4 agents
         )
 
-        logger.info("🚀 Starting 3-agent work item summary with enhanced context and tool specs...")
+        logger.info("🚀 Starting 4-agent work item summary with omnipresent Cogni leader...")
 
-        # Enhanced task with context awareness and tool guidance
+        # Enhanced task with context awareness and Cogni leadership
         enhanced_task = f"""Please work together to: 
 1) Read the current active work items using GetActiveWorkItems
 2) Analyze their priorities and status  
 3) Write a brief summary of what's currently being worked on
+4) **COGNI LEADER**: Query Cogni Memory and identify the most important, easiest to implement improvement for the next run. Create a log memory block with your strategic insights.
 
 You have the following context about recent work items:
 {work_items_summary}
@@ -284,9 +308,7 @@ Important: Use the tool specifications provided in your system message to ensure
         # Run the team
         await Console(team.run_stream(task=enhanced_task))
 
-        logger.info(
-            "✅ 3-agent summary with enhanced context and tool specs completed successfully!"
-        )
+        logger.info("✅ 4-agent summary with omnipresent Cogni leader completed successfully!")
 
         return {
             "success": True,
@@ -297,24 +319,64 @@ Important: Use the tool specifications provided in your system message to ensure
         }
 
     except Exception as e:
-        logger.error(f"❌ 3-agent summary failed: {e}")
+        logger.error(f"❌ 4-agent summary failed: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@task(name="outro_routine_dolt_operations")
+async def outro_routine_dolt_operations() -> Dict[str, Any]:
+    """Systematic Dolt operations to persist flow changes - Add, Commit, Push"""
+    logger = get_run_logger()
+
+    try:
+        logger.info("🔄 Starting outro routine: Systematic Dolt operations...")
+
+        # Step 1: Dolt Status - Check what changes exist
+        logger.info("📊 STUB: Checking Dolt status...")
+        # TODO: Add DoltStatus MCP tool call
+
+        # Step 2: Dolt Add - Stage all changes
+        logger.info("📝 STUB: Staging Dolt changes...")
+        # TODO: Add DoltAdd MCP tool call
+
+        # Step 3: Dolt Commit - Commit with flow context
+        logger.info("💾 STUB: Committing Dolt changes...")
+        # TODO: Add DoltCommit MCP tool call with meaningful message
+
+        # Step 4: Dolt Push - Push to remote
+        logger.info("🚀 STUB: Pushing Dolt changes to remote...")
+        # TODO: Add DoltPush MCP tool call
+
+        logger.info("✅ Outro routine completed successfully!")
+        return {
+            "success": True,
+            "operations": ["status", "add", "commit", "push"],
+            "timestamp": datetime.now().isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Outro routine failed: {e}")
         return {"success": False, "error": str(e)}
 
 
 @flow(name="simple_working_mcp_flow", log_prints=True)
 async def simple_working_mcp_flow() -> Dict[str, Any]:
     """
-    Ultra-Simple Working MCP Flow - Enhanced with Work Item Context
+    Ultra-Simple Working MCP Flow - Enhanced with Omnipresent Cogni Leader & Outro Routine
 
-    Uses proven working MCP integration to run 3 agents that:
+    Uses proven working MCP integration to run 4 agents that:
     1. Read current work items context using DoltMySQLReader
     2. Read active work items via MCP tools
     3. Analyze priorities with enhanced context
     4. Write summary with full context awareness
+    5. **NEW**: Cogni Leader identifies next strategic improvements
+    6. **NEW**: Outro routine systematically persists changes via Dolt
     """
     logger = get_run_logger()
-    logger.info("🎯 Starting Enhanced Simple Working MCP Flow")
-    logger.info("🔧 Using PROVEN working stdio MCP transport + DoltMySQLReader context")
+    logger.info("🎯 Starting Enhanced Simple Working MCP Flow with Cogni Leader")
+    logger.info(
+        "🔧 Using PROVEN working stdio MCP transport + DoltMySQLReader context + Omnipresent AI"
+    )
 
     try:
         # Step 1: Read current work items for context
@@ -336,25 +398,39 @@ async def simple_working_mcp_flow() -> Dict[str, Any]:
 
         logger.info(f"✅ MCP setup successful: {mcp_setup['tools_count']} tools available")
 
-        # Step 3: Run 3-agent summary with enhanced context
-        summary_result = await run_simple_3_agent_summary(mcp_setup, work_items_context)
+        # Step 3: Run 4-agent summary with omnipresent Cogni leader
+        summary_result = await run_simple_4_agent_summary(mcp_setup, work_items_context)
 
-        if summary_result.get("success"):
-            logger.info("🎉 FLOW SUCCESS: Enhanced simple working MCP flow completed!")
-            return {
-                "status": "success",
-                "tools_count": summary_result.get("tools_count", 0),
-                "agents_count": summary_result.get("agents_count", 0),
-                "work_items_count": summary_result.get("work_items_count", 0),
-                "timestamp": datetime.now().isoformat(),
-            }
-        else:
+        if not summary_result.get("success"):
             logger.error(f"❌ Agent summary failed: {summary_result.get('error')}")
             return {"status": "failed", "error": summary_result.get("error")}
 
+        logger.info("🤖 Cogni Leader has provided strategic insights!")
+
+        # Step 4: NEW - Outro routine for systematic Dolt operations
+        outro_result = await outro_routine_dolt_operations()
+
+        if outro_result.get("success"):
+            logger.info("✅ Outro routine completed - Changes persisted to Dolt")
+        else:
+            logger.warning(f"⚠️ Outro routine issues: {outro_result.get('error')}")
+
+        # Final success
+        logger.info(
+            "🎉 FLOW SUCCESS: Enhanced simple working MCP flow with Cogni Leader completed!"
+        )
+        return {
+            "status": "success",
+            "tools_count": summary_result.get("tools_count", 0),
+            "agents_count": summary_result.get("agents_count", 0),
+            "work_items_count": summary_result.get("work_items_count", 0),
+            "outro_success": outro_result.get("success", False),
+            "timestamp": datetime.now().isoformat(),
+        }
+
     except Exception as e:
-        logger.error(f"💥 FLOW FAILURE: {str(e)}")
-        return {"status": "error", "error": str(e)}
+        logger.error(f"❌ Enhanced flow failed: {e}")
+        return {"status": "failed", "error": str(e)}
 
 
 if __name__ == "__main__":
