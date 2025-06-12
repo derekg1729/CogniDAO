@@ -53,7 +53,7 @@ mcp      # MCP client SDK for connecting to MCP servers
 # Native MCP Integration (Phase 1: Replace HTTP glue approach)
 autogen-agentchat>=0.6.1     # AutoGen AgentChat framework for building conversational agents
 autogen-ext[mcp]>=0.6.1      # Native AutoGen MCP integration via mcp_server_tools
-crewai-tools[mcp]>=0.47.0    # Native CrewAI MCP integration via MCPServerAdapter (minimum version needed)
+# crewai-tools[mcp]>=0.47.0    # COMMENTED OUT: Causes chromadb<0.6.0 conflict with MCP server
 
 # Legacy dependencies
 python-frontmatter  # For parsing YAML frontmatter in markdown files
