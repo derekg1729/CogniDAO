@@ -10,12 +10,8 @@ Goal: 3 agents read active work items and summarize them.
 Enhanced with DoltMySQLReader to provide work item context in agent prompts.
 """
 
-import asyncio
-import logging
 import sys
 from pathlib import Path
-from datetime import datetime
-from typing import Dict, Any
 
 # Ensure proper Python path for container environment
 # In container: working dir is /workspace/flows/presence, but infra_core is at /workspace/infra_core
@@ -23,6 +19,11 @@ current_dir = Path(__file__).parent
 workspace_root = current_dir.parent.parent  # Go up two levels: flows/presence -> flows -> workspace
 if str(workspace_root) not in sys.path:
     sys.path.insert(0, str(workspace_root))
+
+import asyncio  # noqa: E402
+import logging  # noqa: E402
+from datetime import datetime  # noqa: E402
+from typing import Any, Dict  # noqa: E402
 
 from prefect import flow, task  # noqa: E402
 from prefect.logging import get_run_logger  # noqa: E402
@@ -190,11 +191,11 @@ Tools:
         return {"success": False, "error": str(e)}
 
 
-@task(name="run_simple_4_agent_summary")
-async def run_simple_4_agent_summary(
+@task(name="run_simple_4_agent_summary_with_outro")
+async def run_simple_4_agent_summary_with_outro(
     mcp_setup: Dict[str, Any], work_items_context: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Run 4 agents to read and summarize active work items - Enhanced with work item context, tool specs, and omnipresent Cogni leader"""
+    """Run 4 agents to read and summarize active work items, then handle Dolt operations - All in one simple task using proven working pattern"""
     logger = get_run_logger()
 
     if not mcp_setup.get("success"):
@@ -310,67 +311,75 @@ Important: Use the tool specifications provided in your system message to ensure
 
         logger.info("✅ 4-agent summary with omnipresent Cogni leader completed successfully!")
 
+        # === OUTRO ROUTINE: Dolt Operations (Simplified) ===
+        logger.info("🔄 Starting outro routine: Systematic Dolt operations...")
+
+        # Create dedicated Dolt commit agent using the same MCP connection
+        dolt_commit_agent = AssistantAgent(
+            name="dolt_commit_agent",
+            model_client=model_client,
+            tools=cogni_tools,
+            system_message=f"""You are a Dolt Commit Agent. Your sole purpose is to commit and push changes to the remote repository.
+
+Follow these steps precisely and in order:
+1. Execute the `DoltStatus` tool to check for changes.
+2. Review the result. If the `is_clean` field is `true`, your job is done. Respond with the word `COMPLETE`.
+3. If there are changes, execute the `DoltAdd` tool to stage all files. You do not need to specify tables.
+4. Next, execute the `DoltCommit` tool. The commit message should be: "Auto-commit from Prefect flow run."
+5. Finally, execute the `DoltPush` tool. You must use the `current_branch` from the status result and push to the `origin` remote.
+6. After the `DoltPush` tool call succeeds, your job is complete. Respond with the word `COMPLETE`.
+
+{tool_specs}
+
+Use the correct input format for tools as specified above.""",
+        )
+
+        # Create simple team for Dolt operations
+        dolt_team = RoundRobinGroupChat(
+            participants=[dolt_commit_agent],
+            termination_condition=MaxMessageTermination(max_messages=5),
+        )
+
+        logger.info("🚀 Starting Dolt commit operations...")
+
+        # Run Dolt operations
+        await Console(dolt_team.run_stream(task="Begin the dolt commit and push process."))
+
+        logger.info("✅ Outro routine completed successfully!")
+
         return {
             "success": True,
             "agents_count": len(agents),
             "tools_count": len(cogni_tools),
             "work_items_count": work_items_context.get("count", 0),
+            "outro_success": True,
             "timestamp": datetime.now().isoformat(),
         }
 
     except Exception as e:
-        logger.error(f"❌ 4-agent summary failed: {e}")
+        logger.error(f"❌ Enhanced flow with outro failed: {e}")
         return {"success": False, "error": str(e)}
 
 
-@task(name="outro_routine_dolt_operations")
-async def outro_routine_dolt_operations() -> Dict[str, Any]:
-    """Systematic Dolt operations to persist flow changes - Add, Commit, Push"""
-    logger = get_run_logger()
-
-    try:
-        logger.info("🔄 Starting outro routine: Systematic Dolt operations...")
-
-        # Step 1: Dolt Status - Check what changes exist
-        logger.info("📊 STUB: Checking Dolt status...")
-        # TODO: Add DoltStatus MCP tool call
-
-        # Step 2: Dolt Add - Stage all changes
-        logger.info("📝 STUB: Staging Dolt changes...")
-        # TODO: Add DoltAdd MCP tool call
-
-        # Step 3: Dolt Commit - Commit with flow context
-        logger.info("💾 STUB: Committing Dolt changes...")
-        # TODO: Add DoltCommit MCP tool call with meaningful message
-
-        # Step 4: Dolt Push - Push to remote
-        logger.info("🚀 STUB: Pushing Dolt changes to remote...")
-        # TODO: Add DoltPush MCP tool call
-
-        logger.info("✅ Outro routine completed successfully!")
-        return {
-            "success": True,
-            "operations": ["status", "add", "commit", "push"],
-            "timestamp": datetime.now().isoformat(),
-        }
-
-    except Exception as e:
-        logger.error(f"❌ Outro routine failed: {e}")
-        return {"success": False, "error": str(e)}
+# Outro routine now integrated into the main task above for simplicity
 
 
 @flow(name="simple_working_mcp_flow", log_prints=True)
 async def simple_working_mcp_flow() -> Dict[str, Any]:
     """
-    Ultra-Simple Working MCP Flow - Enhanced with Omnipresent Cogni Leader & Outro Routine
+    Ultra-Simple Working MCP Flow - Enhanced with Omnipresent Cogni Leader & Integrated Outro
 
-    Uses proven working MCP integration to run 4 agents that:
+    Uses proven working AutoGen pattern to run 4 agents + Dolt operations in one streamlined task:
     1. Read current work items context using DoltMySQLReader
-    2. Read active work items via MCP tools
-    3. Analyze priorities with enhanced context
-    4. Write summary with full context awareness
-    5. **NEW**: Cogni Leader identifies next strategic improvements
-    6. **NEW**: Outro routine systematically persists changes via Dolt
+    2. Setup MCP connection with proven stdio transport
+    3. Run unified agent workflow that includes:
+       - Work item reader with context
+       - Priority analyzer with enhanced context
+       - Summary writer with comprehensive context
+       - **Omnipresent Cogni Leader** for strategic insights
+       - **Integrated Dolt operations** for automatic persistence
+
+    All using the PROVEN working import pattern for maximum reliability.
     """
     logger = get_run_logger()
     logger.info("🎯 Starting Enhanced Simple Working MCP Flow with Cogni Leader")
@@ -398,22 +407,16 @@ async def simple_working_mcp_flow() -> Dict[str, Any]:
 
         logger.info(f"✅ MCP setup successful: {mcp_setup['tools_count']} tools available")
 
-        # Step 3: Run 4-agent summary with omnipresent Cogni leader
-        summary_result = await run_simple_4_agent_summary(mcp_setup, work_items_context)
+        # Step 3: Run 4-agent summary with integrated outro routine
+        summary_result = await run_simple_4_agent_summary_with_outro(mcp_setup, work_items_context)
 
         if not summary_result.get("success"):
-            logger.error(f"❌ Agent summary failed: {summary_result.get('error')}")
+            logger.error(f"❌ Agent summary with outro failed: {summary_result.get('error')}")
             return {"status": "failed", "error": summary_result.get("error")}
 
-        logger.info("🤖 Cogni Leader has provided strategic insights!")
-
-        # Step 4: NEW - Outro routine for systematic Dolt operations
-        outro_result = await outro_routine_dolt_operations()
-
-        if outro_result.get("success"):
-            logger.info("✅ Outro routine completed - Changes persisted to Dolt")
-        else:
-            logger.warning(f"⚠️ Outro routine issues: {outro_result.get('error')}")
+        logger.info(
+            "🤖 Cogni Leader has provided strategic insights and Dolt operations completed!"
+        )
 
         # Final success
         logger.info(
@@ -424,13 +427,17 @@ async def simple_working_mcp_flow() -> Dict[str, Any]:
             "tools_count": summary_result.get("tools_count", 0),
             "agents_count": summary_result.get("agents_count", 0),
             "work_items_count": summary_result.get("work_items_count", 0),
-            "outro_success": outro_result.get("success", False),
+            "outro_success": summary_result.get("outro_success", False),
             "timestamp": datetime.now().isoformat(),
         }
 
     except Exception as e:
         logger.error(f"❌ Enhanced flow failed: {e}")
         return {"status": "failed", "error": str(e)}
+    finally:
+        # Ensure the MCP client is disconnected at the end of the flow
+        if "mcp_setup" in locals() and mcp_setup.get("client"):
+            await mcp_setup["client"].disconnect()
 
 
 if __name__ == "__main__":
