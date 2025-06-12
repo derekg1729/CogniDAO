@@ -58,3 +58,21 @@ deployments:
     work_queue_name:
     job_variables: {}
   schedules: []
+
+- name: simple-working-mcp
+  version:
+  tags:
+  - cogni
+  - autogen
+  - mcp
+  - stdio
+  - simple
+  concurrency_limit:
+  description: 'Ultra-Simple Working MCP: 3 agents read and summarize active work items using proven stdio transport'
+  entrypoint: simple_working_flow.py:simple_working_mcp_flow
+  parameters: {}
+  work_pool:
+    name: cogni-pool
+    work_queue_name:
+    job_variables: {}
+  schedules: []
