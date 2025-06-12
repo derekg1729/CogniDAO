@@ -57,6 +57,7 @@ class GetMemoryBlockOutput(BaseModel):
         default_factory=list,
         description="The retrieved memory blocks.",
     )
+    current_branch: Optional[str] = Field(None, description="Current Dolt branch")
     error: Optional[str] = Field(None, description="Error message if operation failed.")
     timestamp: datetime = Field(
         default_factory=datetime.now, description="Timestamp of when the operation was performed."
@@ -74,6 +75,13 @@ def get_memory_block_core(input_data: GetMemoryBlockInput, memory_bank) -> GetMe
     Returns:
         GetMemoryBlockOutput with the retrieved blocks or error information
     """
+    # Get current branch
+    try:
+        branch_result = memory_bank.dolt_writer._execute_query("SELECT active_branch() as branch")
+        current_branch = branch_result[0]["branch"] if branch_result else "unknown"
+    except Exception:
+        current_branch = "unknown"
+
     if input_data.block_ids:
         # Block retrieval by ID(s)
         logger.debug(f"Attempting to retrieve memory blocks with IDs: {input_data.block_ids}")
@@ -101,7 +109,10 @@ def get_memory_block_core(input_data: GetMemoryBlockInput, memory_bank) -> GetMe
             else:
                 logger.debug(f"Successfully retrieved {len(retrieved_blocks)} memory blocks")
                 return GetMemoryBlockOutput(
-                    success=True, blocks=retrieved_blocks, timestamp=datetime.now()
+                    success=True,
+                    blocks=retrieved_blocks,
+                    current_branch=current_branch,
+                    timestamp=datetime.now(),
                 )
 
         except Exception as e:
@@ -149,7 +160,12 @@ def get_memory_block_core(input_data: GetMemoryBlockInput, memory_bank) -> GetMe
                 all_blocks = all_blocks[: input_data.limit]
 
             logger.debug(f"Successfully filtered blocks. Found {len(all_blocks)} matching blocks.")
-            return GetMemoryBlockOutput(success=True, blocks=all_blocks, timestamp=datetime.now())
+            return GetMemoryBlockOutput(
+                success=True,
+                blocks=all_blocks,
+                current_branch=current_branch,
+                timestamp=datetime.now(),
+            )
 
         except Exception as e:
             error_msg = f"Error filtering memory blocks: {str(e)}"
