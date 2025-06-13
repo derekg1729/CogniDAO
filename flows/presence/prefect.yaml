@@ -36,3 +36,25 @@ deployments:
     work_queue_name:
     job_variables: {}
   schedules: []
+
+- name: ai-education-team
+  version:
+  tags:
+  - cogni
+  - education
+  - ai-training
+  - autogen
+  - mcp
+  - knowledge-graph
+  concurrency_limit:
+  description: 'AI Education Team Flow: 4 education-focused agents analyze knowledge graph, assess learning needs, and improve educational content with hourly strategic insights'
+  entrypoint: ai_education_team_flow.py:ai_education_team_flow
+  parameters: {}
+  work_pool:
+    name: cogni-pool
+    work_queue_name:
+    job_variables: {}
+  schedules:
+  - cron: "0 * * * *"
+    timezone: "UTC"
+    active: true
