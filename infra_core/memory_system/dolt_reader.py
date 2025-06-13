@@ -587,6 +587,23 @@ class DoltMySQLReader(DoltMySQLBase):
             logger.error(f"Unexpected error reading backlinks for {block_id}: {e}")
             return []
 
+    def read_work_items_core_view(self, limit: int = 5, branch: str = "main") -> list:
+        """Read rows from the work_items_core view using a persistent connection."""
+        try:
+            connection = self._get_connection()
+            self._ensure_branch(connection, branch)
+
+            query = f"SELECT * FROM work_items_core LIMIT {limit};"
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            cursor.close()
+            connection.close()
+            return rows
+        except Exception as e:
+            logger.error(f"Failed to read from work_items_core view: {e}")
+            return []
+
 
 # Helper function from dolt_writer for safe SQL formatting
 def _escape_sql_string(value: Optional[str]) -> str:

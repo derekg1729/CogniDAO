@@ -129,6 +129,20 @@ def mock_structured_memory_bank_for_mcp_server(monkeypatch):
     # Configure the dummy_bank to have a link_manager attribute pointing to dummy_link_mgr
     dummy_bank.link_manager = dummy_link_mgr
 
+    # Configure dummy_bank methods to return proper types for Pydantic validation
+    dummy_bank.current_branch = "main"  # String instead of MagicMock
+    dummy_bank.get_memory_blocks.return_value = []  # Empty list for work items
+
+    # Configure writer mock to return proper string for current_branch
+    dummy_writer = MagicMock()
+    dummy_writer.current_branch.return_value = "main"
+    dummy_writer.list_branches.return_value = ([], "main")  # (branches_list, current_branch)
+    dummy_writer._execute_query.return_value = [
+        {"branch": "main"}
+    ]  # For SELECT active_branch() query
+    dummy_bank.writer = dummy_writer
+    dummy_bank.dolt_writer = dummy_writer  # Also set as dolt_writer
+
     # Patch the constructors globally for all MCP server tests
     monkeypatch.setattr(
         "infra_core.memory_system.structured_memory_bank.StructuredMemoryBank",

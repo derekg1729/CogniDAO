@@ -84,6 +84,9 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     dolt_diff_tool,
     DoltDiffInput,
     DoltDiffOutput,
+    dolt_auto_commit_and_push_tool,
+    DoltAutoCommitInput,
+    DoltAutoCommitOutput,
 )
 
 # Configure logging
@@ -105,6 +108,49 @@ if importlib.util.find_spec("llama_index.embeddings.huggingface") is None:
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.append(str(project_root))
+
+
+# Detect current Git branch or use environment variable
+def get_current_branch() -> str:
+    """
+    Detect the current Git branch or use environment variable.
+    Falls back to 'main' if detection fails.
+    """
+    # First check environment variable
+    env_branch = os.environ.get("DOLT_BRANCH")
+    if env_branch:
+        logger.info(f"Using branch from DOLT_BRANCH environment variable: {env_branch}")
+        return env_branch
+
+    # STUBBED: Always return "main" for now to ensure consistent Dolt branch usage
+    logger.info("STUBBED: Always returning 'main' branch (Git detection disabled)")
+    return "main"
+
+    # # Try to detect Git branch
+    # try:
+    #     import subprocess
+
+    #     result = subprocess.run(
+    #         ["git", "branch", "--show-current"],
+    #         cwd=project_root,
+    #         capture_output=True,
+    #         text=True,
+    #         timeout=5,
+    #     )
+    #     if result.returncode == 0 and result.stdout.strip():
+    #         git_branch = result.stdout.strip()
+    #         logger.info(f"Detected Git branch: {git_branch}")
+    #         return git_branch
+    # except Exception as e:
+    #     logger.warning(f"Could not detect Git branch: {e}")
+
+    # # Fallback to main
+    # logger.info("Falling back to 'main' branch")
+    # return "main"
+
+
+# Get the branch to use for Dolt operations
+current_branch = get_current_branch()
 
 # Initialize StructuredMemoryBank using environment variables
 CHROMA_PATH = os.environ.get("CHROMA_PATH", "/tmp/cogni_chroma")  # Make configurable
@@ -151,11 +197,13 @@ try:
         )
         raise
 
-    # Initialize memory bank
+    # Initialize memory bank with detected branch
+    logger.info(f"Initializing StructuredMemoryBank with branch: {current_branch}")
     memory_bank = StructuredMemoryBank(
         chroma_path=CHROMA_PATH,
         chroma_collection=CHROMA_COLLECTION_NAME,
         dolt_connection_config=dolt_config,
+        branch=current_branch,
     )
 
     # Initialize LinkManager components with SQL backend using same config
@@ -790,6 +838,48 @@ async def dolt_diff(input):
             success=False,
             diff_summary=[],
             message=f"An unexpected error occurred: {e}",
+            error=str(e),
+        ).model_dump(mode="json")
+
+
+# Register the DoltAutoCommitAndPush tool
+@mcp.tool("DoltAutoCommitAndPush")
+async def dolt_auto_commit_and_push(input):
+    """Automatically handle the complete Dolt workflow: Status -> Add -> Commit -> Push
+
+    This is a composite tool that performs the entire sequence atomically,
+    perfect for automated flows where you want to persist all changes.
+
+    Args:
+        commit_message: Commit message for the Dolt changes (required)
+        author: Optional author attribution for the commit
+        tables: Optional list of specific tables to add/commit (default: all standard tables)
+        remote_name: Name of the remote to push to (default: 'origin')
+        branch: Branch to push (default: current branch from status)
+        skip_if_clean: Skip commit/push if repository is clean (default: True)
+
+    Returns:
+        JSON with comprehensive results of all operations including success status,
+        operations performed, commit hash, and push details
+    """
+    try:
+        # Parse input
+        input_data = DoltAutoCommitInput(**input)
+
+        # Execute the composite operation
+        result = dolt_auto_commit_and_push_tool(input_data, memory_bank)
+
+        # Return JSON representation
+        return result.model_dump(mode="json")
+
+    except Exception as e:
+        logger.error(f"Error in DoltAutoCommitAndPush tool: {e}", exc_info=True)
+        return DoltAutoCommitOutput(
+            success=False,
+            message=f"Auto commit and push failed: {str(e)}",
+            operations_performed=["failed"],
+            was_clean=False,
+            current_branch="unknown",
             error=str(e),
         ).model_dump(mode="json")
 

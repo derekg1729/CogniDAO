@@ -546,3 +546,38 @@ class TestDoltReader:
             assert blocks[2].embedding is not None
             assert len(blocks[2].embedding) == 384
             assert blocks[2].embedding == embedding2
+
+    @patch(DOLT_MYSQL_READER_PATCH_TARGET)
+    def test_read_work_items_core_view(self, MockDoltMySQLReader):
+        """Test reading from the work_items_core view using DoltMySQLReader."""
+        mock_reader = MagicMock()
+        sample_rows = [
+            {
+                "work_item_type": "task",
+                "id": "abc123",
+                "state": "draft",
+                "visibility": "internal",
+                "created_by": "agent",
+                "created_at": "2025-06-12 00:00:00",
+                "updated_at": "2025-06-12 00:00:00",
+            }
+        ]
+        mock_reader.read_work_items_core_view.return_value = sample_rows
+        MockDoltMySQLReader.return_value = mock_reader
+
+        reader = MockDoltMySQLReader()
+        rows = reader.read_work_items_core_view(limit=3)
+        assert isinstance(rows, list)
+        if rows:
+            assert isinstance(rows[0], dict)
+            expected_keys = {
+                "work_item_type",
+                "id",
+                "state",
+                "visibility",
+                "created_by",
+                "created_at",
+                "updated_at",
+            }
+            assert expected_keys.issubset(set(rows[0].keys()))
+        mock_reader.read_work_items_core_view.assert_called_once_with(limit=3)
