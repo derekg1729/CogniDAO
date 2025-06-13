@@ -21,6 +21,7 @@ import socket
 import shutil
 from typing import Generator
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from infra_core.memory_system.initialize_dolt import initialize_dolt_db
 from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
@@ -217,3 +218,30 @@ def sample_memory_block_with_links() -> MemoryBlock:
         metadata={"source": "pytest", "priority": "high"},
         confidence=ConfidenceScore(human=0.9, ai=0.8),
     )
+
+
+@pytest.fixture
+def mock_memory_bank():
+    """Create a properly configured mock StructuredMemoryBank for unit tests.
+
+    This fixture provides a mock that includes:
+    - dolt_writer.active_branch property set to "main"
+    - Common method mocks with sensible defaults
+    - Proper spec to catch attribute errors
+    """
+    bank = MagicMock(spec=StructuredMemoryBank)
+
+    # Configure common method returns
+    bank.get_latest_schema_version.return_value = 1
+    bank.create_memory_block.return_value = True
+    bank.update_memory_block.return_value = True
+
+    # Add dolt_writer mock with active_branch property
+    bank.dolt_writer = MagicMock()
+    bank.dolt_writer.active_branch = "main"
+
+    # Add dolt_reader mock for completeness
+    bank.dolt_reader = MagicMock()
+    bank.dolt_reader.active_branch = "main"
+
+    return bank

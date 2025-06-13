@@ -31,11 +31,31 @@ def sample_block_id():
 
 @pytest.fixture
 def mock_memory_bank():
-    """Create a mock memory bank for testing."""
-    mock_bank = MagicMock()
-    mock_bank.get_memory_block.return_value = None
-    mock_bank.update_memory_block.return_value = True
-    return mock_bank
+    """Create a properly configured mock StructuredMemoryBank for unit tests.
+
+    This fixture provides a mock that includes:
+    - dolt_writer.active_branch property set to "main"
+    - Common method mocks with sensible defaults
+    """
+    from unittest.mock import MagicMock
+
+    bank = MagicMock()
+
+    # Configure common method returns
+    bank.get_latest_schema_version.return_value = 1
+    bank.create_memory_block.return_value = True
+    bank.update_memory_block.return_value = True
+    bank.get_memory_block.return_value = None
+
+    # Add dolt_writer mock with active_branch property
+    bank.dolt_writer = MagicMock()
+    bank.dolt_writer.active_branch = "main"
+
+    # Add dolt_reader mock for completeness
+    bank.dolt_reader = MagicMock()
+    bank.dolt_reader.active_branch = "main"
+
+    return bank
 
 
 # === Temporary Database Fixtures for MCP Server Tests ===
@@ -130,12 +150,17 @@ def mock_structured_memory_bank_for_mcp_server(monkeypatch):
     dummy_bank.link_manager = dummy_link_mgr
 
     # Configure dummy_bank methods to return proper types for Pydantic validation
-    dummy_bank.current_branch = "main"  # String instead of MagicMock
+    dummy_bank.active_branch = "main"  # String instead of MagicMock
     dummy_bank.get_memory_blocks.return_value = []  # Empty list for work items
 
-    # Configure writer mock to return proper string for current_branch
+    # Configure writer mock to return proper string for active_branch
     dummy_writer = MagicMock()
-    dummy_writer.current_branch.return_value = "main"
+
+    # Use PropertyMock to ensure active_branch always returns a string
+    from unittest.mock import PropertyMock
+
+    type(dummy_writer).active_branch = PropertyMock(return_value="main")
+
     dummy_writer.list_branches.return_value = ([], "main")  # (branches_list, current_branch)
     dummy_writer._execute_query.return_value = [
         {"branch": "main"}

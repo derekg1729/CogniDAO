@@ -158,7 +158,7 @@ class TestDoltStatusToolBugFix:
         result = dolt_status_tool(input_data, memory_bank)
 
         # Verify correct categorization
-        assert result.current_branch == "feature-branch"
+        assert result.active_branch == "feature-branch"
         assert result.is_clean is False
 
         # Verify staged changes

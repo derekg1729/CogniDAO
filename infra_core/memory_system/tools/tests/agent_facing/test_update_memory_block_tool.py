@@ -7,7 +7,7 @@ with the core update functionality using real memory bank interactions.
 
 import pytest
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 import uuid
 
 from infra_core.memory_system.tools.agent_facing.update_memory_block_tool import (
@@ -20,7 +20,6 @@ from infra_core.memory_system.tools.memory_core.update_memory_block_models impor
     UpdateErrorCode,
 )
 from infra_core.memory_system.schemas.memory_block import MemoryBlock, ConfidenceScore
-from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 
 
 @pytest.fixture
@@ -29,12 +28,7 @@ def test_block_id():
     return str(uuid.uuid4())
 
 
-@pytest.fixture
-def mock_memory_bank():
-    """Create a mock StructuredMemoryBank."""
-    bank = MagicMock(spec=StructuredMemoryBank)
-    bank.update_memory_block.return_value = True
-    return bank
+# mock_memory_bank fixture now provided by conftest.py
 
 
 @pytest.fixture

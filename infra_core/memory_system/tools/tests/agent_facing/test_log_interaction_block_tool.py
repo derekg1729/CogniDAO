@@ -4,7 +4,7 @@ Tests for the LogInteractionBlockTool.
 
 import pytest
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from pydantic import ValidationError
 
 from infra_core.memory_system.tools.agent_facing.log_interaction_block_tool import (
@@ -19,20 +19,9 @@ from infra_core.memory_system.tools.memory_core.create_memory_block_tool import 
     CreateMemoryBlockInput,
     CreateMemoryBlockOutput,  # Import Output for mocking return value
 )
-from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 
 
-@pytest.fixture
-def mock_memory_bank():
-    """Create a mock StructuredMemoryBank."""
-    bank = MagicMock(spec=StructuredMemoryBank)
-    bank.get_latest_schema_version.return_value = 1
-    # Mock the core create_memory_block function's output
-    mock_create_output = CreateMemoryBlockOutput(
-        success=True, id="new_block_123", timestamp=datetime.now()
-    )
-    bank.create_memory_block.return_value = mock_create_output
-    return bank
+# mock_memory_bank fixture now provided by conftest.py
 
 
 @pytest.fixture
@@ -56,7 +45,7 @@ def test_log_interaction_block_success(mock_create_memory_block, mock_memory_ban
     """Test successful interaction logging and correct metadata passing."""
     # Configure the mock return value for create_memory_block
     mock_create_output = CreateMemoryBlockOutput(
-        success=True, id="log-block-id-success", timestamp=datetime.now()
+        success=True, id="log-block-id-success", active_branch="main", timestamp=datetime.now()
     )
     mock_create_memory_block.return_value = mock_create_output
 
@@ -98,7 +87,7 @@ def test_log_interaction_block_success(mock_create_memory_block, mock_memory_ban
 def test_log_interaction_block_minimal_input(mock_create_memory_block, mock_memory_bank):
     """Test interaction logging with minimal required input."""
     mock_create_output = CreateMemoryBlockOutput(
-        success=True, id="log-block-id-min", timestamp=datetime.now()
+        success=True, id="log-block-id-min", active_branch="main", timestamp=datetime.now()
     )
     mock_create_memory_block.return_value = mock_create_output
 
@@ -134,7 +123,10 @@ def test_log_interaction_block_persistence_failure(
     """Test interaction logging when core persistence fails."""
     # Simulate failure from the core create_memory_block function
     mock_create_output = CreateMemoryBlockOutput(
-        success=False, error="Core persistence failed", timestamp=datetime.now()
+        success=False,
+        error="Core persistence failed",
+        active_branch="main",
+        timestamp=datetime.now(),
     )
     mock_create_memory_block.return_value = mock_create_output
 
@@ -177,7 +169,7 @@ def test_log_interaction_block_tool_direct_invocation(
 ):
     """Test direct invocation of LogInteractionBlock tool."""
     mock_create_output = CreateMemoryBlockOutput(
-        success=True, id="log-block-id-direct", timestamp=datetime.now()
+        success=True, id="log-block-id-direct", active_branch="main", timestamp=datetime.now()
     )
     mock_create_memory_block.return_value = mock_create_output
 
@@ -244,7 +236,7 @@ def test_log_interaction_block_core_validation_failure(
 def test_log_interaction_block_with_parent(mock_create_memory_block, mock_memory_bank):
     """Test logging an interaction with a parent block ID passed correctly."""
     mock_create_output = CreateMemoryBlockOutput(
-        success=True, id="log-block-id-parent", timestamp=datetime.now()
+        success=True, id="log-block-id-parent", active_branch="main", timestamp=datetime.now()
     )
     mock_create_memory_block.return_value = mock_create_output
 

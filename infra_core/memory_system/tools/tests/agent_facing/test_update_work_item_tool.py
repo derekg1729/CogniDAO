@@ -7,7 +7,7 @@ with the core UpdateMemoryBlockTool.
 
 import pytest
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 import uuid
 
 from infra_core.memory_system.tools.agent_facing.update_work_item_tool import (
@@ -16,7 +16,6 @@ from infra_core.memory_system.tools.agent_facing.update_work_item_tool import (
     UpdateWorkItemOutput,
 )
 from infra_core.memory_system.schemas.memory_block import MemoryBlock, ConfidenceScore
-from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 
 
 @pytest.fixture
@@ -31,12 +30,7 @@ def task_block_id():
     return str(uuid.uuid4())
 
 
-@pytest.fixture
-def mock_memory_bank():
-    """Create a mock StructuredMemoryBank."""
-    bank = MagicMock(spec=StructuredMemoryBank)
-    bank.update_memory_block.return_value = True
-    return bank
+# mock_memory_bank fixture now provided by conftest.py
 
 
 @pytest.fixture
@@ -177,6 +171,7 @@ def test_update_work_item_with_version_check(mock_memory_bank, sample_project_bl
         mock_update.return_value = UpdateMemoryBlockToolOutput(
             success=True,
             id=sample_project_block.id,
+            active_branch="main",
             timestamp=datetime.now(),
             fields_updated=["metadata"],
             text_changed=False,
@@ -321,6 +316,7 @@ def test_update_work_item_version_conflict(mock_memory_bank, sample_project_bloc
             success=False,
             error="Version conflict: expected 1, got 3",
             error_code=UpdateErrorCode.VERSION_CONFLICT,
+            active_branch="main",
             previous_version=3,
             timestamp=datetime.now(),
         )
@@ -370,6 +366,7 @@ def test_update_work_item_owner_mapping_project(mock_memory_bank, sample_project
         mock_update.return_value = UpdateMemoryBlockToolOutput(
             success=True,
             id=sample_project_block.id,
+            active_branch="main",
             timestamp=datetime.now(),
             fields_updated=["metadata"],
             text_changed=False,
@@ -403,6 +400,7 @@ def test_update_work_item_owner_mapping_task(mock_memory_bank, sample_task_block
         mock_update.return_value = UpdateMemoryBlockToolOutput(
             success=True,
             id=sample_task_block.id,
+            active_branch="main",
             timestamp=datetime.now(),
             fields_updated=["metadata"],
             text_changed=False,
@@ -443,6 +441,7 @@ def test_update_work_item_merge_behavior(mock_memory_bank, sample_project_block)
         mock_update.return_value = UpdateMemoryBlockToolOutput(
             success=True,
             id=sample_project_block.id,
+            active_branch="main",
             timestamp=datetime.now(),
             fields_updated=["tags", "metadata"],
             text_changed=False,

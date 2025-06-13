@@ -140,6 +140,7 @@ def update_work_item(input_data: UpdateWorkItemInput, memory_bank) -> UpdateWork
             return UpdateWorkItemOutput(
                 success=False,
                 error=f"Work item {input_data.block_id} not found",
+                active_branch=memory_bank.dolt_writer.active_branch,
                 timestamp=datetime.now(),
             )
 
@@ -236,6 +237,7 @@ def update_work_item(input_data: UpdateWorkItemInput, memory_bank) -> UpdateWork
             id=result.id,
             error=result.error,
             error_code=result.error_code,
+            active_branch=result.active_branch,
             previous_version=result.previous_version,
             new_version=result.new_version,
             timestamp=result.timestamp,
@@ -252,6 +254,7 @@ def update_work_item(input_data: UpdateWorkItemInput, memory_bank) -> UpdateWork
         return UpdateWorkItemOutput(
             success=False,
             error=error_msg,
+            active_branch=memory_bank.dolt_writer.active_branch,
             timestamp=datetime.now(),
         )
 

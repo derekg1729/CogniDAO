@@ -4,7 +4,7 @@ Tests for the CreateDocMemoryBlockTool.
 
 import pytest
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from infra_core.memory_system.tools.agent_facing.create_doc_memory_block_tool import (
     CreateDocMemoryBlockInput,
@@ -16,21 +16,9 @@ from infra_core.memory_system.tools.memory_core.create_memory_block_tool import 
     CreateMemoryBlockInput as CoreCreateMemoryBlockInput,
     CreateMemoryBlockOutput as CoreCreateMemoryBlockOutput,
 )
-from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 
 
-@pytest.fixture
-def mock_memory_bank():
-    """Create a mock StructuredMemoryBank."""
-    bank = MagicMock(spec=StructuredMemoryBank)
-    # Mock the core create_memory_block function's typical success output
-    # This mock is for the bank instance if it were called directly,
-    # but we will primarily patch the imported create_memory_block function.
-    mock_core_output = CoreCreateMemoryBlockOutput(
-        success=True, id="doc_block_123", timestamp=datetime.now()
-    )
-    bank.create_memory_block.return_value = mock_core_output  # For direct bank calls if any
-    return bank
+# mock_memory_bank fixture now provided by conftest.py
 
 
 @pytest.fixture
@@ -65,7 +53,7 @@ def test_create_doc_memory_block_success(
 ):
     """Test successful doc block creation and correct metadata passing."""
     mock_core_output = CoreCreateMemoryBlockOutput(
-        success=True, id="new-doc-id-success", timestamp=datetime.now()
+        success=True, id="new-doc-id-success", active_branch="main", timestamp=datetime.now()
     )
     mock_core_create_block.return_value = mock_core_output
 
@@ -106,7 +94,7 @@ def test_create_doc_memory_block_success(
 def test_create_doc_memory_block_minimal_input(mock_core_create_block, mock_memory_bank):
     """Test doc block creation with minimal required input."""
     mock_core_output = CoreCreateMemoryBlockOutput(
-        success=True, id="min-doc-id", timestamp=datetime.now()
+        success=True, id="min-doc-id", active_branch="main", timestamp=datetime.now()
     )
     mock_core_create_block.return_value = mock_core_output
 
@@ -137,7 +125,10 @@ def test_create_doc_memory_block_persistence_failure(
 ):
     """Test doc block creation when core persistence fails."""
     mock_core_output = CoreCreateMemoryBlockOutput(
-        success=False, error="Core persistence layer failed", timestamp=datetime.now()
+        success=False,
+        error="Core persistence layer failed",
+        active_branch="main",
+        timestamp=datetime.now(),
     )
     mock_core_create_block.return_value = mock_core_output
 
@@ -198,7 +189,7 @@ def test_create_doc_memory_block_tool_direct_invocation(
 ):
     """Test direct invocation of the tool instance."""
     mock_core_output = CoreCreateMemoryBlockOutput(
-        success=True, id="direct-doc-id", timestamp=datetime.now()
+        success=True, id="direct-doc-id", active_branch="main", timestamp=datetime.now()
     )
     mock_core_create_block.return_value = mock_core_output
 

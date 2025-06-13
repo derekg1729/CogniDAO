@@ -247,3 +247,46 @@ class DoltMySQLBase:
             # Only close if it's not a persistent connection
             if not connection_is_persistent:
                 connection.close()
+
+    @property
+    def active_branch(self) -> str:
+        """
+        Get the active branch for this connection.
+
+        Returns the branch from persistent connection state if available,
+        otherwise queries the database to get the active branch using Dolt's active_branch() function.
+
+        Returns:
+            The name of the active branch as a string
+        """
+        # If we have persistent connection state, use that
+        if self._use_persistent and self._current_branch:
+            return self._current_branch
+
+        # Otherwise query the database using Dolt's native active_branch() function
+        try:
+            if self._use_persistent and self._persistent_connection:
+                connection = self._persistent_connection
+                connection_is_persistent = True
+            else:
+                connection = self._get_connection()
+                connection_is_persistent = False
+
+            try:
+                cursor = connection.cursor(dictionary=True)
+                cursor.execute("SELECT active_branch() as active_branch")
+                result = cursor.fetchone()
+                cursor.close()
+
+                if result and result.get("active_branch"):
+                    return result["active_branch"]
+                else:
+                    return "main"  # Fallback to main if query fails
+
+            finally:
+                if not connection_is_persistent:
+                    connection.close()
+
+        except Exception as e:
+            logger.warning(f"Failed to get active branch: {e}")
+            return "main"  # Fallback to main on error

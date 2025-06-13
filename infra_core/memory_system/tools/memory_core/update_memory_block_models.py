@@ -147,6 +147,7 @@ class UpdateMemoryBlockOutput(BaseModel):
 
     success: bool = Field(..., description="Whether the update was successful")
     id: Optional[str] = Field(None, description="ID of the updated block if successful")
+    active_branch: str = Field(..., description="Current active branch")
     error: Optional[str] = Field(None, description="Human-readable error message if update failed")
     error_code: Optional[UpdateErrorCode] = Field(
         None, description="Machine-readable error code for programmatic handling"

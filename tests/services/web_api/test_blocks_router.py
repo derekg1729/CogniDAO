@@ -149,6 +149,11 @@ def mock_memory_bank():
     mock = MagicMock(spec=StructuredMemoryBank)
     mock.get_all_memory_blocks.return_value = []
     mock.create_memory_block.return_value = True  # Default success
+
+    # Configure dolt_writer mock with active_branch
+    mock.dolt_writer = MagicMock()
+    mock.dolt_writer.active_branch = "main"
+
     return mock
 
 

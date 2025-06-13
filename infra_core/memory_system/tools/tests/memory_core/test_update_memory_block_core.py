@@ -11,7 +11,7 @@ This module tests all aspects of memory block updates including:
 
 import pytest
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from unittest.mock import Mock
 
 from infra_core.memory_system.tools.memory_core.update_memory_block_core import (
@@ -30,15 +30,9 @@ from infra_core.memory_system.tools.helpers.patch_utils import (
 )
 from infra_core.memory_system.schemas.memory_block import MemoryBlock, ConfidenceScore
 from infra_core.memory_system.schemas.common import BlockLink
-from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 
 
-@pytest.fixture
-def mock_memory_bank():
-    """Create a mock StructuredMemoryBank."""
-    bank = MagicMock(spec=StructuredMemoryBank)
-    bank.update_memory_block.return_value = True
-    return bank
+# mock_memory_bank fixture now provided by conftest.py
 
 
 @pytest.fixture
@@ -92,6 +86,7 @@ def test_update_memory_block_success_basic_text(
     assert isinstance(result, UpdateMemoryBlockOutput)
     assert result.success is True
     assert result.id == "test-block-123"
+    assert result.active_branch == "main"
     assert result.error is None
     assert result.error_code is None
     assert isinstance(result.timestamp, datetime)
