@@ -1,0 +1,47 @@
+FROM python:3.12-slim
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git \
+        build-essential \
+        ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv package manager
+RUN pip install --no-cache-dir uv
+
+# Set working directory
+WORKDIR /app
+
+# Copy entire cogni project to preserve dependencies
+COPY . .
+
+# Change to MCP server directory where pyproject.toml lives
+WORKDIR /app/services/mcp_server
+
+# Create virtual environment and install dependencies
+RUN uv sync
+
+# Set environment defaults
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Default environment variables (can be overridden by ToolHive)
+ENV DOLT_HOST=host.docker.internal
+ENV DOLT_PORT=3306
+ENV DOLT_DATABASE=cogni-dao-memory
+ENV CHROMA_PATH=/app/chroma
+ENV CHROMA_COLLECTION_NAME=cogni_mcp_collection
+
+# Create chroma directory
+RUN mkdir -p /app/chroma
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import sys; sys.exit(0)"
+
+# Run the MCP server (now from services/mcp_server directory)  
+CMD ["uv", "run", "app/mcp_server.py"] 

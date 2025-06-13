@@ -4,7 +4,7 @@ tweepy
 openai>=1.0.0,<1.80.0
 PyGithub>=2.1.1
 python-dotenv # From experimental
-crewai>=0.1,<0.2  # For CrewAI adapter
+crewai>=0.121.1  # Updated for MCP integration compatibility
 
 # Langchain related (from experimental)
 langchain-core 
@@ -47,7 +47,13 @@ llama-index-embeddings-huggingface  # For HuggingFace embedding models
 llama-index-readers-file
 
 # MCP (Model Context Protocol)
-fastmcp  # FastMCP server framework
+fastmcp  # FastMCP server framework  
+mcp      # MCP client SDK for connecting to MCP servers
+
+# Native MCP Integration (Phase 1: Replace HTTP glue approach)
+autogen-agentchat>=0.6.1     # AutoGen AgentChat framework for building conversational agents
+autogen-ext[mcp]>=0.6.1      # Native AutoGen MCP integration via mcp_server_tools
+# crewai-tools[mcp]>=0.47.0    # COMMENTED OUT: Causes chromadb<0.6.0 conflict with MCP server
 
 # Legacy dependencies
 python-frontmatter  # For parsing YAML frontmatter in markdown files

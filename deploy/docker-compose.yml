@@ -30,6 +30,8 @@ services:
       retries: 5
       start_period: 60s
     restart: unless-stopped
+    networks:
+      - cogni-net
 
   # Web API Service  
   api:
@@ -46,8 +48,9 @@ services:
       - DOLT_DATABASE=cogni-dao-memory
       - DOLT_REMOTE_URL=https://doltremoteapi.dolthub.com/cogni/cogni-dao-memory
       - DOLT_REMOTE_PASSWORD=${DOLTHUB_MCP_ACCESS_WRITE}
-    expose: ["8000"]
-    ports: ["8000:8000"]
+      # ToolHive API URL for MCP tool health checking
+      - TOOLHIVE_API=http://toolhive:8080
+    ports: ["8000:8000"]  # Direct access for deploy script compatibility
     depends_on:
       dolt-db:
         condition: service_healthy
@@ -56,6 +59,8 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
       interval: 30s
       retries: 3
+    networks:
+      - cogni-net
 
   caddy:
     image: caddy:2-alpine
@@ -65,8 +70,82 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on: [api]
+    networks:
+      - cogni-net
+
+  # Prefect Server with SQLite
+  prefect-server:
+    image: prefecthq/prefect:3-python3.12
+    command: prefect server start --host 0.0.0.0
+    environment:
+      - PREFECT_UI_URL=http://localhost:4200
+      - PREFECT_API_URL=http://localhost:4200/api
+      - PREFECT_SERVER_API_HOST=0.0.0.0
+      - PREFECT_SERVER_API_PORT=4200
+    ports:
+      - "4200:4200"  # Direct access like you're used to
+    volumes:
+      - prefect_data:/root/.prefect  # Persist SQLite database
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
+      interval: 30s
+      retries: 3
+    networks:
+      - cogni-net
+
+  # Prefect Worker - connects to containerized Prefect server
+  prefect-worker:
+    image: ${PREFECT_WORKER_IMAGE:-cogni-prefect-worker-local}
+    build:
+      context: ..
+      dockerfile: services/prefect_worker/Dockerfile.prefect-worker
+    command: prefect worker start --pool cogni-pool
+    env_file: ./.env
+    environment:
+      - PREFECT_API_URL=http://prefect-server:4200/api
+      # ToolHive API URL for MCP tool access
+      - TOOLHIVE_API=http://toolhive:8080
+      # OpenAI API Key for AutoGen flows (explicit override)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      prefect-server:
+        condition: service_healthy
+    volumes:
+      - ../:/workspace  # Mount the entire project for flow access
+      - ./.env:/workspace/.env  # Explicitly mount .env file
+    working_dir: /workspace
+    restart: unless-stopped
+    networks:
+      - cogni-net
+
+  # ToolHive - MCP container orchestrator  
+  toolhive:
+    image: ghcr.io/stacklok/toolhive:latest
+    container_name: toolhive
+    command: ["serve", "--host", "0.0.0.0", "--port", "8080"]  # Bind to all interfaces
+    user: "0:0"  # Run as root for Docker socket access on macOS
+    networks:
+      - cogni-net
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+    environment:
+      - DOCKER_NETWORK=deploy_cogni-net
+      - THV_SECRETS_BACKEND=1password
+      - THV_NO_UPDATES=1  # Prevent version checks to avoid startup lag
+    ports:
+      - "8080:8080"  # Use ToolHive's default port 8080
+    restart: unless-stopped
+
+
 
 volumes:
   caddy_data:
   caddy_config:
-  dolt_data: 
+  dolt_data:
+  prefect_data:
+  mcp_chroma:
+
+networks:
+  cogni-net:
+    driver: bridge 

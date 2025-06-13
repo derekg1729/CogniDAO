@@ -4,6 +4,7 @@ uvicorn>=0.27.0
 gunicorn>=21.2.0
 python-dotenv
 pydantic
+httpx>=0.24.0
 
 # Langchain related for API functionality
 langchain-core

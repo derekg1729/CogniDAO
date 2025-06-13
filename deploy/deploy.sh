@@ -143,6 +143,74 @@ EOF
                 if [ "$health_status" = "healthy" ]; then
                     status "✅ Local development environment ready at http://localhost:8000"
                     rm -f /tmp/health_response.json
+                    
+                    # Set up Prefect work pool and verify
+                    status "Setting up Prefect work pool..."
+                    
+                    # Wait for Prefect server to be fully ready
+                    for j in {1..10}; do
+                        if curl -fs http://localhost:4200/api/health >/dev/null 2>&1; then
+                            status "✅ Prefect server is ready"
+                            break
+                        elif [ $j -eq 10 ]; then
+                            warning "⚠️ Prefect server not responding, continuing anyway..."
+                        else
+                            echo "⏳ Waiting for Prefect server... (attempt $j/10)"
+                            sleep 2
+                        fi
+                    done
+                    
+                                        # Create work pool and deploy flows (idempotent)
+                if command -v prefect >/dev/null 2>&1; then
+                    # Set Prefect API URL to connect to containerized server
+                    export PREFECT_API_URL="http://localhost:4200/api"
+                    
+                    # Create work pool (|| true makes it idempotent)
+                    prefect work-pool create --type docker cogni-pool 2>/dev/null || true
+                    status "✅ Prefect work pool 'cogni-pool' configured"
+                    
+                    # Deploy ritual_of_presence flow from YAML
+                    status "Deploying Prefect flows..."
+                    if [ -f "flows/presence/prefect.yaml" ]; then
+                        cd flows/presence
+                        prefect deploy --all || warning "⚠️ Prefect flow deployment failed, continuing..."
+                        cd ../..  # Return to project root
+                        status "✅ Prefect flows deployed"
+                        
+                        # Deploy MCP server with ToolHive
+                        status "Deploying MCP server with ToolHive..."
+                        if docker ps | grep -q toolhive; then
+                            docker exec toolhive thv run \
+                              --name cogni-mcp \
+                              --env DOLT_HOST=dolt-db \
+                              --env DOLT_PORT=3306 \
+                              --env DOLT_USER=root \
+                              --env DOLT_ROOT_PASSWORD="${DOLT_ROOT_PASSWORD}" \
+                              --env DOLT_DATABASE=cogni-dao-memory \
+                              --env CHROMA_PATH=/app/chroma \
+                              --env CHROMA_COLLECTION_NAME=cogni_mcp_collection \
+                              --env MCP_TRANSPORT=sse \
+                              cogni-mcp:latest || warning "⚠️ MCP server deployment failed, continuing..."
+                            
+                            # Wait for container to start, then connect to correct network
+                            sleep 3
+                            if docker ps | grep -q cogni-mcp; then
+                                status "Connecting MCP container to cogni-net network..."
+                                docker network connect deploy_cogni-net cogni-mcp 2>/dev/null || warning "⚠️ Network connection may have failed"
+                                status "✅ MCP server deployed and networked"
+                            else
+                                warning "⚠️ MCP container not running after deployment"
+                            fi
+                        else
+                            warning "⚠️ ToolHive container not running - MCP server not deployed"
+                        fi
+                    else
+                        warning "⚠️ Prefect flow configuration not found: flows/presence/prefect.yaml"
+                    fi
+                else
+                    warning "⚠️ Prefect CLI not available in host - work pool will be auto-created by worker"
+                fi
+                    
                     break
                 else
                     echo "⏳ API responding but status is: $health_status (attempt $i/20)"
@@ -151,6 +219,74 @@ EOF
                 # Fallback: if jq not available, trust the 200 status code
                 status "✅ Local development environment ready at http://localhost:8000 (200 OK)"
                 rm -f /tmp/health_response.json
+                
+                # Set up Prefect work pool and verify
+                status "Setting up Prefect work pool..."
+                
+                # Wait for Prefect server to be fully ready
+                for j in {1..10}; do
+                    if curl -fs http://localhost:4200/api/health >/dev/null 2>&1; then
+                        status "✅ Prefect server is ready"
+                        break
+                    elif [ $j -eq 10 ]; then
+                        warning "⚠️ Prefect server not responding, continuing anyway..."
+                    else
+                        echo "⏳ Waiting for Prefect server... (attempt $j/10)"
+                        sleep 2
+                    fi
+                done
+                
+                # Create work pool and deploy flows (idempotent)
+                if command -v prefect >/dev/null 2>&1; then
+                    # Set Prefect API URL to connect to containerized server
+                    export PREFECT_API_URL="http://localhost:4200/api"
+                    
+                    # Create work pool (|| true makes it idempotent)
+                    prefect work-pool create --type docker cogni-pool 2>/dev/null || true
+                    status "✅ Prefect work pool 'cogni-pool' configured"
+                    
+                    # Deploy ritual_of_presence flow from YAML
+                    status "Deploying Prefect flows..."
+                    if [ -f "flows/presence/prefect.yaml" ]; then
+                        cd flows/presence
+                        prefect deploy --all || warning "⚠️ Prefect flow deployment failed, continuing..."
+                        cd ../..  # Return to project root
+                        status "✅ Prefect flows deployed"
+                        
+                        # Deploy MCP server with ToolHive
+                        status "Deploying MCP server with ToolHive..."
+                        if docker ps | grep -q toolhive; then
+                            docker exec toolhive thv run \
+                              --name cogni-mcp \
+                              --env DOLT_HOST=dolt-db \
+                              --env DOLT_PORT=3306 \
+                              --env DOLT_USER=root \
+                              --env DOLT_ROOT_PASSWORD="${DOLT_ROOT_PASSWORD}" \
+                              --env DOLT_DATABASE=cogni-dao-memory \
+                              --env CHROMA_PATH=/app/chroma \
+                              --env CHROMA_COLLECTION_NAME=cogni_mcp_collection \
+                              --env MCP_TRANSPORT=sse \
+                              cogni-mcp:latest || warning "⚠️ MCP server deployment failed, continuing..."
+                            
+                            # Wait for container to start, then connect to correct network
+                            sleep 3
+                            if docker ps | grep -q cogni-mcp; then
+                                status "Connecting MCP container to cogni-net network..."
+                                docker network connect deploy_cogni-net cogni-mcp 2>/dev/null || warning "⚠️ Network connection may have failed"
+                                status "✅ MCP server deployed and networked"
+                            else
+                                warning "⚠️ MCP container not running after deployment"
+                            fi
+                        else
+                            warning "⚠️ ToolHive container not running - MCP server not deployed"
+                        fi
+                    else
+                        warning "⚠️ Prefect flow configuration not found: flows/presence/prefect.yaml"
+                    fi
+                else
+                    warning "⚠️ Prefect CLI not available in host - work pool will be auto-created by worker"
+                fi
+                
                 break
             fi
         elif [ $i -eq 20 ]; then
