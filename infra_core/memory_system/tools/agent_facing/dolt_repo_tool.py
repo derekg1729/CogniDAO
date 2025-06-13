@@ -737,7 +737,7 @@ def dolt_list_branches_tool(
 
     Args:
         input_data: The listing parameters
-        memory_bank: StructuredMemoryBank instance with Dolt writer access
+        memory_bank: StructuredMemoryBank instance with Dolt reader access
 
     Returns:
         DoltListBranchesOutput with list of branches and status
@@ -745,8 +745,8 @@ def dolt_list_branches_tool(
     try:
         logger.info("Listing Dolt branches")
 
-        # Execute the branch listing using the memory bank's writer
-        branches, current_branch = memory_bank.dolt_writer.list_branches()
+        # Execute the branch listing using the memory bank's reader (read-only operation)
+        branches, current_branch = memory_bank.dolt_reader.list_branches()
 
         # Build success message
         message = (

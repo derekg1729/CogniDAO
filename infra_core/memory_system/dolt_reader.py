@@ -20,7 +20,7 @@ Environment Variables (used by DoltConnectionConfig):
 import logging
 import sys
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 import json
 import warnings
 
@@ -588,21 +588,96 @@ class DoltMySQLReader(DoltMySQLBase):
             return []
 
     def read_work_items_core_view(self, limit: int = 5, branch: str = "main") -> list:
-        """Read rows from the work_items_core view using a persistent connection."""
+        """
+        Read work items from the core view with limit.
+        """
+        connection = self._get_connection()
         try:
-            connection = self._get_connection()
             self._ensure_branch(connection, branch)
-
-            query = f"SELECT * FROM work_items_core LIMIT {limit};"
             cursor = connection.cursor(dictionary=True)
-            cursor.execute(query)
-            rows = cursor.fetchall()
+            cursor.execute("SELECT * FROM work_items_core_view LIMIT %s", (limit,))
+            results = cursor.fetchall()
             cursor.close()
-            connection.close()
-            return rows
+            return results
         except Exception as e:
-            logger.error(f"Failed to read from work_items_core view: {e}")
+            logger.error(f"Failed to read work items core view: {e}")
             return []
+        finally:
+            connection.close()
+
+    def list_branches(self) -> Tuple[List[Dict[str, Any]], str]:
+        """
+        List all Dolt branches with their information.
+
+        Returns:
+            Tuple of (branches_list, current_branch) where:
+            - branches_list: List of dictionaries containing branch information
+            - current_branch: Name of the currently active branch
+        """
+        # Use persistent connection if available, otherwise create new one
+        if self._use_persistent and self._persistent_connection:
+            connection = self._persistent_connection
+            connection_is_persistent = True
+        else:
+            connection = self._get_connection()
+            connection_is_persistent = False
+
+        try:
+            cursor = connection.cursor(dictionary=True)
+
+            # Get current branch
+            cursor.execute("SELECT active_branch() as current_branch")
+            current_result = cursor.fetchone()
+            current_branch = current_result["current_branch"] if current_result else "unknown"
+
+            # Get all branches from dolt_branches system table
+            cursor.execute("""
+                SELECT 
+                    name,
+                    hash,
+                    latest_committer,
+                    latest_committer_email,
+                    latest_commit_date,
+                    latest_commit_message,
+                    remote,
+                    branch,
+                    dirty
+                FROM dolt_branches
+                ORDER BY name
+            """)
+
+            branches_data = cursor.fetchall()
+
+            # Convert to the expected format
+            branches_list = []
+            for branch_row in branches_data:
+                branch_info = {
+                    "name": branch_row["name"],
+                    "hash": branch_row["hash"],
+                    "latest_committer": branch_row["latest_committer"],
+                    "latest_committer_email": branch_row["latest_committer_email"],
+                    "latest_commit_date": branch_row["latest_commit_date"],
+                    "latest_commit_message": branch_row["latest_commit_message"],
+                    "remote": branch_row["remote"] or "",
+                    "branch": branch_row["branch"] or "",
+                    "dirty": bool(branch_row["dirty"]),
+                }
+                branches_list.append(branch_info)
+
+            cursor.close()
+            logger.info(
+                f"Successfully listed {len(branches_list)} branches. Current branch: {current_branch}"
+            )
+            return branches_list, current_branch
+
+        except Exception as e:
+            error_msg = f"Failed to list branches: {e}"
+            logger.error(error_msg, exc_info=True)
+            return [], "unknown"
+        finally:
+            # Only close if it's not a persistent connection
+            if not connection_is_persistent:
+                connection.close()
 
 
 # Helper function from dolt_writer for safe SQL formatting
