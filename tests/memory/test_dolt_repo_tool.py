@@ -61,6 +61,10 @@ def mock_memory_bank():
         mock_writer._use_persistent = False
         mock_writer._persistent_connection = None
 
+        # Set up active_branch property to return string instead of MagicMock
+        mock_writer.active_branch = "main"
+        mock_reader.active_branch = "main"
+
         # Mock the use_persistent_connection method to update _current_branch
         def mock_reader_use_persistent(branch):
             mock_reader._current_branch = branch
@@ -504,7 +508,7 @@ class TestDoltListBranchesTool:
         # Verify results
         assert result.success is True
         assert len(result.branches) == 2
-        assert result.current_branch == "main"
+        assert result.active_branch == "main"
         assert result.branches[0].name == "main"
         assert result.branches[1].hash == "def456"
         assert "Found 2 branches" in result.message
@@ -524,7 +528,7 @@ class TestDoltListBranchesTool:
         # A failed listing from the writer should be handled gracefully by the tool
         assert result.success is True
         assert len(result.branches) == 0
-        assert result.current_branch == "unknown"
+        assert result.active_branch == "unknown"
 
     def test_empty_branch_listing(self, mock_memory_bank):
         """Test branch listing with no branches."""
@@ -540,7 +544,7 @@ class TestDoltListBranchesTool:
         # Verify results
         assert result.success is True
         assert len(result.branches) == 0
-        assert result.current_branch == "main"
+        assert result.active_branch == "main"
         assert "Found 0 branches" in result.message
         assert result.error is None
 

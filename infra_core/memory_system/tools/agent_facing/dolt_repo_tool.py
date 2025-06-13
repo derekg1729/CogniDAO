@@ -33,6 +33,7 @@ class DoltAddOutput(BaseModel):
 
     success: bool = Field(..., description="Whether the add operation succeeded")
     message: str = Field(..., description="Human-readable result message")
+    active_branch: str = Field(..., description="Current active branch")
     error: Optional[str] = Field(default=None, description="Error message if operation failed")
     timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
 
@@ -68,6 +69,7 @@ class DoltCommitOutput(BaseModel):
     tables_committed: Optional[List[str]] = Field(
         default=None, description="List of tables that were committed"
     )
+    active_branch: str = Field(..., description="Current active branch")
     error: Optional[str] = Field(default=None, description="Error message if operation failed")
     timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
 
@@ -106,6 +108,7 @@ class DoltPushOutput(BaseModel):
     branch: str = Field(..., description="Branch that was pushed")
     force: bool = Field(..., description="Whether force push was used")
     set_upstream: bool = Field(..., description="Whether upstream tracking was set up")
+    active_branch: str = Field(..., description="Current active branch")
     error: Optional[str] = Field(default=None, description="Error message if operation failed")
     timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
 
@@ -120,7 +123,7 @@ class DoltStatusOutput(BaseModel):
     """Output model for the dolt_status tool."""
 
     success: bool = Field(..., description="Whether the status operation succeeded")
-    current_branch: str = Field(..., description="Current active branch")
+    active_branch: str = Field(..., description="Current active branch")
     is_clean: bool = Field(..., description="True if working tree is clean")
     staged_tables: List[str] = Field(default=[], description="Tables with staged changes")
     unstaged_tables: List[str] = Field(default=[], description="Tables with unstaged changes")
@@ -173,6 +176,7 @@ class DoltPullOutput(BaseModel):
     force: bool = Field(..., description="Whether force pull was used")
     no_ff: bool = Field(..., description="Whether no-fast-forward was used")
     squash: bool = Field(..., description="Whether squash merge was used")
+    active_branch: str = Field(..., description="Current active branch")
     error: Optional[str] = Field(default=None, description="Error message if operation failed")
     timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
 
@@ -207,6 +211,7 @@ class DoltBranchOutput(BaseModel):
         default=None, description="Start point that was used (if specified)"
     )
     force: bool = Field(..., description="Whether force creation was used")
+    active_branch: str = Field(..., description="Current active branch")
     error: Optional[str] = Field(default=None, description="Error message if operation failed")
     timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
 
@@ -236,7 +241,7 @@ class DoltListBranchesOutput(BaseModel):
 
     success: bool = Field(..., description="Whether the operation succeeded")
     branches: List[DoltBranchInfo] = Field(default=[], description="List of branches")
-    current_branch: str = Field(..., description="Currently active branch")
+    active_branch: str = Field(..., description="Currently active branch")
     message: str = Field(..., description="Human-readable result message")
     error: Optional[str] = Field(default=None, description="Error message if operation failed")
     timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
@@ -262,6 +267,7 @@ class DoltCheckoutOutput(BaseModel):
 
     success: bool = Field(..., description="Whether the checkout operation succeeded")
     message: str = Field(..., description="Human-readable result message")
+    active_branch: str = Field(..., description="Current active branch")
     error: Optional[str] = Field(default=None, description="Error message if operation failed")
     timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
 
@@ -302,6 +308,7 @@ class DoltDiffOutput(BaseModel):
     success: bool = Field(..., description="Whether the diff operation succeeded.")
     diff_summary: List[DiffSummary] = Field(..., description="A list of table diff summaries.")
     message: str = Field(..., description="Human-readable result message.")
+    active_branch: str = Field(..., description="Current active branch")
     error: Optional[str] = Field(default=None, description="Error message if operation failed.")
     timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation.")
 
@@ -353,7 +360,7 @@ class DoltAutoCommitOutput(BaseModel):
 
     # Status info
     was_clean: bool = Field(..., description="Whether the repository was clean initially")
-    current_branch: str = Field(..., description="Current active branch")
+    active_branch: str = Field(..., description="Current active branch")
 
     # Commit info (if performed)
     commit_hash: Optional[str] = Field(
@@ -414,6 +421,7 @@ def dolt_repo_tool(
                 commit_hash=commit_hash,
                 message=message,
                 tables_committed=tables_to_commit,
+                active_branch=memory_bank.dolt_writer.active_branch,
             )
         else:
             error_msg = "Dolt commit operation failed - no commit hash returned"
@@ -424,6 +432,7 @@ def dolt_repo_tool(
                 message=error_msg,
                 error=error_msg,
                 tables_committed=tables_to_commit,
+                active_branch=memory_bank.dolt_writer.active_branch,
             )
 
     except Exception as e:
@@ -434,6 +443,7 @@ def dolt_repo_tool(
             success=False,
             message=f"Commit failed: {str(e)}",
             error=error_msg,
+            active_branch=memory_bank.dolt_writer.active_branch,
         )
 
 
@@ -471,6 +481,7 @@ def dolt_push_tool(input_data: DoltPushInput, memory_bank: StructuredMemoryBank)
                 branch=input_data.branch,
                 force=input_data.force,
                 set_upstream=input_data.set_upstream,
+                active_branch=memory_bank.dolt_writer.active_branch,
             )
         else:
             error_msg = f"Dolt push operation failed: {message}"
@@ -483,6 +494,7 @@ def dolt_push_tool(input_data: DoltPushInput, memory_bank: StructuredMemoryBank)
                 branch=input_data.branch,
                 force=input_data.force,
                 set_upstream=input_data.set_upstream,
+                active_branch=memory_bank.dolt_writer.active_branch,
                 error=error_msg,
             )
 
@@ -497,6 +509,7 @@ def dolt_push_tool(input_data: DoltPushInput, memory_bank: StructuredMemoryBank)
             branch=input_data.branch,
             force=input_data.force,
             set_upstream=input_data.set_upstream,
+            active_branch=memory_bank.dolt_writer.active_branch,
             error=error_msg,
         )
 
@@ -581,7 +594,7 @@ def dolt_status_tool(
 
         return DoltStatusOutput(
             success=True,
-            current_branch=current_branch,
+            active_branch=current_branch,
             is_clean=is_clean,
             staged_tables=staged_tables,
             unstaged_tables=unstaged_tables,
@@ -597,7 +610,7 @@ def dolt_status_tool(
 
         return DoltStatusOutput(
             success=False,
-            current_branch="unknown",
+            active_branch="unknown",
             is_clean=False,
             total_changes=0,
             message=f"Status check failed: {str(e)}",
@@ -639,6 +652,7 @@ def dolt_pull_tool(input_data: DoltPullInput, memory_bank: StructuredMemoryBank)
                 force=input_data.force,
                 no_ff=input_data.no_ff,
                 squash=input_data.squash,
+                active_branch=memory_bank.dolt_writer.active_branch,
             )
         else:
             logger.error(f"Pull operation failed: {message}")
@@ -651,6 +665,7 @@ def dolt_pull_tool(input_data: DoltPullInput, memory_bank: StructuredMemoryBank)
                 force=input_data.force,
                 no_ff=input_data.no_ff,
                 squash=input_data.squash,
+                active_branch=memory_bank.dolt_writer.active_branch,
                 error=message,
             )
 
@@ -666,6 +681,7 @@ def dolt_pull_tool(input_data: DoltPullInput, memory_bank: StructuredMemoryBank)
             force=input_data.force,
             no_ff=input_data.no_ff,
             squash=input_data.squash,
+            active_branch=memory_bank.dolt_writer.active_branch,
             error=error_msg,
         )
 
@@ -702,6 +718,7 @@ def dolt_branch_tool(
                 branch_name=input_data.branch_name,
                 start_point=input_data.start_point,
                 force=input_data.force,
+                active_branch=memory_bank.dolt_writer.active_branch,
             )
         else:
             logger.error(f"Branch creation failed: {message}")
@@ -712,6 +729,7 @@ def dolt_branch_tool(
                 branch_name=input_data.branch_name,
                 start_point=input_data.start_point,
                 force=input_data.force,
+                active_branch=memory_bank.dolt_writer.active_branch,
                 error=message,
             )
 
@@ -725,6 +743,7 @@ def dolt_branch_tool(
             branch_name=input_data.branch_name,
             start_point=input_data.start_point,
             force=input_data.force,
+            active_branch=memory_bank.dolt_writer.active_branch,
             error=error_msg,
         )
 
@@ -760,7 +779,7 @@ def dolt_list_branches_tool(
         return DoltListBranchesOutput(
             success=True,
             branches=[DoltBranchInfo(**b) for b in branches],
-            current_branch=current_branch,
+            active_branch=current_branch,
             message=message,
         )
 
@@ -770,7 +789,7 @@ def dolt_list_branches_tool(
         return DoltListBranchesOutput(
             success=False,
             branches=[],
-            current_branch="unknown",
+            active_branch="unknown",
             message=f"Failed to list branches: {str(e)}",
             error=error_msg,
         )
@@ -795,11 +814,18 @@ def dolt_add_tool(input_data: DoltAddInput, memory_bank: StructuredMemoryBank) -
 
         if success:
             logger.info(message)
-            return DoltAddOutput(success=True, message=message)
+            return DoltAddOutput(
+                success=True, message=message, active_branch=memory_bank.dolt_writer.active_branch
+            )
         else:
             error_msg = f"Dolt add operation failed: {message}"
             logger.error(error_msg)
-            return DoltAddOutput(success=False, message=error_msg, error=message)
+            return DoltAddOutput(
+                success=False,
+                message=error_msg,
+                active_branch=memory_bank.dolt_writer.active_branch,
+                error=error_msg,
+            )
 
     except Exception as e:
         error_msg = f"Exception during dolt_add: {str(e)}"
@@ -807,6 +833,7 @@ def dolt_add_tool(input_data: DoltAddInput, memory_bank: StructuredMemoryBank) -
         return DoltAddOutput(
             success=False,
             message=f"Add failed: {str(e)}",
+            active_branch=memory_bank.dolt_writer.active_branch,
             error=error_msg,
         )
 
@@ -843,7 +870,9 @@ def dolt_checkout_tool(
 
         message = f"Successfully checked out branch '{branch_name}' with coordinated persistent connections"
         logger.info(message)
-        return DoltCheckoutOutput(success=True, message=message)
+        return DoltCheckoutOutput(
+            success=True, message=message, active_branch=memory_bank.dolt_writer.active_branch
+        )
 
     except Exception as e:
         error_msg = f"Exception during dolt_checkout: {str(e)}"
@@ -851,6 +880,7 @@ def dolt_checkout_tool(
         return DoltCheckoutOutput(
             success=False,
             message=f"Checkout failed: {str(e)}",
+            active_branch=memory_bank.dolt_writer.active_branch,
             error=error_msg,
         )
 
@@ -887,6 +917,7 @@ def dolt_diff_tool(input_data: DoltDiffInput, memory_bank: StructuredMemoryBank)
                 success=False,
                 diff_summary=[],
                 message="Both from_revision and to_revision must be provided if not using a mode.",
+                active_branch=memory_bank.dolt_writer.active_branch,
                 error="Invalid revision arguments.",
             )
 
@@ -903,6 +934,7 @@ def dolt_diff_tool(input_data: DoltDiffInput, memory_bank: StructuredMemoryBank)
             success=True,
             diff_summary=diff_summary,
             message=message,
+            active_branch=memory_bank.dolt_writer.active_branch,
         )
 
     except Exception as e:
@@ -912,6 +944,7 @@ def dolt_diff_tool(input_data: DoltDiffInput, memory_bank: StructuredMemoryBank)
             diff_summary=[],
             message=f"An unexpected error occurred: {e}",
             error=str(e),
+            active_branch=memory_bank.dolt_writer.active_branch,
         )
 
 
@@ -949,11 +982,11 @@ def dolt_auto_commit_and_push_tool(
                 message=f"Status check failed: {status_result.error}",
                 operations_performed=operations_performed,
                 was_clean=False,
-                current_branch="unknown",
+                active_branch="unknown",
                 error=status_result.error,
             )
 
-        current_branch = status_result.current_branch
+        current_branch = status_result.active_branch
         was_clean = status_result.is_clean
 
         logger.info(
@@ -968,7 +1001,7 @@ def dolt_auto_commit_and_push_tool(
                 message="Repository is clean, no changes to commit",
                 operations_performed=operations_performed,
                 was_clean=True,
-                current_branch=current_branch,
+                active_branch=current_branch,
             )
 
         # Step 3: Add changes to staging
@@ -982,7 +1015,7 @@ def dolt_auto_commit_and_push_tool(
                 message=f"Add operation failed: {add_result.error}",
                 operations_performed=operations_performed,
                 was_clean=was_clean,
-                current_branch=current_branch,
+                active_branch=current_branch,
                 error=add_result.error,
             )
 
@@ -1006,7 +1039,7 @@ def dolt_auto_commit_and_push_tool(
                 message=f"Commit operation failed: {commit_result.error}",
                 operations_performed=operations_performed,
                 was_clean=was_clean,
-                current_branch=current_branch,
+                active_branch=current_branch,
                 error=commit_result.error,
             )
 
@@ -1035,7 +1068,7 @@ def dolt_auto_commit_and_push_tool(
                 message=f"Push operation failed: {push_result.error}",
                 operations_performed=operations_performed,
                 was_clean=was_clean,
-                current_branch=current_branch,
+                active_branch=current_branch,
                 commit_hash=commit_result.commit_hash,
                 tables_committed=commit_result.tables_committed,
                 error=push_result.error,
@@ -1052,7 +1085,7 @@ def dolt_auto_commit_and_push_tool(
             message=final_message,
             operations_performed=operations_performed,
             was_clean=was_clean,
-            current_branch=current_branch,
+            active_branch=current_branch,
             commit_hash=commit_result.commit_hash,
             tables_committed=commit_result.tables_committed,
             pushed_to_remote=input_data.remote_name,
@@ -1067,6 +1100,6 @@ def dolt_auto_commit_and_push_tool(
             message=f"Auto commit and push failed: {str(e)}",
             operations_performed=operations_performed,
             was_clean=False,
-            current_branch="unknown",
+            active_branch="unknown",
             error=error_msg,
         )
