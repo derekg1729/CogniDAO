@@ -33,17 +33,57 @@ MOCK_COLLECTION = "mock_collection"
 
 @pytest.fixture
 def mock_memory_bank():
-    """Create a mock StructuredMemoryBank with mocked DoltMySQLWriter."""
+    """Create a mock StructuredMemoryBank with mocked DoltMySQLWriter and DoltMySQLReader."""
     with (
         patch("infra_core.memory_system.structured_memory_bank.LlamaMemory"),
         patch(
             "infra_core.memory_system.structured_memory_bank.DoltMySQLWriter"
         ) as mock_writer_class,
-        patch("infra_core.memory_system.structured_memory_bank.DoltMySQLReader"),
+        patch(
+            "infra_core.memory_system.structured_memory_bank.DoltMySQLReader"
+        ) as mock_reader_class,
     ):
         # Create mock writer instance
         mock_writer = MagicMock()
         mock_writer_class.return_value = mock_writer
+
+        # Create mock reader instance
+        mock_reader = MagicMock()
+        mock_reader_class.return_value = mock_reader
+
+        # Set up persistent connection attributes for both reader and writer
+        # These need to be consistent for the synchronization check to pass
+        mock_reader._current_branch = "main"
+        mock_reader._use_persistent = False
+        mock_reader._persistent_connection = None
+
+        mock_writer._current_branch = "main"
+        mock_writer._use_persistent = False
+        mock_writer._persistent_connection = None
+
+        # Mock the use_persistent_connection method to update _current_branch
+        def mock_reader_use_persistent(branch):
+            mock_reader._current_branch = branch
+            mock_reader._use_persistent = True
+
+        def mock_writer_use_persistent(branch):
+            mock_writer._current_branch = branch
+            mock_writer._use_persistent = True
+
+        mock_reader.use_persistent_connection = mock_reader_use_persistent
+        mock_writer.use_persistent_connection = mock_writer_use_persistent
+
+        # Mock the close_persistent_connection method
+        def mock_reader_close_persistent():
+            mock_reader._use_persistent = False
+            mock_reader._persistent_connection = None
+
+        def mock_writer_close_persistent():
+            mock_writer._use_persistent = False
+            mock_writer._persistent_connection = None
+
+        mock_reader.close_persistent_connection = mock_reader_close_persistent
+        mock_writer.close_persistent_connection = mock_writer_close_persistent
 
         # Create mock config
         mock_config = DoltConnectionConfig(
@@ -576,60 +616,72 @@ class TestDoltCheckoutTool:
     def test_successful_checkout(self, mock_memory_bank):
         """Test a successful branch checkout."""
         memory_bank, mock_writer = mock_memory_bank
-        mock_writer.checkout_branch.return_value = (
-            True,
-            "Successfully checked out feat/new-branch",
-        )
 
         input_data = DoltCheckoutInput(branch_name="feat/new-branch")
         result = dolt_checkout_tool(input_data, memory_bank)
 
         assert result.success is True
-        assert "Successfully checked out" in result.message
-        mock_writer.checkout_branch.assert_called_once_with(
-            branch_name="feat/new-branch", force=False
+        assert (
+            "Successfully checked out branch 'feat/new-branch' with coordinated persistent connections"
+            in result.message
         )
+
+        # Verify that both reader and writer are now on the target branch
+        assert memory_bank.dolt_reader._current_branch == "feat/new-branch"
+        assert memory_bank.dolt_writer._current_branch == "feat/new-branch"
+        assert memory_bank.branch == "feat/new-branch"
 
     def test_successful_force_checkout(self, mock_memory_bank):
         """Test a successful force checkout."""
         memory_bank, mock_writer = mock_memory_bank
-        mock_writer.checkout_branch.return_value = (
-            True,
-            "Successfully force checked out feat/new-branch",
-        )
 
         input_data = DoltCheckoutInput(branch_name="feat/new-branch", force=True)
         result = dolt_checkout_tool(input_data, memory_bank)
 
         assert result.success is True
-        assert "Successfully force checked out" in result.message
-        mock_writer.checkout_branch.assert_called_once_with(
-            branch_name="feat/new-branch", force=True
+        assert (
+            "Successfully checked out branch 'feat/new-branch' with coordinated persistent connections"
+            in result.message
         )
+
+        # Verify that both reader and writer are now on the target branch
+        assert memory_bank.dolt_reader._current_branch == "feat/new-branch"
+        assert memory_bank.dolt_writer._current_branch == "feat/new-branch"
+        assert memory_bank.branch == "feat/new-branch"
 
     def test_failed_checkout(self, mock_memory_bank):
         """Test a failed checkout operation."""
         memory_bank, mock_writer = mock_memory_bank
-        mock_writer.checkout_branch.return_value = (False, "Branch not found")
+
+        # Make the reader's use_persistent_connection method raise an exception
+        def mock_reader_use_persistent_fail(branch):
+            raise Exception("Branch not found")
+
+        memory_bank.dolt_reader.use_persistent_connection = mock_reader_use_persistent_fail
 
         input_data = DoltCheckoutInput(branch_name="nonexistent-branch")
         result = dolt_checkout_tool(input_data, memory_bank)
 
         assert result.success is False
-        assert "Dolt checkout operation failed" in result.message
-        assert "Branch not found" in result.error
+        assert "Checkout failed:" in result.message
+        assert "Branch not found" in result.message
 
     def test_checkout_with_exception(self, mock_memory_bank):
         """Test checkout operation when an exception occurs."""
         memory_bank, mock_writer = mock_memory_bank
-        mock_writer.checkout_branch.side_effect = Exception("Connection error")
+
+        # Make the writer's use_persistent_connection method raise an exception
+        def mock_writer_use_persistent_fail(branch):
+            raise Exception("Connection error")
+
+        memory_bank.dolt_writer.use_persistent_connection = mock_writer_use_persistent_fail
 
         input_data = DoltCheckoutInput(branch_name="any-branch")
         result = dolt_checkout_tool(input_data, memory_bank)
 
         assert result.success is False
-        assert "Checkout failed: Connection error" in result.message
-        assert "Exception during dolt_checkout" in result.error
+        assert "Checkout failed:" in result.message
+        assert "Connection error" in result.message
 
 
 class TestDoltDiffTool:

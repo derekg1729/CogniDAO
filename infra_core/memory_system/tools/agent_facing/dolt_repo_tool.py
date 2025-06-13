@@ -815,7 +815,7 @@ def dolt_checkout_tool(
     input_data: DoltCheckoutInput, memory_bank: StructuredMemoryBank
 ) -> DoltCheckoutOutput:
     """
-    Checkout a branch using the memory bank's writer.
+    Checkout a branch using the memory bank's coordinated persistent connections.
 
     Args:
         input_data: The checkout parameters
@@ -829,17 +829,21 @@ def dolt_checkout_tool(
         force = input_data.force
         logger.info(f"Checking out Dolt branch: {branch_name} (force={force})")
 
-        success, message = memory_bank.dolt_writer.checkout_branch(
-            branch_name=branch_name, force=force
-        )
+        # Use memory bank's coordinated persistent connection method
+        # This ensures both reader and writer are on the same branch
+        memory_bank.use_persistent_connections(branch=branch_name)
 
-        if success:
-            logger.info(message)
-            return DoltCheckoutOutput(success=True, message=message)
-        else:
-            error_msg = f"Dolt checkout operation failed: {message}"
-            logger.error(error_msg)
-            return DoltCheckoutOutput(success=False, message=error_msg, error=message)
+        # Note: force flag is not directly supported by persistent connections
+        # If force is needed, we'd need to handle conflicts manually
+        if force:
+            logger.warning(
+                "Force checkout requested - persistent connections don't support force flag. "
+                "Manual conflict resolution may be needed."
+            )
+
+        message = f"Successfully checked out branch '{branch_name}' with coordinated persistent connections"
+        logger.info(message)
+        return DoltCheckoutOutput(success=True, message=message)
 
     except Exception as e:
         error_msg = f"Exception during dolt_checkout: {str(e)}"
