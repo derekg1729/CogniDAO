@@ -4,7 +4,6 @@ Tests for the CreateMemoryBlock tool.
 
 import pytest
 from datetime import datetime
-from unittest.mock import MagicMock
 from pydantic import ValidationError
 
 from infra_core.memory_system.tools.memory_core.create_memory_block_tool import (
@@ -14,21 +13,9 @@ from infra_core.memory_system.tools.memory_core.create_memory_block_tool import 
     CogniTool,
 )
 from infra_core.memory_system.schemas.memory_block import ConfidenceScore
-from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 
 
-@pytest.fixture
-def mock_memory_bank():
-    """Create a mock StructuredMemoryBank."""
-    bank = MagicMock(spec=StructuredMemoryBank)
-    bank.get_latest_schema_version.return_value = 1
-    bank.create_memory_block.return_value = True
-
-    # Add dolt_writer mock with active_branch property
-    bank.dolt_writer = MagicMock()
-    bank.dolt_writer.active_branch = "main"
-
-    return bank
+# mock_memory_bank fixture now provided by conftest.py
 
 
 @pytest.fixture

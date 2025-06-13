@@ -255,7 +255,7 @@ class CogniTool:
         """Build a structured error response.
 
         If an ``output_model`` is supplied, attempt to coerce a minimal error-shaped
-        object into that model. Otherwise, return a plain dict.
+        object into that model. If that fails, return a plain dict.
         """
 
         base: Dict[str, Any] = {
@@ -268,22 +268,21 @@ class CogniTool:
             return base
 
         # Fill missing required fields with appropriate default values based on type
+        # Only provide defaults for fields that make sense in error contexts
         for field_name, field_info in self.output_model.model_fields.items():
             if field_info.is_required() and field_name not in base:
-                # Provide type-appropriate defaults for required fields
+                # Only provide defaults for fields that are meaningful in error responses
                 if field_name == "active_branch":
                     base[field_name] = "unknown"  # String default for active_branch
-                elif field_info.annotation is str:
-                    base[field_name] = ""  # Empty string for other string fields
-                elif field_info.annotation is int:
-                    base[field_name] = 0  # Zero for int fields
-                elif field_info.annotation is bool:
-                    base[field_name] = False  # False for bool fields
-                else:
-                    base[field_name] = None  # None for other types
+                elif field_name == "timestamp":
+                    base[field_name] = base["timestamp"]  # Use the timestamp we already set
+                elif field_name == "success":
+                    # success is already set to False in base
+                    pass
+                # Don't provide defaults for other fields like "result" - let validation fail
 
         try:
             return self.output_model(**base)  # type: ignore[arg-type]
         except ValidationError:
-            # Fallback to raw dict if even this fails
+            # Fallback to raw dict if even this fails (e.g., TestOutput model)
             return base

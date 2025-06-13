@@ -46,6 +46,11 @@ def mock_memory_bank(mock_config):
         # Create mock instances
         mock_writer = MagicMock()
         mock_reader = MagicMock()
+
+        # Configure active_branch to return strings instead of MagicMock
+        mock_writer.active_branch = "main"
+        mock_reader.active_branch = "main"
+
         mock_writer_class.return_value = mock_writer
         mock_reader_class.return_value = mock_reader
 

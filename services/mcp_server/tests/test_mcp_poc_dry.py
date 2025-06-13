@@ -46,6 +46,11 @@ def mock_structured_memory_bank(monkeypatch):
     dummy_bank = MagicMock()
     dummy_link_mgr = MagicMock()
 
+    # Configure dolt_writer mock with active_branch property
+    dummy_writer = MagicMock()
+    dummy_writer.active_branch = "main"
+    dummy_bank.dolt_writer = dummy_writer
+
     # Patch the constructors in your server module's imports
     monkeypatch.setattr(
         "infra_core.memory_system.structured_memory_bank.StructuredMemoryBank",

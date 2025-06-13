@@ -2,8 +2,7 @@
 Tests for the CreateWorkItemTool that creates work items of different types.
 """
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from datetime import datetime
 
 from infra_core.memory_system.tools.agent_facing.create_work_item_tool import (
@@ -12,16 +11,10 @@ from infra_core.memory_system.tools.agent_facing.create_work_item_tool import (
     CreateWorkItemInput,
     CreateWorkItemOutput,
 )
-from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 from infra_core.memory_system.schemas.metadata.project import ProjectMetadata
 
 
-@pytest.fixture
-def mock_memory_bank():
-    """Create a mock StructuredMemoryBank."""
-    bank = MagicMock(spec=StructuredMemoryBank)
-    bank.create_memory_block.return_value = True
-    return bank
+# mock_memory_bank fixture now provided by conftest.py
 
 
 def test_create_work_item_project_success(mock_memory_bank):
@@ -42,6 +35,7 @@ def test_create_work_item_project_success(mock_memory_bank):
         mock_create.return_value = CreateWorkItemOutput(
             success=True,
             id="test-id-123",
+            active_branch="main",
             timestamp=datetime.now(),
         )
         result = create_work_item(input_data, mock_memory_bank)
@@ -71,6 +65,7 @@ def test_create_work_item_task_success(mock_memory_bank):
         mock_create.return_value = CreateWorkItemOutput(
             success=True,
             id="test-id-456",
+            active_branch="main",
             timestamp=datetime.now(),
         )
         result = create_work_item(input_data, mock_memory_bank)
