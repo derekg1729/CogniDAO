@@ -260,6 +260,7 @@ def test_update_memory_block_output_success():
     output = UpdateMemoryBlockOutput(
         success=True,
         id="test-block-123",
+        active_branch="main",
         timestamp=datetime.now(),
         diff_summary=diff_summary,
         previous_version=5,
@@ -283,6 +284,7 @@ def test_update_memory_block_output_error():
 
     output = UpdateMemoryBlockOutput(
         success=False,
+        active_branch="main",
         error="Block not found",
         error_code=UpdateErrorCode.BLOCK_NOT_FOUND,
         timestamp=timestamp,

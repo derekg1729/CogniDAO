@@ -38,6 +38,11 @@ def mock_memory_bank():
     """Create a mock StructuredMemoryBank."""
     bank = MagicMock(spec=StructuredMemoryBank)
     bank.update_memory_block.return_value = True
+
+    # Add dolt_writer mock with active_branch property
+    bank.dolt_writer = MagicMock()
+    bank.dolt_writer.active_branch = "main"
+
     return bank
 
 
@@ -92,6 +97,7 @@ def test_update_memory_block_success_basic_text(
     assert isinstance(result, UpdateMemoryBlockOutput)
     assert result.success is True
     assert result.id == "test-block-123"
+    assert result.active_branch == "main"
     assert result.error is None
     assert result.error_code is None
     assert isinstance(result.timestamp, datetime)

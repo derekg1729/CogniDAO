@@ -78,6 +78,7 @@ class UpdateMemoryBlockToolOutput(BaseModel):
 
     success: bool = Field(..., description="Whether the update was successful")
     id: Optional[BlockIdType] = Field(None, description="ID of the updated block")
+    active_branch: str = Field(..., description="Current active branch")
     error: Optional[str] = Field(None, description="Error message if update failed")
     error_code: Optional[UpdateErrorCode] = Field(None, description="Structured error code")
 
@@ -151,6 +152,7 @@ def update_memory_block_tool(
         return UpdateMemoryBlockToolOutput(
             success=core_result.success,
             id=core_result.id,
+            active_branch=core_result.active_branch,
             error=core_result.error,
             error_code=core_result.error_code,
             previous_version=core_result.previous_version,

@@ -64,6 +64,7 @@ class CreateMemoryBlockOutput(BaseModel):
 
     success: bool = Field(..., description="Whether the creation was successful")
     id: Optional[str] = Field(None, description="ID of the created block if successful")
+    active_branch: str = Field(..., description="Current active branch")
     error: Optional[str] = Field(None, description="Error message if creation failed")
     timestamp: datetime = Field(
         ..., description="Timestamp of the block creation (from block.created_at)"
@@ -103,6 +104,7 @@ def create_memory_block(
         if metadata_error:
             return CreateMemoryBlockOutput(
                 success=False,
+                active_branch=memory_bank.dolt_writer.active_branch,
                 error=metadata_error,  # Use the detailed error from validate_metadata
                 timestamp=now,  # Use consistent timestamp for failed attempt
             )
@@ -118,6 +120,7 @@ def create_memory_block(
             logger.error(error_msg)  # Log this potentially inconsistent state
             return CreateMemoryBlockOutput(
                 success=False,
+                active_branch=memory_bank.dolt_writer.active_branch,
                 error=error_msg,
                 timestamp=now,  # Use consistent timestamp
             )
@@ -141,11 +144,20 @@ def create_memory_block(
 
         if success:
             # Return block.created_at for consistency
-            return CreateMemoryBlockOutput(success=True, id=block.id, timestamp=block.created_at)
+            return CreateMemoryBlockOutput(
+                success=True,
+                id=block.id,
+                active_branch=memory_bank.dolt_writer.active_branch,
+                timestamp=block.created_at,
+            )
         else:
             # Persistence failure should be logged by memory_bank.create_memory_block
             return CreateMemoryBlockOutput(
-                success=False, error="Failed to persist memory block", timestamp=now
+                success=False,
+                active_branch=memory_bank.dolt_writer.active_branch,
+                # TODO: better error message propogation
+                error="Failed to persist memory block",
+                timestamp=now,
             )
 
     except ValidationError as ve:
@@ -156,6 +168,7 @@ def create_memory_block(
         )
         return CreateMemoryBlockOutput(
             success=False,
+            active_branch=memory_bank.dolt_writer.active_branch,
             error=f"Input or internal validation failed: {error_details}",
             timestamp=now,
         )
@@ -165,7 +178,10 @@ def create_memory_block(
             f"Unexpected error creating memory block: {str(e)}"
         )  # Use logger.exception for stack trace
         return CreateMemoryBlockOutput(
-            success=False, error=f"Unexpected creation failed: {str(e)}", timestamp=now
+            success=False,
+            active_branch=memory_bank.dolt_writer.active_branch,
+            error=f"Unexpected creation failed: {str(e)}",
+            timestamp=now,
         )
 
 

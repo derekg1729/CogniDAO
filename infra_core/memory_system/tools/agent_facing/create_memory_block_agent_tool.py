@@ -79,6 +79,7 @@ class CreateMemoryBlockAgentOutput(BaseModel):
     success: bool = Field(..., description="Whether the creation was successful")
     id: Optional[BlockIdType] = Field(None, description="ID of the created memory block")
     block_type: str = Field(..., description="Type of the created block")
+    active_branch: str = Field(..., description="Current active branch")
     error: Optional[str] = Field(None, description="Error message if creation failed")
     timestamp: datetime = Field(
         default_factory=datetime.now, description="When the operation completed"
@@ -173,6 +174,7 @@ def create_memory_block_agent(
             success=result.success,
             id=result.id,
             block_type=input_data.type,
+            active_branch=result.active_branch,
             error=result.error,
             timestamp=result.timestamp,
         )
@@ -183,6 +185,7 @@ def create_memory_block_agent(
             success=False,
             id=None,
             block_type=input_data.type,
+            active_branch=memory_bank.dolt_writer.active_branch,
             error=f"Error in create_memory_block_agent wrapper: {str(e)}",
             timestamp=datetime.now(),
         )

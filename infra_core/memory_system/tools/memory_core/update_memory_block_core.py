@@ -86,6 +86,7 @@ def update_memory_block_core(
                 timestamp,
                 start_time,
                 log_context,
+                memory_bank,
             )
 
         # 2. Validate concurrency controls using canonical block_version field
@@ -98,6 +99,7 @@ def update_memory_block_core(
                     timestamp,
                     start_time,
                     log_context,
+                    memory_bank,
                     previous_version=current_version,
                 )
 
@@ -114,6 +116,7 @@ def update_memory_block_core(
                 timestamp,
                 start_time,
                 log_context,
+                memory_bank,
             )
 
         # 4. Apply updates using proven libraries and helper methods
@@ -125,6 +128,7 @@ def update_memory_block_core(
                 timestamp,
                 start_time,
                 log_context,
+                memory_bank,
             )
 
         updated_block_data = update_result["updated_data"]
@@ -147,6 +151,7 @@ def update_memory_block_core(
                 timestamp,
                 start_time,
                 log_context,
+                memory_bank,
             )
 
         # 7. Validate metadata if updated using existing helper
@@ -159,6 +164,7 @@ def update_memory_block_core(
                     timestamp,
                     start_time,
                     log_context,
+                    memory_bank,
                 )
 
         # 8. Validate tag constraints (max 20 after merge)
@@ -170,6 +176,7 @@ def update_memory_block_core(
                     timestamp,
                     start_time,
                     log_context,
+                    memory_bank,
                 )
 
         # 9. Persist using memory bank's atomic update
@@ -203,6 +210,7 @@ def update_memory_block_core(
             return UpdateMemoryBlockOutput(
                 success=True,
                 id=updated_block.id,
+                active_branch=memory_bank.dolt_writer.active_branch,
                 timestamp=updated_block.updated_at,
                 diff_summary=diff_summary,
                 previous_version=current_version,
@@ -216,6 +224,7 @@ def update_memory_block_core(
                 timestamp,
                 start_time,
                 log_context,
+                memory_bank,
             )
 
     except Exception as e:
@@ -226,6 +235,7 @@ def update_memory_block_core(
             timestamp,
             start_time,
             log_context,
+            memory_bank,
         )
 
 
@@ -341,6 +351,7 @@ def _create_error_response(
     timestamp: datetime,
     start_time: datetime,
     log_context: Dict[str, Any],
+    memory_bank: StructuredMemoryBank,
     previous_version: int = None,
 ) -> UpdateMemoryBlockOutput:
     """Helper to create consistent error responses."""
@@ -350,6 +361,7 @@ def _create_error_response(
 
     return UpdateMemoryBlockOutput(
         success=False,
+        active_branch=memory_bank.dolt_writer.active_branch,
         error=error_message,
         error_code=error_code,
         timestamp=timestamp,

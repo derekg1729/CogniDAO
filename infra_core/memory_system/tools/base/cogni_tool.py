@@ -267,10 +267,20 @@ class CogniTool:
         if self.output_model is None:
             return base
 
-        # Fill missing required fields with None so model construction succeeds
+        # Fill missing required fields with appropriate default values based on type
         for field_name, field_info in self.output_model.model_fields.items():
             if field_info.is_required() and field_name not in base:
-                base[field_name] = None
+                # Provide type-appropriate defaults for required fields
+                if field_name == "active_branch":
+                    base[field_name] = "unknown"  # String default for active_branch
+                elif field_info.annotation is str:
+                    base[field_name] = ""  # Empty string for other string fields
+                elif field_info.annotation is int:
+                    base[field_name] = 0  # Zero for int fields
+                elif field_info.annotation is bool:
+                    base[field_name] = False  # False for bool fields
+                else:
+                    base[field_name] = None  # None for other types
 
         try:
             return self.output_model(**base)  # type: ignore[arg-type]

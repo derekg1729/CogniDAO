@@ -116,6 +116,7 @@ def create_doc_memory_block(
         # Ensure a consistent error response structure
         return CreateDocMemoryBlockOutput(
             success=False,
+            active_branch=memory_bank.dolt_writer.active_branch,
             error=error_msg,
             timestamp=datetime.now(),  # Core tool's error response also includes timestamp
         )

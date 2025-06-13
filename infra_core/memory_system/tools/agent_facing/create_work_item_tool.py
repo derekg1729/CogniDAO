@@ -151,7 +151,11 @@ def create_work_item(input_data: CreateWorkItemInput, memory_bank) -> CreateWork
         error_msg = f"{input_data.type} owner cannot be null or empty"
         logger.error(error_msg)
         return CreateWorkItemOutput(
-            success=False, error=error_msg, timestamp=datetime.now(), work_item_type=input_data.type
+            success=False,
+            active_branch=memory_bank.dolt_writer.active_branch,
+            error=error_msg,
+            timestamp=datetime.now(),
+            work_item_type=input_data.type,
         )
 
     # Prepare common metadata fields
@@ -214,6 +218,7 @@ def create_work_item(input_data: CreateWorkItemInput, memory_bank) -> CreateWork
         output = CreateWorkItemOutput(
             success=result.success,
             id=result.id,
+            active_branch=result.active_branch,
             error=result.error,
             timestamp=result.timestamp,
             work_item_type=input_data.type,
@@ -224,7 +229,11 @@ def create_work_item(input_data: CreateWorkItemInput, memory_bank) -> CreateWork
         logger.error(error_msg, exc_info=True)
 
         return CreateWorkItemOutput(
-            success=False, error=error_msg, timestamp=datetime.now(), work_item_type=input_data.type
+            success=False,
+            active_branch=memory_bank.dolt_writer.active_branch,
+            error=error_msg,
+            timestamp=datetime.now(),
+            work_item_type=input_data.type,
         )
 
 

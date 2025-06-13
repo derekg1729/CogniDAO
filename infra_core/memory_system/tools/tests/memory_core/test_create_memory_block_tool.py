@@ -23,6 +23,11 @@ def mock_memory_bank():
     bank = MagicMock(spec=StructuredMemoryBank)
     bank.get_latest_schema_version.return_value = 1
     bank.create_memory_block.return_value = True
+
+    # Add dolt_writer mock with active_branch property
+    bank.dolt_writer = MagicMock()
+    bank.dolt_writer.active_branch = "main"
+
     return bank
 
 
@@ -49,6 +54,7 @@ def test_create_memory_block_success(mock_memory_bank, sample_input):
     assert isinstance(result, CreateMemoryBlockOutput)
     assert result.success is True
     assert result.id is not None
+    assert result.active_branch == "main"
     assert result.error is None
     assert isinstance(result.timestamp, datetime)
 
@@ -180,6 +186,7 @@ def test_create_memory_block_tool_direct_invocation(mock_memory_bank, sample_inp
     assert isinstance(result, CreateMemoryBlockOutput)
     assert result.success is True
     assert result.id is not None
+    assert result.active_branch == "main"
     assert result.error is None
 
 
