@@ -3,7 +3,7 @@
 # control along with your flow code.
 
 # Generic metadata about this project
-name: rituals
+name: cogni-presence
 prefect-version: 3.3.3
 
 # build section allows you to manage and build docker images
@@ -19,46 +19,6 @@ pull:
 
 # the deployments section allows you to provide configuration for deploying flows
 deployments:
-- name: ritual-of-presence
-  version:
-  tags:
-  - cogni
-  - ritual
-  concurrency_limit:
-  description: 'MCP-Powered Ritual of Presence: Generate thoughts using Cogni MCP'
-  entrypoint: ritual_of_presence.py:ritual_of_presence_mcp
-  parameters: {}
-  work_pool:
-    name: cogni-pool
-    work_queue_name:
-    job_variables: {}
-  schedules:
-  - interval: 3600.0
-    anchor_date: '2025-04-09T21:29:17.062177+00:00'
-    timezone: UTC
-    active: true
-  - cron: 0 * * * *
-    timezone:
-    day_or: true
-    active: true
-
-- name: autogen-cogni-mcp
-  version:
-  tags:
-  - cogni
-  - autogen
-  - mcp
-  - sse
-  concurrency_limit:
-  description: 'AutoGen + Cogni MCP Integration: Test SSE connection to containerized MCP server'
-  entrypoint: autogen_mcp_cogni_flow.py:autogen_cogni_mcp_flow
-  parameters: {}
-  work_pool:
-    name: cogni-pool
-    work_queue_name:
-    job_variables: {}
-  schedules: []
-
 - name: simple-working-mcp
   version:
   tags:
