@@ -88,6 +88,11 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     DoltAutoCommitInput,
     DoltAutoCommitOutput,
 )
+from infra_core.memory_system.tools.agent_facing.bulk_create_blocks_tool import (
+    bulk_create_blocks,
+    BulkCreateBlocksInput,
+    BulkCreateBlocksOutput,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -574,6 +579,47 @@ async def create_memory_block(input):
     except Exception as e:
         logger.error(f"Error creating memory block: {e}")
         return {"error": str(e)}
+
+
+# Register the BulkCreateBlocks tool
+@mcp.tool("BulkCreateBlocks")
+async def bulk_create_blocks_mcp(input):
+    """Create multiple memory blocks in a single operation with independent success tracking
+
+    Args:
+        blocks: List of block specifications to create (1-1000 blocks)
+        stop_on_first_error: If True, stop processing on first error. If False, continue and report all results.
+        default_x_agent_id: Default agent ID for blocks that don't specify one
+        default_x_tool_id: Default tool ID for blocks that don't specify one
+        default_x_session_id: Default session ID for grouping all blocks in this bulk operation
+
+    Returns:
+        success: Whether ALL blocks were created successfully (failed_count == 0)
+        partial_success: Whether at least one block was created successfully
+        total_blocks: Total number of blocks attempted
+        successful_blocks: Number of blocks created successfully
+        failed_blocks: Number of blocks that failed to create
+        results: Individual results for each block
+        active_branch: Current active branch
+        timestamp: When the bulk operation completed
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = BulkCreateBlocksInput(**input)
+        result = bulk_create_blocks(parsed_input, memory_bank=memory_bank)
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error in BulkCreateBlocks MCP tool: {e}")
+        return BulkCreateBlocksOutput(
+            success=False,
+            partial_success=False,
+            total_blocks=0,
+            successful_blocks=0,
+            failed_blocks=0,
+            results=[],
+            active_branch="unknown",
+            timestamp=datetime.now(),
+        ).model_dump(mode="json")
 
 
 # Register the DoltCommit tool

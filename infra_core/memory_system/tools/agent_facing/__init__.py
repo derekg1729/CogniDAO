@@ -17,6 +17,7 @@ from .update_task_status_tool import update_task_status_tool
 from .get_active_work_items_tool import get_active_work_items_tool
 from .update_work_item_tool import update_work_item_tool
 from .create_block_link_tool import create_block_link_agent
+from .bulk_create_blocks_tool import bulk_create_blocks_tool
 
 # Export all tools to make them available
 __all__ = [
@@ -32,4 +33,5 @@ __all__ = [
     "get_active_work_items_tool",
     "update_work_item_tool",
     "create_block_link_agent",
+    "bulk_create_blocks_tool",
 ]
