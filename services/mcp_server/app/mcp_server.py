@@ -93,6 +93,11 @@ from infra_core.memory_system.tools.agent_facing.bulk_create_blocks_tool import 
     BulkCreateBlocksInput,
     BulkCreateBlocksOutput,
 )
+from infra_core.memory_system.tools.agent_facing.bulk_create_links_tool import (
+    bulk_create_links,
+    BulkCreateLinksInput,
+    BulkCreateLinksOutput,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -616,6 +621,47 @@ async def bulk_create_blocks_mcp(input):
             total_blocks=0,
             successful_blocks=0,
             failed_blocks=0,
+            results=[],
+            active_branch="unknown",
+            timestamp=datetime.now(),
+        ).model_dump(mode="json")
+
+
+# Register the BulkCreateLinks tool
+@mcp.tool("BulkCreateLinks")
+async def bulk_create_links_mcp(input):
+    """Create multiple memory block links in a single operation with independent success tracking
+
+    Args:
+        links: List of link specifications to create (1-5000 links)
+        stop_on_first_error: If True, stop processing on first error. If False, continue and report all results.
+        validate_blocks_exist: Whether to validate that referenced blocks exist before creating links
+
+    Returns:
+        success: Whether ALL links were created successfully (failed_count == 0)
+        partial_success: Whether at least one link was created successfully
+        total_links: Total number of link specs attempted
+        successful_links: Number of link specs created successfully
+        failed_links: Number of link specs that failed to create
+        total_actual_links: Total number of actual links created (including bidirectional)
+        results: Individual results for each link spec
+        active_branch: Current active branch
+        timestamp: When the bulk operation completed
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = BulkCreateLinksInput(**input)
+        result = bulk_create_links(parsed_input, memory_bank=memory_bank)
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error in BulkCreateLinks MCP tool: {e}")
+        return BulkCreateLinksOutput(
+            success=False,
+            partial_success=False,
+            total_links=0,
+            successful_links=0,
+            failed_links=0,
+            total_actual_links=0,
             results=[],
             active_branch="unknown",
             timestamp=datetime.now(),
