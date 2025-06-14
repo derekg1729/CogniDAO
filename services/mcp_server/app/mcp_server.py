@@ -831,7 +831,7 @@ async def dolt_status(input):
         logger.error(f"Error in DoltStatus MCP tool: {e}")
         return DoltStatusOutput(
             success=False,
-            current_branch="unknown",
+            active_branch="unknown",
             is_clean=False,
             total_changes=0,
             message=f"Status check failed: {str(e)}",
@@ -923,6 +923,7 @@ async def dolt_list_branches(input):
 
         return DoltListBranchesOutput(
             success=False,
+            active_branch="unknown",
             message=f"Branch listing failed: {str(e)}",
             error=f"Error during dolt_list_branches: {str(e)}",
         ).model_dump(mode="json")
@@ -948,6 +949,7 @@ async def dolt_diff(input):
             success=False,
             diff_summary=[],
             message=f"An unexpected error occurred: {e}",
+            active_branch="unknown",
             error=str(e),
         ).model_dump(mode="json")
 
@@ -989,7 +991,7 @@ async def dolt_auto_commit_and_push(input):
             message=f"Auto commit and push failed: {str(e)}",
             operations_performed=["failed"],
             was_clean=False,
-            current_branch="unknown",
+            active_branch="unknown",
             error=str(e),
         ).model_dump(mode="json")
 
