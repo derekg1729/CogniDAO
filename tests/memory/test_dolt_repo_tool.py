@@ -706,15 +706,34 @@ class TestDoltDiffTool:
         ]
         mock_writer.get_diff_summary.return_value = mock_diff_summary
 
+        mock_diff_details = [
+            {
+                "_table_name": "test_table",
+                "diff_type": "modified",
+                "from_id": "123",
+                "to_id": "123",
+                "from_name": "old_value",
+                "to_name": "new_value",
+            }
+        ]
+        mock_reader.get_diff_summary.return_value = mock_diff_summary
+        mock_reader.get_diff_details.return_value = mock_diff_details
+
         input_data = DoltDiffInput(mode="working")
         result = dolt_diff_tool(input_data, memory_bank)
 
         assert result.success is True
-        assert "Successfully retrieved diff summary" in result.message
+        assert "Successfully retrieved diff" in result.message
         assert len(result.diff_summary) == 1
         assert result.diff_summary[0].to_table_name == "test_table"
         assert result.diff_summary[0].diff_type == "modified"
-        mock_writer.get_diff_summary.assert_called_once_with(
+        assert len(result.diff_details) == 1
+        assert result.diff_details[0]["_table_name"] == "test_table"
+        assert result.diff_details[0]["diff_type"] == "modified"
+        mock_reader.get_diff_summary.assert_called_once_with(
+            from_revision="HEAD", to_revision="WORKING"
+        )
+        mock_reader.get_diff_details.assert_called_once_with(
             from_revision="HEAD", to_revision="WORKING"
         )
 
@@ -733,15 +752,34 @@ class TestDoltDiffTool:
         ]
         mock_writer.get_diff_summary.return_value = mock_diff_summary
 
+        mock_diff_details = [
+            {
+                "_table_name": "new_table",
+                "diff_type": "added",
+                "from_id": None,
+                "to_id": "456",
+                "from_name": None,
+                "to_name": "new_record",
+            }
+        ]
+        mock_reader.get_diff_summary.return_value = mock_diff_summary
+        mock_reader.get_diff_details.return_value = mock_diff_details
+
         input_data = DoltDiffInput(mode="staged")
         result = dolt_diff_tool(input_data, memory_bank)
 
         assert result.success is True
-        assert "Successfully retrieved diff summary" in result.message
+        assert "Successfully retrieved diff" in result.message
         assert len(result.diff_summary) == 1
         assert result.diff_summary[0].to_table_name == "new_table"
         assert result.diff_summary[0].diff_type == "added"
-        mock_writer.get_diff_summary.assert_called_once_with(
+        assert len(result.diff_details) == 1
+        assert result.diff_details[0]["_table_name"] == "new_table"
+        assert result.diff_details[0]["diff_type"] == "added"
+        mock_reader.get_diff_summary.assert_called_once_with(
+            from_revision="HEAD", to_revision="STAGED"
+        )
+        mock_reader.get_diff_details.assert_called_once_with(
             from_revision="HEAD", to_revision="STAGED"
         )
 
@@ -749,6 +787,8 @@ class TestDoltDiffTool:
         """Test a successful diff with custom from and to revisions."""
         memory_bank, mock_writer, mock_reader = mock_memory_bank
         mock_writer.get_diff_summary.return_value = []
+        mock_reader.get_diff_summary.return_value = []
+        mock_reader.get_diff_details.return_value = []
 
         input_data = DoltDiffInput(from_revision="main", to_revision="feature-branch")
         result = dolt_diff_tool(input_data, memory_bank)
@@ -756,7 +796,11 @@ class TestDoltDiffTool:
         assert result.success is True
         assert "No changes found" in result.message
         assert len(result.diff_summary) == 0
-        mock_writer.get_diff_summary.assert_called_once_with(
+        assert len(result.diff_details) == 0
+        mock_reader.get_diff_summary.assert_called_once_with(
+            from_revision="main", to_revision="feature-branch"
+        )
+        mock_reader.get_diff_details.assert_called_once_with(
             from_revision="main", to_revision="feature-branch"
         )
 
@@ -764,6 +808,8 @@ class TestDoltDiffTool:
         """Test the case where no diff summary is returned."""
         memory_bank, mock_writer, mock_reader = mock_memory_bank
         mock_writer.get_diff_summary.return_value = []
+        mock_reader.get_diff_summary.return_value = []
+        mock_reader.get_diff_details.return_value = []
 
         input_data = DoltDiffInput(mode="working")
         result = dolt_diff_tool(input_data, memory_bank)
@@ -771,11 +817,13 @@ class TestDoltDiffTool:
         assert result.success is True
         assert "No changes found" in result.message
         assert len(result.diff_summary) == 0
+        assert len(result.diff_details) == 0
 
     def test_failed_diff_with_exception(self, mock_memory_bank):
-        """Test the case where the writer raises an exception."""
+        """Test the case where the reader raises an exception."""
         memory_bank, mock_writer, mock_reader = mock_memory_bank
         mock_writer.get_diff_summary.side_effect = Exception("Dolt connection error")
+        mock_reader.get_diff_summary.side_effect = Exception("Dolt connection error")
 
         input_data = DoltDiffInput(mode="working")
         result = dolt_diff_tool(input_data, memory_bank)
@@ -784,6 +832,7 @@ class TestDoltDiffTool:
         assert "An unexpected error occurred" in result.message
         assert "Dolt connection error" in result.error
         assert len(result.diff_summary) == 0
+        assert len(result.diff_details) == 0
 
     def test_invalid_input_no_revisions(self, mock_memory_bank):
         """Test invalid input where no mode or revisions are provided."""
@@ -797,4 +846,6 @@ class TestDoltDiffTool:
         assert result.success is False
         assert "must be provided if not using a mode" in result.message
         assert "Invalid revision arguments" in result.error
-        mock_writer.get_diff_summary.assert_not_called()
+        assert len(result.diff_details) == 0
+        mock_reader.get_diff_summary.assert_not_called()
+        mock_reader.get_diff_details.assert_not_called()

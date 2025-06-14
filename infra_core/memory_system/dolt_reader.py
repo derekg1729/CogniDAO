@@ -679,6 +679,116 @@ class DoltMySQLReader(DoltMySQLBase):
             if not connection_is_persistent:
                 connection.close()
 
+    def get_diff_summary(self, from_revision: str, to_revision: str) -> List[dict]:
+        """
+        Gets a summary of differences between two revisions using DOLT_DIFF_SUMMARY.
+
+        Args:
+            from_revision: The starting revision (e.g., 'HEAD', 'main').
+            to_revision: The ending revision (e.g., 'WORKING', 'STAGED').
+
+        Returns:
+            A list of dictionaries, where each dictionary represents a changed table.
+        """
+        # Use persistent connection if available, otherwise create a new one
+        if self._use_persistent and self._persistent_connection:
+            connection = self._persistent_connection
+            connection_is_persistent = True
+        else:
+            connection = self._get_connection()
+            connection_is_persistent = False
+
+        try:
+            cursor = connection.cursor(dictionary=True)
+
+            query = "SELECT * FROM DOLT_DIFF_SUMMARY(%s, %s)"
+            cursor.execute(query, (from_revision, to_revision))
+
+            diff_summary = cursor.fetchall()
+
+            cursor.close()
+            logger.info(
+                f"Successfully retrieved diff summary from {from_revision} to {to_revision}"
+            )
+            return diff_summary
+
+        except Exception as e:
+            logger.error(f"Failed to get diff summary: {e}", exc_info=True)
+            raise
+        finally:
+            if not connection_is_persistent:
+                connection.close()
+
+    def get_diff_details(
+        self, from_revision: str, to_revision: str, table_name: str = None
+    ) -> List[dict]:
+        """
+        Gets detailed row-level differences using DOLT_DIFF table function.
+
+        This is much simpler than the previous approach - just returns the raw DOLT_DIFF results.
+
+        Args:
+            from_revision: The starting revision (e.g., 'HEAD', 'main').
+            to_revision: The ending revision (e.g., 'WORKING', 'STAGED').
+            table_name: Specific table to diff (optional, if None gets all changed tables).
+
+        Returns:
+            A list of dictionaries with raw DOLT_DIFF results for all tables or specific table.
+        """
+        # Use persistent connection if available, otherwise create a new one
+        if self._use_persistent and self._persistent_connection:
+            connection = self._persistent_connection
+            connection_is_persistent = True
+        else:
+            connection = self._get_connection()
+            connection_is_persistent = False
+
+        try:
+            cursor = connection.cursor(dictionary=True)
+            all_changes = []
+
+            if table_name:
+                # Get diff for specific table
+                query = "SELECT * FROM DOLT_DIFF(%s, %s, %s)"
+                cursor.execute(query, (from_revision, to_revision, table_name))
+                changes = cursor.fetchall()
+                all_changes.extend(changes)
+            else:
+                # Get list of changed tables first
+                summary_query = (
+                    "SELECT to_table_name FROM DOLT_DIFF_SUMMARY(%s, %s) WHERE data_change = 1"
+                )
+                cursor.execute(summary_query, (from_revision, to_revision))
+                changed_tables = cursor.fetchall()
+
+                # Get detailed diff for each changed table
+                for table_info in changed_tables:
+                    table_name = table_info["to_table_name"]
+                    try:
+                        detail_query = "SELECT * FROM DOLT_DIFF(%s, %s, %s)"
+                        cursor.execute(detail_query, (from_revision, to_revision, table_name))
+                        table_changes = cursor.fetchall()
+                        # Add table_name to each change for context
+                        for change in table_changes:
+                            change["_table_name"] = table_name
+                        all_changes.extend(table_changes)
+                    except Exception as table_error:
+                        logger.warning(f"Failed to get diff for table {table_name}: {table_error}")
+                        continue
+
+            cursor.close()
+            logger.info(
+                f"Successfully retrieved {len(all_changes)} detailed changes from {from_revision} to {to_revision}"
+            )
+            return all_changes
+
+        except Exception as e:
+            logger.error(f"Failed to get detailed diff: {e}", exc_info=True)
+            return []
+        finally:
+            if not connection_is_persistent:
+                connection.close()
+
 
 # Helper function from dolt_writer for safe SQL formatting
 def _escape_sql_string(value: Optional[str]) -> str:
