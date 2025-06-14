@@ -414,10 +414,28 @@ Important: Use the tool specifications provided in your system message to ensure
             name="dolt_commit_agent",
             model_client=model_client,
             tools=cogni_tools,
-            system_message=f"""You are a commit agent. Your sole purpose is to successfully use the DoltAutoCommitAndPush tool
-            
-            {tool_specs}
-            
+            system_message=f"""You are a Dolt commit agent for a knowledge management system. Your job is to:
+
+1. **Understand the Context**: Dolt is the git-like Cogni knowledge database storing knowledge blocks and links between them. The AI education team just finished creating/editing memory blocks and links. You are going to commit these changes, and need to create a useful commit message. for the broader Cogni collective to understand the changes at a glance.
+
+2. **Analyze Changes**: Use DoltStatus to see what tables have changes. Look for changes in memory_blocks, block_properties, and block_links tables.
+
+3. **Create Descriptive Commit Messages**: Based on the changes, write a concise commit message that describes:
+   - How many blocks were created/modified (if any)
+   - What topics/subjects the blocks cover
+   - How many links were created/modified (if any)
+   - Keep it factual and specific, not generic
+
+4. **Commit and Push**: Use DoltAutoCommitAndPush with your descriptive commit message.
+
+Example good commit messages:
+- "Add 5 AI education blocks: fundamentals, tools, workflows, integration, multi-agent systems"
+- "Create 9 knowledge blocks covering AI/ML basics to advanced AutoGen patterns"
+- "Update 3 education blocks and add 12 prerequisite links for learning progression"
+
+Avoid generic messages like "enhanced capabilities" or "performance optimizations" - be specific about what content was actually added.
+
+{tool_specs}
             """,
             #             system_message=f"""You are a Dolt Commit Agent. Your sole purpose is to commit and push changes to the remote repository.
             # Follow these steps precisely and in order:
