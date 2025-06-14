@@ -216,9 +216,25 @@ try:
         branch=current_branch,
     )
 
+    # 🔧 CRITICAL FIX: Enable persistent connections to maintain branch context
+    # This ensures all MCP tool operations stay on the correct branch
+    logger.info(f"Enabling persistent connections on branch: {current_branch}")
+    memory_bank.use_persistent_connections(current_branch)
+    logger.info(
+        f"✅ Persistent connections enabled - all operations will use branch: {memory_bank.branch}"
+    )
+
     # Initialize LinkManager components with SQL backend using same config
     link_manager = SQLLinkManager(dolt_config)
     pm_links = ExecutableLinkManager(link_manager)
+
+    # 🔧 CRITICAL FIX: Enable persistent connections on LinkManager too
+    # This ensures link operations also maintain branch context
+    logger.info(f"Enabling persistent connections on LinkManager for branch: {current_branch}")
+    link_manager.use_persistent_connection(current_branch)
+    logger.info(
+        f"✅ LinkManager persistent connections enabled on branch: {link_manager.active_branch}"
+    )
 
     # Attach link_manager to memory_bank for tool access
     memory_bank.link_manager = link_manager
