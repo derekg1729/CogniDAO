@@ -67,10 +67,13 @@ class TestBranchIsolation:
 
         # Test with specific branch
         with patch.dict(os.environ, {"DOLT_BRANCH": "test-branch"}):
-            # Import the module to trigger initialization
+            # Import the module
             import services.mcp_server.app.mcp_server as mcp_module
 
             importlib.reload(mcp_module)
+
+            # Trigger lazy initialization by calling get_memory_bank()
+            mcp_module.get_memory_bank()
 
             # Verify StructuredMemoryBank was initialized with correct branch
             mock_memory_bank_class.assert_called_once()
@@ -126,13 +129,22 @@ class TestBranchIsolation:
 
         # Test that initialization fails gracefully when persistent connections fail
         with patch.dict(os.environ, {"DOLT_BRANCH": "test-branch"}):
-            with pytest.raises(SystemExit):  # Should exit due to initialization failure
-                import services.mcp_server.app.mcp_server as mcp_module
+            # Import the module first
+            import services.mcp_server.app.mcp_server as mcp_module
 
-                importlib.reload(mcp_module)
+            importlib.reload(mcp_module)
+
+            # Now test that calling get_memory_bank() raises RuntimeError due to initialization failure
+            with pytest.raises(
+                RuntimeError
+            ):  # Should raise RuntimeError due to initialization failure
+                mcp_module.get_memory_bank()
 
     def test_logging_confirms_branch_context(self, caplog):
         """Test that initialization logging confirms branch context is properly set."""
+        # Clear any existing log records to ensure clean test
+        caplog.clear()
+
         with patch("mysql.connector.connect") as mock_connect:
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
@@ -159,6 +171,12 @@ class TestBranchIsolation:
 
                         importlib.reload(mcp_module)
 
+                        # Clear logs again right before the test action
+                        caplog.clear()
+
+                        # Trigger lazy initialization by calling get_memory_bank()
+                        mcp_module.get_memory_bank()
+
                         # Check that logging confirms branch context
                         log_messages = [record.message for record in caplog.records]
 
@@ -174,10 +192,13 @@ class TestBranchIsolation:
                             for msg in log_messages
                         )
                         assert any(
-                            "✅ Persistent connections enabled" in msg for msg in log_messages
+                            "✅ Persistent connections enabled - all operations will use branch: test-branch"
+                            in msg
+                            for msg in log_messages
                         )
                         assert any(
-                            "✅ LinkManager persistent connections enabled" in msg
+                            "✅ LinkManager persistent connections enabled on branch: test-branch"
+                            in msg
                             for msg in log_messages
                         )
 
@@ -335,9 +356,9 @@ class TestBranchIsolationEdgeCases:
 
             importlib.reload(mcp_module)
 
-            # Verify the current_branch variable is set correctly
-            assert mcp_module.current_branch == "ai-education-team"
+            # Verify the current branch detection works correctly
+            assert mcp_module.get_current_branch() == "ai-education-team"
 
             # Verify memory bank and link manager are configured with correct branch
-            assert mcp_module.memory_bank.branch == "ai-education-team"
-            assert mcp_module.link_manager.active_branch == "ai-education-team"
+            assert mcp_module.get_memory_bank().branch == "ai-education-team"
+            assert mcp_module.get_link_manager().active_branch == "ai-education-team"
