@@ -640,12 +640,13 @@ async def bulk_create_links_mcp(input):
     Returns:
         success: Whether ALL links were created successfully (failed_count == 0)
         partial_success: Whether at least one link was created successfully
-        total_links: Total number of link specs attempted
-        successful_links: Number of link specs created successfully
-        failed_links: Number of link specs that failed to create
+        total_specs: Total number of link specs attempted
+        successful_specs: Number of link specs created successfully
+        failed_specs: Number of link specs that failed to create
+        skipped_specs: Number of link specs skipped due to early termination
         total_actual_links: Total number of actual links created (including bidirectional)
         results: Individual results for each link spec
-        active_branch: Current active branch
+        active_branch: Current active branch if available
         timestamp: When the bulk operation completed
     """
     try:
@@ -658,12 +659,13 @@ async def bulk_create_links_mcp(input):
         return BulkCreateLinksOutput(
             success=False,
             partial_success=False,
-            total_links=0,
-            successful_links=0,
-            failed_links=0,
+            total_specs=0,
+            successful_specs=0,
+            failed_specs=0,
+            skipped_specs=0,
             total_actual_links=0,
             results=[],
-            active_branch="unknown",
+            active_branch=None,
             timestamp=datetime.now(),
         ).model_dump(mode="json")
 

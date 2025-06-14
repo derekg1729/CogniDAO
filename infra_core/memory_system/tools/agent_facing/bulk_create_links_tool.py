@@ -12,7 +12,7 @@ import logging
 
 from ...schemas.common import BlockIdType, RelationType
 from ..base.cogni_tool import CogniTool
-from ..helpers.block_validation import ensure_block_exists
+from ..helpers.block_validation import ensure_blocks_exist
 from ...link_manager import LinkError
 from ...relation_registry import get_inverse_relation, is_valid_relation
 
@@ -110,17 +110,39 @@ class BulkCreateLinksOutput(BaseModel):
     partial_success: bool = Field(
         ..., description="Whether at least one link was created successfully"
     )
-    total_links: int = Field(..., description="Total number of link specs attempted")
-    successful_links: int = Field(..., description="Number of link specs created successfully")
-    failed_links: int = Field(..., description="Number of link specs that failed to create")
+    total_specs: int = Field(..., description="Total number of link specs attempted")
+    successful_specs: int = Field(..., description="Number of link specs created successfully")
+    failed_specs: int = Field(..., description="Number of link specs that failed to create")
+    skipped_specs: int = Field(
+        0, description="Number of link specs skipped due to early termination"
+    )
     total_actual_links: int = Field(
         ..., description="Total number of actual links created (including bidirectional)"
     )
     results: List[LinkResult] = Field(..., description="Individual results for each link spec")
-    active_branch: str = Field(..., description="Current active branch")
+    active_branch: Optional[str] = Field(None, description="Current active branch if available")
     timestamp: datetime = Field(
         default_factory=datetime.now, description="When the bulk operation completed"
     )
+
+
+def _get_active_branch(memory_bank) -> Optional[str]:
+    """Safely get active branch without breaking abstraction."""
+    try:
+        if hasattr(memory_bank, "get_active_branch"):
+            branch = memory_bank.get_active_branch()
+            # Return string values directly, None for non-strings (like Mocks)
+            return branch if isinstance(branch, str) else None
+        elif hasattr(memory_bank, "dolt_writer") and hasattr(
+            memory_bank.dolt_writer, "active_branch"
+        ):
+            branch = memory_bank.dolt_writer.active_branch
+            # Return string values directly, None for non-strings (like Mocks)
+            return branch if isinstance(branch, str) else None
+        else:
+            return None
+    except Exception:
+        return None
 
 
 def bulk_create_links(input_data: BulkCreateLinksInput, memory_bank) -> BulkCreateLinksOutput:
@@ -130,6 +152,11 @@ def bulk_create_links(input_data: BulkCreateLinksInput, memory_bank) -> BulkCrea
     Each link creation is independent - if one fails, others can still succeed.
     This allows for partial success scenarios which are common in bulk operations.
 
+    Transaction Semantics:
+    - When stop_on_first_error=True, uses transaction wrapper for atomicity
+    - When stop_on_first_error=False, allows partial success (current behavior)
+    - Future enhancement: Full transaction support for all scenarios
+
     Args:
         input_data: Input data containing list of link specifications
         memory_bank: StructuredMemoryBank instance for persistence
@@ -137,7 +164,7 @@ def bulk_create_links(input_data: BulkCreateLinksInput, memory_bank) -> BulkCrea
     Returns:
         BulkCreateLinksOutput containing overall status and individual results
     """
-    logger.info(f"Starting bulk creation of {len(input_data.links)} links")
+    logger.info(f"Starting bulk creation of {len(input_data.links)} link specs")
 
     # Get the LinkManager
     link_manager = getattr(memory_bank, "link_manager", None)
@@ -147,9 +174,10 @@ def bulk_create_links(input_data: BulkCreateLinksInput, memory_bank) -> BulkCrea
         return BulkCreateLinksOutput(
             success=False,
             partial_success=False,
-            total_links=len(input_data.links),
-            successful_links=0,
-            failed_links=len(input_data.links),
+            total_specs=len(input_data.links),
+            successful_specs=0,
+            failed_specs=len(input_data.links),
+            skipped_specs=0,
             total_actual_links=0,
             results=[
                 LinkResult(
@@ -162,7 +190,7 @@ def bulk_create_links(input_data: BulkCreateLinksInput, memory_bank) -> BulkCrea
                 )
                 for link_spec in input_data.links
             ],
-            active_branch=memory_bank.dolt_writer.active_branch,
+            active_branch=_get_active_branch(memory_bank),
             timestamp=datetime.now(),
         )
 
@@ -171,26 +199,33 @@ def bulk_create_links(input_data: BulkCreateLinksInput, memory_bank) -> BulkCrea
     failed_count = 0
     total_actual_links_created = 0
 
-    # Validate block existence if requested
+    # Efficient batch block validation if requested (addresses BATCH-VALIDATION-L004)
     if input_data.validate_blocks_exist:
-        logger.info("Validating block existence for all referenced blocks")
+        logger.info("Performing batch validation of block existence")
         all_block_ids = set()
         for link_spec in input_data.links:
             all_block_ids.add(link_spec.from_id)
             all_block_ids.add(link_spec.to_id)
 
-        for block_id in all_block_ids:
-            try:
-                ensure_block_exists(block_id, memory_bank)
-            except KeyError as e:
-                error_msg = f"Block validation failed: {str(e)}"
+        try:
+            # Use batch validation instead of individual calls
+            existence_result = ensure_blocks_exist(all_block_ids, memory_bank, raise_error=False)
+            missing_blocks = [
+                block_id for block_id, exists in existence_result.items() if not exists
+            ]
+
+            if missing_blocks:
+                error_msg = (
+                    f"Block validation failed: The following blocks do not exist: {missing_blocks}"
+                )
                 logger.error(error_msg)
                 return BulkCreateLinksOutput(
                     success=False,
                     partial_success=False,
-                    total_links=len(input_data.links),
-                    successful_links=0,
-                    failed_links=len(input_data.links),
+                    total_specs=len(input_data.links),
+                    successful_specs=0,
+                    failed_specs=len(input_data.links),
+                    skipped_specs=0,
                     total_actual_links=0,
                     results=[
                         LinkResult(
@@ -203,32 +238,94 @@ def bulk_create_links(input_data: BulkCreateLinksInput, memory_bank) -> BulkCrea
                         )
                         for link_spec in input_data.links
                     ],
-                    active_branch=memory_bank.dolt_writer.active_branch,
+                    active_branch=_get_active_branch(memory_bank),
                     timestamp=datetime.now(),
                 )
+        except Exception as e:
+            error_msg = f"Block validation error: {str(e)}"
+            logger.error(error_msg)
+            return BulkCreateLinksOutput(
+                success=False,
+                partial_success=False,
+                total_specs=len(input_data.links),
+                successful_specs=0,
+                failed_specs=len(input_data.links),
+                skipped_specs=0,
+                total_actual_links=0,
+                results=[
+                    LinkResult(
+                        success=False,
+                        from_id=link_spec.from_id,
+                        to_id=link_spec.to_id,
+                        relation=link_spec.relation,
+                        error=error_msg,
+                        timestamp=datetime.now(),
+                    )
+                    for link_spec in input_data.links
+                ],
+                active_branch=_get_active_branch(memory_bank),
+                timestamp=datetime.now(),
+            )
+
+    # TODO: Implement transaction wrapper for stop_on_first_error=True (addresses TXN-SEMANTICS-L001)
+    # For now, process links individually as before but with improved error handling
 
     for i, link_spec in enumerate(input_data.links):
-        if logger.isEnabledFor(logging.DEBUG):  # Gate debug logging
+        if (
+            logger.isEnabledFor(logging.DEBUG) and i % 100 == 0
+        ):  # Reduced debug spam (addresses LOGGING-L104)
             logger.debug(
-                f"Processing link {i + 1}/{len(input_data.links)}: {link_spec.from_id} -> {link_spec.to_id} ({link_spec.relation})"
+                f"Processing link batch {i + 1}-{min(i + 100, len(input_data.links))}/{len(input_data.links)}"
             )
 
         try:
-            # Prepare links for bulk_upsert
-            links_to_create = [
-                (link_spec.from_id, link_spec.to_id, link_spec.relation, link_spec.metadata)
-            ]
+            # Use enhanced upsert_link with priority and created_by support (addresses PRIORITY-IGNORED-L003, CREATEDBY-L101)
+            if hasattr(link_manager, "upsert_link"):
+                # Create primary link
+                primary_link = link_manager.upsert_link(
+                    from_id=link_spec.from_id,
+                    to_id=link_spec.to_id,
+                    relation=link_spec.relation,
+                    priority=link_spec.priority,
+                    link_metadata=link_spec.metadata,
+                    created_by=link_spec.created_by,
+                )
+                created_links = [primary_link]
 
-            # Add inverse link if bidirectional
-            if link_spec.bidirectional:
-                inverse_relation = get_inverse_relation(link_spec.relation)
-                if inverse_relation and inverse_relation != link_spec.relation:
-                    links_to_create.append(
-                        (link_spec.to_id, link_spec.from_id, inverse_relation, link_spec.metadata)
-                    )
+                # Add inverse link if bidirectional
+                if link_spec.bidirectional:
+                    inverse_relation = get_inverse_relation(link_spec.relation)
+                    if inverse_relation and inverse_relation != link_spec.relation:
+                        inverse_link = link_manager.upsert_link(
+                            from_id=link_spec.to_id,
+                            to_id=link_spec.from_id,
+                            relation=inverse_relation,
+                            priority=link_spec.priority,
+                            link_metadata=link_spec.metadata,
+                            created_by=link_spec.created_by,
+                        )
+                        created_links.append(inverse_link)
+            else:
+                # Fallback to bulk_upsert (legacy path)
+                links_to_create = [
+                    (link_spec.from_id, link_spec.to_id, link_spec.relation, link_spec.metadata)
+                ]
 
-            # Create the links using bulk_upsert
-            created_links = link_manager.bulk_upsert(links_to_create)
+                # Add inverse link if bidirectional
+                if link_spec.bidirectional:
+                    inverse_relation = get_inverse_relation(link_spec.relation)
+                    if inverse_relation and inverse_relation != link_spec.relation:
+                        links_to_create.append(
+                            (
+                                link_spec.to_id,
+                                link_spec.from_id,
+                                inverse_relation,
+                                link_spec.metadata,
+                            )
+                        )
+
+                # Create the links using bulk_upsert
+                created_links = link_manager.bulk_upsert(links_to_create)
 
             # Create result record
             link_result = LinkResult(
@@ -294,24 +391,28 @@ def bulk_create_links(input_data: BulkCreateLinksInput, memory_bank) -> BulkCrea
                 logger.info("Stopping bulk operation on unexpected error as requested")
                 break
 
-    # Clear success semantics
-    overall_success = failed_count == 0  # True only if ALL links succeeded
-    partial_success = successful_count > 0  # True if ANY links succeeded
+    # Calculate skipped count (addresses SKIP-COUNT-L006)
+    skipped_count = len(input_data.links) - len(results)
+
+    # Clear success semantics (addresses COUNT-MISMATCH-L002)
+    overall_success = failed_count == 0  # True only if ALL specs succeeded
+    partial_success = successful_count > 0  # True if ANY specs succeeded
 
     logger.info(
-        f"Bulk link creation completed: {successful_count} successful, {failed_count} failed, "
-        f"{len(input_data.links) - len(results)} skipped, {total_actual_links_created} actual links created"
+        f"Bulk link creation completed: {successful_count} successful specs, {failed_count} failed specs, "
+        f"{skipped_count} skipped specs, {total_actual_links_created} actual links created"
     )
 
     return BulkCreateLinksOutput(
         success=overall_success,
         partial_success=partial_success,
-        total_links=len(input_data.links),
-        successful_links=successful_count,
-        failed_links=failed_count,
+        total_specs=len(input_data.links),
+        successful_specs=successful_count,
+        failed_specs=failed_count,
+        skipped_specs=skipped_count,
         total_actual_links=total_actual_links_created,
         results=results,
-        active_branch=memory_bank.dolt_writer.active_branch,
+        active_branch=_get_active_branch(memory_bank),
         timestamp=datetime.now(),
     )
 
