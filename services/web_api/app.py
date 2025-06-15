@@ -20,6 +20,7 @@ from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
 from .routes import health as health_router
 from .routes import chat as chat_router
 from .routes import blocks_router
+from .routes import branches_router
 from .routes import schemas_router
 from .routes import links_router
 
@@ -88,6 +89,7 @@ app = FastAPI(
 app.include_router(health_router.router)
 app.include_router(chat_router.router, prefix="/api/v1")
 app.include_router(blocks_router.router, prefix="/api/v1")
+app.include_router(branches_router.router, prefix="/api/v1")
 app.include_router(schemas_router.router, prefix="/api/v1")
 app.include_router(links_router.router, prefix="/api/v1")
 
