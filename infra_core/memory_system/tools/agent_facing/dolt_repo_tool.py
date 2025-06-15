@@ -20,8 +20,8 @@ from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 
 logger = logging.getLogger(__name__)
 
-# Security: Branch name validation regex
-BRANCH_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_\-/]+$")
+# Security: Branch name validation regex (allows dots for version tags)
+BRANCH_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_\-/.]+$")
 
 
 def validate_branch_name(branch_name: str) -> str:
@@ -84,13 +84,30 @@ def dolt_tool(operation_name: str):
                 # Create error response using the function's return type annotation
                 output_class = func.__annotations__.get("return")
                 if output_class and hasattr(output_class, "__call__"):
-                    return output_class(
-                        success=False,
-                        message=f"{operation_name.upper()} FAILED: {str(e)}",
-                        active_branch=getattr(memory_bank.dolt_writer, "active_branch", "unknown"),
-                        error=error_msg,
-                        error_code="EXCEPTION",
-                    )
+                    # Build base error response
+                    error_response = {
+                        "success": False,
+                        "message": f"{operation_name.upper()} FAILED: {str(e)}",
+                        "active_branch": getattr(
+                            memory_bank.dolt_writer, "active_branch", "unknown"
+                        ),
+                        "error": error_msg,
+                        "error_code": "EXCEPTION",
+                    }
+
+                    # Add required fields for specific output types
+                    if hasattr(input_data, "source_branch"):
+                        error_response["source_branch"] = input_data.source_branch
+                    if hasattr(input_data, "target_branch"):
+                        error_response["target_branch"] = input_data.target_branch or getattr(
+                            memory_bank.dolt_writer, "active_branch", "unknown"
+                        )
+                    if output_class.__name__ == "DoltMergeOutput":
+                        error_response["fast_forward"] = False
+                        error_response["conflicts"] = 0
+                        error_response["merge_hash"] = None
+
+                    return output_class(**error_response)
                 else:
                     # Fallback - this shouldn't happen with proper typing
                     raise
