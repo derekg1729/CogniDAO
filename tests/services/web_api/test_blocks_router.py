@@ -242,13 +242,11 @@ def test_get_block_success(mock_get_block_tool, client_with_mock_bank, sample_me
     assert "active_branch" in response_data
     assert "requested_branch" in response_data
     assert "block" in response_data
-    assert "block_id" in response_data
     assert "timestamp" in response_data
 
     # Check values
     assert response_data["active_branch"] == "main"
     assert response_data["requested_branch"] == "main"  # Default branch
-    assert response_data["block_id"] == "test-block-123"
     assert response_data["block"]["id"] == "test-block-123"
 
     # Verify the tool was called correctly
@@ -917,13 +915,11 @@ def test_get_block_with_explicit_main_branch(mock_get_block_tool, client_with_mo
     assert "active_branch" in response_data
     assert "requested_branch" in response_data
     assert "block" in response_data
-    assert "block_id" in response_data
     assert "timestamp" in response_data
 
     # Check values
     assert response_data["active_branch"] == "main"
     assert response_data["requested_branch"] == "main"
-    assert response_data["block_id"] == "main-block-123"
     assert response_data["block"]["id"] == "main-block-123"
     # Verify the tool was called with correct parameters
     mock_get_block_tool.assert_called_once()
@@ -962,7 +958,6 @@ def test_get_block_with_different_branch(mock_get_block_tool, client_with_mock_b
     # Check enhanced single block response structure
     assert response_data["active_branch"] == "main"  # Active branch from mock
     assert response_data["requested_branch"] == "feat/test-branch"  # Requested branch
-    assert response_data["block_id"] == "feature-block-456"
     assert response_data["block"]["id"] == "feature-block-456"
     # Verify the tool was called with correct parameters
     mock_get_block_tool.assert_called_once()
@@ -1035,7 +1030,6 @@ def test_get_block_cross_branch_validation(mock_get_block_tool, client_with_mock
     # Check enhanced single block response structure
     assert response_data["active_branch"] == "main"  # Active branch from mock
     assert response_data["requested_branch"] == "feat/test-branch"  # Requested branch
-    assert response_data["block_id"] == "cross-branch-block"
     assert response_data["block"]["id"] == "cross-branch-block"
 
     # Test 2: Block doesn't exist in main branch

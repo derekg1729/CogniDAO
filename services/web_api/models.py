@@ -15,6 +15,12 @@ from typing import Optional, List, Literal, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 
+# Import MemoryBlock for proper typing
+from infra_core.memory_system.schemas.memory_block import MemoryBlock
+
+# Import DoltBranchInfo for proper branch typing
+from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import DoltBranchInfo
+
 # Import relation types for validation
 
 
@@ -124,17 +130,23 @@ class BranchContextResponse(BaseModel):
         None,
         description="Branch requested by client (may differ from active_branch for read operations)",
     )
-    timestamp: datetime = Field(
-        default_factory=datetime.now, description="Timestamp when the operation was performed"
-    )
+    timestamp: str = Field(..., description="UTC ISO timestamp when the operation was performed")
+
+    @classmethod
+    def create_with_timestamp(cls, **kwargs):
+        """Helper to create response with current UTC ISO timestamp."""
+        if "timestamp" not in kwargs:
+            kwargs["timestamp"] = datetime.utcnow().isoformat() + "Z"
+        return cls(**kwargs)
 
 
 class BlocksResponse(BranchContextResponse):
     """
     Enhanced response for blocks endpoints that includes branch context.
+    Uses proper MemoryBlock typing for frontend TypeScript generation.
     """
 
-    blocks: List[Dict[str, Any]] = Field(
+    blocks: List[MemoryBlock] = Field(
         ..., description="List of memory blocks from the requested branch"
     )
     total_count: int = Field(..., description="Total number of blocks returned")
@@ -146,9 +158,10 @@ class BlocksResponse(BranchContextResponse):
 class BranchesResponse(BranchContextResponse):
     """
     Enhanced response for branches endpoint that includes current context.
+    Uses proper DoltBranchInfo typing for frontend TypeScript generation.
     """
 
-    branches: List[Dict[str, Any]] = Field(
+    branches: List[DoltBranchInfo] = Field(
         ..., description="List of all available Dolt branches with metadata"
     )
     total_branches: int = Field(..., description="Total number of branches available")
@@ -157,7 +170,7 @@ class BranchesResponse(BranchContextResponse):
 class SingleBlockResponse(BranchContextResponse):
     """
     Enhanced response for single block retrieval with branch context.
+    Uses proper MemoryBlock typing for frontend TypeScript generation.
     """
 
-    block: Dict[str, Any] = Field(..., description="The requested memory block")
-    block_id: str = Field(..., description="ID of the retrieved block")
+    block: MemoryBlock = Field(..., description="The requested memory block")

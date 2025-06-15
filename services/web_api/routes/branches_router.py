@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException
+from datetime import datetime
 
 from services.web_api.models import ErrorResponse, BranchesResponse
 from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
@@ -46,14 +47,12 @@ async def get_all_branches(request: Request) -> BranchesResponse:
         if result.success:
             logger.info(f"Successfully retrieved {len(result.branches)} branches")
 
-            # Convert DoltBranchInfo objects to dicts for response
-            branches_data = [branch.model_dump() for branch in result.branches]
-
             return BranchesResponse(
-                branches=branches_data,
+                branches=result.branches,  # Now properly typed as List[DoltBranchInfo]
                 total_branches=len(result.branches),
                 active_branch=result.active_branch,
                 requested_branch=None,  # No specific branch requested for listing all
+                timestamp=datetime.utcnow().isoformat() + "Z",
             )
         else:
             logger.error(f"Branch listing failed: {result.error}")

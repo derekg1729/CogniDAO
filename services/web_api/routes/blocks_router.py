@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException, status, Query
+from datetime import datetime
 
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
 from services.web_api.models import ErrorResponse, BlocksResponse, SingleBlockResponse
@@ -79,11 +80,12 @@ async def get_all_blocks(
         active_branch = getattr(memory_bank.dolt_writer, "active_branch", "unknown")
 
         return BlocksResponse(
-            blocks=[block.model_dump() for block in all_blocks],
+            blocks=all_blocks,  # Now properly typed as List[MemoryBlock]
             total_count=len(all_blocks),
             filters_applied=filters_applied if filters_applied else None,
             active_branch=active_branch,
             requested_branch=branch,
+            timestamp=datetime.utcnow().isoformat() + "Z",
         )
     except Exception as e:
         # Log the exception details for debugging
@@ -139,10 +141,10 @@ async def get_block(
 
         # Return the enhanced response with branch context
         return SingleBlockResponse(
-            block=output.blocks[0].model_dump(),
-            block_id=block_id,
+            block=output.blocks[0],  # Now properly typed as MemoryBlock
             active_branch=active_branch,
             requested_branch=branch,
+            timestamp=datetime.utcnow().isoformat() + "Z",
         )
     else:
         # Handle block not found or other errors
