@@ -863,6 +863,16 @@ def dolt_checkout_tool(
         # This ensures both reader and writer are on the same branch
         memory_bank.use_persistent_connections(branch=branch_name)
 
+        # 🔧 CRITICAL FIX: Also update link_manager branch context
+        # This ensures link operations stay synchronized with memory_bank operations
+        # TODO: update link_manager to use Dolt connection
+        if hasattr(memory_bank, "link_manager") and memory_bank.link_manager:
+            logger.info(f"Updating LinkManager persistent connection to branch: {branch_name}")
+            memory_bank.link_manager.use_persistent_connection(branch_name)
+            logger.info(
+                f"✅ LinkManager synchronized to branch: {memory_bank.link_manager.active_branch}"
+            )
+
         # Note: force flag is not directly supported by persistent connections
         # If force is needed, we'd need to handle conflicts manually
         if force:
