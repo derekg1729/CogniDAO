@@ -1,9 +1,7 @@
 from fastapi import APIRouter, Request, HTTPException, status, Query
-from typing import List
-from fastapi.responses import JSONResponse
 
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
-from services.web_api.models import ErrorResponse
+from services.web_api.models import ErrorResponse, BlocksResponse, SingleBlockResponse
 # Remove direct import of validate_metadata
 # from infra_core.memory_system.schemas.registry import validate_metadata
 
@@ -28,9 +26,9 @@ router = APIRouter(tags=["v1/Blocks"])
 
 @router.get(
     "/blocks",
-    response_model=List[MemoryBlock],
-    summary="Get all memory blocks",
-    description="Retrieves memory blocks from specified Dolt branch. Defaults to 'main' branch.",
+    response_model=BlocksResponse,
+    summary="Get all memory blocks with branch context",
+    description="Retrieves memory blocks from specified Dolt branch with active branch context. Defaults to 'main' branch.",
     responses={
         400: {"model": ErrorResponse, "description": "Invalid branch name format"},
         404: {"model": ErrorResponse, "description": "Branch not found"},
@@ -44,9 +42,9 @@ async def get_all_blocks(
     ),
     case_insensitive: bool = Query(False, description="Case-insensitive type filtering"),
     branch: str = Query("main", description="Dolt branch to read from (default: 'main')"),
-) -> List[MemoryBlock]:
+) -> BlocksResponse:
     """
-    Retrieves memory blocks from the StructuredMemoryBank.
+    Retrieves memory blocks from the StructuredMemoryBank with branch context.
 
     Parameters:
     - type: Optional filter for block type (e.g., "project", "knowledge", "task")
@@ -61,15 +59,32 @@ async def get_all_blocks(
 
         all_blocks = memory_bank.get_all_memory_blocks(branch=branch)
 
+        # Track original count before filtering
+        original_count = len(all_blocks)
+        filters_applied = {}
+
         # Filter blocks by type if specified
         if type:
             logger.info(f"Filtering blocks by type: {type} (case_insensitive={case_insensitive})")
+            filters_applied["type"] = type
+            filters_applied["case_insensitive"] = case_insensitive
             if case_insensitive:
                 all_blocks = [block for block in all_blocks if block.type.lower() == type.lower()]
             else:
                 all_blocks = [block for block in all_blocks if block.type == type]
 
-        return all_blocks
+        logger.info(f"Retrieved {len(all_blocks)} blocks (filtered from {original_count})")
+
+        # Get active branch from memory bank
+        active_branch = getattr(memory_bank.dolt_writer, "active_branch", "unknown")
+
+        return BlocksResponse(
+            blocks=[block.model_dump() for block in all_blocks],
+            total_count=len(all_blocks),
+            filters_applied=filters_applied if filters_applied else None,
+            active_branch=active_branch,
+            requested_branch=branch,
+        )
     except Exception as e:
         # Log the exception details for debugging
         logger.exception(f"Error retrieving blocks: {e}")
@@ -78,9 +93,9 @@ async def get_all_blocks(
 
 @router.get(
     "/blocks/{block_id}",
-    response_model=MemoryBlock,
-    summary="Get a specific memory block by ID",
-    description="Retrieves a specific memory block by its unique identifier from specified Dolt branch.",
+    response_model=SingleBlockResponse,
+    summary="Get a specific memory block by ID with branch context",
+    description="Retrieves a specific memory block by its unique identifier from specified Dolt branch with active branch context.",
     responses={
         400: {"model": ErrorResponse, "description": "Invalid branch name format"},
         404: {"model": ErrorResponse, "description": "Memory block or branch not found"},
@@ -91,9 +106,9 @@ async def get_block(
     request: Request,
     block_id: str,
     branch: str = Query("main", description="Dolt branch to read from (default: 'main')"),
-) -> MemoryBlock:
+) -> SingleBlockResponse:
     """
-    Retrieves a specific memory block by its ID using the get_memory_block_tool.
+    Retrieves a specific memory block by its ID using the get_memory_block_tool with branch context.
     """
     # 1. Get Memory Bank instance
     try:
@@ -119,10 +134,15 @@ async def get_block(
 
     # 3. Handle the output from the tool
     if output.success and len(output.blocks) > 0:
-        # Return the block with caching headers
-        return JSONResponse(
-            content=output.blocks[0].model_dump(mode="json"),
-            headers={"Cache-Control": "max-age=3600, public"},  # Cache for 1 hour
+        # Get active branch from memory bank
+        active_branch = getattr(memory_bank.dolt_writer, "active_branch", "unknown")
+
+        # Return the enhanced response with branch context
+        return SingleBlockResponse(
+            block=output.blocks[0].model_dump(),
+            block_id=block_id,
+            active_branch=active_branch,
+            requested_branch=branch,
         )
     else:
         # Handle block not found or other errors

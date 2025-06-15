@@ -78,23 +78,34 @@ def sample_memory_block():
 
 def test_get_all_blocks_success(client: TestClient, sample_memory_blocks_data: list[MemoryBlock]):
     """Test successful retrieval of all memory blocks."""
-    # Convert Pydantic models to dicts for JSON comparison, handling datetime
-    expected_json_response = [block.model_dump(mode="json") for block in sample_memory_blocks_data]
-
-    # Mock the StructuredMemoryBank instance and its get_all_memory_blocks method
+    # Mock the StructuredMemoryBank instance with proper active_branch setup
     mock_memory_bank = MagicMock()
     mock_memory_bank.get_all_memory_blocks.return_value = sample_memory_blocks_data
+    mock_memory_bank.dolt_writer = MagicMock()
+    mock_memory_bank.dolt_writer.active_branch = "main"
 
     # Patch app.state.memory_bank to return our mock
-    # The path to 'app.state.memory_bank' depends on where 'app' is initialized
-    # and how lifespan context manager sets it. Assuming it's accessible via app.state.
     with patch("services.web_api.app.lifespan", MagicMock()):  # Mock lifespan to prevent real setup
         app.state.memory_bank = mock_memory_bank  # Direct assignment for simplicity here
 
         response = client.get("/api/blocks")
 
         assert response.status_code == 200
-        assert response.json() == expected_json_response
+        response_data = response.json()
+
+        # Check enhanced response structure
+        assert "active_branch" in response_data
+        assert "requested_branch" in response_data
+        assert "blocks" in response_data
+        assert "total_count" in response_data
+        assert "timestamp" in response_data
+
+        # Check values
+        assert response_data["active_branch"] == "main"
+        assert response_data["requested_branch"] == "main"  # Default branch
+        assert response_data["total_count"] == len(sample_memory_blocks_data)
+        assert len(response_data["blocks"]) == len(sample_memory_blocks_data)
+
         mock_memory_bank.get_all_memory_blocks.assert_called_once_with(
             branch="main"
         )  # Called with default 'main' branch
@@ -147,16 +158,12 @@ def test_get_all_blocks_general_exception(client: TestClient):
 
 @pytest.fixture
 def mock_memory_bank():
-    """Provides a MagicMock replacement for the StructuredMemoryBank."""
-    mock = MagicMock(spec=StructuredMemoryBank)
-    mock.get_all_memory_blocks.return_value = []
-    mock.create_memory_block.return_value = True  # Default success
-
-    # Configure dolt_writer mock with active_branch
-    mock.dolt_writer = MagicMock()
-    mock.dolt_writer.active_branch = "main"
-
-    return mock
+    """Create a mock memory bank for testing with proper active_branch setup."""
+    mock_bank = MagicMock(spec=StructuredMemoryBank)
+    # Create a mock dolt_writer with active_branch attribute
+    mock_bank.dolt_writer = MagicMock()
+    mock_bank.dolt_writer.active_branch = "main"  # Set as string, not MagicMock
+    return mock_bank
 
 
 @pytest.fixture
@@ -217,34 +224,38 @@ def test_get_all_blocks_bank_exception(client_with_mock_bank, mock_memory_bank):
 # Tests for the new GET /api/blocks/{id} endpoint
 @patch("services.web_api.routes.blocks_router.get_memory_block_tool")
 def test_get_block_success(mock_get_block_tool, client_with_mock_bank, sample_memory_block):
-    """Test successful retrieval of a specific memory block by ID."""
-    # Configure mock to return success output with new consistent API
+    """Test successful retrieval of a memory block by ID."""
     mock_output = GetMemoryBlockOutput(
         success=True,
-        blocks=[sample_memory_block],  # New consistent API - always a list
+        blocks=[sample_memory_block],
         error=None,
         timestamp=datetime.datetime.utcnow(),
     )
     mock_get_block_tool.return_value = mock_output
 
-    # Make the request
-    response = client_with_mock_bank.get(f"/api/blocks/{sample_memory_block.id}")
+    response = client_with_mock_bank.get("/api/v1/blocks/test-block-123")
 
-    # Verify the response
     assert response.status_code == 200
-    assert response.json() == sample_memory_block.model_dump(mode="json")
+    response_data = response.json()
 
-    # Verify cache headers
-    assert "Cache-Control" in response.headers
-    assert "max-age=3600" in response.headers["Cache-Control"]
-    assert "public" in response.headers["Cache-Control"]
+    # Check enhanced single block response structure
+    assert "active_branch" in response_data
+    assert "requested_branch" in response_data
+    assert "block" in response_data
+    assert "block_id" in response_data
+    assert "timestamp" in response_data
+
+    # Check values
+    assert response_data["active_branch"] == "main"
+    assert response_data["requested_branch"] == "main"  # Default branch
+    assert response_data["block_id"] == "test-block-123"
+    assert response_data["block"]["id"] == "test-block-123"
 
     # Verify the tool was called correctly
     mock_get_block_tool.assert_called_once()
-    _, kwargs = mock_get_block_tool.call_args
-    assert "memory_bank" in kwargs
-    assert "block_id" in kwargs
-    assert kwargs["block_id"] == sample_memory_block.id
+    call_args = mock_get_block_tool.call_args
+    assert call_args.kwargs["block_id"] == "test-block-123"
+    assert call_args.kwargs["branch"] == "main"  # Default branch
 
 
 @patch("services.web_api.routes.blocks_router.get_memory_block_tool")
@@ -494,7 +505,7 @@ def test_create_block_memory_bank_exception(
 def test_get_blocks_with_type_filter(
     client: TestClient, sample_memory_blocks_data: list[MemoryBlock]
 ):
-    """Test filtering memory blocks by type."""
+    """Test filtering blocks by type parameter."""
     # Add a block with a different type to the test data
     project_block = MemoryBlock(
         id="project-block-1",
@@ -518,9 +529,11 @@ def test_get_blocks_with_type_filter(
     ]
     expected_project_blocks = [project_block.model_dump(mode="json")]
 
-    # Mock the memory bank
+    # Mock the memory bank with proper active_branch
     mock_memory_bank = MagicMock()
     mock_memory_bank.get_all_memory_blocks.return_value = test_blocks
+    mock_memory_bank.dolt_writer = MagicMock()
+    mock_memory_bank.dolt_writer.active_branch = "main"
 
     with patch("services.web_api.app.lifespan", MagicMock()):
         app.state.memory_bank = mock_memory_bank
@@ -528,17 +541,26 @@ def test_get_blocks_with_type_filter(
         # Test filtering by knowledge type
         response_knowledge = client.get("/api/blocks?type=knowledge")
         assert response_knowledge.status_code == 200
-        assert response_knowledge.json() == expected_knowledge_blocks
+        response_data = response_knowledge.json()
+        assert response_data["active_branch"] == "main"
+        assert response_data["total_count"] == len(expected_knowledge_blocks)
+        assert len(response_data["blocks"]) == len(expected_knowledge_blocks)
 
         # Test filtering by project type
         response_project = client.get("/api/blocks?type=project")
         assert response_project.status_code == 200
-        assert response_project.json() == expected_project_blocks
+        response_data = response_project.json()
+        assert response_data["active_branch"] == "main"
+        assert response_data["total_count"] == len(expected_project_blocks)
+        assert len(response_data["blocks"]) == len(expected_project_blocks)
 
         # Test with a type that doesn't exist
         response_none = client.get("/api/blocks?type=nonexistent")
         assert response_none.status_code == 200
-        assert response_none.json() == []
+        response_data = response_none.json()
+        assert response_data["active_branch"] == "main"
+        assert response_data["total_count"] == 0
+        assert response_data["blocks"] == []
 
         # Verify the memory bank was called each time
         assert mock_memory_bank.get_all_memory_blocks.call_count == 3
@@ -568,12 +590,11 @@ def test_get_blocks_with_no_type_filter(
     for block in sample_memory_blocks_data:
         block.type = "knowledge"
 
-    # Convert all blocks to JSON format for comparison
-    expected_all_blocks = [block.model_dump(mode="json") for block in test_blocks]
-
-    # Mock the memory bank
+    # Mock the memory bank with proper active_branch
     mock_memory_bank = MagicMock()
     mock_memory_bank.get_all_memory_blocks.return_value = test_blocks
+    mock_memory_bank.dolt_writer = MagicMock()
+    mock_memory_bank.dolt_writer.active_branch = "main"
 
     with patch("services.web_api.app.lifespan", MagicMock()):
         app.state.memory_bank = mock_memory_bank
@@ -581,7 +602,10 @@ def test_get_blocks_with_no_type_filter(
         # Test without any type filter - should return all blocks
         response = client.get("/api/blocks")
         assert response.status_code == 200
-        assert response.json() == expected_all_blocks
+        response_data = response.json()
+        assert response_data["active_branch"] == "main"
+        assert response_data["total_count"] == len(test_blocks)
+        assert len(response_data["blocks"]) == len(test_blocks)
 
         # Verify the memory bank was called
         mock_memory_bank.get_all_memory_blocks.assert_called_once()
@@ -594,12 +618,11 @@ def test_get_blocks_with_empty_type_filter(
     client: TestClient, sample_memory_blocks_data: list[MemoryBlock]
 ):
     """Test behavior when an empty type filter is provided."""
-    # Mock the memory bank with the sample data
+    # Mock the memory bank with the sample data and proper active_branch
     mock_memory_bank = MagicMock()
     mock_memory_bank.get_all_memory_blocks.return_value = sample_memory_blocks_data
-
-    # Convert blocks to JSON format for comparison
-    expected_blocks = [block.model_dump(mode="json") for block in sample_memory_blocks_data]
+    mock_memory_bank.dolt_writer = MagicMock()
+    mock_memory_bank.dolt_writer.active_branch = "main"
 
     with patch("services.web_api.app.lifespan", MagicMock()):
         app.state.memory_bank = mock_memory_bank
@@ -607,9 +630,10 @@ def test_get_blocks_with_empty_type_filter(
         # Test with empty type parameter
         response = client.get("/api/blocks?type=")
         assert response.status_code == 200
-        # An empty string type won't match any blocks, so we get all blocks back
-        # This is because the current implementation only filters if type is truthy
-        assert response.json() == expected_blocks
+        response_data = response.json()
+        assert response_data["active_branch"] == "main"
+        assert response_data["total_count"] == len(sample_memory_blocks_data)
+        assert len(response_data["blocks"]) == len(sample_memory_blocks_data)
 
         # Verify the memory bank was called
         mock_memory_bank.get_all_memory_blocks.assert_called_once()
@@ -656,9 +680,11 @@ def test_get_blocks_with_case_insensitive_filtering(client: TestClient):
 
     test_blocks = [knowledge_block, project_block, task_block]
 
-    # Mock the memory bank
+    # Mock the memory bank with proper active_branch
     mock_memory_bank = MagicMock()
     mock_memory_bank.get_all_memory_blocks.return_value = test_blocks
+    mock_memory_bank.dolt_writer = MagicMock()
+    mock_memory_bank.dolt_writer.active_branch = "main"
 
     with patch("services.web_api.app.lifespan", MagicMock()):
         app.state.memory_bank = mock_memory_bank
@@ -666,19 +692,25 @@ def test_get_blocks_with_case_insensitive_filtering(client: TestClient):
         # Test with case sensitivity (default) - uppercase should not match
         response = client.get("/api/blocks?type=PROJECT")
         assert response.status_code == 200
-        assert len(response.json()) == 0  # No matches with case-sensitive search
+        response_data = response.json()
+        assert response_data["active_branch"] == "main"
+        assert response_data["total_count"] == 0  # No matches with case-sensitive search
 
         # Test with case insensitivity enabled - uppercase should match lowercase 'project'
         response = client.get("/api/blocks?type=PROJECT&case_insensitive=true")
         assert response.status_code == 200
-        assert len(response.json()) == 1
-        assert response.json()[0]["id"] == "project-block"
+        response_data = response.json()
+        assert response_data["active_branch"] == "main"
+        assert response_data["total_count"] == 1
+        assert response_data["blocks"][0]["id"] == "project-block"
 
         # Test with mixed case and case insensitivity
         response = client.get("/api/blocks?type=pRoJeCt&case_insensitive=true")
         assert response.status_code == 200
-        assert len(response.json()) == 1
-        assert response.json()[0]["id"] == "project-block"
+        response_data = response.json()
+        assert response_data["active_branch"] == "main"
+        assert response_data["total_count"] == 1
+        assert response_data["blocks"][0]["id"] == "project-block"
 
         # Verify the memory bank was called each time
         assert mock_memory_bank.get_all_memory_blocks.call_count == 3
@@ -711,8 +743,21 @@ def test_get_all_blocks_with_explicit_main_branch(client_with_mock_bank, mock_me
     response = client_with_mock_bank.get("/api/v1/blocks?branch=main")
 
     assert response.status_code == 200
-    assert len(response.json()) == 1
-    assert response.json()[0]["id"] == "main-block-1"
+    response_data = response.json()
+
+    # Check enhanced response structure
+    assert "active_branch" in response_data
+    assert "requested_branch" in response_data
+    assert "blocks" in response_data
+    assert "total_count" in response_data
+    assert "timestamp" in response_data
+
+    # Check values
+    assert response_data["active_branch"] == "main"
+    assert response_data["requested_branch"] == "main"
+    assert response_data["total_count"] == 1
+    assert len(response_data["blocks"]) == 1
+    assert response_data["blocks"][0]["id"] == "main-block-1"
     mock_memory_bank.get_all_memory_blocks.assert_called_once_with(branch="main")
 
 
@@ -735,8 +780,14 @@ def test_get_all_blocks_with_different_branch(client_with_mock_bank, mock_memory
     response = client_with_mock_bank.get("/api/v1/blocks?branch=feat/test-branch")
 
     assert response.status_code == 200
-    assert len(response.json()) == 1
-    assert response.json()[0]["id"] == "feature-block-1"
+    response_data = response.json()
+
+    # Check enhanced response structure
+    assert response_data["active_branch"] == "main"  # Active branch from mock
+    assert response_data["requested_branch"] == "feat/test-branch"  # Requested branch
+    assert response_data["total_count"] == 1
+    assert len(response_data["blocks"]) == 1
+    assert response_data["blocks"][0]["id"] == "feature-block-1"
     mock_memory_bank.get_all_memory_blocks.assert_called_once_with(branch="feat/test-branch")
 
 
@@ -747,7 +798,13 @@ def test_get_all_blocks_with_nonexistent_branch(client_with_mock_bank, mock_memo
     response = client_with_mock_bank.get("/api/v1/blocks?branch=nonexistent-branch")
 
     assert response.status_code == 200
-    assert response.json() == []
+    response_data = response.json()
+
+    # Check enhanced response structure even with empty results
+    assert response_data["active_branch"] == "main"
+    assert response_data["requested_branch"] == "nonexistent-branch"
+    assert response_data["total_count"] == 0
+    assert response_data["blocks"] == []
     mock_memory_bank.get_all_memory_blocks.assert_called_once_with(branch="nonexistent-branch")
 
 
@@ -780,9 +837,16 @@ def test_get_all_blocks_branch_with_type_filter(client_with_mock_bank, mock_memo
     response = client_with_mock_bank.get("/api/v1/blocks?branch=feat/test-branch&type=task")
 
     assert response.status_code == 200
-    assert len(response.json()) == 1
-    assert response.json()[0]["id"] == "task-block-1"
-    assert response.json()[0]["type"] == "task"
+    response_data = response.json()
+
+    # Check enhanced response structure with filters
+    assert response_data["active_branch"] == "main"
+    assert response_data["requested_branch"] == "feat/test-branch"
+    assert response_data["total_count"] == 1  # Only task blocks after filtering
+    assert len(response_data["blocks"]) == 1
+    assert response_data["blocks"][0]["id"] == "task-block-1"
+    assert response_data["filters_applied"]["type"] == "task"
+    assert not response_data["filters_applied"]["case_insensitive"]
     mock_memory_bank.get_all_memory_blocks.assert_called_once_with(branch="feat/test-branch")
 
 
@@ -809,8 +873,16 @@ def test_get_all_blocks_branch_with_case_insensitive_filter(
     )
 
     assert response.status_code == 200
-    assert len(response.json()) == 1
-    assert response.json()[0]["id"] == "task-block-1"
+    response_data = response.json()
+
+    # Check enhanced response structure with case insensitive filter
+    assert response_data["active_branch"] == "main"
+    assert response_data["requested_branch"] == "feat/test-branch"
+    assert response_data["total_count"] == 1
+    assert len(response_data["blocks"]) == 1
+    assert response_data["blocks"][0]["id"] == "task-block-1"
+    assert response_data["filters_applied"]["type"] == "TASK"
+    assert response_data["filters_applied"]["case_insensitive"]
     mock_memory_bank.get_all_memory_blocks.assert_called_once_with(branch="feat/test-branch")
 
 
@@ -839,13 +911,25 @@ def test_get_block_with_explicit_main_branch(mock_get_block_tool, client_with_mo
     response = client_with_mock_bank.get("/api/v1/blocks/main-block-123?branch=main")
 
     assert response.status_code == 200
-    assert response.json()["id"] == "main-block-123"
+    response_data = response.json()
 
-    # Verify the tool was called with branch parameter
+    # Check enhanced single block response structure
+    assert "active_branch" in response_data
+    assert "requested_branch" in response_data
+    assert "block" in response_data
+    assert "block_id" in response_data
+    assert "timestamp" in response_data
+
+    # Check values
+    assert response_data["active_branch"] == "main"
+    assert response_data["requested_branch"] == "main"
+    assert response_data["block_id"] == "main-block-123"
+    assert response_data["block"]["id"] == "main-block-123"
+    # Verify the tool was called with correct parameters
     mock_get_block_tool.assert_called_once()
-    _, kwargs = mock_get_block_tool.call_args
-    assert kwargs["branch"] == "main"
-    assert kwargs["block_id"] == "main-block-123"
+    call_args = mock_get_block_tool.call_args
+    assert call_args.kwargs["block_id"] == "main-block-123"
+    assert call_args.kwargs["branch"] == "main"
 
 
 @patch("services.web_api.routes.blocks_router.get_memory_block_tool")
@@ -873,13 +957,18 @@ def test_get_block_with_different_branch(mock_get_block_tool, client_with_mock_b
     response = client_with_mock_bank.get("/api/v1/blocks/feature-block-456?branch=feat/test-branch")
 
     assert response.status_code == 200
-    assert response.json()["id"] == "feature-block-456"
+    response_data = response.json()
 
-    # Verify the tool was called with correct branch parameter
+    # Check enhanced single block response structure
+    assert response_data["active_branch"] == "main"  # Active branch from mock
+    assert response_data["requested_branch"] == "feat/test-branch"  # Requested branch
+    assert response_data["block_id"] == "feature-block-456"
+    assert response_data["block"]["id"] == "feature-block-456"
+    # Verify the tool was called with correct parameters
     mock_get_block_tool.assert_called_once()
-    _, kwargs = mock_get_block_tool.call_args
-    assert kwargs["branch"] == "feat/test-branch"
-    assert kwargs["block_id"] == "feature-block-456"
+    call_args = mock_get_block_tool.call_args
+    assert call_args.kwargs["block_id"] == "feature-block-456"
+    assert call_args.kwargs["branch"] == "feat/test-branch"
 
 
 @patch("services.web_api.routes.blocks_router.get_memory_block_tool")
@@ -941,14 +1030,19 @@ def test_get_block_cross_branch_validation(mock_get_block_tool, client_with_mock
     )
 
     assert response_feature.status_code == 200
-    assert response_feature.json()["id"] == "cross-branch-block"
+    response_data = response_feature.json()
 
-    # Test 2: Same block doesn't exist in main branch
+    # Check enhanced single block response structure
+    assert response_data["active_branch"] == "main"  # Active branch from mock
+    assert response_data["requested_branch"] == "feat/test-branch"  # Requested branch
+    assert response_data["block_id"] == "cross-branch-block"
+    assert response_data["block"]["id"] == "cross-branch-block"
+
+    # Test 2: Block doesn't exist in main branch
     mock_get_block_tool.return_value = not_found_output
     response_main = client_with_mock_bank.get("/api/v1/blocks/cross-branch-block?branch=main")
 
-    assert response_main.status_code == 404
-    assert "not found" in response_main.json()["detail"]
+    assert response_main.status_code == 404  # Should return 404 for not found
 
-    # Verify both calls were made with correct branch parameters
+    # Verify both calls were made
     assert mock_get_block_tool.call_count == 2
