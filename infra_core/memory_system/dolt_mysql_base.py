@@ -50,8 +50,8 @@ class MainBranchProtectionError(Exception):
         self.protected_branches = protected_branches or PROTECTED_BRANCHES
         super().__init__(
             f"Write operation '{operation}' blocked on protected branch '{branch}'. "
-            f"Protected branches {self.protected_branches} are read-only. "
-            f"Use a feature branch for development work."
+            f"{branch} is protected and read-only. "
+            f"Please find the right feature branch to work on."
         )
 
 

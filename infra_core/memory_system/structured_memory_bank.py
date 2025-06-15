@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from pydantic import ValidationError
 
-from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig, MainBranchProtectionError
 from infra_core.memory_system.dolt_reader import (
     DoltMySQLReader,
 )
@@ -288,6 +288,10 @@ class StructuredMemoryBank:
                     f"Successfully wrote block {block.id} to Dolt working set (uncommitted)."
                 )
 
+            except MainBranchProtectionError as protection_e:
+                error_msg = str(protection_e)
+                logger.error(f"Branch protection error: {error_msg}")
+                return False, error_msg
             except Exception as dolt_e:
                 error_msg = f"Database write error for block {block.id}: {str(dolt_e)}"
                 logger.error(

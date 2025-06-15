@@ -439,14 +439,16 @@ class TestBranchProtectionErrorMessages:
         assert "feature branch" in str(error)
 
     def test_error_message_includes_multiple_protected_branches(self):
-        """Test that error messages show all protected branches."""
+        """Test that error messages show the specific blocked branch (not all protected branches)."""
         protected_branches = ["main", "production", "staging"]
         error = MainBranchProtectionError("test_operation", "main", protected_branches)
 
         assert "test_operation" in str(error)
         assert "main" in str(error)
-        for branch in protected_branches:
-            assert branch in str(error)
+        assert "protected branch" in str(error)
+        assert "read-only" in str(error)
+        assert "feature branch" in str(error)
+        # Note: The new error format only shows the specific blocked branch, not all protected branches
 
 
 class TestBranchProtectionIntegration:
