@@ -10,13 +10,94 @@ Tools included:
 """
 
 import logging
+import re
 from datetime import datetime
-from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any, Callable, Literal
+from functools import wraps
+from pydantic import BaseModel, Field, validator
 
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 
 logger = logging.getLogger(__name__)
+
+# Security: Branch name validation regex
+BRANCH_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_\-/]+$")
+
+
+def validate_branch_name(branch_name: str) -> str:
+    """Validate branch name against security pattern."""
+    if not BRANCH_NAME_PATTERN.match(branch_name):
+        raise ValueError(
+            f"Invalid branch name: {branch_name}. Must match pattern: {BRANCH_NAME_PATTERN.pattern}"
+        )
+    return branch_name
+
+
+# Base Output Model to eliminate timestamp duplication
+class BaseDoltOutput(BaseModel):
+    """Base output model for all Dolt tools."""
+
+    success: bool = Field(..., description="Whether the operation succeeded")
+    message: str = Field(..., description="Human-readable result message")
+    active_branch: str = Field(..., description="Current active branch")
+    error: Optional[str] = Field(default=None, description="Error message if operation failed")
+    error_code: Optional[str] = Field(default=None, description="Machine-readable error code")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
+
+
+def dolt_tool(operation_name: str):
+    """
+    Decorator to handle common Dolt tool patterns:
+    - Logging
+    - Exception handling
+    - Standardized error messages
+    - Active branch injection
+    """
+
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(input_data, memory_bank: StructuredMemoryBank):
+            logger.info(f"{operation_name.upper()} started with input: {input_data}")
+
+            try:
+                result = func(input_data, memory_bank)
+
+                # Ensure active_branch is set
+                if hasattr(result, "active_branch") and not result.active_branch:
+                    result.active_branch = getattr(
+                        memory_bank.dolt_writer, "active_branch", "unknown"
+                    )
+
+                # Standardize success message
+                if result.success and not result.message.startswith(operation_name.upper()):
+                    result.message = f"{operation_name.upper()} SUCCESS: {result.message}"
+                elif not result.success and not result.message.startswith(operation_name.upper()):
+                    result.message = f"{operation_name.upper()} FAILED: {result.message}"
+
+                logger.info(f"{operation_name.upper()} completed: {result.message}")
+                return result
+
+            except Exception as e:
+                error_msg = f"Exception during {operation_name}: {str(e)}"
+                logger.error(error_msg, exc_info=True)
+
+                # Create error response using the function's return type annotation
+                output_class = func.__annotations__.get("return")
+                if output_class and hasattr(output_class, "__call__"):
+                    return output_class(
+                        success=False,
+                        message=f"{operation_name.upper()} FAILED: {str(e)}",
+                        active_branch=getattr(memory_bank.dolt_writer, "active_branch", "unknown"),
+                        error=error_msg,
+                        error_code="EXCEPTION",
+                    )
+                else:
+                    # Fallback - this shouldn't happen with proper typing
+                    raise
+
+        return wrapper
+
+    return decorator
 
 
 class DoltAddInput(BaseModel):
@@ -28,14 +109,10 @@ class DoltAddInput(BaseModel):
     )
 
 
-class DoltAddOutput(BaseModel):
+class DoltAddOutput(BaseDoltOutput):
     """Output model for the dolt_add tool."""
 
-    success: bool = Field(..., description="Whether the add operation succeeded")
-    message: str = Field(..., description="Human-readable result message")
-    active_branch: str = Field(..., description="Current active branch")
-    error: Optional[str] = Field(default=None, description="Error message if operation failed")
-    timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
+    pass  # All fields inherited from BaseDoltOutput
 
 
 class DoltCommitInput(BaseModel):
@@ -58,20 +135,15 @@ class DoltCommitInput(BaseModel):
     )
 
 
-class DoltCommitOutput(BaseModel):
+class DoltCommitOutput(BaseDoltOutput):
     """Output model for the dolt_commit tool."""
 
-    success: bool = Field(..., description="Whether the commit operation succeeded")
     commit_hash: Optional[str] = Field(
         default=None, description="The Dolt commit hash if successful"
     )
-    message: str = Field(..., description="Human-readable result message")
     tables_committed: Optional[List[str]] = Field(
         default=None, description="List of tables that were committed"
     )
-    active_branch: str = Field(..., description="Current active branch")
-    error: Optional[str] = Field(default=None, description="Error message if operation failed")
-    timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
 
 
 class DoltPushInput(BaseModel):
@@ -98,19 +170,19 @@ class DoltPushInput(BaseModel):
         description="Whether to set up upstream tracking for the branch (default: False)",
     )
 
+    @validator("branch")
+    def validate_branch(cls, v):
+        """Validate branch name for security."""
+        return validate_branch_name(v)
 
-class DoltPushOutput(BaseModel):
+
+class DoltPushOutput(BaseDoltOutput):
     """Output model for the dolt_push tool."""
 
-    success: bool = Field(..., description="Whether the push operation succeeded")
-    message: str = Field(..., description="Human-readable result message")
     remote_name: str = Field(..., description="Name of the remote that was pushed to")
     branch: str = Field(..., description="Branch that was pushed")
     force: bool = Field(..., description="Whether force push was used")
     set_upstream: bool = Field(..., description="Whether upstream tracking was set up")
-    active_branch: str = Field(..., description="Current active branch")
-    error: Optional[str] = Field(default=None, description="Error message if operation failed")
-    timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
 
 
 class DoltStatusInput(BaseModel):
@@ -119,11 +191,9 @@ class DoltStatusInput(BaseModel):
     # MVP: No input parameters needed for basic status
 
 
-class DoltStatusOutput(BaseModel):
+class DoltStatusOutput(BaseDoltOutput):
     """Output model for the dolt_status tool."""
 
-    success: bool = Field(..., description="Whether the status operation succeeded")
-    active_branch: str = Field(..., description="Current active branch")
     is_clean: bool = Field(..., description="True if working tree is clean")
     staged_tables: List[str] = Field(default=[], description="Tables with staged changes")
     unstaged_tables: List[str] = Field(default=[], description="Tables with unstaged changes")
@@ -132,9 +202,6 @@ class DoltStatusOutput(BaseModel):
     ahead: int = Field(default=0, description="Commits ahead of remote")
     behind: int = Field(default=0, description="Commits behind remote")
     conflicts: List[str] = Field(default=[], description="Tables with conflicts")
-    message: str = Field(..., description="Human-readable status summary")
-    error: Optional[str] = Field(default=None, description="Error message if operation failed")
-    timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
 
 
 class DoltPullInput(BaseModel):
@@ -166,7 +233,7 @@ class DoltPullInput(BaseModel):
     )
 
 
-class DoltPullOutput(BaseModel):
+class DoltPullOutput(BaseDoltOutput):
     """Output model for the dolt_pull tool."""
 
     success: bool = Field(..., description="Whether the pull operation succeeded")
@@ -201,7 +268,7 @@ class DoltBranchInput(BaseModel):
     )
 
 
-class DoltBranchOutput(BaseModel):
+class DoltBranchOutput(BaseDoltOutput):
     """Output model for the dolt_branch tool."""
 
     success: bool = Field(..., description="Whether the branch creation succeeded")
@@ -236,7 +303,7 @@ class DoltBranchInfo(BaseModel):
     dirty: bool = Field(..., description="Whether the branch has uncommitted changes")
 
 
-class DoltListBranchesOutput(BaseModel):
+class DoltListBranchesOutput(BaseDoltOutput):
     """Output model for the dolt_list_branches tool."""
 
     success: bool = Field(..., description="Whether the operation succeeded")
@@ -262,7 +329,7 @@ class DoltCheckoutInput(BaseModel):
     )
 
 
-class DoltCheckoutOutput(BaseModel):
+class DoltCheckoutOutput(BaseDoltOutput):
     """Output model for the dolt_checkout tool."""
 
     success: bool = Field(..., description="Whether the checkout operation succeeded")
@@ -275,10 +342,9 @@ class DoltCheckoutOutput(BaseModel):
 class DoltDiffInput(BaseModel):
     """Input model for the dolt_diff tool."""
 
-    mode: Optional[str] = Field(
+    mode: Optional[Literal["working", "staged"]] = Field(
         default="working",
         description="Diff mode. 'working' for unstaged changes, 'staged' for staged changes. Overridden if from/to are set.",
-        enum=["working", "staged"],
     )
     from_revision: Optional[str] = Field(
         default=None, description="The starting revision (e.g., 'HEAD', 'main')."
@@ -286,6 +352,13 @@ class DoltDiffInput(BaseModel):
     to_revision: Optional[str] = Field(
         default=None, description="The ending revision (e.g., 'WORKING', 'STAGED')."
     )
+
+    @validator("from_revision", "to_revision")
+    def validate_revisions(cls, v):
+        """Validate revision names for security."""
+        if v and not BRANCH_NAME_PATTERN.match(v) and v not in ["HEAD", "WORKING", "STAGED"]:
+            raise ValueError(f"Invalid revision name: {v}")
+        return v
 
 
 class DiffSummary(BaseModel):
@@ -302,7 +375,7 @@ class DiffSummary(BaseModel):
     schema_change: bool = Field(..., description="True if schema has changed.")
 
 
-class DoltDiffOutput(BaseModel):
+class DoltDiffOutput(BaseDoltOutput):
     """Output model for the dolt_diff tool."""
 
     success: bool = Field(..., description="Whether the diff operation succeeded.")
@@ -352,7 +425,7 @@ class DoltAutoCommitInput(BaseModel):
     )
 
 
-class DoltAutoCommitOutput(BaseModel):
+class DoltAutoCommitOutput(BaseDoltOutput):
     """Output model for the dolt_auto_commit_and_push tool."""
 
     success: bool = Field(..., description="Whether the entire operation succeeded")
@@ -597,14 +670,16 @@ def dolt_status_tool(
 
         return DoltStatusOutput(
             success=True,
-            active_branch=current_branch,
             is_clean=is_clean,
             staged_tables=staged_tables,
             unstaged_tables=unstaged_tables,
             untracked_tables=untracked_tables,
             total_changes=total_changes,
+            ahead=0,
+            behind=0,
             conflicts=conflicts,
             message=message,
+            active_branch=current_branch,
         )
 
     except Exception as e:
@@ -613,11 +688,17 @@ def dolt_status_tool(
 
         return DoltStatusOutput(
             success=False,
-            active_branch="unknown",
             is_clean=False,
+            staged_tables=[],
+            unstaged_tables=[],
+            untracked_tables=[],
             total_changes=0,
+            ahead=0,
+            behind=0,
+            conflicts=[],
             message=f"Status check failed: {str(e)}",
             error=error_msg,
+            active_branch="unknown",
         )
 
 
@@ -798,6 +879,7 @@ def dolt_list_branches_tool(
         )
 
 
+@dolt_tool("ADD")
 def dolt_add_tool(input_data: DoltAddInput, memory_bank: StructuredMemoryBank) -> DoltAddOutput:
     """
     Stage working changes to Dolt using the memory bank's writer.
@@ -809,35 +891,21 @@ def dolt_add_tool(input_data: DoltAddInput, memory_bank: StructuredMemoryBank) -
     Returns:
         DoltAddOutput with success status and message
     """
-    try:
-        tables_to_add = input_data.tables
-        logger.info(f"Staging Dolt changes for tables: {tables_to_add or 'ALL'}")
+    tables_to_add = input_data.tables
 
-        success, message = memory_bank.dolt_writer.add_to_staging(tables=tables_to_add)
+    success, message = memory_bank.dolt_writer.add_to_staging(tables=tables_to_add)
 
-        if success:
-            logger.info(message)
-            return DoltAddOutput(
-                success=True, message=message, active_branch=memory_bank.dolt_writer.active_branch
-            )
-        else:
-            error_msg = f"Dolt add operation failed: {message}"
-            logger.error(error_msg)
-            return DoltAddOutput(
-                success=False,
-                message=error_msg,
-                active_branch=memory_bank.dolt_writer.active_branch,
-                error=error_msg,
-            )
-
-    except Exception as e:
-        error_msg = f"Exception during dolt_add: {str(e)}"
-        logger.error(error_msg, exc_info=True)
+    if success:
+        return DoltAddOutput(
+            success=True, message=message, active_branch=memory_bank.dolt_writer.active_branch
+        )
+    else:
         return DoltAddOutput(
             success=False,
-            message=f"Add failed: {str(e)}",
+            message=message,
             active_branch=memory_bank.dolt_writer.active_branch,
-            error=error_msg,
+            error=message,
+            error_code="ADD_FAILED",
         )
 
 
@@ -1121,5 +1189,496 @@ def dolt_auto_commit_and_push_tool(
             operations_performed=operations_performed,
             was_clean=False,
             active_branch="unknown",
+            error=error_msg,
+        )
+
+
+# --- NEW PULL REQUEST TOOLS ---
+
+
+class DoltCreatePullRequestInput(BaseModel):
+    """Input model for the dolt_create_pull_request tool."""
+
+    source_branch: str = Field(
+        ...,
+        description="Source branch to merge from",
+        min_length=1,
+        max_length=100,
+    )
+    target_branch: str = Field(
+        default="main",
+        description="Target branch to merge into (default: 'main')",
+        min_length=1,
+        max_length=100,
+    )
+    title: str = Field(
+        ...,
+        description="Title of the pull request",
+        min_length=1,
+        max_length=200,
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Description of the pull request",
+        max_length=2000,
+    )
+    reviewers: Optional[List[str]] = Field(
+        default=None,
+        description="List of reviewer usernames/emails",
+    )
+    auto_merge: bool = Field(
+        default=False,
+        description="Whether to automatically merge if no conflicts (default: False)",
+    )
+
+
+class DoltCreatePullRequestOutput(BaseDoltOutput):
+    """Output model for the dolt_create_pull_request tool."""
+
+    success: bool = Field(..., description="Whether the pull request creation succeeded")
+    pr_id: Optional[str] = Field(default=None, description="Pull request identifier")
+    message: str = Field(..., description="Human-readable result message")
+    source_branch: str = Field(..., description="Source branch")
+    target_branch: str = Field(..., description="Target branch")
+    title: str = Field(..., description="Pull request title")
+    conflicts: int = Field(default=0, description="Number of conflicts detected")
+    can_auto_merge: bool = Field(..., description="Whether the PR can be auto-merged")
+    active_branch: str = Field(..., description="Current active branch")
+    error: Optional[str] = Field(default=None, description="Error message if operation failed")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
+
+
+class DoltMergeInput(BaseModel):
+    """Input model for the dolt_merge tool."""
+
+    source_branch: str = Field(
+        ...,
+        description="Source branch to merge from",
+        min_length=1,
+        max_length=100,
+    )
+    target_branch: Optional[str] = Field(
+        default=None,
+        description="Target branch to merge into (default: current branch)",
+        min_length=1,
+        max_length=100,
+    )
+    commit_message: Optional[str] = Field(
+        default=None,
+        description="Custom commit message for the merge",
+        max_length=500,
+    )
+    no_ff: bool = Field(
+        default=False,
+        description="Create a merge commit even for fast-forward merges (default: False)",
+    )
+    squash: bool = Field(
+        default=False,
+        description="Squash commits from source branch (default: False)",
+    )
+    author: Optional[str] = Field(
+        default=None,
+        description="Author attribution for the merge commit",
+        max_length=100,
+    )
+
+    @validator("source_branch", "target_branch")
+    def validate_branches(cls, v):
+        """Validate branch names for security."""
+        if v:
+            return validate_branch_name(v)
+        return v
+
+
+class DoltMergeOutput(BaseDoltOutput):
+    """Output model for the dolt_merge tool."""
+
+    merge_hash: Optional[str] = Field(default=None, description="Hash of the merge commit")
+    source_branch: str = Field(..., description="Source branch that was merged")
+    target_branch: str = Field(..., description="Target branch that received the merge")
+    fast_forward: bool = Field(..., description="Whether the merge was a fast-forward")
+    conflicts: int = Field(default=0, description="Number of conflicts that need resolution")
+
+
+class DoltCompareBranchesInput(BaseModel):
+    """Input model for the dolt_compare_branches tool."""
+
+    source_branch: str = Field(
+        ...,
+        description="Source branch to compare from",
+        min_length=1,
+        max_length=100,
+    )
+    target_branch: str = Field(
+        ...,
+        description="Target branch to compare to",
+        min_length=1,
+        max_length=100,
+    )
+    include_data: bool = Field(
+        default=True,
+        description="Whether to include data differences (default: True)",
+    )
+    include_schema: bool = Field(
+        default=True,
+        description="Whether to include schema differences (default: True)",
+    )
+    table_filter: Optional[str] = Field(
+        default=None,
+        description="Optional table name to filter comparison",
+        max_length=100,
+    )
+
+
+class DiffSummaryInfo(BaseModel):
+    """Information about a single table's diff."""
+
+    table_name: str = Field(..., description="Name of the table")
+    diff_type: str = Field(
+        ..., description="Type of diff: 'added', 'dropped', 'modified', 'renamed'"
+    )
+    data_change: bool = Field(..., description="True if data has changed")
+    schema_change: bool = Field(..., description="True if schema has changed")
+    rows_added: int = Field(default=0, description="Number of rows added")
+    rows_deleted: int = Field(default=0, description="Number of rows deleted")
+    rows_modified: int = Field(default=0, description="Number of rows modified")
+
+
+class DoltCompareBranchesOutput(BaseDoltOutput):
+    """Output model for the dolt_compare_branches tool."""
+
+    success: bool = Field(..., description="Whether the comparison succeeded")
+    message: str = Field(..., description="Human-readable result message")
+    source_branch: str = Field(..., description="Source branch")
+    target_branch: str = Field(..., description="Target branch")
+    has_differences: bool = Field(..., description="Whether there are any differences")
+    can_merge: bool = Field(..., description="Whether branches can be merged without conflicts")
+    diff_summary: List[DiffSummaryInfo] = Field(default=[], description="Summary of differences")
+    active_branch: str = Field(..., description="Current active branch")
+    error: Optional[str] = Field(default=None, description="Error message if operation failed")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
+
+
+def dolt_create_pull_request_tool(
+    input_data: DoltCreatePullRequestInput, memory_bank: StructuredMemoryBank
+) -> DoltCreatePullRequestOutput:
+    """
+    Create a pull request for merging one branch into another.
+
+    This simulates GitHub-style pull request creation by:
+    1. Comparing the source and target branches
+    2. Checking for conflicts
+    3. Creating a PR record (simulated)
+    4. Optionally auto-merging if no conflicts
+
+    Args:
+        input_data: The pull request creation parameters
+        memory_bank: StructuredMemoryBank instance with Dolt writer access
+
+    Returns:
+        DoltCreatePullRequestOutput with PR creation results
+    """
+    try:
+        logger.info(
+            f"Creating pull request: {input_data.source_branch} -> {input_data.target_branch}"
+        )
+
+        # First, compare branches to check for conflicts
+        compare_result = dolt_compare_branches_tool(
+            DoltCompareBranchesInput(
+                source_branch=input_data.source_branch, target_branch=input_data.target_branch
+            ),
+            memory_bank,
+        )
+
+        if not compare_result.success:
+            return DoltCreatePullRequestOutput(
+                success=False,
+                message=f"Failed to compare branches: {compare_result.error}",
+                source_branch=input_data.source_branch,
+                target_branch=input_data.target_branch,
+                title=input_data.title,
+                can_auto_merge=False,
+                active_branch=memory_bank.dolt_writer.active_branch,
+                error=compare_result.error,
+            )
+
+        # Generate a simple PR ID (in real implementation, this would be from a PR system)
+        pr_id = f"pr-{input_data.source_branch}-{input_data.target_branch}-{int(datetime.now().timestamp())}"
+
+        can_auto_merge = compare_result.can_merge
+        conflicts = 0 if can_auto_merge else 1  # Simplified conflict detection
+
+        # If auto_merge is enabled and no conflicts, perform the merge
+        if input_data.auto_merge and can_auto_merge:
+            logger.info("Auto-merging pull request...")
+            merge_result = dolt_merge_tool(
+                DoltMergeInput(
+                    source_branch=input_data.source_branch,
+                    target_branch=input_data.target_branch,
+                    commit_message=f"Merge pull request {pr_id}: {input_data.title}",
+                    author="PR System <pr@system.local>",
+                ),
+                memory_bank,
+            )
+
+            if merge_result.success:
+                message = f"Pull request {pr_id} created and auto-merged successfully (commit: {merge_result.merge_hash})"
+            else:
+                message = (
+                    f"Pull request {pr_id} created but auto-merge failed: {merge_result.error}"
+                )
+        else:
+            message = f"Pull request {pr_id} created successfully"
+            if not can_auto_merge:
+                message += " (conflicts detected, manual review required)"
+
+        logger.info(message)
+
+        return DoltCreatePullRequestOutput(
+            success=True,
+            pr_id=pr_id,
+            message=message,
+            source_branch=input_data.source_branch,
+            target_branch=input_data.target_branch,
+            title=input_data.title,
+            conflicts=conflicts,
+            can_auto_merge=can_auto_merge,
+            active_branch=memory_bank.dolt_writer.active_branch,
+        )
+
+    except Exception as e:
+        error_msg = f"Exception during pull request creation: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+
+        return DoltCreatePullRequestOutput(
+            success=False,
+            message=f"Pull request creation failed: {str(e)}",
+            source_branch=input_data.source_branch,
+            target_branch=input_data.target_branch,
+            title=input_data.title,
+            can_auto_merge=False,
+            active_branch=memory_bank.dolt_writer.active_branch,
+            error=error_msg,
+        )
+
+
+@dolt_tool("MERGE")
+def dolt_merge_tool(
+    input_data: DoltMergeInput, memory_bank: StructuredMemoryBank
+) -> DoltMergeOutput:
+    """
+    Merge one branch into another using Dolt's DOLT_MERGE procedure.
+
+    Args:
+        input_data: The merge parameters
+        memory_bank: StructuredMemoryBank instance with Dolt writer access
+
+    Returns:
+        DoltMergeOutput with merge results
+    """
+    # Validate branch names for security
+    validate_branch_name(input_data.source_branch)
+    if input_data.target_branch:
+        validate_branch_name(input_data.target_branch)
+
+    # Determine target branch (current branch if not specified)
+    target_branch = input_data.target_branch or memory_bank.dolt_writer.active_branch
+
+    # Ensure we're on the target branch
+    if memory_bank.dolt_writer.active_branch != target_branch:
+        checkout_result = dolt_checkout_tool(
+            DoltCheckoutInput(branch_name=target_branch), memory_bank
+        )
+        if not checkout_result.success:
+            return DoltMergeOutput(
+                success=False,
+                message=f"Failed to checkout target branch {target_branch}: {checkout_result.error}",
+                source_branch=input_data.source_branch,
+                target_branch=target_branch,
+                fast_forward=False,
+                active_branch=memory_bank.dolt_writer.active_branch,
+                error=checkout_result.error,
+                error_code="CHECKOUT_FAILED",
+            )
+
+    # Use persistent connection if available, otherwise create new one
+    if memory_bank.dolt_writer._use_persistent and memory_bank.dolt_writer._persistent_connection:
+        connection = memory_bank.dolt_writer._persistent_connection
+        connection_is_persistent = True
+    else:
+        connection = memory_bank.dolt_writer._get_connection()
+        connection_is_persistent = False
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+
+        # Build merge command - use simple parameterized approach for security
+        # Note: DOLT_MERGE doesn't support all git merge options, so we use basic merge
+        if input_data.commit_message:
+            cursor.execute(
+                "CALL DOLT_MERGE(%s, %s)", (input_data.source_branch, input_data.commit_message)
+            )
+        else:
+            cursor.execute("CALL DOLT_MERGE(%s)", (input_data.source_branch,))
+
+        result = cursor.fetchall()
+
+        # Parse merge result
+        merge_hash = None
+        fast_forward = False
+        conflicts = 0
+
+        if result:
+            row = result[0]
+            merge_hash = row.get("hash")
+            fast_forward = bool(row.get("fast_forward", 0))
+            conflicts = int(row.get("conflicts", 0))
+
+        cursor.close()
+
+        if conflicts > 0:
+            message = f"Merge completed with {conflicts} conflicts that need resolution"
+            success = False
+            error_code = "MERGE_CONFLICTS"
+        else:
+            if fast_forward:
+                message = f"Successfully merged {input_data.source_branch} into {target_branch} (fast-forward)"
+            else:
+                message = f"Successfully merged {input_data.source_branch} into {target_branch} (merge commit: {merge_hash})"
+            success = True
+            error_code = None
+
+        return DoltMergeOutput(
+            success=success,
+            merge_hash=merge_hash,
+            message=message,
+            source_branch=input_data.source_branch,
+            target_branch=target_branch,
+            fast_forward=fast_forward,
+            conflicts=conflicts,
+            active_branch=memory_bank.dolt_writer.active_branch,
+            error_code=error_code,
+        )
+
+    finally:
+        # Only close if it's not a persistent connection
+        if not connection_is_persistent:
+            connection.close()
+
+
+def dolt_compare_branches_tool(
+    input_data: DoltCompareBranchesInput, memory_bank: StructuredMemoryBank
+) -> DoltCompareBranchesOutput:
+    """
+    Compare two branches to show differences and check merge compatibility.
+
+    Args:
+        input_data: The comparison parameters
+        memory_bank: StructuredMemoryBank instance with Dolt reader access
+
+    Returns:
+        DoltCompareBranchesOutput with comparison results
+    """
+    try:
+        logger.info(f"Comparing branches: {input_data.source_branch} -> {input_data.target_branch}")
+
+        # Use the reader for read-only operations
+        reader = memory_bank.dolt_reader
+
+        # Get diff summary between branches
+        try:
+            if input_data.table_filter:
+                # Table-specific comparison
+                diff_summary = reader.get_diff_summary(
+                    from_revision=input_data.target_branch,
+                    to_revision=input_data.source_branch,
+                    table_name=input_data.table_filter,
+                )
+            else:
+                # All tables comparison
+                diff_summary = reader.get_diff_summary(
+                    from_revision=input_data.target_branch, to_revision=input_data.source_branch
+                )
+
+            # Convert to our model format
+            diff_info = []
+            has_differences = len(diff_summary) > 0
+
+            for diff in diff_summary:
+                diff_info.append(
+                    DiffSummaryInfo(
+                        table_name=diff.get(
+                            "to_table_name", diff.get("from_table_name", "unknown")
+                        ),
+                        diff_type=diff.get("diff_type", "unknown"),
+                        data_change=diff.get("data_change", False),
+                        schema_change=diff.get("schema_change", False),
+                        # Note: Dolt's get_diff_summary doesn't include row counts by default
+                        # These would need to be fetched separately if needed
+                        rows_added=0,
+                        rows_deleted=0,
+                        rows_modified=0,
+                    )
+                )
+
+            # Simple heuristic for merge compatibility
+            # In a real implementation, this would do a more sophisticated check
+            can_merge = True
+            for diff in diff_info:
+                if diff.schema_change and diff.diff_type == "modified":
+                    # Schema conflicts are harder to auto-merge
+                    can_merge = False
+                    break
+
+            if has_differences:
+                message = f"Found {len(diff_info)} table(s) with differences between {input_data.source_branch} and {input_data.target_branch}"
+            else:
+                message = f"No differences found between {input_data.source_branch} and {input_data.target_branch}"
+
+            if not can_merge:
+                message += " (potential merge conflicts detected)"
+
+            logger.info(message)
+
+            return DoltCompareBranchesOutput(
+                success=True,
+                message=message,
+                source_branch=input_data.source_branch,
+                target_branch=input_data.target_branch,
+                has_differences=has_differences,
+                can_merge=can_merge,
+                diff_summary=diff_info,
+                active_branch=memory_bank.dolt_reader.active_branch,
+            )
+
+        except Exception as e:
+            # If diff fails, it might be due to branch not existing or other issues
+            error_msg = f"Failed to get diff summary: {str(e)}"
+            logger.error(error_msg)
+
+            return DoltCompareBranchesOutput(
+                success=False,
+                message=error_msg,
+                source_branch=input_data.source_branch,
+                target_branch=input_data.target_branch,
+                has_differences=False,
+                can_merge=False,
+                active_branch=memory_bank.dolt_reader.active_branch,
+                error=error_msg,
+            )
+
+    except Exception as e:
+        error_msg = f"Exception during branch comparison: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+
+        return DoltCompareBranchesOutput(
+            success=False,
+            message=f"Branch comparison failed: {str(e)}",
+            source_branch=input_data.source_branch,
+            target_branch=input_data.target_branch,
+            has_differences=False,
+            can_merge=False,
+            active_branch=memory_bank.dolt_reader.active_branch,
             error=error_msg,
         )
