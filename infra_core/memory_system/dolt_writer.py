@@ -83,6 +83,9 @@ class DoltMySQLWriter(DoltMySQLBase):
         preserve_nulls: bool = False,
     ) -> Tuple[bool, Optional[str]]:
         """Write a memory block to the Dolt SQL server."""
+        # Branch protection: prevent writes to main branch
+        self._check_main_branch_protection("write_memory_block", branch)
+
         # Use persistent connection if available, otherwise create new one
         if self._use_persistent and self._persistent_connection:
             connection = self._persistent_connection
@@ -202,6 +205,9 @@ class DoltMySQLWriter(DoltMySQLBase):
         self, block_id: str, branch: str = "main", auto_commit: bool = False
     ) -> Tuple[bool, Optional[str]]:
         """Delete a memory block from the Dolt SQL server."""
+        # Branch protection: prevent writes to main branch
+        self._check_main_branch_protection("delete_memory_block", branch)
+
         connection = self._get_connection()
         commit_hash = None
 
@@ -244,6 +250,9 @@ class DoltMySQLWriter(DoltMySQLBase):
         self, commit_msg: str, tables: List[str] = None
     ) -> Tuple[bool, Optional[str]]:
         """Commit working changes to Dolt via MySQL connection."""
+        # Branch protection: prevent commits to main branch
+        self._check_main_branch_protection("commit_changes")
+
         # Use persistent connection if available, otherwise create new one
         if self._use_persistent and self._persistent_connection:
             connection = self._persistent_connection
@@ -257,7 +266,9 @@ class DoltMySQLWriter(DoltMySQLBase):
         try:
             # Only ensure branch if not using persistent connection (which already has correct branch)
             if not connection_is_persistent:
-                self._ensure_branch(connection, "main")
+                # Don't force main branch - use the current active branch
+                current_branch = self.active_branch
+                self._ensure_branch(connection, current_branch)
             cursor = connection.cursor(dictionary=True)
 
             # NOTE: Staging should be handled by the `add_to_staging` method.
@@ -290,6 +301,9 @@ class DoltMySQLWriter(DoltMySQLBase):
         Add working changes to the staging area for the current session.
         This is a critical step before committing.
         """
+        # Branch protection: prevent staging changes on main branch
+        self._check_main_branch_protection("add_to_staging")
+
         if self._use_persistent and self._persistent_connection:
             connection = self._persistent_connection
             connection_is_persistent = True
@@ -768,6 +782,9 @@ class DoltMySQLWriter(DoltMySQLBase):
         Returns:
             True if proof was stored successfully, False otherwise
         """
+        # Branch protection: prevent writes to main branch
+        self._check_main_branch_protection("write_block_proof", branch)
+
         connection = self._get_connection()
 
         try:

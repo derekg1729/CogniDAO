@@ -28,6 +28,23 @@ from mysql.connector import Error
 logger = logging.getLogger(__name__)
 
 
+class MainBranchProtectionError(Exception):
+    """
+    Exception raised when attempting to perform write operations on the main branch.
+
+    This is a security measure to prevent accidental writes to the main branch,
+    which should only contain production-ready, schema-aligned data.
+    """
+
+    def __init__(self, operation: str, branch: str = "main"):
+        self.operation = operation
+        self.branch = branch
+        super().__init__(
+            f"Write operation '{operation}' blocked on protected branch '{branch}'. "
+            f"Main branch is read-only. Use a feature branch for development work."
+        )
+
+
 @dataclass
 class DoltConnectionConfig:
     """Configuration for connecting to a Dolt SQL server via MySQL connector.
@@ -65,23 +82,43 @@ class DoltConnectionConfig:
 
 
 class DoltMySQLBase:
-    """Base class providing common MySQL connection and query execution methods for Dolt.
+    """
+    Base class for Dolt MySQL operations with connection management and branch protection.
 
-    This class implements the shared functionality for connecting to and executing queries
-    against a Dolt SQL server. It can be inherited by specialized classes for different
-    purposes (reading, writing, link management).
-
-    Note: Subclasses should override _get_connection() if they need different connection
-    settings (e.g., autocommit behavior).
+    Provides common functionality for connecting to Dolt SQL server via MySQL connector,
+    including persistent connection support and main branch write protection.
     """
 
     def __init__(self, config: DoltConnectionConfig):
-        """Initialize with connection configuration."""
         self.config = config
-        # Persistent connection support (opt-in)
         self._persistent_connection = None
         self._current_branch = None
         self._use_persistent = False
+
+    def _check_main_branch_protection(self, operation: str, target_branch: str = None) -> None:
+        """
+        Check if the operation is attempting to write to the main branch and raise an error if so.
+
+        Args:
+            operation: Description of the operation being attempted
+            target_branch: The branch being targeted (if None, uses active branch)
+
+        Raises:
+            MainBranchProtectionError: If attempting to write to main branch
+        """
+        # Determine the effective branch
+        if target_branch is not None:
+            effective_branch = target_branch
+        else:
+            # Get the current active branch
+            effective_branch = self.active_branch
+
+        # Check if we're trying to write to main
+        if effective_branch == "main":
+            logger.warning(f"Blocked {operation} on main branch - main is read-only")
+            raise MainBranchProtectionError(operation, effective_branch)
+
+        logger.debug(f"Branch protection check passed: {operation} on branch '{effective_branch}'")
 
     def _get_connection(self):
         """Get a new MySQL connection to the Dolt SQL server.

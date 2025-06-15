@@ -8,7 +8,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 # Target functions
-from infra_core.memory_system.dolt_writer import write_memory_block_to_dolt
 
 # Schema
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
@@ -237,8 +236,16 @@ class TestDoltWriter:
             metadata={},
         )
 
-        # Attempt write - should fail gracefully
-        success, result = write_memory_block_to_dolt(block, "/fake/path")
+        # Create a DoltMySQLWriter directly and test on a feature branch
+        # (avoiding the deprecated write_memory_block_to_dolt function)
+        from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+        from infra_core.memory_system.dolt_writer import DoltMySQLWriter
+
+        config = DoltConnectionConfig()
+        writer = DoltMySQLWriter(config)
+
+        # Attempt write on feature branch - should fail gracefully due to database error
+        success, result = writer.write_memory_block(block, branch="feat/test-branch")
         assert not success, "Write should fail with database error"
         assert result is None or isinstance(result, str), "Should return None or error message"
 
