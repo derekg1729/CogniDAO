@@ -203,9 +203,13 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
             The created/updated BlockLink
 
         Raises:
-            ValueError: If validation fails
-            LinkError: For specific error conditions
+            MainBranchProtectionError: If attempting to write to protected branch
+            LinkError: If validation fails or database operation fails
         """
+        # Branch protection: prevent link writes to protected branches
+        current_branch = self.active_branch
+        self._check_branch_protection("upsert_link", current_branch)
+
         # Validate inputs
         self._validate_uuid(from_id, to_id)
         relation_str = self._validate_relation(relation)
@@ -322,6 +326,10 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
         Returns:
             True if link was deleted, False if link didn't exist
         """
+        # Branch protection: prevent link deletions on protected branches
+        current_branch = self.active_branch
+        self._check_branch_protection("delete_link", current_branch)
+
         # Validate inputs
         self._validate_uuid(from_id, to_id)
         relation_str = self._validate_relation(relation)
@@ -512,6 +520,10 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
         Returns:
             List of created/updated BlockLinks
         """
+        # Branch protection: prevent bulk link operations on protected branches
+        current_branch = self.active_branch
+        self._check_branch_protection("bulk_upsert", current_branch)
+
         results = []
         for from_id, to_id, relation, metadata in links:
             link = self.upsert_link(
@@ -530,6 +542,10 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
         Returns:
             Number of links deleted
         """
+        # Branch protection: prevent link deletions on protected branches
+        current_branch = self.active_branch
+        self._check_branch_protection("delete_links_for_block", current_branch)
+
         # Validate ID
         self._validate_uuid(block_id)
 

@@ -30,13 +30,33 @@ def is_pydantic_model(obj: Any) -> bool:
     return inspect.isclass(obj) and issubclass(obj, BaseModel) and obj != BaseModel
 
 
+def is_api_response_model(model_name: str) -> bool:
+    """Check if a model is an API response model that FastAPI handles automatically."""
+    api_response_patterns = [
+        "Response",  # BlocksResponse, BranchesResponse, SingleBlockResponse, etc.
+        "ChatResponse",  # Chat-specific responses
+    ]
+
+    # Exclude models ending with these patterns
+    for pattern in api_response_patterns:
+        if model_name.endswith(pattern):
+            return True
+
+    return False
+
+
 def discover_models_in_module(module: Any) -> Dict[str, Type[BaseModel]]:
-    """Discover all Pydantic models in the given module."""
+    """Discover all Pydantic models in the given module, excluding API response models."""
     model_dict = {}
 
     for name, obj in inspect.getmembers(module, is_pydantic_model):
         # Only include models directly defined in the target module
         if obj.__module__ == module.__name__:
+            # Skip API response models that FastAPI handles automatically
+            if is_api_response_model(name):
+                print(f"⏭️  Skipped API response model: {name} (handled by FastAPI OpenAPI)")
+                continue
+
             model_dict[name] = obj
 
     print(f"🔍 Discovered {len(model_dict)} Pydantic models in {module.__name__}")

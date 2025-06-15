@@ -38,7 +38,7 @@
       "type": "object"
     }
   },
-  "description": "The primary data structure for representing a unit of memory in the Cogni system experiment.\nAligns with the design specified in project-CogniMemorySystem-POC.json.\nIncludes schema versioning support (Task 2.0).",
+  "description": "The primary data structure for representing a unit of memory in the Cogni system experiment.\nAligns with the design specified in project-CogniMemorySystem-POC.json.\nIncludes schema versioning support (Task 2.0).\n\nNOTE: As of Property-Schema Split implementation, metadata is stored in the\nblock_properties table rather than as a JSON field on this model.",
   "properties": {
     "id": {
       "description": "Globally unique ID for this memory block",
@@ -157,7 +157,7 @@
     },
     "metadata": {
       "additionalProperties": true,
-      "description": "Custom metadata based on block type",
+      "description": "Custom metadata based on block type (reconstructed from block_properties)",
       "title": "Metadata",
       "type": "object"
     },

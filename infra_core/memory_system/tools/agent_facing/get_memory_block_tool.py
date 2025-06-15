@@ -59,13 +59,16 @@ def get_memory_block(input_data: GetMemoryBlockInput, memory_bank) -> GetMemoryB
 
 
 # Convenience function for single block retrieval by ID (backward compatibility)
-def get_memory_block_tool(block_id: str = None, memory_bank=None, **kwargs) -> GetMemoryBlockOutput:
+def get_memory_block_tool(
+    block_id: str = None, memory_bank=None, branch: str = "main", **kwargs
+) -> GetMemoryBlockOutput:
     """
     Convenience function for single block retrieval by ID.
 
     Args:
         block_id: ID of the block to retrieve
         memory_bank: Memory bank instance
+        branch: Dolt branch to read from (default: 'main')
         **kwargs: Additional parameters passed to GetMemoryBlockInput
 
     Returns:
@@ -74,10 +77,10 @@ def get_memory_block_tool(block_id: str = None, memory_bank=None, **kwargs) -> G
     try:
         if block_id:
             # Convert single ID to list for consistent API
-            input_data = GetMemoryBlockInput(block_ids=[block_id], **kwargs)
+            input_data = GetMemoryBlockInput(block_ids=[block_id], branch=branch, **kwargs)
         else:
             # Use kwargs directly for filtering
-            input_data = GetMemoryBlockInput(**kwargs)
+            input_data = GetMemoryBlockInput(branch=branch, **kwargs)
         return get_memory_block(input_data, memory_bank)
     except Exception as e:
         error_msg = f"Validation error: {str(e)}"

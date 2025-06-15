@@ -27,6 +27,33 @@ from mysql.connector import Error
 # Setup standard Python logger
 logger = logging.getLogger(__name__)
 
+# Configuration for protected branches
+DEFAULT_PROTECTED_BRANCH = os.getenv("DOLT_PROTECTED_BRANCH", "main")
+PROTECTED_BRANCHES = [
+    branch.strip().lower()
+    for branch in os.getenv("DOLT_PROTECTED_BRANCHES", DEFAULT_PROTECTED_BRANCH).split(",")
+    if branch.strip()  # Filter out empty strings
+]
+
+
+class MainBranchProtectionError(Exception):
+    """
+    Exception raised when attempting to perform write operations on protected branches.
+
+    This is a security measure to prevent accidental writes to protected branches,
+    which should only contain production-ready, schema-aligned data.
+    """
+
+    def __init__(self, operation: str, branch: str, protected_branches: List[str] = None):
+        self.operation = operation
+        self.branch = branch
+        self.protected_branches = protected_branches or PROTECTED_BRANCHES
+        super().__init__(
+            f"Write operation '{operation}' blocked on protected branch '{branch}'. "
+            f"Protected branches {self.protected_branches} are read-only. "
+            f"Use a feature branch for development work."
+        )
+
 
 @dataclass
 class DoltConnectionConfig:
@@ -65,23 +92,69 @@ class DoltConnectionConfig:
 
 
 class DoltMySQLBase:
-    """Base class providing common MySQL connection and query execution methods for Dolt.
+    """
+    Base class for Dolt MySQL operations with connection management and branch protection.
 
-    This class implements the shared functionality for connecting to and executing queries
-    against a Dolt SQL server. It can be inherited by specialized classes for different
-    purposes (reading, writing, link management).
-
-    Note: Subclasses should override _get_connection() if they need different connection
-    settings (e.g., autocommit behavior).
+    Provides common functionality for connecting to Dolt SQL server via MySQL connector,
+    including persistent connection support and configurable branch write protection.
     """
 
     def __init__(self, config: DoltConnectionConfig):
-        """Initialize with connection configuration."""
         self.config = config
-        # Persistent connection support (opt-in)
         self._persistent_connection = None
         self._current_branch = None
         self._use_persistent = False
+
+    def _is_branch_protected(self, branch: str) -> bool:
+        """
+        Check if a branch is protected from write operations.
+
+        Args:
+            branch: Branch name to check
+
+        Returns:
+            True if branch is protected, False otherwise
+        """
+        return branch.lower() in PROTECTED_BRANCHES
+
+    def _check_branch_protection(self, operation: str, target_branch: str) -> None:
+        """
+        Check if the operation is attempting to write to a protected branch and raise an error if so.
+
+        Args:
+            operation: Description of the operation being attempted
+            target_branch: The specific branch being targeted
+
+        Raises:
+            MainBranchProtectionError: If attempting to write to protected branch
+        """
+        if self._is_branch_protected(target_branch):
+            logger.warning(
+                f"Blocked {operation} on protected branch '{target_branch}' - protected branches are read-only"
+            )
+            raise MainBranchProtectionError(operation, target_branch, PROTECTED_BRANCHES)
+
+        logger.debug(f"Branch protection check passed: {operation} on branch '{target_branch}'")
+
+    def _check_main_branch_protection(self, operation: str, target_branch: str = None) -> None:
+        """
+        Legacy method for backward compatibility. Use _check_branch_protection instead.
+
+        Args:
+            operation: Description of the operation being attempted
+            target_branch: The branch being targeted (if None, uses active branch)
+
+        Raises:
+            MainBranchProtectionError: If attempting to write to protected branch
+        """
+        # Determine the effective branch
+        if target_branch is not None:
+            effective_branch = target_branch
+        else:
+            # Get the current active branch
+            effective_branch = self.active_branch
+
+        self._check_branch_protection(operation, effective_branch)
 
     def _get_connection(self):
         """Get a new MySQL connection to the Dolt SQL server.
@@ -141,7 +214,7 @@ class DoltMySQLBase:
         except Error as e:
             raise Exception(f"Failed to verify current branch: {e}")
 
-    def use_persistent_connection(self, branch: str = "main") -> None:
+    def use_persistent_connection(self, branch: str = DEFAULT_PROTECTED_BRANCH) -> None:
         """
         Enable persistent connection mode and checkout the specified branch.
 
@@ -281,7 +354,7 @@ class DoltMySQLBase:
                 if result and result.get("active_branch"):
                     return result["active_branch"]
                 else:
-                    return "main"  # Fallback to main if query fails
+                    return DEFAULT_PROTECTED_BRANCH  # Fallback to default if query fails
 
             finally:
                 if not connection_is_persistent:
@@ -289,4 +362,33 @@ class DoltMySQLBase:
 
         except Exception as e:
             logger.warning(f"Failed to get active branch: {e}")
-            return "main"  # Fallback to main on error
+            return DEFAULT_PROTECTED_BRANCH  # Fallback to default on error
+
+    def _ensure_branch_and_check_protection(
+        self, connection: mysql.connector.MySQLConnection, operation: str, target_branch: str
+    ) -> None:
+        """
+        Safely ensure we're on the target branch and check protection.
+
+        For persistent connections, this ensures the connection is actually switched
+        to the target branch before checking protection, preventing bypass attacks.
+
+        Args:
+            connection: The database connection
+            operation: Description of the operation being attempted
+            target_branch: The branch to switch to and check protection for
+
+        Raises:
+            MainBranchProtectionError: If attempting to write to protected branch
+        """
+        # For persistent connections, ensure we're actually on the target branch
+        if self._use_persistent and self._persistent_connection:
+            if self._current_branch != target_branch:
+                self._ensure_branch(connection, target_branch)
+                self._current_branch = target_branch
+        else:
+            # For non-persistent connections, always ensure branch
+            self._ensure_branch(connection, target_branch)
+
+        # Now check protection with the actual current branch
+        self._check_branch_protection(operation, target_branch)

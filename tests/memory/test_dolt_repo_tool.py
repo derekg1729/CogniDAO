@@ -598,7 +598,7 @@ class TestDoltAddTool:
         result = dolt_add_tool(input_data, memory_bank)
 
         assert result.success is False
-        assert "Dolt add operation failed" in result.message
+        assert "ADD FAILED: Staging failed" in result.message
         assert "Staging failed" in result.error
 
     def test_add_with_exception(self, mock_memory_bank):
@@ -610,8 +610,8 @@ class TestDoltAddTool:
         result = dolt_add_tool(input_data, memory_bank)
 
         assert result.success is False
-        assert "Add failed: Underlying SQL error" in result.message
-        assert "Exception during dolt_add" in result.error
+        assert "ADD FAILED: Underlying SQL error" in result.message
+        assert "Exception during ADD" in result.error
 
 
 class TestDoltCheckoutTool:
