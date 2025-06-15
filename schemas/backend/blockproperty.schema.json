@@ -1,0 +1,91 @@
+{
+  "description": "Pydantic model for records in the `block_properties` Dolt table.",
+  "properties": {
+    "block_id": {
+      "description": "ID of the memory block this property belongs to (foreign key to memory_blocks.id)",
+      "title": "Block Id",
+      "type": "string"
+    },
+    "property_name": {
+      "description": "Name of the property (e.g., 'title', 'status', 'priority')",
+      "title": "Property Name",
+      "type": "string"
+    },
+    "property_value_text": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Text value of the property (for text, bool, date, select types)",
+      "title": "Property Value Text"
+    },
+    "property_value_number": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Numeric value of the property (for number type)",
+      "title": "Property Value Number"
+    },
+    "property_value_json": {
+      "anyOf": [
+        {},
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "JSON value of the property (for json, multi_select types)",
+      "title": "Property Value Json"
+    },
+    "property_type": {
+      "description": "Type of the property value",
+      "enum": [
+        "text",
+        "number",
+        "json",
+        "bool",
+        "date",
+        "select",
+        "multi_select"
+      ],
+      "title": "Property Type",
+      "type": "string"
+    },
+    "is_computed": {
+      "default": false,
+      "description": "Whether this property is computed/AI-generated",
+      "title": "Is Computed",
+      "type": "boolean"
+    },
+    "created_at": {
+      "description": "When this property was created",
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "updated_at": {
+      "description": "When this property was last updated",
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "block_id",
+    "property_name",
+    "property_type"
+  ],
+  "title": "BlockProperty",
+  "type": "object"
+}
