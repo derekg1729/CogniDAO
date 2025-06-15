@@ -1,11 +1,9 @@
 from fastapi import APIRouter, Request, HTTPException
-from typing import List
 
-from services.web_api.models import ErrorResponse
+from services.web_api.models import ErrorResponse, BranchesResponse
 from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     dolt_list_branches_tool,
     DoltListBranchesInput,
-    DoltBranchInfo,
 )
 import logging
 
@@ -17,14 +15,14 @@ router = APIRouter(tags=["v1/Branches"])
 
 @router.get(
     "/branches",
-    response_model=List[DoltBranchInfo],
-    summary="Get all Dolt branches",
-    description="Retrieves list of all available Dolt branches with their metadata including commit information and status.",
+    response_model=BranchesResponse,
+    summary="Get all Dolt branches with context",
+    description="Retrieves list of all available Dolt branches with their metadata including commit information, status, and active branch context.",
     responses={
         500: {"model": ErrorResponse, "description": "Internal server error"},
     },
 )
-async def get_all_branches(request: Request) -> List[DoltBranchInfo]:
+async def get_all_branches(request: Request) -> BranchesResponse:
     """
     Retrieves all Dolt branches from the memory bank using the dolt_list_branches_tool.
 
@@ -47,7 +45,16 @@ async def get_all_branches(request: Request) -> List[DoltBranchInfo]:
 
         if result.success:
             logger.info(f"Successfully retrieved {len(result.branches)} branches")
-            return result.branches
+
+            # Convert DoltBranchInfo objects to dicts for response
+            branches_data = [branch.model_dump() for branch in result.branches]
+
+            return BranchesResponse(
+                branches=branches_data,
+                total_branches=len(result.branches),
+                active_branch=result.active_branch,
+                requested_branch=None,  # No specific branch requested for listing all
+            )
         else:
             logger.error(f"Branch listing failed: {result.error}")
             raise HTTPException(

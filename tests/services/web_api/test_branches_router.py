@@ -82,7 +82,20 @@ def test_get_all_branches_success(mock_dolt_tool, client_with_mock_bank, sample_
     response = client_with_mock_bank.get("/api/v1/branches")
 
     assert response.status_code == 200
-    branches = response.json()
+    data = response.json()
+
+    # Verify enhanced response structure with branch context
+    assert "active_branch" in data
+    assert "branches" in data
+    assert "total_branches" in data
+    assert "timestamp" in data
+
+    # Verify branch context information
+    assert data["active_branch"] == "main"
+    assert data["total_branches"] == 2
+
+    # Verify branches data
+    branches = data["branches"]
     assert len(branches) == 2
     assert branches[0]["name"] == "main"
     assert branches[0]["hash"] == "abc123def456"
@@ -157,8 +170,10 @@ def test_get_all_branches_empty_list(mock_dolt_tool, client_with_mock_bank):
     response = client_with_mock_bank.get("/api/v1/branches")
 
     assert response.status_code == 200
-    branches = response.json()
-    assert len(branches) == 0
+    data = response.json()
+    assert data["total_branches"] == 0
+    assert len(data["branches"]) == 0
+    assert data["active_branch"] == "main"
 
 
 @patch("services.web_api.routes.branches_router.dolt_list_branches_tool")
@@ -190,10 +205,13 @@ def test_get_all_branches_single_branch(mock_dolt_tool, client_with_mock_bank):
     response = client_with_mock_bank.get("/api/v1/branches")
 
     assert response.status_code == 200
-    branches = response.json()
+    data = response.json()
+    assert data["total_branches"] == 1
+    branches = data["branches"]
     assert len(branches) == 1
     assert branches[0]["name"] == "main"
     assert branches[0]["dirty"] is False
+    assert data["active_branch"] == "main"
 
 
 @patch("services.web_api.routes.branches_router.dolt_list_branches_tool")
@@ -254,7 +272,11 @@ def test_get_all_branches_json_serialization(mock_dolt_tool, client_with_mock_ba
     response = client_with_mock_bank.get("/api/v1/branches")
 
     assert response.status_code == 200
-    branches = response.json()
+    data = response.json()
+    assert data["total_branches"] == 1
+    assert data["active_branch"] == "test-branch"
+
+    branches = data["branches"]
     assert len(branches) == 1
 
     branch = branches[0]

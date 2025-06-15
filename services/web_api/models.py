@@ -12,6 +12,7 @@ All models must inherit from Pydantic's BaseModel.
 """
 
 from typing import Optional, List, Literal, Dict, Any
+from datetime import datetime
 from pydantic import BaseModel, Field
 
 # Import relation types for validation
@@ -104,3 +105,59 @@ class ErrorResponse(BaseModel):
     code: Optional[str] = Field(
         None, description="An optional error code for programmatic handling"
     )
+
+
+# ================================
+# Enhanced Response Models with Branch Context
+# Following MCP Tools Pattern
+# ================================
+
+
+class BranchContextResponse(BaseModel):
+    """
+    Base response model that includes branch context information.
+    Follows the MCP tools pattern of always providing active_branch information.
+    """
+
+    active_branch: str = Field(..., description="Currently active Dolt branch for this operation")
+    requested_branch: Optional[str] = Field(
+        None,
+        description="Branch requested by client (may differ from active_branch for read operations)",
+    )
+    timestamp: datetime = Field(
+        default_factory=datetime.now, description="Timestamp when the operation was performed"
+    )
+
+
+class BlocksResponse(BranchContextResponse):
+    """
+    Enhanced response for blocks endpoints that includes branch context.
+    """
+
+    blocks: List[Dict[str, Any]] = Field(
+        ..., description="List of memory blocks from the requested branch"
+    )
+    total_count: int = Field(..., description="Total number of blocks returned")
+    filters_applied: Optional[Dict[str, Any]] = Field(
+        None, description="Summary of filters applied (type, case_insensitive, etc.)"
+    )
+
+
+class BranchesResponse(BranchContextResponse):
+    """
+    Enhanced response for branches endpoint that includes current context.
+    """
+
+    branches: List[Dict[str, Any]] = Field(
+        ..., description="List of all available Dolt branches with metadata"
+    )
+    total_branches: int = Field(..., description="Total number of branches available")
+
+
+class SingleBlockResponse(BranchContextResponse):
+    """
+    Enhanced response for single block retrieval with branch context.
+    """
+
+    block: Dict[str, Any] = Field(..., description="The requested memory block")
+    block_id: str = Field(..., description="ID of the retrieved block")
