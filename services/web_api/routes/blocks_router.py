@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, HTTPException, status
+from fastapi import APIRouter, Request, HTTPException, status, Query
 from typing import List
 from fastapi.responses import JSONResponse
 
@@ -30,11 +30,20 @@ router = APIRouter(tags=["v1/Blocks"])
     "/blocks",
     response_model=List[MemoryBlock],
     summary="Get all memory blocks",
-    description="Retrieves memory blocks currently stored in the system. Can be filtered by block type.",
-    responses={500: {"model": ErrorResponse, "description": "Internal server error"}},
+    description="Retrieves memory blocks from specified Dolt branch. Defaults to 'main' branch.",
+    responses={
+        400: {"model": ErrorResponse, "description": "Invalid branch name format"},
+        404: {"model": ErrorResponse, "description": "Branch not found"},
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+    },
 )
 async def get_all_blocks(
-    request: Request, type: str = None, case_insensitive: bool = False
+    request: Request,
+    type: str = Query(
+        None, description="Filter by block type (e.g., 'project', 'knowledge', 'task')"
+    ),
+    case_insensitive: bool = Query(False, description="Case-insensitive type filtering"),
+    branch: str = Query("main", description="Dolt branch to read from (default: 'main')"),
 ) -> List[MemoryBlock]:
     """
     Retrieves memory blocks from the StructuredMemoryBank.
@@ -42,6 +51,7 @@ async def get_all_blocks(
     Parameters:
     - type: Optional filter for block type (e.g., "project", "knowledge", "task")
     - case_insensitive: If True, type filtering will be case-insensitive
+    - branch: Dolt branch to read from (default: "main")
     """
     try:
         memory_bank = request.app.state.memory_bank
@@ -49,7 +59,7 @@ async def get_all_blocks(
             logger.error("Memory bank not available in app state during blocks retrieval.")
             raise HTTPException(status_code=500, detail="Memory bank not available")
 
-        all_blocks = memory_bank.get_all_memory_blocks()  # Defaults to 'main' branch
+        all_blocks = memory_bank.get_all_memory_blocks(branch=branch)
 
         # Filter blocks by type if specified
         if type:
@@ -70,13 +80,18 @@ async def get_all_blocks(
     "/blocks/{block_id}",
     response_model=MemoryBlock,
     summary="Get a specific memory block by ID",
-    description="Retrieves a specific memory block by its unique identifier.",
+    description="Retrieves a specific memory block by its unique identifier from specified Dolt branch.",
     responses={
-        404: {"model": ErrorResponse, "description": "Memory block not found"},
+        400: {"model": ErrorResponse, "description": "Invalid branch name format"},
+        404: {"model": ErrorResponse, "description": "Memory block or branch not found"},
         500: {"model": ErrorResponse, "description": "Internal server error"},
     },
 )
-async def get_block(request: Request, block_id: str) -> MemoryBlock:
+async def get_block(
+    request: Request,
+    block_id: str,
+    branch: str = Query("main", description="Dolt branch to read from (default: 'main')"),
+) -> MemoryBlock:
     """
     Retrieves a specific memory block by its ID using the get_memory_block_tool.
     """
@@ -93,7 +108,7 @@ async def get_block(request: Request, block_id: str) -> MemoryBlock:
     # 2. Call the tool function
     try:
         # Call the tool with block_id parameter directly - the convenience function converts to block_ids internally
-        output = get_memory_block_tool(block_id=block_id, memory_bank=memory_bank)
+        output = get_memory_block_tool(block_id=block_id, memory_bank=memory_bank, branch=branch)
     except Exception as e:
         # Catch unexpected errors during the tool execution itself
         logger.exception(f"Unexpected error calling get_memory_block_tool: {e}")

@@ -95,7 +95,9 @@ def test_get_all_blocks_success(client: TestClient, sample_memory_blocks_data: l
 
         assert response.status_code == 200
         assert response.json() == expected_json_response
-        mock_memory_bank.get_all_memory_blocks.assert_called_once_with()  # Called with default 'main' branch
+        mock_memory_bank.get_all_memory_blocks.assert_called_once_with(
+            branch="main"
+        )  # Called with default 'main' branch
 
         # Clean up app.state.memory_bank if necessary, though TestClient should isolate
         if hasattr(app.state, "memory_bank"):

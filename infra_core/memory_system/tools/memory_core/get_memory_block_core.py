@@ -39,6 +39,9 @@ class GetMemoryBlockInput(BaseModel):
         None, description="Maximum number of results to return", ge=1, le=100
     )
 
+    # Branch parameter for Dolt operations
+    branch: Optional[str] = Field("main", description="Dolt branch to read from (default: 'main')")
+
     def model_post_init(self, __context):
         """Validate that either block_ids is provided OR filtering parameters are provided."""
         if self.block_ids and (self.type_filter or self.tag_filters or self.metadata_filters):
@@ -87,11 +90,16 @@ def get_memory_block_core(input_data: GetMemoryBlockInput, memory_bank) -> GetMe
         logger.debug(f"Attempting to retrieve memory blocks with IDs: {input_data.block_ids}")
 
         try:
+            # Get all blocks from the specified branch, then filter by IDs
+            # This leverages the existing tested branch support in get_all_memory_blocks
+            all_blocks = memory_bank.get_all_memory_blocks(branch=input_data.branch)
+            block_dict = {block.id: block for block in all_blocks}
+
             retrieved_blocks = []
             missing_ids = []
 
             for block_id in input_data.block_ids:
-                block = memory_bank.get_memory_block(block_id)
+                block = block_dict.get(block_id)
                 if block is not None:
                     retrieved_blocks.append(block)
                 else:
@@ -127,8 +135,8 @@ def get_memory_block_core(input_data: GetMemoryBlockInput, memory_bank) -> GetMe
         )
 
         try:
-            # Get all blocks first (following blocks_router.py pattern)
-            all_blocks = memory_bank.get_all_memory_blocks()
+            # Get all blocks from the specified branch (following blocks_router.py pattern)
+            all_blocks = memory_bank.get_all_memory_blocks(branch=input_data.branch)
 
             # Apply type filter if specified (following blocks_router.py pattern)
             if input_data.type_filter:
