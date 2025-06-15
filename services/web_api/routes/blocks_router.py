@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException, status, Query
-from datetime import datetime
+import asyncio
 
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
 from services.web_api.models import ErrorResponse, BlocksResponse, SingleBlockResponse
@@ -17,6 +17,10 @@ from infra_core.memory_system.tools.memory_core.create_memory_block_tool import 
 from infra_core.memory_system.tools.agent_facing.get_memory_block_tool import (
     get_memory_block_tool,
 )
+
+# Import branch validation function
+from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import validate_branch_name
+
 import logging  # Add logging
 
 # Setup logger
@@ -52,40 +56,54 @@ async def get_all_blocks(
     - case_insensitive: If True, type filtering will be case-insensitive
     - branch: Dolt branch to read from (default: "main")
     """
+    # Validate branch name for security
+    try:
+        validate_branch_name(branch)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     try:
         memory_bank = request.app.state.memory_bank
         if not memory_bank:
             logger.error("Memory bank not available in app state during blocks retrieval.")
             raise HTTPException(status_code=500, detail="Memory bank not available")
 
-        all_blocks = memory_bank.get_all_memory_blocks(branch=branch)
+        # Wrap blocking I/O in threadpool to prevent event loop blocking
+        loop = asyncio.get_event_loop()
+        all_blocks = await loop.run_in_executor(
+            None, lambda: memory_bank.get_all_memory_blocks(branch=branch)
+        )
 
         # Track original count before filtering
         original_count = len(all_blocks)
         filters_applied = {}
 
-        # Filter blocks by type if specified
-        if type:
-            logger.info(f"Filtering blocks by type: {type} (case_insensitive={case_insensitive})")
-            filters_applied["type"] = type
+        # Filter blocks by type if specified (use block_type_filter to avoid shadowing built-in type)
+        block_type_filter = type
+        if block_type_filter:
+            logger.info(
+                f"Filtering blocks by type: {block_type_filter} (case_insensitive={case_insensitive})"
+            )
+            filters_applied["type"] = block_type_filter
             filters_applied["case_insensitive"] = case_insensitive
             if case_insensitive:
-                all_blocks = [block for block in all_blocks if block.type.lower() == type.lower()]
+                all_blocks = [
+                    block for block in all_blocks if block.type.lower() == block_type_filter.lower()
+                ]
             else:
-                all_blocks = [block for block in all_blocks if block.type == type]
+                all_blocks = [block for block in all_blocks if block.type == block_type_filter]
 
         logger.info(f"Retrieved {len(all_blocks)} blocks (filtered from {original_count})")
 
         # Get active branch from memory bank
         active_branch = getattr(memory_bank.dolt_writer, "active_branch", "unknown")
 
-        return BlocksResponse(
+        return BlocksResponse.create_with_timestamp(
             blocks=all_blocks,  # Now properly typed as List[MemoryBlock]
             total_count=len(all_blocks),
             filters_applied=filters_applied if filters_applied else None,
             active_branch=active_branch,
             requested_branch=branch,
-            timestamp=datetime.utcnow().isoformat() + "Z",
         )
     except Exception as e:
         # Log the exception details for debugging
@@ -112,6 +130,12 @@ async def get_block(
     """
     Retrieves a specific memory block by its ID using the get_memory_block_tool with branch context.
     """
+    # Validate branch name for security
+    try:
+        validate_branch_name(branch)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     # 1. Get Memory Bank instance
     try:
         memory_bank = request.app.state.memory_bank
@@ -122,10 +146,16 @@ async def get_block(
         logger.error("Memory bank not configured on app state.")
         raise HTTPException(status_code=500, detail="Memory bank not configured")
 
-    # 2. Call the tool function
+    # 2. Call the tool function with threadpool to prevent blocking
     try:
-        # Call the tool with block_id parameter directly - the convenience function converts to block_ids internally
-        output = get_memory_block_tool(block_id=block_id, memory_bank=memory_bank, branch=branch)
+        # Wrap blocking I/O in threadpool to prevent event loop blocking
+        loop = asyncio.get_event_loop()
+        output = await loop.run_in_executor(
+            None,
+            lambda: get_memory_block_tool(
+                block_id=block_id, memory_bank=memory_bank, branch=branch
+            ),
+        )
     except Exception as e:
         # Catch unexpected errors during the tool execution itself
         logger.exception(f"Unexpected error calling get_memory_block_tool: {e}")
@@ -140,11 +170,10 @@ async def get_block(
         active_branch = getattr(memory_bank.dolt_writer, "active_branch", "unknown")
 
         # Return the enhanced response with branch context
-        return SingleBlockResponse(
+        return SingleBlockResponse.create_with_timestamp(
             block=output.blocks[0],  # Now properly typed as MemoryBlock
             active_branch=active_branch,
             requested_branch=branch,
-            timestamp=datetime.utcnow().isoformat() + "Z",
         )
     else:
         # Handle block not found or other errors
@@ -200,8 +229,11 @@ async def create_block(request: Request, input_data: CreateMemoryBlockInput) -> 
 
     # 2. Call the core tool function
     try:
-        # The create_memory_block function now encapsulates validation and persistence
-        output = create_memory_block(input_data=input_data, memory_bank=memory_bank)
+        # Wrap blocking I/O in threadpool to prevent event loop blocking
+        loop = asyncio.get_event_loop()
+        output = await loop.run_in_executor(
+            None, lambda: create_memory_block(input_data=input_data, memory_bank=memory_bank)
+        )
     except Exception as e:
         # Catch unexpected errors during the tool execution itself
         logger.exception(f"Unexpected error calling create_memory_block tool: {e}")
@@ -215,8 +247,11 @@ async def create_block(request: Request, input_data: CreateMemoryBlockInput) -> 
         # Block created successfully, fetch the full block to return
         if output.id:
             try:
-                # Fetch the newly created block using its ID
-                created_block = memory_bank.get_memory_block(output.id)
+                # Wrap blocking I/O in threadpool to prevent event loop blocking
+                loop = asyncio.get_event_loop()
+                created_block = await loop.run_in_executor(
+                    None, lambda: memory_bank.get_memory_block(output.id)
+                )
                 if created_block:
                     return created_block
                 else:
