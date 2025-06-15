@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException
-from datetime import datetime
+import asyncio
 
 from services.web_api.models import ErrorResponse, BranchesResponse
 from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
@@ -40,19 +40,23 @@ async def get_all_branches(request: Request) -> BranchesResponse:
             logger.error("Memory bank not available in app state during branches retrieval.")
             raise HTTPException(status_code=500, detail="Memory bank not available")
 
-        # Use the existing dolt_list_branches_tool
+        # Use the existing dolt_list_branches_tool with threadpool to prevent blocking
         input_data = DoltListBranchesInput()
-        result = dolt_list_branches_tool(input_data, memory_bank)
+
+        # Wrap blocking I/O in threadpool to prevent event loop blocking
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None, lambda: dolt_list_branches_tool(input_data, memory_bank)
+        )
 
         if result.success:
             logger.info(f"Successfully retrieved {len(result.branches)} branches")
 
-            return BranchesResponse(
+            return BranchesResponse.create_with_timestamp(
                 branches=result.branches,  # Now properly typed as List[DoltBranchInfo]
                 total_branches=len(result.branches),
                 active_branch=result.active_branch,
                 requested_branch=None,  # No specific branch requested for listing all
-                timestamp=datetime.utcnow().isoformat() + "Z",
             )
         else:
             logger.error(f"Branch listing failed: {result.error}")
