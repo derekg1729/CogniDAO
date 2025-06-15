@@ -40,8 +40,8 @@ def sample_input():
 
 def test_get_memory_block_success(mock_memory_bank, sample_input, sample_memory_block):
     """Test successful memory block retrieval."""
-    # Configure mock to return the sample block
-    mock_memory_bank.get_memory_block.return_value = sample_memory_block
+    # Configure mock to return the sample block in a list (since get_all_memory_blocks returns a list)
+    mock_memory_bank.get_all_memory_blocks.return_value = [sample_memory_block]
 
     # Call the function
     result = get_memory_block_core(sample_input, mock_memory_bank)
@@ -52,14 +52,14 @@ def test_get_memory_block_success(mock_memory_bank, sample_input, sample_memory_
     assert result.blocks[0] == sample_memory_block
     assert result.error is None
 
-    # Verify the mock was called correctly
-    mock_memory_bank.get_memory_block.assert_called_once_with("test-block-123")
+    # Verify the mock was called correctly with branch parameter
+    mock_memory_bank.get_all_memory_blocks.assert_called_once_with(branch="main")
 
 
 def test_get_memory_block_not_found(mock_memory_bank, sample_input):
     """Test memory block not found scenario."""
-    # Configure mock to return None (not found)
-    mock_memory_bank.get_memory_block.return_value = None
+    # Configure mock to return empty list (no blocks found)
+    mock_memory_bank.get_all_memory_blocks.return_value = []
 
     # Call the function
     result = get_memory_block_core(sample_input, mock_memory_bank)
@@ -79,15 +79,8 @@ def test_get_memory_block_multiple_ids(mock_memory_bank, sample_memory_block):
         id="test-block-456", type="task", text="Another test block.", tags=["test"], metadata={}
     )
 
-    # Configure mock to return blocks based on ID
-    def mock_get_block(block_id):
-        if block_id == "test-block-123":
-            return block1
-        elif block_id == "test-block-456":
-            return block2
-        return None
-
-    mock_memory_bank.get_memory_block.side_effect = mock_get_block
+    # Configure mock to return all blocks (implementation filters by ID internally)
+    mock_memory_bank.get_all_memory_blocks.return_value = [block1, block2]
 
     # Test input with multiple IDs
     input_data = GetMemoryBlockInput(block_ids=["test-block-123", "test-block-456"])
@@ -104,13 +97,8 @@ def test_get_memory_block_multiple_ids(mock_memory_bank, sample_memory_block):
 def test_get_memory_block_partial_found(mock_memory_bank, sample_memory_block):
     """Test retrieval where some blocks are found and some are not."""
 
-    # Configure mock to return block for first ID only
-    def mock_get_block(block_id):
-        if block_id == "test-block-123":
-            return sample_memory_block
-        return None
-
-    mock_memory_bank.get_memory_block.side_effect = mock_get_block
+    # Configure mock to return only the found block
+    mock_memory_bank.get_all_memory_blocks.return_value = [sample_memory_block]
 
     # Test input with multiple IDs (one found, one not)
     input_data = GetMemoryBlockInput(block_ids=["test-block-123", "missing-block"])
@@ -127,7 +115,7 @@ def test_get_memory_block_partial_found(mock_memory_bank, sample_memory_block):
 def test_get_memory_block_exception(mock_memory_bank, sample_input):
     """Test error handling when an exception occurs."""
     # Configure mock to raise an exception
-    mock_memory_bank.get_memory_block.side_effect = Exception("Database error")
+    mock_memory_bank.get_all_memory_blocks.side_effect = Exception("Database error")
 
     # Call the function
     result = get_memory_block_core(sample_input, mock_memory_bank)
