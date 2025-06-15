@@ -685,3 +685,270 @@ def test_get_blocks_with_case_insensitive_filtering(client: TestClient):
 
         if hasattr(app.state, "memory_bank"):
             del app.state.memory_bank
+
+
+# ================================
+# Branch Parameter Tests
+# ================================
+
+
+def test_get_all_blocks_with_explicit_main_branch(client_with_mock_bank, mock_memory_bank):
+    """Test GET /api/v1/blocks with explicit branch=main parameter."""
+    test_blocks = [
+        MemoryBlock(
+            id="main-block-1",
+            type="knowledge",
+            text="Block from main branch",
+            tags=["main"],
+            created_at=datetime.datetime.utcnow(),
+            updated_at=datetime.datetime.utcnow(),
+            metadata={"source": "main_branch"},
+            schema_version=1,
+        )
+    ]
+    mock_memory_bank.get_all_memory_blocks.return_value = test_blocks
+
+    response = client_with_mock_bank.get("/api/v1/blocks?branch=main")
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["id"] == "main-block-1"
+    mock_memory_bank.get_all_memory_blocks.assert_called_once_with(branch="main")
+
+
+def test_get_all_blocks_with_different_branch(client_with_mock_bank, mock_memory_bank):
+    """Test GET /api/v1/blocks with a different branch parameter."""
+    test_blocks = [
+        MemoryBlock(
+            id="feature-block-1",
+            type="task",
+            text="Block from feature branch",
+            tags=["feature"],
+            created_at=datetime.datetime.utcnow(),
+            updated_at=datetime.datetime.utcnow(),
+            metadata={"source": "feature_branch"},
+            schema_version=1,
+        )
+    ]
+    mock_memory_bank.get_all_memory_blocks.return_value = test_blocks
+
+    response = client_with_mock_bank.get("/api/v1/blocks?branch=feat/test-branch")
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["id"] == "feature-block-1"
+    mock_memory_bank.get_all_memory_blocks.assert_called_once_with(branch="feat/test-branch")
+
+
+def test_get_all_blocks_with_nonexistent_branch(client_with_mock_bank, mock_memory_bank):
+    """Test GET /api/v1/blocks with nonexistent branch returns empty array."""
+    mock_memory_bank.get_all_memory_blocks.return_value = []  # Empty for nonexistent branch
+
+    response = client_with_mock_bank.get("/api/v1/blocks?branch=nonexistent-branch")
+
+    assert response.status_code == 200
+    assert response.json() == []
+    mock_memory_bank.get_all_memory_blocks.assert_called_once_with(branch="nonexistent-branch")
+
+
+def test_get_all_blocks_branch_with_type_filter(client_with_mock_bank, mock_memory_bank):
+    """Test GET /api/v1/blocks with both branch and type filter parameters."""
+    test_blocks = [
+        MemoryBlock(
+            id="task-block-1",
+            type="task",
+            text="Task from feature branch",
+            tags=["feature", "task"],
+            created_at=datetime.datetime.utcnow(),
+            updated_at=datetime.datetime.utcnow(),
+            metadata={"source": "feature_branch"},
+            schema_version=1,
+        ),
+        MemoryBlock(
+            id="knowledge-block-1",
+            type="knowledge",
+            text="Knowledge from feature branch",
+            tags=["feature", "knowledge"],
+            created_at=datetime.datetime.utcnow(),
+            updated_at=datetime.datetime.utcnow(),
+            metadata={"source": "feature_branch"},
+            schema_version=1,
+        ),
+    ]
+    mock_memory_bank.get_all_memory_blocks.return_value = test_blocks
+
+    response = client_with_mock_bank.get("/api/v1/blocks?branch=feat/test-branch&type=task")
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["id"] == "task-block-1"
+    assert response.json()[0]["type"] == "task"
+    mock_memory_bank.get_all_memory_blocks.assert_called_once_with(branch="feat/test-branch")
+
+
+def test_get_all_blocks_branch_with_case_insensitive_filter(
+    client_with_mock_bank, mock_memory_bank
+):
+    """Test GET /api/v1/blocks with branch, type filter, and case insensitive parameters."""
+    test_blocks = [
+        MemoryBlock(
+            id="task-block-1",
+            type="task",
+            text="Task from feature branch",
+            tags=["feature"],
+            created_at=datetime.datetime.utcnow(),
+            updated_at=datetime.datetime.utcnow(),
+            metadata={"source": "feature_branch"},
+            schema_version=1,
+        )
+    ]
+    mock_memory_bank.get_all_memory_blocks.return_value = test_blocks
+
+    response = client_with_mock_bank.get(
+        "/api/v1/blocks?branch=feat/test-branch&type=TASK&case_insensitive=true"
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["id"] == "task-block-1"
+    mock_memory_bank.get_all_memory_blocks.assert_called_once_with(branch="feat/test-branch")
+
+
+@patch("services.web_api.routes.blocks_router.get_memory_block_tool")
+def test_get_block_with_explicit_main_branch(mock_get_block_tool, client_with_mock_bank):
+    """Test GET /api/v1/blocks/{id} with explicit branch=main parameter."""
+    test_block = MemoryBlock(
+        id="main-block-123",
+        type="knowledge",
+        text="Block from main branch",
+        tags=["main"],
+        created_at=datetime.datetime.utcnow(),
+        updated_at=datetime.datetime.utcnow(),
+        metadata={"source": "main_branch"},
+        schema_version=1,
+    )
+
+    mock_output = GetMemoryBlockOutput(
+        success=True,
+        blocks=[test_block],
+        error=None,
+        timestamp=datetime.datetime.utcnow(),
+    )
+    mock_get_block_tool.return_value = mock_output
+
+    response = client_with_mock_bank.get("/api/v1/blocks/main-block-123?branch=main")
+
+    assert response.status_code == 200
+    assert response.json()["id"] == "main-block-123"
+
+    # Verify the tool was called with branch parameter
+    mock_get_block_tool.assert_called_once()
+    _, kwargs = mock_get_block_tool.call_args
+    assert kwargs["branch"] == "main"
+    assert kwargs["block_id"] == "main-block-123"
+
+
+@patch("services.web_api.routes.blocks_router.get_memory_block_tool")
+def test_get_block_with_different_branch(mock_get_block_tool, client_with_mock_bank):
+    """Test GET /api/v1/blocks/{id} with different branch parameter."""
+    test_block = MemoryBlock(
+        id="feature-block-456",
+        type="task",
+        text="Block from feature branch",
+        tags=["feature"],
+        created_at=datetime.datetime.utcnow(),
+        updated_at=datetime.datetime.utcnow(),
+        metadata={"source": "feature_branch"},
+        schema_version=1,
+    )
+
+    mock_output = GetMemoryBlockOutput(
+        success=True,
+        blocks=[test_block],
+        error=None,
+        timestamp=datetime.datetime.utcnow(),
+    )
+    mock_get_block_tool.return_value = mock_output
+
+    response = client_with_mock_bank.get("/api/v1/blocks/feature-block-456?branch=feat/test-branch")
+
+    assert response.status_code == 200
+    assert response.json()["id"] == "feature-block-456"
+
+    # Verify the tool was called with correct branch parameter
+    mock_get_block_tool.assert_called_once()
+    _, kwargs = mock_get_block_tool.call_args
+    assert kwargs["branch"] == "feat/test-branch"
+    assert kwargs["block_id"] == "feature-block-456"
+
+
+@patch("services.web_api.routes.blocks_router.get_memory_block_tool")
+def test_get_block_with_nonexistent_branch(mock_get_block_tool, client_with_mock_bank):
+    """Test GET /api/v1/blocks/{id} with nonexistent branch returns not found."""
+    mock_output = GetMemoryBlockOutput(
+        success=False,
+        blocks=[],
+        error="Memory blocks not found with IDs: ['test-block-123']",
+        timestamp=datetime.datetime.utcnow(),
+    )
+    mock_get_block_tool.return_value = mock_output
+
+    response = client_with_mock_bank.get("/api/v1/blocks/test-block-123?branch=nonexistent-branch")
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"]
+
+    # Verify the tool was called with nonexistent branch parameter
+    mock_get_block_tool.assert_called_once()
+    _, kwargs = mock_get_block_tool.call_args
+    assert kwargs["branch"] == "nonexistent-branch"
+
+
+@patch("services.web_api.routes.blocks_router.get_memory_block_tool")
+def test_get_block_cross_branch_validation(mock_get_block_tool, client_with_mock_bank):
+    """Test block exists in one branch but not another - cross-branch validation."""
+    # First call - block exists in feature branch
+    test_block = MemoryBlock(
+        id="cross-branch-block",
+        type="task",
+        text="Block only in feature branch",
+        tags=["feature-only"],
+        created_at=datetime.datetime.utcnow(),
+        updated_at=datetime.datetime.utcnow(),
+        metadata={"source": "feature_branch"},
+        schema_version=1,
+    )
+
+    success_output = GetMemoryBlockOutput(
+        success=True,
+        blocks=[test_block],
+        error=None,
+        timestamp=datetime.datetime.utcnow(),
+    )
+
+    # Second call - block doesn't exist in main branch
+    not_found_output = GetMemoryBlockOutput(
+        success=False,
+        blocks=[],
+        error="Memory blocks not found with IDs: ['cross-branch-block']",
+        timestamp=datetime.datetime.utcnow(),
+    )
+
+    # Test 1: Block exists in feature branch
+    mock_get_block_tool.return_value = success_output
+    response_feature = client_with_mock_bank.get(
+        "/api/v1/blocks/cross-branch-block?branch=feat/test-branch"
+    )
+
+    assert response_feature.status_code == 200
+    assert response_feature.json()["id"] == "cross-branch-block"
+
+    # Test 2: Same block doesn't exist in main branch
+    mock_get_block_tool.return_value = not_found_output
+    response_main = client_with_mock_bank.get("/api/v1/blocks/cross-branch-block?branch=main")
+
+    assert response_main.status_code == 404
+    assert "not found" in response_main.json()["detail"]
+
+    # Verify both calls were made with correct branch parameters
+    assert mock_get_block_tool.call_count == 2
