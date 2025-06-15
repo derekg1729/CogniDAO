@@ -8,7 +8,7 @@ These tests specifically target the new PR functionality and expose known issues
 """
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
 
 from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     dolt_create_pull_request_tool,
@@ -212,17 +212,15 @@ class TestDoltMergeTool:
         """Test successful basic merge operation."""
         memory_bank = mock_memory_bank
 
-        # Mock successful merge via persistent connection
-        mock_cursor = MagicMock()
-        mock_cursor.fetchall.return_value = [
+        # Mock successful merge via _execute_query method directly
+        memory_bank.dolt_writer._execute_query.return_value = [
             {"hash": "merge123abc", "fast_forward": 0, "conflicts": 0}
         ]
-        memory_bank.dolt_writer._persistent_connection = MagicMock()
-        memory_bank.dolt_writer._persistent_connection.cursor.return_value = mock_cursor
-        memory_bank.dolt_writer._use_persistent = True
 
         # Prepare input
-        input_data = DoltMergeInput(source_branch="feature-branch", target_branch="main")
+        input_data = DoltMergeInput(
+            source_branch="feature-branch", target_branch="main", force_multi_commit=True
+        )
 
         # Execute tool
         result = dolt_merge_tool(input_data, memory_bank)
@@ -236,28 +234,27 @@ class TestDoltMergeTool:
         assert result.conflicts == 0
         assert "Successfully merged" in result.message
 
-        # Verify SQL execution
-        mock_cursor.execute.assert_called_once_with("CALL DOLT_MERGE(%s)", ("feature-branch",))
+        # Verify SQL execution - check that both calls were made
+        calls = memory_bank.dolt_writer._execute_query.call_args_list
+        assert len(calls) == 2
+        assert calls[0] == call("CALL DOLT_MERGE(?)", ("feature-branch",))
+        assert calls[1] == call("SELECT HASHOF('HEAD') as hash")
 
     def test_merge_with_conflicts(self, mock_memory_bank):
         """Test merge operation that results in conflicts."""
         memory_bank = mock_memory_bank
 
-        # Mock merge with conflicts
-        mock_cursor = MagicMock()
-        mock_cursor.fetchall.return_value = [
+        # Mock merge with conflicts via _execute_query method directly
+        memory_bank.dolt_writer._execute_query.return_value = [
             {
                 "hash": None,
                 "fast_forward": 0,
                 "conflicts": 3,  # Conflicts detected
             }
         ]
-        memory_bank.dolt_writer._persistent_connection = MagicMock()
-        memory_bank.dolt_writer._persistent_connection.cursor.return_value = mock_cursor
-        memory_bank.dolt_writer._use_persistent = True
 
         # Prepare input
-        input_data = DoltMergeInput(source_branch="conflicting-branch")
+        input_data = DoltMergeInput(source_branch="conflicting-branch", force_multi_commit=True)
 
         # Execute tool
         result = dolt_merge_tool(input_data, memory_bank)
@@ -273,15 +270,11 @@ class TestDoltMergeTool:
         """Test merge when SQL execution fails - exposes decorator error handling bug."""
         memory_bank = mock_memory_bank
 
-        # Mock SQL execution failure
-        memory_bank.dolt_writer._persistent_connection = MagicMock()
-        memory_bank.dolt_writer._persistent_connection.cursor.side_effect = Exception(
-            "SQL connection failed"
-        )
-        memory_bank.dolt_writer._use_persistent = True
+        # Mock SQL execution failure via _execute_query method directly
+        memory_bank.dolt_writer._execute_query.side_effect = Exception("SQL connection failed")
 
         # Prepare input
-        input_data = DoltMergeInput(source_branch="feature-branch")
+        input_data = DoltMergeInput(source_branch="feature-branch", force_multi_commit=True)
 
         # Execute tool - this should expose the decorator exception handling bug
         result = dolt_merge_tool(input_data, memory_bank)
@@ -383,16 +376,14 @@ class TestIntegrationIssues:
         """Test that exposes the lack of concurrency controls."""
         memory_bank = mock_memory_bank
 
-        # Mock successful merge
-        mock_cursor = MagicMock()
-        mock_cursor.fetchall.return_value = [{"hash": "race123", "fast_forward": 0, "conflicts": 0}]
-        memory_bank.dolt_writer._persistent_connection = MagicMock()
-        memory_bank.dolt_writer._persistent_connection.cursor.return_value = mock_cursor
-        memory_bank.dolt_writer._use_persistent = True
+        # Mock successful merge via _execute_query method directly
+        memory_bank.dolt_writer._execute_query.return_value = [
+            {"hash": "race123", "fast_forward": 0, "conflicts": 0}
+        ]
 
         # Simulate concurrent merge operations
-        input1 = DoltMergeInput(source_branch="feature1")
-        input2 = DoltMergeInput(source_branch="feature2")
+        input1 = DoltMergeInput(source_branch="feature1", force_multi_commit=True)
+        input2 = DoltMergeInput(source_branch="feature2", force_multi_commit=True)
 
         # Both should succeed but this exposes the race condition issue
         result1 = dolt_merge_tool(input1, memory_bank)

@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any, Callable, Literal
 from functools import wraps
 from pydantic import BaseModel, Field, validator
+import requests
 
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 
@@ -1265,6 +1266,32 @@ class DoltCreatePullRequestOutput(BaseDoltOutput):
     timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
 
 
+class DoltApprovePullRequestInput(BaseModel):
+    """Input model for the dolt_approve_pull_request tool."""
+
+    pr_id: str = Field(
+        ...,
+        description="Pull request ID to approve and merge",
+        min_length=1,
+        max_length=100,
+    )
+    approve_message: Optional[str] = Field(
+        default=None,
+        description="Optional message for the approval",
+        max_length=500,
+    )
+
+
+class DoltApprovePullRequestOutput(BaseDoltOutput):
+    """Output model for the dolt_approve_pull_request tool."""
+
+    pr_id: str = Field(..., description="Pull request ID that was approved")
+    merge_hash: Optional[str] = Field(default=None, description="Hash of the merge commit")
+    operation_name: Optional[str] = Field(
+        default=None, description="DoltHub operation name for polling"
+    )
+
+
 class DoltMergeInput(BaseModel):
     """Input model for the dolt_merge tool."""
 
@@ -1298,11 +1325,15 @@ class DoltMergeInput(BaseModel):
         description="Author attribution for the merge commit",
         max_length=100,
     )
+    force_multi_commit: bool = Field(
+        default=False,
+        description="Allow multi-commit merges (bypasses safety check, use with caution)",
+    )
 
     @validator("source_branch", "target_branch")
     def validate_branches(cls, v):
         """Validate branch names for security."""
-        if v:
+        if v is not None:
             return validate_branch_name(v)
         return v
 
@@ -1487,101 +1518,202 @@ def dolt_merge_tool(
     """
     Merge one branch into another using Dolt's DOLT_MERGE procedure.
 
-    Args:
-        input_data: The merge parameters
-        memory_bank: StructuredMemoryBank instance with Dolt writer access
-
-    Returns:
-        DoltMergeOutput with merge results
+    IMPORTANT: This tool is gated to only allow fast-forward or single-commit merges.
+    For multi-commit scenarios, use dolt_approve_pull_request_tool instead.
     """
-    # Validate branch names for security
-    validate_branch_name(input_data.source_branch)
-    if input_data.target_branch:
-        validate_branch_name(input_data.target_branch)
-
-    # Determine target branch (current branch if not specified)
-    target_branch = input_data.target_branch or memory_bank.dolt_writer.active_branch
-
-    # Ensure we're on the target branch
-    if memory_bank.dolt_writer.active_branch != target_branch:
-        checkout_result = dolt_checkout_tool(
-            DoltCheckoutInput(branch_name=target_branch), memory_bank
-        )
-        if not checkout_result.success:
-            return DoltMergeOutput(
-                success=False,
-                message=f"Failed to checkout target branch {target_branch}: {checkout_result.error}",
-                source_branch=input_data.source_branch,
-                target_branch=target_branch,
-                fast_forward=False,
-                active_branch=memory_bank.dolt_writer.active_branch,
-                error=checkout_result.error,
-                error_code="CHECKOUT_FAILED",
-            )
-
-    # Use persistent connection if available, otherwise create new one
-    if memory_bank.dolt_writer._use_persistent and memory_bank.dolt_writer._persistent_connection:
-        connection = memory_bank.dolt_writer._persistent_connection
-        connection_is_persistent = True
-    else:
-        connection = memory_bank.dolt_writer._get_connection()
-        connection_is_persistent = False
-
     try:
-        cursor = connection.cursor(dictionary=True)
+        dolt_writer = memory_bank.dolt_writer
 
-        # Build merge command - use simple parameterized approach for security
-        # Note: DOLT_MERGE doesn't support all git merge options, so we use basic merge
-        if input_data.commit_message:
-            cursor.execute(
-                "CALL DOLT_MERGE(%s, %s)", (input_data.source_branch, input_data.commit_message)
+        # Determine target branch
+        target_branch = input_data.target_branch or dolt_writer.active_branch
+
+        # GATING LOGIC: Check if this is a safe merge before proceeding
+        if not input_data.force_multi_commit:
+            # Use compare branches to check merge compatibility
+            compare_input = DoltCompareBranchesInput(
+                source_branch=input_data.source_branch, target_branch=target_branch
             )
-        else:
-            cursor.execute("CALL DOLT_MERGE(%s)", (input_data.source_branch,))
+            compare_result = dolt_compare_branches_tool(compare_input, memory_bank)
 
-        result = cursor.fetchall()
+            if not compare_result.success:
+                return DoltMergeOutput(
+                    success=False,
+                    message=f"Cannot compare branches for merge safety check: {compare_result.error}",
+                    active_branch=target_branch,
+                    source_branch=input_data.source_branch,
+                    target_branch=target_branch,
+                    fast_forward=False,
+                    conflicts=0,
+                    error="COMPARE_FAILED",
+                    error_code="MERGE_SAFETY_CHECK_FAILED",
+                )
 
-        # Parse merge result
-        merge_hash = None
-        fast_forward = False
-        conflicts = 0
+            # Check if this is a multi-commit scenario
+            if compare_result.has_differences and len(compare_result.diff_summary) > 1:
+                return DoltMergeOutput(
+                    success=False,
+                    message="MERGE_NOT_FAST_FORWARD: Multi-commit merge detected. Use dolt_approve_pull_request_tool for multi-commit scenarios.",
+                    active_branch=target_branch,
+                    source_branch=input_data.source_branch,
+                    target_branch=target_branch,
+                    fast_forward=False,
+                    conflicts=0,
+                    error="Multi-commit merge not allowed. Use PR approval workflow.",
+                    error_code="MERGE_NOT_FAST_FORWARD",
+                )
 
-        if result:
+        # Proceed with local merge (existing implementation)
+        # Build merge command
+        merge_args = [input_data.source_branch]
+
+        if input_data.no_ff:
+            merge_args.append("--no-ff")
+        if input_data.squash:
+            merge_args.append("--squash")
+        if input_data.commit_message:
+            merge_args.extend(["-m", input_data.commit_message])
+        if input_data.author:
+            merge_args.extend(["--author", input_data.author])
+
+        # Execute merge
+        result = dolt_writer._execute_query("CALL DOLT_MERGE(?)", (input_data.source_branch,))
+
+        if result and len(result) > 0:
             row = result[0]
-            merge_hash = row.get("hash")
             fast_forward = bool(row.get("fast_forward", 0))
             conflicts = int(row.get("conflicts", 0))
 
-        cursor.close()
-
-        if conflicts > 0:
-            message = f"Merge completed with {conflicts} conflicts that need resolution"
-            success = False
-            error_code = "MERGE_CONFLICTS"
-        else:
-            if fast_forward:
-                message = f"Successfully merged {input_data.source_branch} into {target_branch} (fast-forward)"
+            if conflicts > 0:
+                return DoltMergeOutput(
+                    success=False,
+                    message=f"Merge completed with {conflicts} conflicts that need resolution",
+                    active_branch=target_branch,
+                    source_branch=input_data.source_branch,
+                    target_branch=target_branch,
+                    fast_forward=fast_forward,
+                    conflicts=conflicts,
+                    error=f"Merge conflicts detected: {conflicts}",
+                    error_code="MERGE_CONFLICTS",
+                )
             else:
-                message = f"Successfully merged {input_data.source_branch} into {target_branch} (merge commit: {merge_hash})"
-            success = True
-            error_code = None
+                # Get merge commit hash if available
+                merge_hash = None
+                try:
+                    hash_result = dolt_writer._execute_query("SELECT HASHOF('HEAD') as hash")
+                    if hash_result and len(hash_result) > 0:
+                        merge_hash = hash_result[0].get("hash")
+                except Exception:
+                    pass  # Hash retrieval is optional
 
+                return DoltMergeOutput(
+                    success=True,
+                    message=f"Successfully merged {input_data.source_branch} into {target_branch}",
+                    active_branch=target_branch,
+                    source_branch=input_data.source_branch,
+                    target_branch=target_branch,
+                    fast_forward=fast_forward,
+                    conflicts=0,
+                    merge_hash=merge_hash,
+                )
+        else:
+            return DoltMergeOutput(
+                success=False,
+                message="Merge command returned no results",
+                active_branch=target_branch,
+                source_branch=input_data.source_branch,
+                target_branch=target_branch,
+                fast_forward=False,
+                conflicts=0,
+                error="No results from DOLT_MERGE procedure",
+                error_code="NO_RESULTS",
+            )
+
+    except Exception as e:
+        error_msg = f"Merge failed: {str(e)}"
         return DoltMergeOutput(
-            success=success,
-            merge_hash=merge_hash,
-            message=message,
+            success=False,
+            message=error_msg,
+            active_branch=getattr(memory_bank.dolt_writer, "active_branch", "unknown"),
             source_branch=input_data.source_branch,
-            target_branch=target_branch,
-            fast_forward=fast_forward,
-            conflicts=conflicts,
-            active_branch=memory_bank.dolt_writer.active_branch,
-            error_code=error_code,
+            target_branch=input_data.target_branch or "unknown",
+            fast_forward=False,
+            conflicts=0,
+            error=error_msg,
+            error_code="EXCEPTION",
         )
 
-    finally:
-        # Only close if it's not a persistent connection
-        if not connection_is_persistent:
-            connection.close()
+
+@dolt_tool("APPROVE_PULL_REQUEST")
+def dolt_approve_pull_request_tool(
+    input_data: DoltApprovePullRequestInput, memory_bank: StructuredMemoryBank
+) -> DoltApprovePullRequestOutput:
+    """
+    Approve and merge a pull request using the DoltHub API.
+
+    This tool is designed for multi-commit scenarios where local DOLT_MERGE
+    would fail. It uses the DoltHub remote API to approve and merge PRs server-side.
+    """
+    try:
+        # Get DoltHub configuration from memory bank
+        dolt_writer = memory_bank.dolt_writer
+
+        # Extract owner and database from remote configuration
+        # This is a simplified approach - in production you'd want more robust config
+        remote_url = getattr(dolt_writer, "remote_url", None)
+        if not remote_url:
+            raise ValueError("No remote URL configured for DoltHub API access")
+
+        # Parse owner/database from remote URL (simplified)
+        # Format: https://doltremoteapi.dolthub.com/{owner}/{database}
+        if "dolthub.com" in remote_url:
+            parts = remote_url.split("/")
+            owner = parts[-2] if len(parts) >= 2 else "unknown"
+            database = parts[-1] if len(parts) >= 1 else "unknown"
+        else:
+            raise ValueError(f"Unsupported remote URL format: {remote_url}")
+
+        # Get API token from environment or configuration
+        api_token = getattr(dolt_writer, "api_token", None)
+        if not api_token:
+            raise ValueError("No DoltHub API token configured")
+
+        # Make API request to merge PR
+        url = f"https://www.dolthub.com/api/v1alpha1/{owner}/{database}/pulls/{input_data.pr_id}/merge"
+        headers = {"authorization": f"token {api_token}", "Content-Type": "application/json"}
+
+        response = requests.post(url, headers=headers)
+
+        if response.status_code == 200:
+            result_data = response.json()
+            return DoltApprovePullRequestOutput(
+                success=True,
+                message=f"Successfully approved and merged PR {input_data.pr_id}",
+                active_branch=getattr(dolt_writer, "active_branch", "unknown"),
+                pr_id=input_data.pr_id,
+                operation_name=result_data.get("operation_name"),
+                merge_hash=result_data.get("merge_hash"),
+            )
+        else:
+            error_msg = f"DoltHub API error: {response.status_code} - {response.text}"
+            return DoltApprovePullRequestOutput(
+                success=False,
+                message=error_msg,
+                active_branch=getattr(dolt_writer, "active_branch", "unknown"),
+                pr_id=input_data.pr_id,
+                error=error_msg,
+                error_code="API_ERROR",
+            )
+
+    except Exception as e:
+        error_msg = f"Failed to approve PR {input_data.pr_id}: {str(e)}"
+        return DoltApprovePullRequestOutput(
+            success=False,
+            message=error_msg,
+            active_branch=getattr(memory_bank.dolt_writer, "active_branch", "unknown"),
+            pr_id=input_data.pr_id,
+            error=error_msg,
+            error_code="EXCEPTION",
+        )
 
 
 def dolt_compare_branches_tool(
