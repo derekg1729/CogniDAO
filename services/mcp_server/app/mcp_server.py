@@ -96,6 +96,9 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     dolt_compare_branches_tool,
     DoltCompareBranchesInput,
     DoltCompareBranchesOutput,
+    dolt_approve_pull_request_tool,
+    DoltApprovePullRequestInput,
+    DoltApprovePullRequestOutput,
 )
 from infra_core.memory_system.tools.agent_facing.bulk_create_blocks_tool import (
     bulk_create_blocks,
@@ -1161,6 +1164,41 @@ async def dolt_compare_branches(input):
             can_merge=False,
             active_branch="unknown",
             error=f"Error during dolt_compare_branches: {str(e)}",
+        ).model_dump(mode="json")
+
+
+# Register the DoltApprovePullRequest tool
+@mcp.tool("DoltApprovePullRequest")
+async def dolt_approve_pull_request(input):
+    """Approve and merge a pull request using the DoltHub API
+
+    Args:
+        pr_id: Pull request ID to approve and merge
+        approve_message: Optional message for the approval
+
+    Returns:
+        success: Whether the pull request approval succeeded
+        pr_id: Pull request ID that was approved
+        merge_hash: Hash of the merge commit
+        operation_name: DoltHub operation name for polling
+        message: Human-readable result message
+        active_branch: Current active branch
+        error: Error message if operation failed
+        timestamp: Timestamp of operation
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = DoltApprovePullRequestInput(**input)
+        result = dolt_approve_pull_request_tool(parsed_input, memory_bank=get_memory_bank())
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error in DoltApprovePullRequest MCP tool: {e}")
+        return DoltApprovePullRequestOutput(
+            success=False,
+            message=f"Pull request approval failed: {str(e)}",
+            pr_id=input.get("pr_id", "unknown"),
+            active_branch="unknown",
+            error=f"Error during dolt_approve_pull_request: {str(e)}",
         ).model_dump(mode="json")
 
 
