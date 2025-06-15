@@ -34,7 +34,7 @@ if str(project_root_dir) not in sys.path:
 try:
     from infra_core.memory_system.schemas.memory_block import MemoryBlock
     from infra_core.memory_system.property_mapper import PropertyMapper
-    from infra_core.memory_system.dolt_mysql_base import DoltMySQLBase
+    from infra_core.memory_system.dolt_mysql_base import DoltMySQLBase, DEFAULT_PROTECTED_BRANCH
 except ImportError as e:
     # Add more context to the error message
     raise ImportError(
@@ -78,14 +78,11 @@ class DoltMySQLWriter(DoltMySQLBase):
     def write_memory_block(
         self,
         block: MemoryBlock,
-        branch: str = "main",
+        branch: str = DEFAULT_PROTECTED_BRANCH,
         auto_commit: bool = False,
         preserve_nulls: bool = False,
     ) -> Tuple[bool, Optional[str]]:
         """Write a memory block to the Dolt SQL server."""
-        # Branch protection: prevent writes to protected branches
-        self._check_branch_protection("write_memory_block", branch)
-
         # Use persistent connection if available, otherwise create new one
         if self._use_persistent and self._persistent_connection:
             connection = self._persistent_connection
@@ -97,9 +94,8 @@ class DoltMySQLWriter(DoltMySQLBase):
         commit_hash = None
 
         try:
-            # Only ensure branch if not using persistent connection (which already has correct branch)
-            if not connection_is_persistent:
-                self._ensure_branch(connection, branch)
+            # Safely ensure branch and check protection (prevents bypass attacks)
+            self._ensure_branch_and_check_protection(connection, "write_memory_block", branch)
             cursor = connection.cursor(dictionary=True)
 
             # Step 1: Write to memory_blocks table using REPLACE INTO for idempotency
@@ -202,17 +198,15 @@ class DoltMySQLWriter(DoltMySQLBase):
                 connection.close()
 
     def delete_memory_block(
-        self, block_id: str, branch: str = "main", auto_commit: bool = False
+        self, block_id: str, branch: str = DEFAULT_PROTECTED_BRANCH, auto_commit: bool = False
     ) -> Tuple[bool, Optional[str]]:
         """Delete a memory block from the Dolt SQL server."""
-        # Branch protection: prevent writes to protected branches
-        self._check_branch_protection("delete_memory_block", branch)
-
         connection = self._get_connection()
         commit_hash = None
 
         try:
-            self._ensure_branch(connection, branch)
+            # Safely ensure branch and check protection (prevents bypass attacks)
+            self._ensure_branch_and_check_protection(connection, "delete_memory_block", branch)
             cursor = connection.cursor(dictionary=True)
 
             # Delete from both tables
@@ -247,16 +241,19 @@ class DoltMySQLWriter(DoltMySQLBase):
             connection.close()
 
     def commit_changes(
-        self, commit_msg: str, tables: List[str] = None
+        self, commit_msg: str, tables: List[str] = None, branch: str = None
     ) -> Tuple[bool, Optional[str]]:
-        """Commit working changes to Dolt via MySQL connection."""
+        """Commit working changes to Dolt via MySQL connection.
+
+        Args:
+            commit_msg: Commit message
+            tables: Optional list of tables to commit (default: all staged changes)
+            branch: Optional explicit branch to commit on (default: current active branch)
+        """
         # Use persistent connection if available, otherwise create new one
         if self._use_persistent and self._persistent_connection:
             connection = self._persistent_connection
             connection_is_persistent = True
-            # For persistent connections, we can check protection immediately since branch is already set
-            current_branch = self._current_branch or self.active_branch
-            self._check_branch_protection("commit_changes", current_branch)
         else:
             connection = self._get_connection()
             connection_is_persistent = False
@@ -264,12 +261,19 @@ class DoltMySQLWriter(DoltMySQLBase):
         commit_hash = None
 
         try:
-            # Only ensure branch if not using persistent connection (which already has correct branch)
-            if not connection_is_persistent:
-                # Don't force main branch - use the current active branch
-                current_branch = self.active_branch
-                self._ensure_branch(connection, current_branch)
-                # Now that we have the correct branch context, check protection
+            # Determine the target branch
+            if branch is not None:
+                # Explicit branch specified - ensure we're on it and check protection
+                self._ensure_branch_and_check_protection(connection, "commit_changes", branch)
+                if self._use_persistent:
+                    self._current_branch = branch
+            else:
+                # No explicit branch - use current branch but check protection
+                if connection_is_persistent:
+                    current_branch = self._current_branch or self.active_branch
+                else:
+                    current_branch = self.active_branch
+                    self._ensure_branch(connection, current_branch)
                 self._check_branch_protection("commit_changes", current_branch)
 
             cursor = connection.cursor(dictionary=True)
@@ -372,7 +376,7 @@ class DoltMySQLWriter(DoltMySQLBase):
         connection = self._get_connection()
 
         try:
-            self._ensure_branch(connection, "main")
+            self._ensure_branch(connection, DEFAULT_PROTECTED_BRANCH)
             cursor = connection.cursor()
 
             if tables:
@@ -439,7 +443,7 @@ class DoltMySQLWriter(DoltMySQLBase):
     def push_to_remote(
         self,
         remote_name: str,
-        branch: str = "main",
+        branch: str = DEFAULT_PROTECTED_BRANCH,
         force: bool = False,
         set_upstream: bool = False,
     ) -> Tuple[bool, Optional[str]]:
@@ -455,9 +459,6 @@ class DoltMySQLWriter(DoltMySQLBase):
         Returns:
             Tuple of (success: bool, message: Optional[str])
         """
-        # Branch protection: prevent pushing protected branches
-        self._check_branch_protection("push_to_remote", branch)
-
         # Use persistent connection if available, otherwise create new one
         if self._use_persistent and self._persistent_connection:
             connection = self._persistent_connection
@@ -467,9 +468,8 @@ class DoltMySQLWriter(DoltMySQLBase):
             connection_is_persistent = False
 
         try:
-            # Only ensure branch if not using persistent connection (which already has correct branch)
-            if not connection_is_persistent:
-                self._ensure_branch(connection, branch)
+            # Safely ensure branch and check protection (prevents bypass attacks)
+            self._ensure_branch_and_check_protection(connection, "push_to_remote", branch)
             cursor = connection.cursor(dictionary=True)
 
             # Build push command arguments list
@@ -529,7 +529,7 @@ class DoltMySQLWriter(DoltMySQLBase):
     def pull_from_remote(
         self,
         remote_name: str = "origin",
-        branch: str = "main",
+        branch: str = DEFAULT_PROTECTED_BRANCH,
         force: bool = False,
         no_ff: bool = False,
         squash: bool = False,
@@ -777,7 +777,11 @@ class DoltMySQLWriter(DoltMySQLBase):
             return False, error_msg
 
     def write_block_proof(
-        self, block_id: str, operation: str, commit_hash: str, branch: str = "main"
+        self,
+        block_id: str,
+        operation: str,
+        commit_hash: str,
+        branch: str = DEFAULT_PROTECTED_BRANCH,
     ) -> bool:
         """
         Write a block operation proof to the block_proofs table.
@@ -791,13 +795,11 @@ class DoltMySQLWriter(DoltMySQLBase):
         Returns:
             True if proof was stored successfully, False otherwise
         """
-        # Branch protection: prevent writes to protected branches
-        self._check_branch_protection("write_block_proof", branch)
-
         connection = self._get_connection()
 
         try:
-            self._ensure_branch(connection, branch)
+            # Safely ensure branch and check protection (prevents bypass attacks)
+            self._ensure_branch_and_check_protection(connection, "write_block_proof", branch)
             cursor = connection.cursor(dictionary=True)
 
             # Insert proof record with current timestamp

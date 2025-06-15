@@ -29,7 +29,11 @@ logger = logging.getLogger(__name__)
 
 # Configuration for protected branches
 DEFAULT_PROTECTED_BRANCH = os.getenv("DOLT_PROTECTED_BRANCH", "main")
-PROTECTED_BRANCHES = os.getenv("DOLT_PROTECTED_BRANCHES", DEFAULT_PROTECTED_BRANCH).split(",")
+PROTECTED_BRANCHES = [
+    branch.strip().lower()
+    for branch in os.getenv("DOLT_PROTECTED_BRANCHES", DEFAULT_PROTECTED_BRANCH).split(",")
+    if branch.strip()  # Filter out empty strings
+]
 
 
 class MainBranchProtectionError(Exception):
@@ -111,7 +115,7 @@ class DoltMySQLBase:
         Returns:
             True if branch is protected, False otherwise
         """
-        return branch in PROTECTED_BRANCHES
+        return branch.lower() in PROTECTED_BRANCHES
 
     def _check_branch_protection(self, operation: str, target_branch: str) -> None:
         """
@@ -210,7 +214,7 @@ class DoltMySQLBase:
         except Error as e:
             raise Exception(f"Failed to verify current branch: {e}")
 
-    def use_persistent_connection(self, branch: str = "main") -> None:
+    def use_persistent_connection(self, branch: str = DEFAULT_PROTECTED_BRANCH) -> None:
         """
         Enable persistent connection mode and checkout the specified branch.
 
@@ -350,7 +354,7 @@ class DoltMySQLBase:
                 if result and result.get("active_branch"):
                     return result["active_branch"]
                 else:
-                    return "main"  # Fallback to main if query fails
+                    return DEFAULT_PROTECTED_BRANCH  # Fallback to default if query fails
 
             finally:
                 if not connection_is_persistent:
@@ -358,4 +362,33 @@ class DoltMySQLBase:
 
         except Exception as e:
             logger.warning(f"Failed to get active branch: {e}")
-            return "main"  # Fallback to main on error
+            return DEFAULT_PROTECTED_BRANCH  # Fallback to default on error
+
+    def _ensure_branch_and_check_protection(
+        self, connection: mysql.connector.MySQLConnection, operation: str, target_branch: str
+    ) -> None:
+        """
+        Safely ensure we're on the target branch and check protection.
+
+        For persistent connections, this ensures the connection is actually switched
+        to the target branch before checking protection, preventing bypass attacks.
+
+        Args:
+            connection: The database connection
+            operation: Description of the operation being attempted
+            target_branch: The branch to switch to and check protection for
+
+        Raises:
+            MainBranchProtectionError: If attempting to write to protected branch
+        """
+        # For persistent connections, ensure we're actually on the target branch
+        if self._use_persistent and self._persistent_connection:
+            if self._current_branch != target_branch:
+                self._ensure_branch(connection, target_branch)
+                self._current_branch = target_branch
+        else:
+            # For non-persistent connections, always ensure branch
+            self._ensure_branch(connection, target_branch)
+
+        # Now check protection with the actual current branch
+        self._check_branch_protection(operation, target_branch)
