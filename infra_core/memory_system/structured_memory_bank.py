@@ -208,7 +208,7 @@ class StructuredMemoryBank:
             logger.warning(f"Error fetching schema version for {node_type}: {e}")
             return None
 
-    def create_memory_block(self, block: MemoryBlock) -> bool:
+    def create_memory_block(self, block: MemoryBlock) -> tuple[bool, Optional[str]]:
         """
         Creates a new MemoryBlock, persisting to Dolt and indexing in LlamaIndex with atomic guarantees.
         If either operation fails, both are rolled back to ensure consistency between storage systems.
@@ -217,13 +217,16 @@ class StructuredMemoryBank:
             block: The MemoryBlock object to create.
 
         Returns:
-            True if creation was successful (both Dolt write and LlamaIndex add), False otherwise.
+            Tuple of (success: bool, error_message: Optional[str])
+            - success: True if creation was successful (both Dolt write and LlamaIndex add), False otherwise
+            - error_message: Specific error details if creation failed, None if successful
         """
         logger.info(f"Attempting to create memory block: {block.id}")
 
         if not self.llama_memory.is_ready():
-            logger.error("LlamaMemory backend is not ready. Cannot create block.")
-            return False
+            error_msg = "LlamaMemory backend is not ready. Cannot create block."
+            logger.error(error_msg)
+            return False, error_msg
 
         # Query node_schemas for latest version and set block.schema_version if not already set
         if block.schema_version is None:
@@ -252,8 +255,13 @@ class StructuredMemoryBank:
                 f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in ve.errors()
             ]
             error_details = "\n- ".join(field_errors)
-            logger.error(f"Validation failed for block {block.id}:\n- {error_details}")
-            return False
+            error_msg = f"Validation failed for block {block.id}:\n- {error_details}"
+            logger.error(error_msg)
+            # Create a simpler error message for return
+            simple_errors = [
+                f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in ve.errors()
+            ]
+            return False, f"Block validation failed: {'; '.join(simple_errors)}"
         # --- END VALIDATION PHASE ---
 
         # --- ATOMIC PERSISTENCE PHASE ---
@@ -272,20 +280,20 @@ class StructuredMemoryBank:
                 )
 
                 if not dolt_write_success:
-                    logger.error(
-                        f"Failed to write block {block.id} to Dolt. Aborting atomic operation."
-                    )
-                    return False
+                    error_msg = f"Failed to write block {block.id} to Dolt database"
+                    logger.error(f"{error_msg}. Aborting atomic operation.")
+                    return False, error_msg
 
                 logger.info(
                     f"Successfully wrote block {block.id} to Dolt working set (uncommitted)."
                 )
 
             except Exception as dolt_e:
+                error_msg = f"Database write error for block {block.id}: {str(dolt_e)}"
                 logger.error(
                     f"Unexpected error writing block {block.id} to Dolt: {dolt_e}", exc_info=True
                 )
-                return False
+                return False, error_msg
 
             # Step 2: Add block to LlamaIndex
             try:
@@ -294,6 +302,7 @@ class StructuredMemoryBank:
                 logger.info(f"Successfully indexed block {block.id} in LlamaIndex.")
             except Exception as llama_e:
                 llama_success = False
+                error_msg = f"Search indexing failed for block {block.id}: {str(llama_e)}"
                 logger.error(
                     f"Failed to index block {block.id} in LlamaIndex: {llama_e}", exc_info=True
                 )
@@ -313,12 +322,11 @@ class StructuredMemoryBank:
                                 f"Successfully created and indexed memory block: {block.id}"
                             )
                             self._store_block_proof(block.id, "create", commit_hash)
-                            return True
+                            return True, None
                         else:
                             # Commit failed - attempt rollback
-                            logger.error(
-                                f"Failed to commit Dolt changes for block {block.id}. Attempting rollback."
-                            )
+                            error_msg = f"Failed to commit changes for block {block.id} to database"
+                            logger.error(f"{error_msg}. Attempting rollback.")
 
                             # Rollback Dolt changes
                             try:
@@ -334,20 +342,21 @@ class StructuredMemoryBank:
                                     f"Dolt commit failed and rollback failed for block {block.id}"
                                 )
 
-                            return False
+                            return False, error_msg
 
                     except Exception as commit_e:
+                        error_msg = f"Commit operation failed for block {block.id}: {str(commit_e)}"
                         logger.error(
                             f"Unexpected error during commit for block {block.id}: {commit_e}",
                             exc_info=True,
                         )
-                        return False
+                        return False, error_msg
                 else:
                     # Auto-commit disabled - operation succeeded but changes remain uncommitted
                     logger.info(
                         f"Successfully created memory block {block.id} (uncommitted - auto_commit=False)"
                     )
-                    return True
+                    return True, None
 
             else:
                 # LlamaIndex operation failed - rollback Dolt changes
@@ -365,9 +374,10 @@ class StructuredMemoryBank:
                         f"LlamaIndex operation failed and Dolt rollback failed for block {block.id}"
                     )
 
-                return False
+                return False, error_msg  # error_msg was set in the LlamaIndex exception handler
 
         except Exception as e:
+            error_msg = f"Unexpected error during block creation: {str(e)}"
             logger.error(
                 f"Unexpected error during atomic persistence of block {block.id}: {e}",
                 exc_info=True,
@@ -387,7 +397,7 @@ class StructuredMemoryBank:
                     f"Exception during create and Dolt rollback failed for block {block.id}"
                 )
 
-            return False
+            return False, error_msg
         # --- END ATOMIC PERSISTENCE PHASE ---
 
     def get_memory_block(self, block_id: str) -> Optional[MemoryBlock]:

@@ -28,7 +28,7 @@ def test_memory_storage_save(memory_storage, mock_memory_bank):
     # Setup
     thought = "Test thought"
     metadata = {"source": "test"}
-    mock_memory_bank.create_memory_block.return_value = True
+    mock_memory_bank.create_memory_block.return_value = (True, None)
 
     # Execute
     result = memory_storage.save(thought, metadata)

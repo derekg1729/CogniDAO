@@ -233,7 +233,7 @@ def mock_memory_bank():
 
     # Configure common method returns
     bank.get_latest_schema_version.return_value = 1
-    bank.create_memory_block.return_value = True
+    bank.create_memory_block.return_value = (True, None)
     bank.update_memory_block.return_value = True
 
     # Add dolt_writer mock with active_branch property

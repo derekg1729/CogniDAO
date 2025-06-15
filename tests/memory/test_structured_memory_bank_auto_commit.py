@@ -116,7 +116,7 @@ class TestStructuredMemoryBankAutoCommit:
         result = bank.create_memory_block(sample_memory_block)
 
         # Verify operation succeeded
-        assert result is True
+        assert result[0] is True  # First element of tuple is success boolean
 
         # Verify that commit_changes was called
         mock_dolt_writer.commit_changes.assert_called_once()
@@ -150,7 +150,7 @@ class TestStructuredMemoryBankAutoCommit:
         result = bank.create_memory_block(sample_memory_block)
 
         # Verify operation succeeded
-        assert result is True
+        assert result[0] is True  # First element of tuple is success boolean
 
         # Verify that commit_changes was NOT called
         mock_dolt_writer.commit_changes.assert_not_called()
@@ -328,5 +328,5 @@ class TestStructuredMemoryBankAutoCommit:
 
         # Verify operations work but don't auto-commit
         result = bank.create_memory_block(sample_memory_block)
-        assert result is True
+        assert result[0] is True  # First element of tuple is success boolean
         mock_dolt_writer.commit_changes.assert_not_called()

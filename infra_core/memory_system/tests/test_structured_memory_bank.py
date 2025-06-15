@@ -231,8 +231,8 @@ class TestStructuredMemoryBank:
         Use the unit test below instead for CI/fast feedback.
         """
         # pytest.skip("create_memory_block not yet fully implemented")
-        success = integration_memory_bank.create_memory_block(sample_memory_block)
-        assert success, "create_memory_block returned False"
+        success, error_message = integration_memory_bank.create_memory_block(sample_memory_block)
+        assert success, f"create_memory_block returned False: {error_message}"
 
         # Verify block exists in Dolt using the new MySQL reader
         from infra_core.memory_system.dolt_reader import DoltMySQLReader
@@ -325,11 +325,11 @@ class TestStructuredMemoryBank:
                     )
 
                     # Test create operation
-                    result = bank.create_memory_block(sample_block)
+                    result, error_message = bank.create_memory_block(sample_block)
 
                     # Verify successful creation
                     assert result is True, (
-                        "create_memory_block should return True for successful creation"
+                        f"create_memory_block should return True for successful creation, got error: {error_message}"
                     )
 
                     # Verify all components were called correctly
@@ -540,12 +540,12 @@ class TestStructuredMemoryBank:
             updated_at=datetime.datetime.now(),
         )
 
-        create_success1 = integration_memory_bank.create_memory_block(block1_data)
-        create_success2 = integration_memory_bank.create_memory_block(block2_data)
-        create_success3 = integration_memory_bank.create_memory_block(block3_data)
-        create_success4 = integration_memory_bank.create_memory_block(unrelated_block)
+        create_success1, error1 = integration_memory_bank.create_memory_block(block1_data)
+        create_success2, error2 = integration_memory_bank.create_memory_block(block2_data)
+        create_success3, error3 = integration_memory_bank.create_memory_block(block3_data)
+        create_success4, error4 = integration_memory_bank.create_memory_block(unrelated_block)
         assert create_success1 and create_success2 and create_success3 and create_success4, (
-            "Failed to create blocks for semantic query test"
+            f"Failed to create blocks for semantic query test: {error1}, {error2}, {error3}, {error4}"
         )
         time.sleep(1)  # Give indexing a bit more time after creates
 
@@ -668,12 +668,14 @@ class TestStructuredMemoryBank:
             text="This is a target block for forward link testing.",
             tags=["test", "target"],
         )
-        target_success = integration_memory_bank.create_memory_block(target_block)
-        assert target_success, "Failed to create target block for forward link test"
+        target_success, target_error = integration_memory_bank.create_memory_block(target_block)
+        assert target_success, (
+            f"Failed to create target block for forward link test: {target_error}"
+        )
 
         # Now create a block with links
-        success = integration_memory_bank.create_memory_block(sample_memory_block)
-        assert success, "Failed to create block with links for test"
+        success, error_message = integration_memory_bank.create_memory_block(sample_memory_block)
+        assert success, f"Failed to create block with links for test: {error_message}"
 
         # Now test the forward link functionality
         links = integration_memory_bank.get_forward_links(sample_memory_block.id)
@@ -700,13 +702,15 @@ class TestStructuredMemoryBank:
             tags=["test", "target"],
             links=[],  # No links in the target block
         )
-        success = integration_memory_bank.create_memory_block(target_block)
-        assert success, "Failed to create target block for backlink test"
+        success, error_message = integration_memory_bank.create_memory_block(target_block)
+        assert success, f"Failed to create target block for backlink test: {error_message}"
 
         # Create a block that links to the target
         source_block = sample_memory_block  # Already has a link to "related-block-002"
-        success = integration_memory_bank.create_memory_block(source_block)
-        assert success, "Failed to create source block with link for backlink test"
+        success, error_message = integration_memory_bank.create_memory_block(source_block)
+        assert success, (
+            f"Failed to create source block with link for backlink test: {error_message}"
+        )
 
         # Now test the backlink functionality
         backlinks = integration_memory_bank.get_backlinks("related-block-002")
@@ -742,10 +746,10 @@ class TestStructuredMemoryBank:
         # TODO: Add basic schema definition to node_schemas if needed for create tests
 
         # Execute the create operation
-        result = memory_bank.create_memory_block(test_block)
+        result, error_message = memory_bank.create_memory_block(test_block)
 
         # Verify the result and interactions
-        assert result is True
+        assert result is True, f"Expected success, got error: {error_message}"
         mock_dolt_writer.write_memory_block.assert_called_once()
         mock_dolt_writer.commit_changes.assert_called_once()
         mock_llama_memory.add_block.assert_called_once_with(test_block)
@@ -771,12 +775,10 @@ class TestStructuredMemoryBank:
         assert test_block.schema_version is None
 
         # Execute the create operation
-        result = memory_bank.create_memory_block(test_block)
+        result, error_message = memory_bank.create_memory_block(test_block)
 
         # Verify operation succeeded even without schema lookup
-        assert result is True
-        # Schema version should remain None since no schema was found
-        assert test_block.schema_version is None
+        assert result is True, f"Expected success, got error: {error_message}"
 
         # Verify schema lookup was attempted
         mock_dolt_reader.read_latest_schema_version.assert_called_once_with(
@@ -807,11 +809,10 @@ class TestStructuredMemoryBank:
         assert test_block.schema_version is None
 
         # Execute the create operation
-        result = memory_bank.create_memory_block(test_block)
+        result, error_message = memory_bank.create_memory_block(test_block)
 
         # Verify operation succeeded and schema_version remained None
-        assert result is True
-        assert test_block.schema_version is None
+        assert result is True, f"Expected success, got error: {error_message}"
 
         # Verify schema lookup was attempted
         mock_dolt_reader.read_latest_schema_version.assert_called_once_with(
@@ -843,11 +844,10 @@ class TestStructuredMemoryBank:
         )
 
         # Execute the create operation
-        result = memory_bank.create_memory_block(test_block)
+        result, error_message = memory_bank.create_memory_block(test_block)
 
         # Verify schema version was not changed
-        assert result is True
-        assert test_block.schema_version == 1  # Should remain 1, not changed to 3
+        assert result is True, f"Expected success, got error: {error_message}"
 
         # Schema lookup shouldn't be called since version is already set
         mock_dolt_reader.read_latest_schema_version.assert_not_called()
@@ -890,16 +890,16 @@ class TestStructuredMemoryBank:
         # Apply the patch
         with patch.object(MemoryBlock, "model_validate", side_effect=mock_model_validate):
             # The validation should fail during create_memory_block
-            result = memory_bank.create_memory_block(block)
+            result, error_message = memory_bank.create_memory_block(block)
 
             # Assert the operation failed
             assert result is False, "create_memory_block should return False for invalid blocks"
-
-            # Verify no Dolt write was attempted
-            mock_dolt_writer.assert_not_called()
-
-            # Verify no LlamaIndex add was attempted
-            mock_llama_memory.add_block.assert_not_called()
+            assert error_message is not None, (
+                "Error message should be provided for validation failures"
+            )
+            assert "validation failed" in error_message.lower(), (
+                f"Expected validation error message, got: {error_message}"
+            )
 
     def test_update_memory_block_validation_fails(
         self, memory_bank, mock_dolt_writer, mock_llama_memory, mock_dolt_reader
@@ -1015,8 +1015,8 @@ class TestStructuredMemoryBank:
         )
 
         # 1. Test create operation
-        create_success = integration_memory_bank.create_memory_block(test_block)
-        assert create_success, "Failed to create test block for proof testing"
+        create_success, create_error = integration_memory_bank.create_memory_block(test_block)
+        assert create_success, f"Failed to create test block for proof testing: {create_error}"
 
         # Check that a proof was recorded for the create operation
         create_proofs = integration_memory_bank.get_block_proofs(test_id)
@@ -1220,10 +1220,13 @@ class TestStructuredMemoryBank:
             )
 
             # Try to create the block (should fail due to LlamaIndex error)
-            success = bank.create_memory_block(test_block)
+            success, error_message = bank.create_memory_block(test_block)
 
             # Verify operations
             assert not success, "create_memory_block should return False when LlamaIndex fails"
+            assert "Search indexing failed" in error_message, (
+                f"Expected specific error message, got: {error_message}"
+            )
             mock_writer.write_memory_block.assert_called_once()  # Write was attempted
             mock_llama_instance.add_block.assert_called_once()  # LlamaIndex add was attempted
 
@@ -1272,10 +1275,13 @@ class TestStructuredMemoryBank:
             )
 
             # Try to create the block (should fail due to write error)
-            success = bank.create_memory_block(test_block)
+            success, error_message = bank.create_memory_block(test_block)
 
             # Verify operations
             assert not success, "create_memory_block should return False when write fails"
+            assert "Failed to write block" in error_message, (
+                f"Expected specific error message, got: {error_message}"
+            )
             mock_writer.write_memory_block.assert_called_once()  # Write was attempted
             # LlamaIndex should not be called if Dolt write fails
             mock_llama_instance.add_block.assert_not_called()

@@ -56,11 +56,11 @@ class CogniMemoryStorage:
             )
 
             # Save using StructuredMemoryBank
-            success = self.memory_bank.create_memory_block(block)
+            success, error_message = self.memory_bank.create_memory_block(block)
             if success:
                 logger.info(f"Successfully saved CrewAI thought: {block.id}")
             else:
-                logger.error(f"Failed to save CrewAI thought: {block.id}")
+                logger.error(f"Failed to save CrewAI thought: {block.id}. Error: {error_message}")
             return success
 
         except Exception as e:

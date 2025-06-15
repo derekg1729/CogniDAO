@@ -51,6 +51,9 @@ def mock_structured_memory_bank(monkeypatch):
     dummy_writer.active_branch = "main"
     dummy_bank.dolt_writer = dummy_writer
 
+    # Configure create_memory_block to return tuple (success, error_message)
+    dummy_bank.create_memory_block.return_value = (True, None)
+
     # Patch the constructors in your server module's imports
     monkeypatch.setattr(
         "infra_core.memory_system.structured_memory_bank.StructuredMemoryBank",

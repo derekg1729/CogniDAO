@@ -140,7 +140,7 @@ def create_memory_block(
         )
 
         # Persist to Dolt and index in LlamaMemory
-        success = memory_bank.create_memory_block(block)
+        success, error_message = memory_bank.create_memory_block(block)
 
         if success:
             # Return block.created_at for consistency
@@ -151,12 +151,11 @@ def create_memory_block(
                 timestamp=block.created_at,
             )
         else:
-            # Persistence failure should be logged by memory_bank.create_memory_block
+            # Use the specific error message from memory_bank
             return CreateMemoryBlockOutput(
                 success=False,
                 active_branch=memory_bank.dolt_writer.active_branch,
-                # TODO: better error message propogation
-                error="Failed to persist memory block",
+                error=error_message or "Failed to persist memory block",
                 timestamp=now,
             )
 
