@@ -13,7 +13,7 @@ def test_mcp_server_initialization(mcp_app):
     """Test that the MCP server is properly initialized."""
     assert mcp_app.mcp is not None
     assert mcp_app.mcp.name == "cogni-memory"
-    assert mcp_app.memory_bank is not None
+    assert mcp_app.get_memory_bank() is not None
 
 
 def test_mcp_tools_registered(mcp_app):
@@ -21,7 +21,7 @@ def test_mcp_tools_registered(mcp_app):
     # Since FastMCP doesn't expose tools directly, we test that the server
     # is properly configured and has the expected name
     assert mcp_app.mcp.name == "cogni-memory"
-    assert mcp_app.memory_bank is not None
+    assert mcp_app.get_memory_bank() is not None
 
     # We can't directly access the tools registry in FastMCP,
     # but we can test that the functions exist

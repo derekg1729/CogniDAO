@@ -88,6 +88,16 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     DoltAutoCommitInput,
     DoltAutoCommitOutput,
 )
+from infra_core.memory_system.tools.agent_facing.bulk_create_blocks_tool import (
+    bulk_create_blocks,
+    BulkCreateBlocksInput,
+    BulkCreateBlocksOutput,
+)
+from infra_core.memory_system.tools.agent_facing.bulk_create_links_tool import (
+    bulk_create_links,
+    BulkCreateLinksInput,
+    BulkCreateLinksOutput,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -108,6 +118,12 @@ if importlib.util.find_spec("llama_index.embeddings.huggingface") is None:
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.append(str(project_root))
+
+# Global variables for lazy initialization
+_memory_bank = None
+_link_manager = None
+_pm_links = None
+_current_branch = None
 
 
 # Detect current Git branch or use environment variable
@@ -149,74 +165,121 @@ def get_current_branch() -> str:
     # return "main"
 
 
-# Get the branch to use for Dolt operations
-current_branch = get_current_branch()
+def _initialize_memory_system():
+    """
+    Lazy initialization of the memory system components.
+    This prevents database connections during module import for testing.
+    """
+    global _memory_bank, _link_manager, _pm_links, _current_branch
 
-# Initialize StructuredMemoryBank using environment variables
-CHROMA_PATH = os.environ.get("CHROMA_PATH", "/tmp/cogni_chroma")  # Make configurable
-CHROMA_COLLECTION_NAME = os.environ.get("CHROMA_COLLECTION_NAME", "cogni_mcp_collection")
+    if _memory_bank is not None:
+        return _memory_bank, _link_manager, _pm_links
 
-# Ensure directories exist
-os.makedirs(CHROMA_PATH, exist_ok=True)
+    # Get the branch to use for Dolt operations
+    _current_branch = get_current_branch()
 
-try:
-    # Initialize MySQL connection config for remote Dolt SQL server
-    dolt_config = DoltConnectionConfig(
-        host=os.environ.get("DOLT_HOST", "localhost"),
-        port=int(os.environ.get("DOLT_PORT", "3306")),
-        user=os.environ.get("DOLT_USER", "root"),
-        password=os.environ.get("DOLT_ROOT_PASSWORD", ""),
-        database=os.environ.get(
-            "DOLT_DATABASE", "cogni-dao-memory"
-        ),  # Fixed default to match production
-    )
+    # Initialize StructuredMemoryBank using environment variables
+    CHROMA_PATH = os.environ.get("CHROMA_PATH", "/tmp/cogni_chroma")  # Make configurable
+    CHROMA_COLLECTION_NAME = os.environ.get("CHROMA_COLLECTION_NAME", "cogni_mcp_collection")
 
-    # Test database connection before proceeding
-    logger.info(f"Testing database connection to {dolt_config.host}:{dolt_config.port}")
+    # Ensure directories exist
+    os.makedirs(CHROMA_PATH, exist_ok=True)
+
     try:
-        import mysql.connector
-
-        test_conn = mysql.connector.connect(
-            host=dolt_config.host,
-            port=dolt_config.port,
-            user=dolt_config.user,
-            password=dolt_config.password,
-            database=dolt_config.database,
-            connect_timeout=5,
+        # Initialize MySQL connection config for remote Dolt SQL server
+        dolt_config = DoltConnectionConfig(
+            host=os.environ.get("DOLT_HOST", "localhost"),
+            port=int(os.environ.get("DOLT_PORT", "3306")),
+            user=os.environ.get("DOLT_USER", "root"),
+            password=os.environ.get("DOLT_ROOT_PASSWORD", ""),
+            database=os.environ.get(
+                "DOLT_DATABASE", "cogni-dao-memory"
+            ),  # Fixed default to match production
         )
-        cursor = test_conn.cursor()
-        cursor.execute("SELECT 1")
-        cursor.fetchone()
-        cursor.close()
-        test_conn.close()
-        logger.info("✅ Database connection successful")
-    except Exception as db_error:
-        logger.error(f"❌ Database connection failed: {db_error}")
-        logger.error(
-            f"Config: host={dolt_config.host}, port={dolt_config.port}, user={dolt_config.user}, database={dolt_config.database}"
+
+        # Test database connection before proceeding
+        logger.info(f"Testing database connection to {dolt_config.host}:{dolt_config.port}")
+        try:
+            import mysql.connector
+
+            test_conn = mysql.connector.connect(
+                host=dolt_config.host,
+                port=dolt_config.port,
+                user=dolt_config.user,
+                password=dolt_config.password,
+                database=dolt_config.database,
+                connect_timeout=5,
+            )
+            cursor = test_conn.cursor()
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+            cursor.close()
+            test_conn.close()
+            logger.info("✅ Database connection successful")
+        except Exception as db_error:
+            logger.error(f"❌ Database connection failed: {db_error}")
+            logger.error(
+                f"Config: host={dolt_config.host}, port={dolt_config.port}, user={dolt_config.user}, database={dolt_config.database}"
+            )
+            raise
+
+        # Initialize memory bank with detected branch
+        logger.info(f"Initializing StructuredMemoryBank with branch: {_current_branch}")
+        _memory_bank = StructuredMemoryBank(
+            chroma_path=CHROMA_PATH,
+            chroma_collection=CHROMA_COLLECTION_NAME,
+            dolt_connection_config=dolt_config,
+            branch=_current_branch,
         )
-        raise
 
-    # Initialize memory bank with detected branch
-    logger.info(f"Initializing StructuredMemoryBank with branch: {current_branch}")
-    memory_bank = StructuredMemoryBank(
-        chroma_path=CHROMA_PATH,
-        chroma_collection=CHROMA_COLLECTION_NAME,
-        dolt_connection_config=dolt_config,
-        branch=current_branch,
-    )
+        # 🔧 CRITICAL FIX: Enable persistent connections to maintain branch context
+        # This ensures all MCP tool operations stay on the correct branch
+        logger.info(f"Enabling persistent connections on branch: {_current_branch}")
+        _memory_bank.use_persistent_connections(_current_branch)
+        logger.info(
+            f"✅ Persistent connections enabled - all operations will use branch: {_memory_bank.branch}"
+        )
 
-    # Initialize LinkManager components with SQL backend using same config
-    link_manager = SQLLinkManager(dolt_config)
-    pm_links = ExecutableLinkManager(link_manager)
+        # Initialize LinkManager components with SQL backend using same config
+        _link_manager = SQLLinkManager(dolt_config)
+        _pm_links = ExecutableLinkManager(_link_manager)
 
-    # Attach link_manager to memory_bank for tool access
-    memory_bank.link_manager = link_manager
+        # 🔧 CRITICAL FIX: Enable persistent connections on LinkManager too
+        # This ensures link operations also maintain branch context
+        logger.info(f"Enabling persistent connections on LinkManager for branch: {_current_branch}")
+        _link_manager.use_persistent_connection(_current_branch)
+        logger.info(
+            f"✅ LinkManager persistent connections enabled on branch: {_link_manager.active_branch}"
+        )
 
-except Exception as e:
-    logger.error(f"Failed to initialize StructuredMemoryBank: {e}")
-    logger.error("Please run init_dolt_schema.py to initialize the Dolt database")
-    sys.exit(1)
+        # Attach link_manager to memory_bank for tool access
+        _memory_bank.link_manager = _link_manager
+
+    except Exception as e:
+        logger.error(f"Failed to initialize StructuredMemoryBank: {e}")
+        logger.error("Please run init_dolt_schema.py to initialize the Dolt database")
+        raise RuntimeError(f"Memory system initialization failed: {e}")
+
+    return _memory_bank, _link_manager, _pm_links
+
+
+def get_memory_bank():
+    """Get the initialized memory bank, initializing if necessary."""
+    memory_bank, _, _ = _initialize_memory_system()
+    return memory_bank
+
+
+def get_link_manager():
+    """Get the initialized link manager, initializing if necessary."""
+    _, link_manager, _ = _initialize_memory_system()
+    return link_manager
+
+
+def get_pm_links():
+    """Get the initialized PM links, initializing if necessary."""
+    _, _, pm_links = _initialize_memory_system()
+    return pm_links
+
 
 # Create a FastMCP server instance with a specific name
 mcp = FastMCP("cogni-memory")
@@ -237,7 +300,7 @@ async def create_work_item(input):
     try:
         # Parse dict input into Pydantic model
         parsed_input = CreateWorkItemInput(**input)
-        result = create_work_item_tool(parsed_input, memory_bank=memory_bank)
+        result = create_work_item_tool(parsed_input, memory_bank=get_memory_bank())
         return result
     except Exception as e:
         logger.error(f"Error creating work item: {e}")
@@ -267,7 +330,7 @@ async def get_memory_block(input):
 
         # Execute the tool function
         result = get_memory_block_tool(
-            memory_bank=memory_bank, **input_data.model_dump(exclude_none=True)
+            memory_bank=get_memory_bank(), **input_data.model_dump(exclude_none=True)
         )
 
         # Return the complete result
@@ -301,7 +364,7 @@ async def get_memory_links(input):
 
         # Execute the tool function
         result = get_memory_links_tool(
-            memory_bank=memory_bank, **input_data.model_dump(exclude_none=True)
+            memory_bank=get_memory_bank(), **input_data.model_dump(exclude_none=True)
         )
 
         # Return the complete result
@@ -335,7 +398,7 @@ async def get_active_work_items(input):
 
         # Execute the tool function
         result = get_active_work_items_tool(
-            memory_bank=memory_bank, **input_data.model_dump(exclude_none=True)
+            memory_bank=get_memory_bank(), **input_data.model_dump(exclude_none=True)
         )
 
         # Return the complete result
@@ -370,7 +433,7 @@ async def query_memory_blocks_semantic(input):
         input_data = QueryMemoryBlocksInput(**input)
 
         # Execute the core query function
-        result = query_memory_blocks_core(input_data, memory_bank)
+        result = query_memory_blocks_core(input_data, get_memory_bank())
 
         # Return the complete result
         return result.model_dump(mode="json")
@@ -404,7 +467,7 @@ async def get_linked_blocks(input):
 
         # Execute the tool function
         result = get_linked_blocks_tool(
-            memory_bank=memory_bank, **input_data.model_dump(exclude_none=True)
+            memory_bank=get_memory_bank(), **input_data.model_dump(exclude_none=True)
         )
 
         # Return the complete result
@@ -445,7 +508,7 @@ async def update_memory_block(input):
     try:
         # Parse dict input into Pydantic model
         parsed_input = UpdateMemoryBlockToolInput(**input)
-        result = update_memory_block_tool(parsed_input, memory_bank=memory_bank)
+        result = update_memory_block_tool(parsed_input, memory_bank=get_memory_bank())
         return result
     except Exception as e:
         logger.error(f"Error updating memory block: {e}")
@@ -467,7 +530,7 @@ async def delete_memory_block(input):
     try:
         # Parse dict input into Pydantic model
         parsed_input = DeleteMemoryBlockToolInput(**input)
-        result = delete_memory_block_tool(parsed_input, memory_bank=memory_bank)
+        result = delete_memory_block_tool(parsed_input, memory_bank=get_memory_bank())
         return result
     except Exception as e:
         logger.error(f"Error deleting memory block: {e}")
@@ -505,7 +568,7 @@ async def update_work_item(input):
     try:
         # Parse dict input into Pydantic model
         parsed_input = UpdateWorkItemInput(**input)
-        result = update_work_item_tool(parsed_input, memory_bank=memory_bank)
+        result = update_work_item_tool(parsed_input, memory_bank=get_memory_bank())
         return result
     except Exception as e:
         logger.error(f"Error updating work item: {e}")
@@ -537,7 +600,7 @@ async def create_block_link(input):
             bidirectional=parsed_input.bidirectional,
             priority=parsed_input.priority,
             metadata=parsed_input.metadata,
-            memory_bank=memory_bank,
+            memory_bank=get_memory_bank(),
         )
 
         # Return result in appropriate format for MCP
@@ -569,11 +632,95 @@ async def create_memory_block(input):
     try:
         # Parse dict input into Pydantic model
         parsed_input = CreateMemoryBlockAgentInput(**input)
-        result = create_memory_block_agent_tool(parsed_input, memory_bank=memory_bank)
+        result = create_memory_block_agent_tool(parsed_input, memory_bank=get_memory_bank())
         return result
     except Exception as e:
         logger.error(f"Error creating memory block: {e}")
         return {"error": str(e)}
+
+
+# Register the BulkCreateBlocks tool
+@mcp.tool("BulkCreateBlocks")
+async def bulk_create_blocks_mcp(input):
+    """Create multiple memory blocks in a single operation with independent success tracking
+
+    Args:
+        blocks: List of block specifications to create (1-1000 blocks)
+        stop_on_first_error: If True, stop processing on first error. If False, continue and report all results.
+        default_x_agent_id: Default agent ID for blocks that don't specify one
+        default_x_tool_id: Default tool ID for blocks that don't specify one
+        default_x_session_id: Default session ID for grouping all blocks in this bulk operation
+
+    Returns:
+        success: Whether ALL blocks were created successfully (failed_count == 0)
+        partial_success: Whether at least one block was created successfully
+        total_blocks: Total number of blocks attempted
+        successful_blocks: Number of blocks created successfully
+        failed_blocks: Number of blocks that failed to create
+        results: Individual results for each block
+        active_branch: Current active branch
+        timestamp: When the bulk operation completed
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = BulkCreateBlocksInput(**input)
+        result = bulk_create_blocks(parsed_input, memory_bank=get_memory_bank())
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error in BulkCreateBlocks MCP tool: {e}")
+        return BulkCreateBlocksOutput(
+            success=False,
+            partial_success=False,
+            total_blocks=0,
+            successful_blocks=0,
+            failed_blocks=0,
+            results=[],
+            active_branch="unknown",
+            timestamp=datetime.now(),
+        ).model_dump(mode="json")
+
+
+# Register the BulkCreateLinks tool
+@mcp.tool("BulkCreateLinks")
+async def bulk_create_links_mcp(input):
+    """Create multiple memory block links in a single operation with independent success tracking
+
+    Args:
+        links: List of link specifications to create (1-5000 links)
+        stop_on_first_error: If True, stop processing on first error. If False, continue and report all results.
+        validate_blocks_exist: Whether to validate that referenced blocks exist before creating links
+
+    Returns:
+        success: Whether ALL links were created successfully (failed_count == 0)
+        partial_success: Whether at least one link was created successfully
+        total_specs: Total number of link specs attempted
+        successful_specs: Number of link specs created successfully
+        failed_specs: Number of link specs that failed to create
+        skipped_specs: Number of link specs skipped due to early termination
+        total_actual_links: Total number of actual links created (including bidirectional)
+        results: Individual results for each link spec
+        active_branch: Current active branch if available
+        timestamp: When the bulk operation completed
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = BulkCreateLinksInput(**input)
+        result = bulk_create_links(parsed_input, memory_bank=get_memory_bank())
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error in BulkCreateLinks MCP tool: {e}")
+        return BulkCreateLinksOutput(
+            success=False,
+            partial_success=False,
+            total_specs=0,
+            successful_specs=0,
+            failed_specs=0,
+            skipped_specs=0,
+            total_actual_links=0,
+            results=[],
+            active_branch=None,
+            timestamp=datetime.now(),
+        ).model_dump(mode="json")
 
 
 # Register the DoltCommit tool
@@ -597,7 +744,7 @@ async def dolt_commit(input):
     try:
         # Parse dict input into Pydantic model
         parsed_input = DoltCommitInput(**input)
-        result = dolt_repo_tool(parsed_input, memory_bank=memory_bank)
+        result = dolt_repo_tool(parsed_input, memory_bank=get_memory_bank())
         return result.model_dump(mode="json")
     except Exception as e:
         logger.error(f"Error in DoltCommit MCP tool: {e}")
@@ -625,7 +772,7 @@ async def dolt_checkout(input):
     """
     try:
         parsed_input = DoltCheckoutInput(**input)
-        result = dolt_checkout_tool(parsed_input, memory_bank=memory_bank)
+        result = dolt_checkout_tool(parsed_input, memory_bank=get_memory_bank())
         return result.model_dump(mode="json")
     except Exception as e:
         logger.error(f"Error in DoltCheckout MCP tool: {e}")
@@ -652,7 +799,7 @@ async def dolt_add(input):
     """
     try:
         parsed_input = DoltAddInput(**input)
-        result = dolt_add_tool(parsed_input, memory_bank=memory_bank)
+        result = dolt_add_tool(parsed_input, memory_bank=get_memory_bank())
         return result.model_dump(mode="json")
     except Exception as e:
         logger.error(f"Error in DoltAdd MCP tool: {e}")
@@ -681,7 +828,7 @@ async def dolt_push(input):
         input_data = DoltPushInput(**input)
 
         # Execute the push operation
-        result = dolt_push_tool(input_data, memory_bank)
+        result = dolt_push_tool(input_data, get_memory_bank())
 
         # Return JSON representation
         return result.model_dump_json(indent=2)
@@ -714,14 +861,14 @@ async def dolt_status(input):
     try:
         # Parse dict input into Pydantic model
         parsed_input = DoltStatusInput(**input)
-        result = dolt_status_tool(parsed_input, memory_bank=memory_bank)
+        result = dolt_status_tool(parsed_input, memory_bank=get_memory_bank())
         return result.model_dump(mode="json")
 
     except Exception as e:
         logger.error(f"Error in DoltStatus MCP tool: {e}")
         return DoltStatusOutput(
             success=False,
-            current_branch="unknown",
+            active_branch="unknown",
             is_clean=False,
             total_changes=0,
             message=f"Status check failed: {str(e)}",
@@ -749,7 +896,7 @@ async def dolt_pull(input):
         input_data = DoltPullInput(**input)
 
         # Execute the pull operation
-        result = dolt_pull_tool(input_data, memory_bank)
+        result = dolt_pull_tool(input_data, get_memory_bank())
 
         # Return JSON representation
         return result.model_dump_json(indent=2)
@@ -776,7 +923,7 @@ async def dolt_branch(input):
         input_data = DoltBranchInput(**input)
 
         # Execute the branch creation operation
-        result = dolt_branch_tool(input_data, memory_bank)
+        result = dolt_branch_tool(input_data, get_memory_bank())
 
         # Return JSON representation
         return result.model_dump_json(indent=2)
@@ -801,7 +948,7 @@ async def dolt_list_branches(input):
     try:
         # Parse dict input into Pydantic model
         parsed_input = DoltListBranchesInput(**input)
-        result = dolt_list_branches_tool(parsed_input, memory_bank=memory_bank)
+        result = dolt_list_branches_tool(parsed_input, memory_bank=get_memory_bank())
         return result.model_dump(mode="json")
 
     except Exception as e:
@@ -813,6 +960,7 @@ async def dolt_list_branches(input):
 
         return DoltListBranchesOutput(
             success=False,
+            active_branch="unknown",
             message=f"Branch listing failed: {str(e)}",
             error=f"Error during dolt_list_branches: {str(e)}",
         ).model_dump(mode="json")
@@ -830,7 +978,7 @@ async def dolt_diff(input):
     """
     try:
         input_data = DoltDiffInput(**input)
-        result = dolt_diff_tool(input_data, memory_bank)
+        result = dolt_diff_tool(input_data, get_memory_bank())
         return result.model_dump(mode="json")
     except Exception as e:
         logger.error(f"Error getting Dolt diff: {e}", exc_info=True)
@@ -838,6 +986,7 @@ async def dolt_diff(input):
             success=False,
             diff_summary=[],
             message=f"An unexpected error occurred: {e}",
+            active_branch="unknown",
             error=str(e),
         ).model_dump(mode="json")
 
@@ -867,7 +1016,7 @@ async def dolt_auto_commit_and_push(input):
         input_data = DoltAutoCommitInput(**input)
 
         # Execute the composite operation
-        result = dolt_auto_commit_and_push_tool(input_data, memory_bank)
+        result = dolt_auto_commit_and_push_tool(input_data, get_memory_bank())
 
         # Return JSON representation
         return result.model_dump(mode="json")
@@ -879,7 +1028,7 @@ async def dolt_auto_commit_and_push(input):
             message=f"Auto commit and push failed: {str(e)}",
             operations_performed=["failed"],
             was_clean=False,
-            current_branch="unknown",
+            active_branch="unknown",
             error=str(e),
         ).model_dump(mode="json")
 
@@ -888,8 +1037,8 @@ async def dolt_auto_commit_and_push(input):
 @mcp.tool("HealthCheck")
 async def health_check():
     """Check if the memory bank is initialized"""
-    memory_bank_ok = memory_bank is not None
-    link_manager_ok = link_manager is not None and pm_links is not None
+    memory_bank_ok = get_memory_bank() is not None
+    link_manager_ok = get_link_manager() is not None and get_pm_links() is not None
 
     return {
         "healthy": memory_bank_ok and link_manager_ok,

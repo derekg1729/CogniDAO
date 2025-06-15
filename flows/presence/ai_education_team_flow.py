@@ -60,7 +60,7 @@ async def read_current_work_items() -> Dict[str, Any]:
         logger.info("🔍 Reading current work items from work_items_core view...")
 
         # Read latest work items (limit 10 for context)
-        work_items = reader.read_work_items_core_view(limit=10, branch="main")
+        work_items = reader.read_work_items_core_view(limit=10, branch="ai-education-team")
 
         if work_items:
             logger.info(f"✅ Found {len(work_items)} work items for agent context")
@@ -128,6 +128,7 @@ async def setup_simple_mcp_connection() -> Dict[str, Any]:
                 "DOLT_ROOT_PASSWORD": "kXMnM6firYohXzK+2r0E0DmSjOl6g3A2SmXc6ALDOlA=",
                 "DOLT_DATABASE": "cogni-dao-memory",
                 "MYSQL_DATABASE": "cogni-dao-memory",
+                "DOLT_BRANCH": "ai-education-team",  # Configure AI education team branch
                 "CHROMA_PATH": "/tmp/chroma",
                 "CHROMA_COLLECTION_NAME": "cogni_mcp_collection",
             },
@@ -232,17 +233,22 @@ async def run_ai_education_team_with_outro(
 FIRST TASK: Always start by reading the AI Education Root Knowledge Block: {AI_EDUCATION_ROOT_GUID}
 Use GetMemoryBlock with this GUID to understand the current education graph state.
 
+MEMORY BLOCK GUIDELINES:
+- Keep memory blocks SMALL and CONCISE - each block should focus on ONE specific topic only
+- Use CreateBlockLink to connect related concepts and learning progressions
+
 Key responsibilities:
 - Read and analyze the education knowledge graph starting from the root
 - Use QueryMemoryBlocksSemantic to find education-related content  
 - Use GetLinkedBlocks to traverse education knowledge connections
 - Identify gaps in educational materials and learning paths
+- Map existing content to BEGINNER (96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d) → INTERMEDIATE (5ae04999-1931-4530-8fa8-eaf7929ed83c) → ADVANCED (3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d) progression
 
 {tool_specs}
 
 {work_items_summary}
 
-Focus on discovering existing educational content and mapping the knowledge graph. Use the correct input format for tools as specified above.""",
+Focus on discovering existing educational content and mapping the knowledge graph. Create small, focused memory blocks for missing concepts. Use the correct input format for tools as specified above.""",
         )
         agents.append(education_researcher)
 
@@ -253,9 +259,21 @@ Focus on discovering existing educational content and mapping the knowledge grap
             tools=cogni_tools,
             system_message=f"""You are the Curriculum Analyst. You analyze learning patterns, identify educational gaps, and assess curriculum effectiveness.
 
+MEMORY BLOCK GUIDELINES:
+- Create SMALL, FOCUSED memory blocks - one concept per block
+- Organize content by learning levels: BEGINNER (96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d) → INTERMEDIATE (5ae04999-1931-4530-8fa8-eaf7929ed83c) → ADVANCED (3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d)
+- Use CreateBlockLink to establish learning progressions and concept relationships
+- Each block should be concise and actionable for learners
+
+LEARNING LEVEL STRUCTURE:
+- BEGINNER (96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d): Foundational concepts, basic definitions, simple examples
+- INTERMEDIATE (5ae04999-1931-4530-8fa8-eaf7929ed83c): Practical applications, common patterns, real-world usage
+- ADVANCED (3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d): Complex scenarios, optimization, expert techniques
+
 Key responsibilities:
-- Analyze existing educational content for learning progression (Beginner → Intermediate → Advanced)
-- Identify gaps in the curriculum and missing learning paths
+- Analyze existing educational content for learning progression gaps
+- Create memory blocks for missing BEGINNER (96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d), INTERMEDIATE (5ae04999-1931-4530-8fa8-eaf7929ed83c), and ADVANCED (3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d) concepts
+- Use CreateBlockLink to connect prerequisite relationships (beginner → intermediate → advanced)
 - Assess the effectiveness of current educational materials
 - Use QueryMemoryBlocksSemantic to find education and training work items
 - Look for patterns in community feedback and learning outcomes
@@ -264,7 +282,7 @@ Key responsibilities:
 
 {work_items_summary}
 
-Focus on curriculum analysis, learning gap identification, and educational improvement opportunities. Use the correct input format for tools as specified above.""",
+Focus on curriculum analysis and creating structured learning progressions. Create small memory blocks for each learning level and link them appropriately. Use the correct input format for tools as specified above.""",
         )
         agents.append(curriculum_analyst)
 
@@ -275,18 +293,32 @@ Focus on curriculum analysis, learning gap identification, and educational impro
             tools=cogni_tools,
             system_message=f"""You are the Education Reporter. You document learning outcomes, create educational reports, and update training records.
 
+MEMORY BLOCK GUIDELINES:
+- Create SMALL, CONCISE memory blocks focused on ONE specific topic
+- Use clear, descriptive titles that indicate content and learning level
+- Create separate blocks for different learning levels of the same concept
+- Use CreateBlockLink and BulkCreateLinks to establish relationships between blocks
+- There are Core Blocks, representing BEGINNER (96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d), INTERMEDIATE (5ae04999-1931-4530-8fa8-eaf7929ed83c), and ADVANCED (3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d) level topics. Link blocks to Core Blocks as appropriate.
+
+LINKING STRATEGY:
+- Link concepts to their appropriate learning levels (BEGINNER: 96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d / INTERMEDIATE: 5ae04999-1931-4530-8fa8-eaf7929ed83c / ADVANCED: 3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d)
+- Create "depends_on" links for prerequisite relationships
+- Create "related_to" links for complementary concepts
+- Link learning outcomes back to the education knowledge graph root
+
 Key responsibilities:
-- Create comprehensive reports on educational status and progress
-- Use CreateMemoryBlock to document learning outcomes and findings
+- Create comprehensive but concise memory blocks documenting learning outcomes
+- Use CreateMemoryBlock to document findings in small, focused blocks
+- Use BulkCreateLinks to efficiently establish relationships between multiple concepts
 - Use UpdateWorkItem to track education progress and completion
 - Generate clear summaries of educational content and recommendations
-- Link new educational content back to the knowledge graph
+- Link new educational content back to the knowledge graph using CreateBlockLink
 
 {tool_specs}
 
 {work_items_summary}
 
-Focus on documentation, reporting, and ensuring educational progress is properly tracked. Use the correct input format for tools as specified above.""",
+Focus on documentation and creating well-linked, small memory blocks. Use bulk linking tools to efficiently connect related concepts. Use the correct input format for tools as specified above.""",
         )
         agents.append(education_reporter)
 
@@ -298,6 +330,17 @@ Focus on documentation, reporting, and ensuring educational progress is properly
             system_message=f"""You are the soon-to-be omnipresent leader of CogniDAO, focusing on AI education strategy and community learning empowerment.
 
 Your education mission: Build the most effective, accessible, and comprehensive AI education ecosystem for communities worldwide.
+
+MEMORY BLOCK GUIDELINES:
+- Create SMALL, STRATEGIC memory blocks - one key insight per block
+- Focus on creating learning level blocks: "BEGINNER Level" (96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d), "INTERMEDIATE Level" (5ae04999-1931-4530-8fa8-eaf7929ed83c), "ADVANCED Level" (3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d)
+- Use BulkCreateLinks to efficiently connect multiple concepts to their appropriate learning levels
+- Keep strategic insights concise and actionable
+
+LEARNING LEVEL ORGANIZATION:
+1. First, create or update learning level blocks (BEGINNER: 96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d, INTERMEDIATE: 5ae04999-1931-4530-8fa8-eaf7929ed83c, ADVANCED: 3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d)
+2. Then link specific concepts to their appropriate levels using BulkCreateLinks
+3. Create clear learning pathways that guide learners from basic to advanced concepts
 
 {tool_specs}
 
@@ -311,12 +354,12 @@ Key questions to analyze:
 - What critical educational gaps did the team identify?
 - How can we improve the AI education knowledge graph structure?
 - What learning paths need to be created or enhanced?
-- How can we better serve beginner vs advanced learners?
+- How can we better serve beginner (96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d) vs advanced (3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d) learners?
 - What educational work items should be prioritized?
 
-Your task: Query Cogni Memory for education insights. Analyze what educational improvements are missing. Create a 'knowledge' memory block with type='knowledge', documenting your strategic vision for the MOST important educational enhancement we should implement next. Link it to the education knowledge graph root: {AI_EDUCATION_ROOT_GUID}
+Your task: Query Cogni Memory for education insights. Analyze what educational improvements are missing. Create small, focused 'knowledge' memory blocks documenting your strategic vision. Use BulkCreateLinks to efficiently connect concepts to learning levels. Link everything back to the education knowledge graph root: {AI_EDUCATION_ROOT_GUID}
 
-Focus on empowering communities through better AI education!""",
+Focus on empowering communities through better AI education with clear learning progressions!""",
         )
         agents.append(cogni_leader)
 
@@ -329,16 +372,32 @@ Focus on empowering communities through better AI education!""",
         logger.info("🚀 Starting 4-agent work item summary with omnipresent Cogni leader...")
 
         # AI Education Team task with knowledge graph focus
-        education_task = f"""Please work together as the AI Education Team to: 
-1) **EDUCATION RESEARCHER**: Start by reading the AI Education Root Knowledge Block ({AI_EDUCATION_ROOT_GUID}) to understand the current education graph state
-2) **CURRICULUM ANALYST**: Analyze existing educational content, identify learning gaps and curriculum improvement opportunities
-3) **EDUCATION REPORTER**: Document findings, create reports, and update educational progress tracking
-4) **COGNI LEADER**: Develop strategic vision for the most important educational enhancement to implement next. Create a knowledge block with your strategic insights and link it to the education graph.
+        education_task = f"""Please work together as the AI Education Team to create a well-organized, linked knowledge graph with small, focused memory blocks:
+
+## MEMORY BLOCK REQUIREMENTS:
+- Keep ALL memory blocks SMALL and CONCISE - ONE topic per block
+- Use Ultra-concise titles (1-5 words) to represent the block topic
+- Use BULK TOOLS to create Blocks and links to created single-topic blocks linked together
+
+## TEAM WORKFLOW:
+1) **EDUCATION RESEARCHER**: Start by reading the AI Education Root Knowledge Block ({AI_EDUCATION_ROOT_GUID}) to understand current state. Map existing content to BEGINNER (96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d) → INTERMEDIATE (5ae04999-1931-4530-8fa8-eaf7929ed83c) → ADVANCED (3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d) progression.
+
+2) **CURRICULUM ANALYST**: Create small memory blocks for missing BEGINNER (96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d), INTERMEDIATE (5ae04999-1931-4530-8fa8-eaf7929ed83c), and ADVANCED (3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d) concepts. Use CreateBlockLink to establish prerequisite relationships (beginner → intermediate → advanced).
+
+3) **EDUCATION REPORTER**: Document findings in small, focused memory blocks. Use BulkCreateLinks to efficiently connect multiple concepts to their learning levels. Link everything back to the education graph root.
+
+4) **COGNI LEADER**: Create learning level blocks ("BEGINNER Level": 96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d, "INTERMEDIATE Level": 5ae04999-1931-4530-8fa8-eaf7929ed83c, "ADVANCED Level": 3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d) if they don't exist. Use BulkCreateLinks to connect concepts to their appropriate levels. Create strategic knowledge blocks with your insights.
+
+## LINKING STRATEGY:
+- Create "depends_on" links for prerequisite relationships
+- Create "related_to" links for complementary concepts  
+- Link concepts to their appropriate learning levels (BEGINNER: 96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d / INTERMEDIATE: 5ae04999-1931-4530-8fa8-eaf7929ed83c / ADVANCED: 3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d)
+- Link all new content back to the education knowledge graph root: {AI_EDUCATION_ROOT_GUID}
 
 You have the following context about recent work items:
 {work_items_summary}
 
-Focus: Building the most effective, accessible, and comprehensive AI education ecosystem for communities worldwide.
+Focus: Building the most effective, accessible, and comprehensive AI education ecosystem with clear learning progressions and well-linked, small memory blocks.
 
 Important: Use the tool specifications provided in your system message to ensure correct input formats and avoid validation errors."""
 
@@ -355,10 +414,30 @@ Important: Use the tool specifications provided in your system message to ensure
             name="dolt_commit_agent",
             model_client=model_client,
             tools=cogni_tools,
-            system_message=f"""You are a commit agent. Your sole purpose is to successfully use the DoltAutoCommitAndPush tool
-            
-            {tool_specs}
-            
+            system_message=f"""You are a Dolt commit agent for a knowledge management system. Your job is to:
+
+1. **Understand the Context**: Dolt is the git-like Cogni knowledge database storing knowledge blocks and links between them. The AI education team just finished creating/editing memory blocks and links. You are going to commit these changes, and need to create a useful commit message. for the broader Cogni collective to understand the changes at a glance.
+
+2. **Analyze Changes**: Use DoltDiff tool to see what tables have changes. Expect changes in memory_blocks, block_links, and maybe block_properties tables.
+
+3. **Create Descriptive Commit Messages**: Based on the changes, write a concise commit message that describes:
+   - How many blocks were created/modified (if any)
+   - What topics/subjects the blocks cover
+   - How many links were created/modified (if any)
+   - Keep it factual and specific, not generic
+
+4. **Commit and Push**: Use DoltAutoCommitAndPush with your descriptive commit message.
+
+Example good commit messages:
+- "Add 5 AI education blocks: fundamentals, tools, workflows, integration, multi-agent systems"
+- "Create 9 knowledge blocks covering AI/ML basics to advanced AutoGen patterns"
+- "Update 3 education blocks and add 12 prerequisite links for learning progression"
+
+Specifc and concise.
+
+Here are the MCP tools you have. Please only use DoltStatus, DoltDiff, and DoltAutoCommitAndPush.
+
+{tool_specs}
             """,
             #             system_message=f"""You are a Dolt Commit Agent. Your sole purpose is to commit and push changes to the remote repository.
             # Follow these steps precisely and in order:

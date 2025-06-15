@@ -11,7 +11,7 @@ Tools included:
 
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
@@ -307,6 +307,9 @@ class DoltDiffOutput(BaseModel):
 
     success: bool = Field(..., description="Whether the diff operation succeeded.")
     diff_summary: List[DiffSummary] = Field(..., description="A list of table diff summaries.")
+    diff_details: List[Dict[str, Any]] = Field(
+        default=[], description="Raw detailed row-level changes from DOLT_DIFF."
+    )
     message: str = Field(..., description="Human-readable result message.")
     active_branch: str = Field(..., description="Current active branch")
     error: Optional[str] = Field(default=None, description="Error message if operation failed.")
@@ -860,6 +863,16 @@ def dolt_checkout_tool(
         # This ensures both reader and writer are on the same branch
         memory_bank.use_persistent_connections(branch=branch_name)
 
+        # 🔧 CRITICAL FIX: Also update link_manager branch context
+        # This ensures link operations stay synchronized with memory_bank operations
+        # TODO: update link_manager to use Dolt connection
+        if hasattr(memory_bank, "link_manager") and memory_bank.link_manager:
+            logger.info(f"Updating LinkManager persistent connection to branch: {branch_name}")
+            memory_bank.link_manager.use_persistent_connection(branch_name)
+            logger.info(
+                f"✅ LinkManager synchronized to branch: {memory_bank.link_manager.active_branch}"
+            )
+
         # Note: force flag is not directly supported by persistent connections
         # If force is needed, we'd need to handle conflicts manually
         if force:
@@ -899,7 +912,7 @@ def dolt_diff_tool(input_data: DoltDiffInput, memory_bank: StructuredMemoryBank)
     logger.info(f"Received request for dolt_diff_tool with input: {input_data}")
 
     try:
-        writer = memory_bank.dolt_writer
+        reader = memory_bank.dolt_reader
 
         from_rev = input_data.from_revision
         to_rev = input_data.to_revision
@@ -917,24 +930,30 @@ def dolt_diff_tool(input_data: DoltDiffInput, memory_bank: StructuredMemoryBank)
                 success=False,
                 diff_summary=[],
                 message="Both from_revision and to_revision must be provided if not using a mode.",
-                active_branch=memory_bank.dolt_writer.active_branch,
+                active_branch=memory_bank.dolt_reader.active_branch,
                 error="Invalid revision arguments.",
             )
 
-        summary_dicts = writer.get_diff_summary(from_revision=from_rev, to_revision=to_rev)
+        summary_dicts = reader.get_diff_summary(from_revision=from_rev, to_revision=to_rev)
 
         # Convert dicts to Pydantic models
         diff_summary = [DiffSummary(**item) for item in summary_dicts]
 
+        # Get detailed diff information
+        diff_details = reader.get_diff_details(from_revision=from_rev, to_revision=to_rev)
+
         message = f"Successfully retrieved diff summary from {from_rev} to {to_rev}."
         if not diff_summary:
             message = f"No changes found between {from_rev} and {to_rev}."
+        elif diff_details:
+            message = f"Successfully retrieved diff from {from_rev} to {to_rev}: {len(diff_summary)} tables changed, {len(diff_details)} total row changes."
 
         return DoltDiffOutput(
             success=True,
             diff_summary=diff_summary,
+            diff_details=diff_details,
             message=message,
-            active_branch=memory_bank.dolt_writer.active_branch,
+            active_branch=memory_bank.dolt_reader.active_branch,
         )
 
     except Exception as e:
@@ -942,9 +961,10 @@ def dolt_diff_tool(input_data: DoltDiffInput, memory_bank: StructuredMemoryBank)
         return DoltDiffOutput(
             success=False,
             diff_summary=[],
+            diff_details=[],
             message=f"An unexpected error occurred: {e}",
             error=str(e),
-            active_branch=memory_bank.dolt_writer.active_branch,
+            active_branch=memory_bank.dolt_reader.active_branch,
         )
 
 
