@@ -1,3 +1,16 @@
+CREATE TABLE IF NOT EXISTS namespaces (
+    id VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    slug VARCHAR(255) NOT NULL,
+    owner_id VARCHAR(255) NOT NULL,
+    created_at DATETIME NOT NULL,
+    description VARCHAR(255) NULL
+);
+
+CREATE UNIQUE INDEX idx_namespaces_name ON namespaces (name);
+
+CREATE UNIQUE INDEX idx_namespaces_slug ON namespaces (slug);
+
 CREATE TABLE IF NOT EXISTS memory_blocks (
     id VARCHAR(255) PRIMARY KEY,
     type VARCHAR(50) NOT NULL,

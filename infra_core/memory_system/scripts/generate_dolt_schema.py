@@ -16,6 +16,7 @@ sys.path.append(str(project_root))
 try:
     from infra_core.memory_system.schemas.memory_block import MemoryBlock
     from infra_core.memory_system.schemas.common import BlockLink, NodeSchemaRecord, BlockProperty
+    from infra_core.memory_system.schemas.namespace import Namespace
     from infra_core.constants import MEMORY_DOLT_ROOT
     from pydantic import BaseModel
 except ImportError as e:
@@ -242,8 +243,13 @@ def generate_schema_file(output_path: Path) -> None:
 
     schema_statements = []
 
+    # Generate schema for Namespace (must come first due to foreign key dependencies)
+    schema_statements.append(generate_table_schema(Namespace, "namespaces"))
+    schema_statements.append("\nCREATE UNIQUE INDEX idx_namespaces_name ON namespaces (name);")
+    schema_statements.append("\nCREATE UNIQUE INDEX idx_namespaces_slug ON namespaces (slug);")
+
     # Generate schema for MemoryBlock
-    schema_statements.append(generate_table_schema(MemoryBlock, "memory_blocks"))
+    schema_statements.append("\n" + generate_table_schema(MemoryBlock, "memory_blocks"))
     schema_statements.append(
         "\nCREATE INDEX idx_memory_blocks_type_state_visibility "
         "ON memory_blocks (type, state, visibility);"
