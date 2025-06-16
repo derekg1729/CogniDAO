@@ -151,7 +151,10 @@ class BlocksResponse(BranchContextResponse):
     )
     total_count: int = Field(..., description="Total number of blocks returned")
     filters_applied: Optional[Dict[str, Any]] = Field(
-        None, description="Summary of filters applied (type, case_insensitive, etc.)"
+        None, description="Summary of filters applied (type, case_insensitive, namespace, etc.)"
+    )
+    namespace_context: Optional[str] = Field(
+        None, description="Active namespace used for filtering (when namespace filter applied)"
     )
 
 

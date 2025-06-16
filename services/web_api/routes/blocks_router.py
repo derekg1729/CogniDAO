@@ -47,6 +47,7 @@ async def get_all_blocks(
     ),
     case_insensitive: bool = Query(False, description="Case-insensitive type filtering"),
     branch: str = Query("main", description="Dolt branch to read from (default: 'main')"),
+    namespace: str = Query("legacy", description="Filter by namespace (default: 'legacy')"),
 ) -> BlocksResponse:
     """
     Retrieves memory blocks from the StructuredMemoryBank with branch context.
@@ -55,6 +56,7 @@ async def get_all_blocks(
     - type: Optional filter for block type (e.g., "project", "knowledge", "task")
     - case_insensitive: If True, type filtering will be case-insensitive
     - branch: Dolt branch to read from (default: "main")
+    - namespace: Filter by namespace (default: "legacy")
     """
     # Validate branch name for security
     try:
@@ -93,6 +95,12 @@ async def get_all_blocks(
             else:
                 all_blocks = [block for block in all_blocks if block.type == block_type_filter]
 
+        # Filter blocks by namespace (always applied, defaults to 'legacy')
+        if namespace:
+            logger.info(f"Filtering blocks by namespace: {namespace}")
+            filters_applied["namespace"] = namespace
+            all_blocks = [block for block in all_blocks if block.namespace_id == namespace]
+
         logger.info(f"Retrieved {len(all_blocks)} blocks (filtered from {original_count})")
 
         # Get active branch from memory bank
@@ -102,6 +110,7 @@ async def get_all_blocks(
             blocks=all_blocks,  # Now properly typed as List[MemoryBlock]
             total_count=len(all_blocks),
             filters_applied=filters_applied if filters_applied else None,
+            namespace_context=namespace,
             active_branch=active_branch,
             requested_branch=branch,
         )
@@ -126,6 +135,7 @@ async def get_block(
     request: Request,
     block_id: str,
     branch: str = Query("main", description="Dolt branch to read from (default: 'main')"),
+    namespace: str = Query("legacy", description="Filter by namespace (default: 'legacy')"),
 ) -> SingleBlockResponse:
     """
     Retrieves a specific memory block by its ID using the get_memory_block_tool with branch context.
@@ -153,7 +163,7 @@ async def get_block(
         output = await loop.run_in_executor(
             None,
             lambda: get_memory_block_tool(
-                block_id=block_id, memory_bank=memory_bank, branch=branch
+                block_id=block_id, memory_bank=memory_bank, branch=branch, namespace_id=namespace
             ),
         )
     except Exception as e:
