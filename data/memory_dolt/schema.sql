@@ -13,6 +13,7 @@ CREATE UNIQUE INDEX idx_namespaces_slug ON namespaces (slug);
 
 CREATE TABLE IF NOT EXISTS memory_blocks (
     id VARCHAR(255) PRIMARY KEY,
+    namespace_id VARCHAR(255) NOT NULL DEFAULT 'public',
     type VARCHAR(50) NOT NULL,
     schema_version INT NULL,
     text LONGTEXT NOT NULL,
@@ -32,10 +33,13 @@ CREATE TABLE IF NOT EXISTS memory_blocks (
     embedding LONGTEXT NULL,
     CONSTRAINT chk_valid_state CHECK (state IN ('draft', 'published', 'archived')),
     CONSTRAINT chk_valid_visibility CHECK (visibility IN ('internal', 'public', 'restricted')),
-    CONSTRAINT chk_block_version_positive CHECK (block_version > 0)
+    CONSTRAINT chk_block_version_positive CHECK (block_version > 0),
+    CONSTRAINT fk_namespace FOREIGN KEY (namespace_id) REFERENCES namespaces(id)
 );
 
 CREATE INDEX idx_memory_blocks_type_state_visibility ON memory_blocks (type, state, visibility);
+
+CREATE INDEX idx_memory_blocks_namespace ON memory_blocks (namespace_id);
 
 CREATE TABLE IF NOT EXISTS block_links (
     to_id VARCHAR(255) NOT NULL,

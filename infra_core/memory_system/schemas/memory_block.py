@@ -24,6 +24,9 @@ class MemoryBlock(BaseModel):
         default_factory=lambda: str(uuid.uuid4()),
         description="Globally unique ID for this memory block",
     )
+    namespace_id: str = Field(
+        default="public", description="Foreign key to namespaces.id for multi-tenant organization"
+    )
     type: Literal["knowledge", "task", "project", "doc", "interaction", "log", "epic", "bug"] = (
         Field(..., description="Block type used to determine structure and relationships")
     )
