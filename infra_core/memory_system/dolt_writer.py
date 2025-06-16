@@ -374,9 +374,72 @@ class DoltMySQLWriter(DoltMySQLBase):
             if not connection_is_persistent:
                 connection.close()
 
+    def reset(self, hard: bool = False, tables: List[str] = None) -> Tuple[bool, Optional[str]]:
+        """
+        Reset working changes in Dolt using DOLT_RESET command.
+
+        Args:
+            hard: If True, use --hard flag (discard working changes). If False, use --soft flag (unstage only).
+            tables: List of table names to reset. If None, resets all changes.
+
+        Returns:
+            Tuple of (success: bool, message: Optional[str])
+        """
+        # Use persistent connection if available, otherwise create new one
+        if self._use_persistent and self._persistent_connection:
+            connection = self._persistent_connection
+            connection_is_persistent = True
+        else:
+            connection = self._get_connection()
+            connection_is_persistent = False
+
+        try:
+            cursor = connection.cursor(dictionary=True)
+
+            # Build DOLT_RESET command arguments
+            reset_args = []
+
+            # Add flag
+            if hard:
+                reset_args.append("--hard")
+            else:
+                reset_args.append("--soft")
+
+            # Add tables if specified
+            if tables:
+                reset_args.extend(tables)
+
+            # Execute DOLT_RESET with proper parameterization
+            placeholders = ", ".join(["%s"] * len(reset_args))
+            query = f"CALL DOLT_RESET({placeholders})"
+            cursor.execute(query, tuple(reset_args))
+            cursor.fetchall()  # Consume any results
+
+            cursor.close()
+
+            # Build success message
+            reset_type = "hard" if hard else "soft"
+            if tables:
+                message = f"Successfully performed {reset_type} reset on {len(tables)} table(s): {', '.join(tables)}"
+            else:
+                message = f"Successfully performed {reset_type} reset on all changes"
+
+            logger.info(message)
+            return True, message
+
+        except Exception as e:
+            error_msg = f"Failed to reset changes: {e}"
+            logger.error(error_msg, exc_info=True)
+            return False, error_msg
+        finally:
+            if not connection_is_persistent:
+                connection.close()
+
     def discard_changes(self, tables: List[str] = None) -> bool:
         """
         Discard uncommitted changes in Dolt working set.
+
+        DEPRECATED: Use reset(hard=True, tables=tables) instead.
 
         Args:
             tables: List of table names to discard changes for. If None, discards all changes.
@@ -384,31 +447,13 @@ class DoltMySQLWriter(DoltMySQLBase):
         Returns:
             True if discard was successful, False otherwise.
         """
-        connection = self._get_connection()
-
-        try:
-            self._ensure_branch(connection, DEFAULT_PROTECTED_BRANCH)
-            cursor = connection.cursor()
-
-            if tables:
-                # Discard changes for specific tables
-                for table in tables:
-                    cursor.execute("CALL DOLT_RESET('--hard', %s)", (table,))
-                    cursor.fetchall()  # Consume any results
-            else:
-                # Discard all changes
-                cursor.execute("CALL DOLT_RESET('--hard')")
-                cursor.fetchall()  # Consume any results
-
-            cursor.close()
-            logger.info("Successfully discarded Dolt working changes")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to discard Dolt changes: {e}", exc_info=True)
-            return False
-        finally:
-            connection.close()
+        warnings.warn(
+            "discard_changes() is deprecated. Use reset(hard=True, tables=tables) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        success, _ = self.reset(hard=True, tables=tables)
+        return success
 
     def get_diff_summary(self, from_revision: str, to_revision: str) -> List[dict]:
         """
