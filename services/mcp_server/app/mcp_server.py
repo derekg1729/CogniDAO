@@ -631,8 +631,9 @@ async def create_memory_block(input):
 
     Args:
         type: Type of memory block to create (doc, knowledge, or log)
-        title: Title of the memory block
         content: Primary content/text of the memory block
+        namespace_id: Namespace ID for multi-tenant organization (defaults to 'legacy')
+        title: Title of the memory block
         audience: Intended audience (doc type only)
         section: Section or category (doc type only)
         source: Source of the knowledge (knowledge type only)
