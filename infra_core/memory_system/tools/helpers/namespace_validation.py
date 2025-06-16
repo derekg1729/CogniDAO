@@ -12,7 +12,20 @@ from typing import Dict, Set
 logger = logging.getLogger(__name__)
 
 # Default namespace that always exists (fast path)
-DEFAULT_NAMESPACE = "legacy"
+DEFAULT_NAMESPACE = "legacy"  # TODO: Replace with get_default_namespace() calls
+
+
+def get_default_namespace() -> str:
+    """
+    Get the default namespace identifier.
+
+    This centralizes the default namespace constant to ease future migrations
+    that might rename the default namespace.
+
+    Returns:
+        The default namespace identifier as a string
+    """
+    return "legacy"
 
 
 def clear_namespace_cache() -> None:

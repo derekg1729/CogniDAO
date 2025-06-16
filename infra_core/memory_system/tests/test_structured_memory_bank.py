@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from infra_core.memory_system.structured_memory_bank import (
     StructuredMemoryBank,
     diff_memory_blocks,
+    InconsistentStateError,
 )
 from infra_core.memory_system.schemas.memory_block import (
     MemoryBlock,
@@ -1327,7 +1328,7 @@ class TestStructuredMemoryBank:
             assert bank.is_consistent, "Memory bank should start in consistent state"
 
             # Test that _mark_inconsistent works
-            bank._mark_inconsistent("Test reason")
+            bank._mark_inconsistent("Test reason", "test-block-id")
             assert not bank.is_consistent, "Memory bank should be marked as inconsistent"
 
     @pytest.mark.xfail(
@@ -1394,3 +1395,184 @@ class TestStructuredMemoryBank:
             mock_writer.write_memory_block.assert_called_once()  # Write was attempted
             # LlamaIndex should not be called if branch protection fails
             mock_llama_instance.add_block.assert_not_called()
+
+    def test_inconsistent_state_error_functionality(self):
+        """Test the new InconsistentStateError functionality and public getters."""
+        with (
+            patch(
+                "infra_core.memory_system.structured_memory_bank.DoltMySQLWriter"
+            ) as mock_writer_class,
+            patch(
+                "infra_core.memory_system.structured_memory_bank.DoltMySQLReader"
+            ) as mock_reader_class,
+            patch("infra_core.memory_system.structured_memory_bank.LlamaMemory") as mock_llama,
+        ):
+            # Setup mocks
+            mock_writer = MagicMock()
+            mock_writer_class.return_value = mock_writer
+
+            mock_reader = MagicMock()
+            mock_reader_class.return_value = mock_reader
+
+            mock_llama_instance = mock_llama.return_value
+            mock_llama_instance.is_ready.return_value = True
+
+            # Create mock connection config
+            mock_config = MagicMock()
+            mock_config.host = "localhost"
+            mock_config.port = 3306
+            mock_config.user = "root"
+            mock_config.password = ""
+            mock_config.database = "test_memory_dolt"
+
+            # Create a memory bank instance
+            bank = StructuredMemoryBank(
+                chroma_path=MOCK_CHROMA_PATH,
+                chroma_collection=MOCK_COLLECTION,
+                dolt_connection_config=mock_config,
+            )
+
+            # Initially should be consistent
+            assert bank.is_consistent, "Memory bank should start in consistent state"
+            assert bank.get_inconsistency_details() is None, (
+                "Should have no inconsistency details when consistent"
+            )
+
+            # Test that _mark_inconsistent works with block_id
+            test_block_id = "test-block-123"
+            test_reason = "Test inconsistency with block ID"
+            bank._mark_inconsistent(test_reason, test_block_id)
+
+            assert not bank.is_consistent, "Memory bank should be marked as inconsistent"
+
+            # Test get_inconsistency_details
+            details = bank.get_inconsistency_details()
+            assert details is not None, "Should have inconsistency details when inconsistent"
+            assert details["reason"] == test_reason, (
+                f"Expected reason '{test_reason}', got '{details['reason']}'"
+            )
+            assert details["block_id"] == test_block_id, (
+                f"Expected block_id '{test_block_id}', got '{details['block_id']}'"
+            )
+            assert details["is_consistent"] is False, "is_consistent should be False in details"
+
+            # Test raise_if_inconsistent
+            try:
+                bank.raise_if_inconsistent()
+                assert False, "raise_if_inconsistent should have raised InconsistentStateError"
+            except InconsistentStateError as e:
+                assert test_reason in str(e), f"Exception message should contain reason: {str(e)}"
+                assert test_block_id in str(e), (
+                    f"Exception message should contain block_id: {str(e)}"
+                )
+                assert e.reason == test_reason, f"Exception reason should match: {e.reason}"
+                assert e.block_id == test_block_id, f"Exception block_id should match: {e.block_id}"
+
+    def test_debug_persistent_state_guard(self):
+        """Test that debug_persistent_state is properly guarded in production mode."""
+        with (
+            patch(
+                "infra_core.memory_system.structured_memory_bank.DoltMySQLWriter"
+            ) as mock_writer_class,
+            patch(
+                "infra_core.memory_system.structured_memory_bank.DoltMySQLReader"
+            ) as mock_reader_class,
+            patch("infra_core.memory_system.structured_memory_bank.LlamaMemory") as mock_llama,
+        ):
+            # Setup mocks
+            mock_writer = MagicMock()
+            mock_writer_class.return_value = mock_writer
+
+            mock_reader = MagicMock()
+            mock_reader_class.return_value = mock_reader
+
+            mock_llama_instance = mock_llama.return_value
+            mock_llama_instance.is_ready.return_value = True
+
+            # Create mock connection config
+            mock_config = MagicMock()
+            mock_config.host = "localhost"
+            mock_config.port = 3306
+            mock_config.user = "root"
+            mock_config.password = ""
+            mock_config.database = "test_memory_dolt"
+
+            # Create a memory bank instance
+            bank = StructuredMemoryBank(
+                chroma_path=MOCK_CHROMA_PATH,
+                chroma_collection=MOCK_COLLECTION,
+                dolt_connection_config=mock_config,
+            )
+
+            # In debug mode (__debug__ is True), the method should work
+            if __debug__:
+                result = bank.debug_persistent_state()
+                assert isinstance(result, dict), (
+                    "debug_persistent_state should return a dict in debug mode"
+                )
+                assert "memory_bank_branch" in result, "Should contain memory_bank_branch key"
+            else:
+                # In production mode (__debug__ is False), should raise RuntimeError
+                try:
+                    bank.debug_persistent_state()
+                    assert False, (
+                        "debug_persistent_state should raise RuntimeError in production mode"
+                    )
+                except RuntimeError as e:
+                    assert "debug mode" in str(e), (
+                        f"Error message should mention debug mode: {str(e)}"
+                    )
+
+    def test_get_default_namespace_integration(self):
+        """Test that get_default_namespace() is properly integrated."""
+        from infra_core.memory_system.tools.helpers.namespace_validation import (
+            get_default_namespace,
+        )
+
+        # Test that the function returns the expected default
+        default_ns = get_default_namespace()
+        assert default_ns == "legacy", f"Expected 'legacy', got '{default_ns}'"
+
+        # Test integration with namespace_exists method
+        with (
+            patch(
+                "infra_core.memory_system.structured_memory_bank.DoltMySQLWriter"
+            ) as mock_writer_class,
+            patch(
+                "infra_core.memory_system.structured_memory_bank.DoltMySQLReader"
+            ) as mock_reader_class,
+            patch("infra_core.memory_system.structured_memory_bank.LlamaMemory") as mock_llama,
+        ):
+            # Setup mocks
+            mock_writer = MagicMock()
+            mock_writer_class.return_value = mock_writer
+
+            mock_reader = MagicMock()
+            mock_reader_class.return_value = mock_reader
+
+            mock_llama_instance = mock_llama.return_value
+            mock_llama_instance.is_ready.return_value = True
+
+            # Create mock connection config
+            mock_config = MagicMock()
+            mock_config.host = "localhost"
+            mock_config.port = 3306
+            mock_config.user = "root"
+            mock_config.password = ""
+            mock_config.database = "test_memory_dolt"
+
+            # Create a memory bank instance
+            bank = StructuredMemoryBank(
+                chroma_path=MOCK_CHROMA_PATH,
+                chroma_collection=MOCK_COLLECTION,
+                dolt_connection_config=mock_config,
+            )
+
+            # Test that default namespace always returns True (fast path)
+            assert bank.namespace_exists("legacy"), "Default namespace should always exist"
+            assert bank.namespace_exists("LEGACY"), (
+                "Default namespace check should be case-insensitive"
+            )
+            assert bank.namespace_exists(" Legacy "), (
+                "Default namespace check should handle whitespace"
+            )

@@ -24,7 +24,10 @@ from infra_core.memory_system.dolt_writer import (
 from infra_core.memory_system.llama_memory import LlamaMemory
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
 from infra_core.memory_system.schemas.common import BlockLink
-from infra_core.memory_system.tools.helpers.namespace_validation import validate_namespace_exists
+from infra_core.memory_system.tools.helpers.namespace_validation import (
+    validate_namespace_exists,
+    get_default_namespace,
+)
 
 # --- Path Setup ---
 script_dir = Path(__file__).parent
@@ -75,6 +78,23 @@ def diff_memory_blocks(
             changes[key] = (old_value, new_value)
 
     return changes
+
+
+class InconsistentStateError(Exception):
+    """
+    Raised when the memory bank detects an inconsistent state between Dolt and LlamaIndex.
+
+    This indicates a critical error where the two storage systems are out of sync,
+    and operations should be aborted until the inconsistency is resolved.
+    """
+
+    def __init__(self, reason: str, block_id: Optional[str] = None):
+        self.reason = reason
+        self.block_id = block_id
+        message = f"Memory bank inconsistent state: {reason}"
+        if block_id:
+            message += f" (block_id: {block_id})"
+        super().__init__(message)
 
 
 class StructuredMemoryBank:
@@ -149,15 +169,45 @@ class StructuredMemoryBank:
         """
         return self._is_consistent
 
-    def _mark_inconsistent(self, reason: str):
+    def _mark_inconsistent(self, reason: str, block_id: Optional[str] = None):
         """
         Marks the memory bank as inconsistent and logs a critical error.
 
         Args:
             reason: The reason why the memory bank is inconsistent.
+            block_id: Optional block ID associated with the inconsistency.
         """
         self._is_consistent = False
+        self._inconsistency_reason = reason
+        self._inconsistency_block_id = block_id
         logger.critical(f"StructuredMemoryBank is in an inconsistent state: {reason}")
+
+    def get_inconsistency_details(self) -> Optional[Dict[str, Any]]:
+        """
+        Get details about the current inconsistency, if any.
+
+        Returns:
+            Dictionary with inconsistency details if state is inconsistent, None otherwise.
+            Contains 'reason', 'block_id' (if applicable), and 'timestamp'.
+        """
+        if not self._is_consistent:
+            return {
+                "reason": getattr(self, "_inconsistency_reason", "Unknown reason"),
+                "block_id": getattr(self, "_inconsistency_block_id", None),
+                "is_consistent": False,
+            }
+        return None
+
+    def raise_if_inconsistent(self):
+        """
+        Raise InconsistentStateError if the memory bank is in an inconsistent state.
+
+        This allows upstream services to abort operations instead of silently continuing.
+        """
+        if not self._is_consistent:
+            reason = getattr(self, "_inconsistency_reason", "Unknown inconsistency detected")
+            block_id = getattr(self, "_inconsistency_block_id", None)
+            raise InconsistentStateError(reason, block_id)
 
     def _store_block_proof(self, block_id: str, operation: str, commit_hash: str) -> bool:
         """
@@ -358,7 +408,8 @@ class StructuredMemoryBank:
                                     f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
                                 )
                                 self._mark_inconsistent(
-                                    f"Dolt commit failed and rollback failed for block {block.id}"
+                                    f"Dolt commit failed and rollback failed for block {block.id}",
+                                    block.id,
                                 )
 
                             return False, error_msg
@@ -392,7 +443,8 @@ class StructuredMemoryBank:
                         f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
                     )
                     self._mark_inconsistent(
-                        f"LlamaIndex operation failed and Dolt rollback failed for block {block.id}"
+                        f"LlamaIndex operation failed and Dolt rollback failed for block {block.id}",
+                        block.id,
                     )
 
                 return False, error_msg  # error_msg was set in the LlamaIndex exception handler
@@ -415,7 +467,8 @@ class StructuredMemoryBank:
                     f"Failed to rollback Dolt changes after exception: {rollback_e}. Database may be in an inconsistent state!"
                 )
                 self._mark_inconsistent(
-                    f"Exception during create and Dolt rollback failed for block {block.id}"
+                    f"Exception during create and Dolt rollback failed for block {block.id}",
+                    block.id,
                 )
 
             return False, error_msg
@@ -563,7 +616,8 @@ class StructuredMemoryBank:
                                     f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
                                 )
                                 self._mark_inconsistent(
-                                    f"Dolt commit failed and rollback failed for block {block.id}"
+                                    f"Dolt commit failed and rollback failed for block {block.id}",
+                                    block.id,
                                 )
 
                             return False
@@ -596,7 +650,8 @@ class StructuredMemoryBank:
                         f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
                     )
                     self._mark_inconsistent(
-                        f"LlamaIndex operation failed and Dolt rollback failed for block {block.id}"
+                        f"LlamaIndex operation failed and Dolt rollback failed for block {block.id}",
+                        block.id,
                     )
 
                 return False
@@ -618,7 +673,8 @@ class StructuredMemoryBank:
                     f"Failed to rollback Dolt changes after exception: {rollback_e}. Database may be in an inconsistent state!"
                 )
                 self._mark_inconsistent(
-                    f"Exception during update and Dolt rollback failed for block {block.id}"
+                    f"Exception during update and Dolt rollback failed for block {block.id}",
+                    block.id,
                 )
 
             return False
@@ -733,7 +789,8 @@ class StructuredMemoryBank:
                                     f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
                                 )
                                 self._mark_inconsistent(
-                                    f"Dolt commit failed and rollback failed for deleted block {block_id}"
+                                    f"Dolt commit failed and rollback failed for deleted block {block_id}",
+                                    block_id,
                                 )
 
                             return False
@@ -759,7 +816,8 @@ class StructuredMemoryBank:
                                 f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
                             )
                             self._mark_inconsistent(
-                                f"Dolt commit failed and rollback failed for deleted block {block_id}"
+                                f"Dolt commit failed and rollback failed for deleted block {block_id}",
+                                block_id,
                             )
 
                         return False
@@ -802,7 +860,8 @@ class StructuredMemoryBank:
                     f"Failed to rollback Dolt changes after exception: {rollback_e}. Database may be in an inconsistent state!"
                 )
                 self._mark_inconsistent(
-                    f"Exception during delete and Dolt rollback failed for block {block_id}"
+                    f"Exception during delete and Dolt rollback failed for block {block_id}",
+                    block_id,
                 )
 
             return False
@@ -1121,9 +1180,15 @@ class StructuredMemoryBank:
         """
         Debug method to check persistent connection state.
 
+        This method is only available in debug mode to prevent accidental
+        exposure of internal state in production environments.
+
         Returns:
             Dictionary with debug information about persistent connections
         """
+        if not __debug__:
+            raise RuntimeError("debug_persistent_state() is only available in debug mode")
+
         return {
             "memory_bank_branch": self.branch,
             "reader_use_persistent": getattr(self.dolt_reader, "_use_persistent", "UNKNOWN"),
@@ -1154,7 +1219,7 @@ class StructuredMemoryBank:
             normalized_id = namespace_id.lower().strip()
 
             # Fast path for default namespace
-            if normalized_id == "legacy":
+            if normalized_id == get_default_namespace():
                 return True
 
             # Query database with case-insensitive comparison
