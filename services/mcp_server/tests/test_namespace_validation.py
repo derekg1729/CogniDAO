@@ -50,11 +50,26 @@ def mock_structured_memory_bank_with_namespace_validation(monkeypatch):
 
     def mock_execute_query(query, params=None):
         """Mock database query execution for namespace validation."""
-        if "SELECT id FROM namespaces WHERE id = %s" in query:
+        # Handle case-insensitive namespace queries
+        if "SELECT id FROM namespaces WHERE LOWER(id) = %s" in query:
+            if params and params[0].lower() == "legacy":
+                return [{"id": "legacy"}]  # Legacy namespace exists
+            else:
+                return []  # Other namespaces don't exist
+        # Handle legacy case-sensitive queries for backwards compatibility
+        elif "SELECT id FROM namespaces WHERE id = %s" in query:
             if params and params[0] == "legacy":
                 return [{"id": "legacy"}]  # Legacy namespace exists
             else:
                 return []  # Other namespaces don't exist
+        # Handle bulk case-insensitive queries
+        elif "SELECT LOWER(id) as normalized_id FROM namespaces WHERE LOWER(id) IN" in query:
+            if params:
+                # Check if any of the normalized params match "legacy"
+                normalized_params = [p.lower() for p in params]
+                if "legacy" in normalized_params:
+                    return [{"normalized_id": "legacy"}]
+            return []
         elif "SELECT id, name FROM namespaces" in query:
             return [{"id": "legacy", "name": "Legacy Namespace"}]
         return []
@@ -65,8 +80,10 @@ def mock_structured_memory_bank_with_namespace_validation(monkeypatch):
     def mock_create_memory_block(block):
         """Mock create_memory_block with namespace validation."""
         if hasattr(block, "namespace_id"):
-            if block.namespace_id == "legacy":
-                return (True, None)  # Success for valid namespace
+            # Normalize namespace_id for case-insensitive comparison
+            normalized_namespace = block.namespace_id.lower().strip() if block.namespace_id else ""
+            if normalized_namespace == "legacy":
+                return (True, None)  # Success for valid namespace (any case)
             else:
                 return (
                     False,
@@ -80,8 +97,10 @@ def mock_structured_memory_bank_with_namespace_validation(monkeypatch):
     def mock_update_memory_block(block):
         """Mock update_memory_block with namespace validation."""
         if hasattr(block, "namespace_id"):
-            if block.namespace_id == "legacy":
-                return True  # Success for valid namespace
+            # Normalize namespace_id for case-insensitive comparison
+            normalized_namespace = block.namespace_id.lower().strip() if block.namespace_id else ""
+            if normalized_namespace == "legacy":
+                return True  # Success for valid namespace (any case)
             else:
                 return False  # Failure for invalid namespace
         return True  # Default success if no namespace_id
@@ -300,6 +319,7 @@ def test_namespace_validation_helper_functions():
         validate_namespace_exists,
         get_available_namespaces,
         clear_namespace_cache,
+        invalidate_namespace_cache,
     )
 
     # Create a mock memory bank for testing (without autouse fixtures interfering)
@@ -312,7 +332,14 @@ def test_namespace_validation_helper_functions():
         delattr(mock_bank, "namespace_exists")
 
     def mock_execute_query(query, params=None):
-        if "SELECT id FROM namespaces WHERE id = %s" in query:
+        # Handle case-insensitive queries
+        if "SELECT id FROM namespaces WHERE LOWER(id) = %s" in query:
+            if params and params[0].lower() == "legacy":
+                return [{"id": "legacy"}]
+            else:
+                return []
+        # Handle legacy case-sensitive queries for backwards compatibility
+        elif "SELECT id FROM namespaces WHERE id = %s" in query:
             if params and params[0] == "legacy":
                 return [{"id": "legacy"}]
             else:
@@ -326,8 +353,10 @@ def test_namespace_validation_helper_functions():
     # Clear cache before testing
     clear_namespace_cache()
 
-    # Test valid namespace
+    # Test valid namespace (case-insensitive)
     assert validate_namespace_exists("legacy", mock_bank, raise_error=False) is True
+    assert validate_namespace_exists("LEGACY", mock_bank, raise_error=False) is True
+    assert validate_namespace_exists("Legacy", mock_bank, raise_error=False) is True
 
     # Test invalid namespace
     assert validate_namespace_exists("invalid", mock_bank, raise_error=False) is False
@@ -335,6 +364,9 @@ def test_namespace_validation_helper_functions():
     # Test invalid namespace with raise_error=True
     with pytest.raises(KeyError, match="Namespace does not exist: invalid"):
         validate_namespace_exists("invalid", mock_bank, raise_error=True)
+
+    # Test cache invalidation
+    invalidate_namespace_cache("LEGACY")  # Should work with any case
 
     # Test get_available_namespaces
     namespaces = get_available_namespaces(mock_bank)
@@ -376,6 +408,31 @@ async def test_namespace_validation_edge_cases(mcp_app):
 
     # Should handle None namespace (likely defaults to legacy)
     assert result_none is not None
+
+
+@pytest.mark.asyncio
+async def test_namespace_validation_case_insensitive(mcp_app):
+    """Test that namespace validation is case-insensitive."""
+
+    # Test various case combinations of "legacy" - all should succeed
+    test_cases = ["legacy", "Legacy", "LEGACY", "LegAcY"]
+
+    for namespace_case in test_cases:
+        input_data = {
+            "type": "knowledge",
+            "title": f"Test Case Insensitive - {namespace_case}",
+            "content": f"Testing case-insensitive validation with: {namespace_case}",
+            "namespace_id": namespace_case,
+            "tags": ["test", "case_insensitive"],
+        }
+
+        result = await mcp_app.create_memory_block(input_data)
+
+        # All variations should succeed since they normalize to "legacy"
+        assert result is not None
+        assert result.success is True, f"Failed for namespace case: {namespace_case}"
+        assert result.id is not None
+        assert result.error is None
 
 
 @pytest.mark.asyncio
