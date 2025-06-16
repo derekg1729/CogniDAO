@@ -55,14 +55,32 @@ class TestNamespaceMCPTools:
             metadata={"source": "user"},
         )
 
-        # Mock get_all_memory_blocks to return both blocks
-        bank.get_all_memory_blocks.return_value = [legacy_block, user_block]
+        # Track all blocks (initial + dynamically created) - use a list that can be modified
+        bank._all_blocks = [legacy_block, user_block]
 
-        # Mock query_semantic to return both blocks
-        bank.query_semantic.return_value = [legacy_block, user_block]
+        # Mock create_memory_block to return proper result object and track created blocks
+        def mock_create_memory_block(block):
+            # Create a new block and add it to our tracked blocks
+            # Note: the block parameter is already a MemoryBlock object
+            bank._all_blocks.append(block)
 
-        # Mock create_memory_block to succeed
-        bank.create_memory_block.return_value = (True, None)
+            # Return tuple as expected by create_memory_block_tool: (success, error_message)
+            return (True, None)
+
+        bank.create_memory_block.side_effect = mock_create_memory_block
+
+        # Mock get_all_memory_blocks to return current state of all tracked blocks
+        def mock_get_all_memory_blocks(branch=None):
+            return bank._all_blocks.copy()  # Return a copy to avoid modification issues
+
+        bank.get_all_memory_blocks.side_effect = mock_get_all_memory_blocks
+
+        # Mock query_semantic to return current state of all tracked blocks
+        def mock_query_semantic(query_text, top_k=None):
+            return bank._all_blocks.copy()
+
+        bank.query_semantic.side_effect = mock_query_semantic
+
         bank.dolt_writer.active_branch = "feat/namespaces"
 
         # Mock the _execute_query method to return proper branch info
@@ -191,20 +209,31 @@ class TestNamespaceMCPTools:
     def test_namespace_isolation_validation(self, mock_memory_bank):
         """Test that different namespaces properly isolate data"""
         # This validates the complete namespace isolation workflow
+        from infra_core.memory_system.tools.memory_core.create_memory_block_tool import (
+            create_memory_block,
+        )
 
-        # 1. Create block in default namespace
-        result_legacy = mock_memory_bank.create_memory_block(
+        # 1. Create block in default namespace using MCP tool
+        result_legacy = create_memory_block(
             CreateMemoryBlockInput(
-                type="knowledge", text="Legacy knowledge content", namespace_id="legacy"
-            )
+                type="knowledge",
+                text="Legacy knowledge content",
+                namespace_id="legacy",
+                metadata={"title": "Legacy Knowledge Block"},
+            ),
+            mock_memory_bank,
         )
         assert result_legacy.success, f"Failed to create legacy block: {result_legacy.error}"
 
-        # 2. Create block in custom namespace
-        result_custom = mock_memory_bank.create_memory_block(
+        # 2. Create block in custom namespace using MCP tool
+        result_custom = create_memory_block(
             CreateMemoryBlockInput(
-                type="knowledge", text="Custom knowledge content", namespace_id="custom-tenant"
-            )
+                type="knowledge",
+                text="Custom knowledge content",
+                namespace_id="custom-tenant",
+                metadata={"title": "Custom Knowledge Block"},
+            ),
+            mock_memory_bank,
         )
         assert result_custom.success, f"Failed to create custom block: {result_custom.error}"
 
