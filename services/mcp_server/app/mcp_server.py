@@ -205,12 +205,16 @@ def get_current_namespace() -> str:
     """
     # First check environment variable
     env_namespace = os.environ.get("DOLT_NAMESPACE")
+    logger.info("🔍 [NAMESPACE] Checking DOLT_NAMESPACE environment variable...")
+
     if env_namespace:
-        logger.info(f"Using namespace from DOLT_NAMESPACE environment variable: {env_namespace}")
+        logger.info(
+            f"✅ [NAMESPACE] Using namespace from DOLT_NAMESPACE environment variable: '{env_namespace}'"
+        )
         return env_namespace
 
     # Fallback to legacy namespace
-    logger.info("Using default 'legacy' namespace")
+    logger.info("📋 [NAMESPACE] DOLT_NAMESPACE not set, using default 'legacy' namespace")
     return "legacy"
 
 
@@ -224,11 +228,20 @@ def _initialize_memory_system():
     if _memory_bank is not None:
         return _memory_bank, _link_manager, _pm_links
 
+    # Log environment variables for debugging
+    logger.info("🔍 [ENV] MCP Server Environment Variables:")
+    logger.info(f"    DOLT_NAMESPACE = '{os.environ.get('DOLT_NAMESPACE', '(not set)')}'")
+    logger.info(f"    DOLT_BRANCH = '{os.environ.get('DOLT_BRANCH', '(not set)')}'")
+    logger.info(f"    DOLT_HOST = '{os.environ.get('DOLT_HOST', '(not set)')}'")
+    logger.info(f"    DOLT_DATABASE = '{os.environ.get('DOLT_DATABASE', '(not set)')}'")
+
     # Get the branch to use for Dolt operations
     _current_branch = get_current_branch()
 
     # Get the namespace to use for MCP operations
+    logger.info("🚀 [NAMESPACE] Initializing namespace context...")
     _current_namespace = get_current_namespace()
+    logger.info(f"🎯 [NAMESPACE] Global namespace context set to: '{_current_namespace}'")
 
     # Initialize StructuredMemoryBank using environment variables
     CHROMA_PATH = os.environ.get("CHROMA_PATH", "/tmp/cogni_chroma")  # Make configurable
@@ -343,7 +356,9 @@ def get_current_namespace_context() -> str:
     Returns:
         The current namespace identifier
     """
-    return _current_namespace or get_current_namespace()
+    current_ns = _current_namespace or get_current_namespace()
+    logger.info(f"📋 [NAMESPACE] Current namespace context: '{current_ns}'")
+    return current_ns
 
 
 def inject_current_namespace(input_data: dict) -> dict:
@@ -359,8 +374,15 @@ def inject_current_namespace(input_data: dict) -> dict:
         Input dictionary with namespace_id set to current namespace if not present
     """
     if "namespace_id" not in input_data or input_data["namespace_id"] is None:
-        input_data["namespace_id"] = _current_namespace or get_current_namespace()
-        logger.debug(f"Injected current namespace: {input_data['namespace_id']}")
+        current_ns = _current_namespace or get_current_namespace()
+        input_data["namespace_id"] = current_ns
+        logger.info(
+            f"🔧 [NAMESPACE] Injected current namespace: '{current_ns}' (no namespace specified in request)"
+        )
+    else:
+        logger.info(
+            f"🎯 [NAMESPACE] Using explicit namespace from request: '{input_data['namespace_id']}'"
+        )
     return input_data
 
 
