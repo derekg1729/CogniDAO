@@ -133,6 +133,28 @@ class DoltAddOutput(BaseDoltOutput):
     pass  # All fields inherited from BaseDoltOutput
 
 
+class DoltResetInput(BaseModel):
+    """Input model for the dolt_reset tool."""
+
+    tables: Optional[List[str]] = Field(
+        default=None,
+        description="Optional list of specific tables to reset. If not provided, all working changes will be discarded.",
+    )
+    hard: bool = Field(
+        default=True,
+        description="Whether to perform a hard reset, discarding all changes (default: True)",
+    )
+
+
+class DoltResetOutput(BaseDoltOutput):
+    """Output model for the dolt_reset tool."""
+
+    tables_reset: Optional[List[str]] = Field(
+        default=None,
+        description="List of tables that were reset (if specific tables were targeted)",
+    )
+
+
 class DoltCommitInput(BaseModel):
     """Input model for the dolt_commit tool."""
 
@@ -926,6 +948,106 @@ def dolt_add_tool(input_data: DoltAddInput, memory_bank: StructuredMemoryBank) -
             active_branch=memory_bank.dolt_writer.active_branch,
             error=message,
             error_code="ADD_FAILED",
+        )
+
+
+@dolt_tool("RESET")
+def dolt_reset_tool(
+    input_data: DoltResetInput, memory_bank: StructuredMemoryBank
+) -> DoltResetOutput:
+    """
+    Reset working changes in Dolt using DOLT_RESET command directly.
+
+    Args:
+        input_data: The reset parameters
+        memory_bank: StructuredMemoryBank instance with Dolt writer access
+
+    Returns:
+        DoltResetOutput with success status and message
+    """
+    try:
+        # Use persistent connection if available, otherwise create new one
+        if (
+            memory_bank.dolt_writer._use_persistent
+            and memory_bank.dolt_writer._persistent_connection
+        ):
+            connection = memory_bank.dolt_writer._persistent_connection
+            connection_is_persistent = True
+        else:
+            connection = memory_bank.dolt_writer._get_connection()
+            connection_is_persistent = False
+
+        try:
+            cursor = connection.cursor(dictionary=True)
+
+            # Build DOLT_RESET command arguments
+            reset_args = []
+
+            # Add flags
+            if input_data.hard:
+                reset_args.append("--hard")
+            else:
+                reset_args.append("--soft")  # Default behavior
+
+            # Add specific tables if provided
+            if input_data.tables:
+                reset_args.extend(input_data.tables)
+
+            # Execute DOLT_RESET with appropriate arguments
+            if len(reset_args) == 1:  # Just the flag
+                cursor.execute("CALL DOLT_RESET(%s)", (reset_args[0],))
+            elif len(reset_args) == 2:  # Flag + one table
+                cursor.execute("CALL DOLT_RESET(%s, %s)", (reset_args[0], reset_args[1]))
+            elif len(reset_args) == 3:  # Flag + two tables
+                cursor.execute(
+                    "CALL DOLT_RESET(%s, %s, %s)", (reset_args[0], reset_args[1], reset_args[2])
+                )
+            else:
+                # For more tables, build dynamic query
+                placeholders = ", ".join(["%s"] * len(reset_args))
+                cursor.execute(f"CALL DOLT_RESET({placeholders})", reset_args)
+
+            cursor.fetchall()  # Consume any results
+            cursor.close()
+
+            # Build success message
+            if input_data.tables:
+                message = f"Successfully reset {len(input_data.tables)} table(s): {', '.join(input_data.tables)}"
+            else:
+                reset_type = "hard" if input_data.hard else "soft"
+                message = f"Successfully performed {reset_type} reset of all working changes"
+
+            return DoltResetOutput(
+                success=True,
+                message=message,
+                active_branch=memory_bank.dolt_writer.active_branch,
+                tables_reset=input_data.tables,
+            )
+
+        except Exception as e:
+            error_msg = f"DOLT_RESET command failed: {str(e)}"
+            return DoltResetOutput(
+                success=False,
+                message=error_msg,
+                active_branch=memory_bank.dolt_writer.active_branch,
+                error=error_msg,
+                error_code="RESET_FAILED",
+                tables_reset=input_data.tables,
+            )
+        finally:
+            # Only close if it's not a persistent connection
+            if not connection_is_persistent:
+                connection.close()
+
+    except Exception as e:
+        error_msg = f"Exception during dolt_reset: {str(e)}"
+        return DoltResetOutput(
+            success=False,
+            message=error_msg,
+            active_branch=getattr(memory_bank.dolt_writer, "active_branch", "unknown"),
+            error=error_msg,
+            error_code="EXCEPTION",
+            tables_reset=input_data.tables,
         )
 
 

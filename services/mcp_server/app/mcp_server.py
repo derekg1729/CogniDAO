@@ -99,6 +99,9 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     dolt_approve_pull_request_tool,
     DoltApprovePullRequestInput,
     DoltApprovePullRequestOutput,
+    dolt_reset_tool,
+    DoltResetInput,
+    DoltResetOutput,
 )
 from infra_core.memory_system.tools.agent_facing.bulk_create_blocks_tool import (
     bulk_create_blocks,
@@ -834,6 +837,35 @@ async def dolt_add(input):
             success=False,
             message=f"Add failed: {str(e)}",
             error=f"Error during dolt_add: {str(e)}",
+        ).model_dump(mode="json")
+
+
+# Register the DoltReset tool
+@mcp.tool("DoltReset")
+async def dolt_reset(input):
+    """Reset working changes in Dolt for the current session.
+
+    Args:
+        tables: Optional list of specific tables to reset. If not provided, all working changes will be discarded.
+        hard: Whether to perform a hard reset, discarding all changes (default: True)
+
+    Returns:
+        success: Whether the reset operation succeeded
+        message: Human-readable result message
+        tables_reset: List of tables that were reset (if specific tables were targeted)
+        error: Error message if operation failed
+        timestamp: Timestamp of operation
+    """
+    try:
+        parsed_input = DoltResetInput(**input)
+        result = dolt_reset_tool(parsed_input, memory_bank=get_memory_bank())
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error in DoltReset MCP tool: {e}")
+        return DoltResetOutput(
+            success=False,
+            message=f"Reset failed: {str(e)}",
+            error=f"Error during dolt_reset: {str(e)}",
         ).model_dump(mode="json")
 
 

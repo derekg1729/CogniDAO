@@ -22,6 +22,8 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     DoltCheckoutInput,
     dolt_diff_tool,
     DoltDiffInput,
+    dolt_reset_tool,
+    DoltResetInput,
 )
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
@@ -849,3 +851,207 @@ class TestDoltDiffTool:
         assert len(result.diff_details) == 0
         mock_reader.get_diff_summary.assert_not_called()
         mock_reader.get_diff_details.assert_not_called()
+
+
+class TestDoltResetTool:
+    """Test class for dolt_reset_tool functionality."""
+
+    def test_successful_reset_all(self, mock_memory_bank):
+        """Test successful reset operation for all tables."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Mock successful database connection and cursor
+        mock_connection = MagicMock()
+        mock_cursor = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_writer._get_connection.return_value = mock_connection
+        mock_writer._use_persistent = False
+
+        # Prepare input
+        input_data = DoltResetInput()
+
+        # Execute tool
+        result = dolt_reset_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is True
+        assert "Successfully performed hard reset of all working changes" in result.message
+        assert result.tables_reset is None
+        assert result.error is None
+        assert isinstance(result.timestamp, datetime)
+
+        # Verify DOLT_RESET was called with --hard flag
+        mock_cursor.execute.assert_called_once_with("CALL DOLT_RESET(%s)", ("--hard",))
+
+    def test_successful_reset_specific_tables(self, mock_memory_bank):
+        """Test successful reset operation for specific tables."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Mock successful database connection and cursor
+        mock_connection = MagicMock()
+        mock_cursor = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_writer._get_connection.return_value = mock_connection
+        mock_writer._use_persistent = False
+
+        # Prepare input with specific tables
+        specific_tables = ["memory_blocks", "block_links"]
+        input_data = DoltResetInput(tables=specific_tables)
+
+        # Execute tool
+        result = dolt_reset_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is True
+        assert "Successfully reset 2 table(s): memory_blocks, block_links" in result.message
+        assert result.tables_reset == specific_tables
+        assert result.error is None
+
+        # Verify DOLT_RESET was called with --hard flag and tables
+        mock_cursor.execute.assert_called_once_with(
+            "CALL DOLT_RESET(%s, %s, %s)", ("--hard", "memory_blocks", "block_links")
+        )
+
+    def test_failed_reset_operation(self, mock_memory_bank):
+        """Test failed reset operation."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Mock database connection that raises an exception
+        mock_connection = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.execute.side_effect = Exception("DOLT_RESET failed")
+        mock_connection.cursor.return_value = mock_cursor
+        mock_writer._get_connection.return_value = mock_connection
+        mock_writer._use_persistent = False
+
+        # Prepare input
+        input_data = DoltResetInput()
+
+        # Execute tool
+        result = dolt_reset_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is False
+        assert "DOLT_RESET command failed: DOLT_RESET failed" in result.message
+        assert "DOLT_RESET command failed: DOLT_RESET failed" in result.error
+        assert result.error_code == "RESET_FAILED"
+        assert result.tables_reset is None
+
+    def test_reset_with_exception(self, mock_memory_bank):
+        """Test reset operation when an exception occurs."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Mock exception during connection
+        mock_writer._get_connection.side_effect = Exception("Database connection error")
+        mock_writer._use_persistent = False
+
+        # Prepare input
+        input_data = DoltResetInput()
+
+        # Execute tool
+        result = dolt_reset_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is False
+        assert "Exception during dolt_reset: Database connection error" in result.message
+        assert "Exception during dolt_reset: Database connection error" in result.error
+        assert result.error_code == "EXCEPTION"
+
+    def test_reset_hard_flag_default(self, mock_memory_bank):
+        """Test that hard flag defaults to True."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Mock successful database connection and cursor
+        mock_connection = MagicMock()
+        mock_cursor = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_writer._get_connection.return_value = mock_connection
+        mock_writer._use_persistent = False
+
+        # Prepare input without specifying hard flag
+        input_data = DoltResetInput()
+
+        # Verify default value
+        assert input_data.hard is True
+
+        # Execute tool
+        result = dolt_reset_tool(input_data, memory_bank)
+
+        # Verify success
+        assert result.success is True
+
+    def test_reset_hard_flag_explicit(self, mock_memory_bank):
+        """Test that hard flag can be set explicitly."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Mock successful database connection and cursor
+        mock_connection = MagicMock()
+        mock_cursor = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_writer._get_connection.return_value = mock_connection
+        mock_writer._use_persistent = False
+
+        # Prepare input with explicit hard flag
+        input_data = DoltResetInput(hard=True)
+
+        # Verify explicit value
+        assert input_data.hard is True
+
+        # Execute tool
+        result = dolt_reset_tool(input_data, memory_bank)
+
+        # Verify success
+        assert result.success is True
+
+    def test_input_validation_empty_tables_list(self, mock_memory_bank):
+        """Test that empty tables list is handled correctly."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Mock successful database connection and cursor
+        mock_connection = MagicMock()
+        mock_cursor = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_writer._get_connection.return_value = mock_connection
+        mock_writer._use_persistent = False
+
+        # Prepare input with empty tables list
+        input_data = DoltResetInput(tables=[])
+
+        # Execute tool
+        result = dolt_reset_tool(input_data, memory_bank)
+
+        # Verify results - empty list should be treated as no tables (all tables)
+        assert result.success is True
+        assert result.tables_reset == []
+
+        # Verify DOLT_RESET was called with just --hard flag (no tables)
+        mock_cursor.execute.assert_called_once_with("CALL DOLT_RESET(%s)", ("--hard",))
+
+    def test_output_model_serialization(self, mock_memory_bank):
+        """Test that the output model can be properly serialized."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Mock successful database connection and cursor
+        mock_connection = MagicMock()
+        mock_cursor = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_writer._get_connection.return_value = mock_connection
+        mock_writer._use_persistent = False
+
+        # Prepare input
+        input_data = DoltResetInput(tables=["test_table"])
+
+        # Execute tool
+        result = dolt_reset_tool(input_data, memory_bank)
+
+        # Test serialization
+        serialized = result.model_dump(mode="json")
+
+        # Verify serialized structure
+        assert "success" in serialized
+        assert "message" in serialized
+        assert "active_branch" in serialized
+        assert "tables_reset" in serialized
+        assert "timestamp" in serialized
+        assert serialized["success"] is True
+        assert serialized["tables_reset"] == ["test_table"]
