@@ -51,7 +51,13 @@ def _drop_constraint_safe(runner: "MigrationRunner", constraint_name: str) -> bo
         error_msg = str(e).lower()
         if any(
             phrase in error_msg
-            for phrase in ["doesn't exist", "does not exist", "unknown constraint", "can't drop"]
+            for phrase in [
+                "doesn't exist",
+                "does not exist",
+                "unknown constraint",
+                "can't drop",
+                "was not found",
+            ]
         ):
             logger.debug(f"Constraint {constraint_name} doesn't exist, skipping")
             return False
