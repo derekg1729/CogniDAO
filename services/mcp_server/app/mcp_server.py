@@ -435,6 +435,7 @@ async def query_memory_blocks_semantic(input):
     Semantic Search with Filters:
         query_text: Text to search for semantically (required)
         type_filter: Optional filter by block type (knowledge, task, project, doc, interaction, bug, epic)
+        namespace_id: Optional filter by namespace ID for multi-tenant operations
         tag_filters: Optional list of tags to filter by (all must match)
         metadata_filters: Optional metadata key-value pairs to filter by (exact matches)
         top_k: Maximum number of results to return (1-20, default: 5)

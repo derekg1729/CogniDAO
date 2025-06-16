@@ -29,6 +29,11 @@ class CreateMemoryBlockAgentInput(BaseModel):
     )
     content: str = Field(..., description="Main content/text of the memory block")
 
+    # Namespace field for multi-tenant support
+    namespace_id: str = Field(
+        "legacy", description="Namespace ID for multi-tenant organization (defaults to 'legacy')"
+    )
+
     # Common optional fields (available for all types via BaseUserMetadata)
     title: Optional[str] = Field(None, description="Title of the memory block")
     tags: Optional[List[str]] = Field(default_factory=list, description="Tags for categorization")
@@ -162,6 +167,7 @@ def create_memory_block_agent(
         core_input = CoreCreateMemoryBlockInput(
             type=input_data.type,
             text=input_data.content,
+            namespace_id=input_data.namespace_id,
             tags=input_data.tags or [],
             metadata=metadata,
         )
