@@ -496,7 +496,8 @@ def dolt_repo_tool(
         tables_to_commit = input_data.tables
         if tables_to_commit is None:
             # Default to standard memory system tables
-            tables_to_commit = ["memory_blocks", "block_properties", "block_links"]
+            from infra_core.memory_system.dolt_writer import PERSISTED_TABLES
+        tables_to_commit = PERSISTED_TABLES
 
         logger.info(f"Committing Dolt changes with message: {commit_msg}")
         logger.info(f"Tables to commit: {tables_to_commit}")

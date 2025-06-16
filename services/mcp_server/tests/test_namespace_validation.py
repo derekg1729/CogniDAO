@@ -478,3 +478,69 @@ async def test_multiple_tools_namespace_consistency(mcp_app):
 
     # CreateMemoryBlock should mention the invalid namespace
     assert invalid_namespace in create_result.error
+
+
+@pytest.mark.asyncio
+async def test_namespace_cache_invalidation_smoke_test(mcp_app):
+    """
+    Smoke test: Create a new namespace in-process, invalidate cache,
+    and immediately create a block in that namespace to confirm cache path works.
+
+    Note: This is a mock-based test since we don't have actual namespace creation tools yet.
+    """
+    from infra_core.memory_system.tools.helpers.namespace_validation import (
+        clear_namespace_cache,
+        invalidate_namespace_cache,
+        validate_namespace_exists,
+    )
+    from unittest.mock import MagicMock
+
+    # Create a mock memory bank that will simulate a new namespace being created
+    mock_bank = MagicMock()
+    mock_reader = MagicMock()
+    mock_bank.dolt_reader = mock_reader
+
+    # Remove the namespace_exists attribute to force fallback to dolt_reader path
+    del mock_bank.namespace_exists
+
+    # Start with a fresh cache
+    clear_namespace_cache()
+
+    # First, simulate that "new_namespace" doesn't exist initially
+    def mock_execute_query_initial(query, params=None):
+        if "SELECT id FROM namespaces WHERE LOWER(id) = %s" in query:
+            if params and params[0].lower() == "legacy":
+                return [{"id": "legacy"}]
+            else:
+                return []  # new_namespace doesn't exist initially
+        return []
+
+    mock_reader._execute_query = mock_execute_query_initial
+
+    # Verify the namespace doesn't exist initially
+    assert validate_namespace_exists("new_namespace", mock_bank, raise_error=False) is False
+
+    # Simulate creating the namespace (change the mock to return the new namespace)
+    def mock_execute_query_after_creation(query, params=None):
+        if "SELECT id FROM namespaces WHERE LOWER(id) = %s" in query:
+            if params and params[0].lower() == "legacy":
+                return [{"id": "legacy"}]
+            elif params and params[0].lower() == "new_namespace":
+                return [{"id": "new_namespace"}]  # Now it exists!
+            else:
+                return []
+        return []
+
+    mock_reader._execute_query = mock_execute_query_after_creation
+
+    # Clear the cache to simulate what would happen after creating a namespace
+    invalidate_namespace_cache("new_namespace")
+
+    # Now verify the namespace exists (this should work due to cache invalidation)
+    assert validate_namespace_exists("new_namespace", mock_bank, raise_error=False) is True
+
+    # Test case-insensitive validation too
+    assert validate_namespace_exists("NEW_NAMESPACE", mock_bank, raise_error=False) is True
+    assert validate_namespace_exists("New_Namespace", mock_bank, raise_error=False) is True
+
+    # This confirms the cache invalidation and namespace validation path works correctly

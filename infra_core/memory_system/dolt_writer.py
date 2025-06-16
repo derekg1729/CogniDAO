@@ -52,6 +52,9 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
+# Standard tables that store memory block data and should be included in commits/rollbacks
+PERSISTED_TABLES = ["memory_blocks", "block_properties", "block_links"]
+
 
 class DoltMySQLWriter(DoltMySQLBase):
     """Dolt writer that connects to remote Dolt SQL server via MySQL connector.

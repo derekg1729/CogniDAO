@@ -19,10 +19,12 @@ from infra_core.memory_system.dolt_reader import (
 )
 from infra_core.memory_system.dolt_writer import (
     DoltMySQLWriter,
+    PERSISTED_TABLES,
 )
 from infra_core.memory_system.llama_memory import LlamaMemory
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
 from infra_core.memory_system.schemas.common import BlockLink
+from infra_core.memory_system.tools.helpers.namespace_validation import validate_namespace_exists
 
 # --- Path Setup ---
 script_dir = Path(__file__).parent
@@ -101,7 +103,8 @@ class StructuredMemoryBank:
             auto_commit: Whether to automatically commit changes after successful operations (default: False).
                         When False, changes remain in working set until explicit commit via MCP tools.
         """
-        self.branch = branch
+        # Normalize branch name to lowercase for consistency
+        self.branch = branch.lower().strip()
         self.auto_commit = auto_commit
         self.connection_config = dolt_connection_config
 
@@ -265,8 +268,6 @@ class StructuredMemoryBank:
 
         # Validate namespace exists
         try:
-            from .tools.helpers.namespace_validation import validate_namespace_exists
-
             validate_namespace_exists(block.namespace_id, self, raise_error=True)
         except KeyError as e:
             error_msg = f"Namespace validation failed: {str(e)}"
@@ -280,7 +281,7 @@ class StructuredMemoryBank:
 
         # --- ATOMIC PERSISTENCE PHASE ---
         # Tables to track for commit/rollback
-        tables = ["memory_blocks", "block_properties", "block_links"]
+        tables = PERSISTED_TABLES
         dolt_write_success = False
         llama_success = False
 
@@ -374,6 +375,8 @@ class StructuredMemoryBank:
                     logger.info(
                         f"Successfully created memory block {block.id} (uncommitted - auto_commit=False)"
                     )
+                    # Store proof with placeholder commit hash to track staged operations
+                    self._store_block_proof(block.id, "create", "STAGED")
                     return True, None
 
             else:
@@ -473,8 +476,6 @@ class StructuredMemoryBank:
 
         # Validate namespace exists
         try:
-            from .tools.helpers.namespace_validation import validate_namespace_exists
-
             validate_namespace_exists(block.namespace_id, self, raise_error=True)
         except KeyError as e:
             error_msg = f"Namespace validation failed: {str(e)}"
@@ -488,7 +489,7 @@ class StructuredMemoryBank:
 
         # --- ATOMIC PERSISTENCE PHASE ---
         # Tables to track for commit/rollback
-        tables = ["memory_blocks", "block_properties", "block_links"]
+        tables = PERSISTED_TABLES
         dolt_write_success = False
         llama_success = False
 
@@ -578,6 +579,8 @@ class StructuredMemoryBank:
                     logger.info(
                         f"Successfully updated memory block {block.id} (uncommitted - auto_commit=False)"
                     )
+                    # Store proof with placeholder commit hash to track staged operations
+                    self._store_block_proof(block.id, "update", "STAGED")
                     return True
 
             else:
@@ -652,7 +655,7 @@ class StructuredMemoryBank:
 
         # --- ATOMIC DELETION PHASE ---
         # Tables to track for commit/rollback
-        tables = ["memory_blocks", "block_properties", "block_links"]
+        tables = PERSISTED_TABLES
 
         # Step 1: Delete from Dolt without auto-commit
         try:
@@ -765,6 +768,8 @@ class StructuredMemoryBank:
                     logger.info(
                         f"Successfully deleted memory block {block_id} (uncommitted - auto_commit=False)"
                     )
+                    # Store proof with placeholder commit hash to track staged operations
+                    self._store_block_proof(block_id, "delete", "STAGED")
                     return True
             else:
                 # LlamaIndex delete failed - rollback Dolt changes
@@ -1130,3 +1135,33 @@ class StructuredMemoryBank:
             "writer_has_connection": getattr(self.dolt_writer, "_persistent_connection", None)
             is not None,
         }
+
+    def namespace_exists(self, namespace_id: str) -> bool:
+        """
+        Check if a namespace exists in the database.
+
+        This is the single authoritative method for namespace existence checking,
+        used by validation helpers and MCP tools.
+
+        Args:
+            namespace_id: The namespace ID to check (case-insensitive)
+
+        Returns:
+            True if the namespace exists, False otherwise
+        """
+        try:
+            # Normalize namespace_id to lowercase for case-insensitive comparison
+            normalized_id = namespace_id.lower().strip()
+
+            # Fast path for default namespace
+            if normalized_id == "legacy":
+                return True
+
+            # Query database with case-insensitive comparison
+            query = "SELECT id FROM namespaces WHERE LOWER(id) = %s"
+            result = self.dolt_reader._execute_query(query, (normalized_id,))
+            return len(result) > 0
+
+        except Exception as e:
+            logger.error(f"Error checking namespace existence for '{namespace_id}': {e}")
+            return False

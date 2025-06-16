@@ -11,10 +11,6 @@ from typing import Dict, Set
 # Setup logging
 logger = logging.getLogger(__name__)
 
-# Simple request-scoped cache for namespace IDs
-# This is module-level to persist across function calls in a single request
-_namespace_cache: Dict[str, bool] = {}
-
 # Default namespace that always exists (fast path)
 DEFAULT_NAMESPACE = "legacy"
 
@@ -23,29 +19,25 @@ def clear_namespace_cache() -> None:
     """
     Clear the namespace existence cache.
 
-    This should be called after creating new namespaces to ensure
-    the cache reflects the current state.
+    Note: Currently a no-op since we removed the process-wide cache
+    to avoid ASGI request cross-pollution. Reserved for future
+    per-request caching implementation.
     """
-    global _namespace_cache
-    _namespace_cache = {}
-    logger.debug("Namespace cache cleared")
+    logger.debug("Namespace cache clear requested (no-op)")
 
 
 def invalidate_namespace_cache(namespace_id: str) -> None:
     """
     Invalidate a specific namespace from the cache.
 
-    This should be called after creating or deleting a specific namespace.
+    Note: Currently a no-op since we removed the process-wide cache
+    to avoid ASGI request cross-pollution. Reserved for future
+    per-request caching implementation.
 
     Args:
         namespace_id: The namespace ID to remove from cache
     """
-    global _namespace_cache
-    # Normalize to lowercase for consistent cache keys
-    normalized_id = namespace_id.lower().strip()
-    if normalized_id in _namespace_cache:
-        del _namespace_cache[normalized_id]
-        logger.debug(f"Invalidated namespace cache for: {normalized_id}")
+    logger.debug(f"Namespace cache invalidation requested for: {namespace_id} (no-op)")
 
 
 def validate_namespace_exists(namespace_id: str, memory_bank, raise_error: bool = True) -> bool:
@@ -79,26 +71,18 @@ def validate_namespace_exists(namespace_id: str, memory_bank, raise_error: bool 
     if normalized_id == DEFAULT_NAMESPACE:
         return True
 
-    # Check cache first
-    if normalized_id in _namespace_cache:
-        exists = _namespace_cache[normalized_id]
-        if not exists and raise_error:
-            raise KeyError(f"Namespace does not exist: {namespace_id}")
-        return exists
-
     # Check memory bank using high-level interface
     try:
         # Use namespace_exists if available (more efficient)
         if hasattr(memory_bank, "namespace_exists"):
-            exists = memory_bank.namespace_exists(normalized_id)
+            exists = memory_bank.namespace_exists(
+                namespace_id
+            )  # Pass original casing, method handles normalization
         else:
             # Fall back to direct query via dolt_reader with case-insensitive comparison
             query = "SELECT id FROM namespaces WHERE LOWER(id) = %s"
             result = memory_bank.dolt_reader._execute_query(query, (normalized_id,))
             exists = len(result) > 0
-
-        # Cache result using normalized key
-        _namespace_cache[normalized_id] = exists
 
         if not exists and raise_error:
             raise KeyError(f"Namespace does not exist: {namespace_id}")
@@ -132,8 +116,6 @@ def validate_namespaces_exist(
     """
     result: Dict[str, bool] = {}
     missing_namespaces = []
-
-    # First check cache and validate format
     remaining_ids = set()
     normalized_to_original = {}  # Track original casing
 
@@ -156,15 +138,10 @@ def validate_namespaces_exist(
             result[namespace_id] = True
             continue
 
-        # Check cache
-        if normalized_id in _namespace_cache:
-            result[namespace_id] = _namespace_cache[normalized_id]
-            if not result[namespace_id]:
-                missing_namespaces.append(namespace_id)
-        else:
-            remaining_ids.add(normalized_id)
+        # All namespaces need checking since we removed the cache
+        remaining_ids.add(normalized_id)
 
-    # If there are any remaining IDs not in cache, check them
+    # Check all remaining namespaces
     if remaining_ids:
         try:
             # Build bulk query for remaining namespaces with case-insensitive comparison
@@ -175,12 +152,11 @@ def validate_namespaces_exist(
             # Extract existing namespace IDs (normalized)
             existing_normalized_ids = {row["normalized_id"] for row in existing_results}
 
-            # Update results and cache
+            # Update results
             for normalized_id in remaining_ids:
                 original_id = normalized_to_original[normalized_id]
                 exists = normalized_id in existing_normalized_ids
                 result[original_id] = exists
-                _namespace_cache[normalized_id] = exists
                 if not exists:
                     missing_namespaces.append(original_id)
 
