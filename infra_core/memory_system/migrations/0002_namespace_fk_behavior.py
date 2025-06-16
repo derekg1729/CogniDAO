@@ -46,7 +46,7 @@ def _drop_constraint_safe(runner: "MigrationRunner", constraint_name: str) -> bo
         runner._execute_update(drop_sql)
         logger.info(f"Dropped constraint: {constraint_name}")
         return True
-    except mysql.connector.Error as e:
+    except Exception as e:
         # Check if error is "constraint doesn't exist" vs other errors
         error_msg = str(e).lower()
         if any(
