@@ -115,6 +115,11 @@ from infra_core.memory_system.tools.agent_facing.dolt_namespace_tool import (
     ListNamespacesInput,
     ListNamespacesOutput,
 )
+from infra_core.memory_system.tools.agent_facing.create_namespace_tool import (
+    create_namespace_tool,
+    CreateNamespaceInput,
+    CreateNamespaceOutput,
+)
 
 
 # Configure logging
@@ -1016,6 +1021,44 @@ async def list_namespaces(input):
             active_branch="unknown",
             message=f"Namespace listing failed: {str(e)}",
             error=f"Error during list_namespaces: {str(e)}",
+        ).model_dump(mode="json")
+
+
+# Register the CreateNamespace tool
+@mcp.tool("CreateNamespace")
+async def create_namespace(input):
+    """Create a new namespace in the database
+
+    Args:
+        id: Unique namespace identifier (e.g., 'cogni-project-management')
+        name: Human-readable namespace name (e.g., 'Cogni Project Management')
+        slug: URL-safe namespace identifier (defaults to id if not provided)
+        owner_id: ID of the namespace owner (defaults to 'system')
+        description: Optional description of the namespace
+        is_active: Whether the namespace is active (defaults to True)
+
+    Returns:
+        success: Whether the operation succeeded
+        namespace_id: ID of the created namespace
+        message: Human-readable result message
+        active_branch: Current active branch
+        error: Error message if operation failed
+        timestamp: Timestamp of operation
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = CreateNamespaceInput(**input)
+        result = create_namespace_tool(parsed_input, memory_bank=get_memory_bank())
+        return result.model_dump(mode="json")
+
+    except Exception as e:
+        logger.error(f"Error in CreateNamespace MCP tool: {e}")
+        return CreateNamespaceOutput(
+            success=False,
+            namespace_id=None,
+            message=f"Namespace creation failed: {str(e)}",
+            active_branch="unknown",
+            error=f"Error during create_namespace: {str(e)}",
         ).model_dump(mode="json")
 
 
