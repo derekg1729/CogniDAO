@@ -160,10 +160,11 @@ async def get_block(
     try:
         # Wrap blocking I/O in threadpool to prevent event loop blocking
         loop = asyncio.get_event_loop()
+        # Don't pass namespace_id to avoid validation error - we'll filter after retrieval
         output = await loop.run_in_executor(
             None,
             lambda: get_memory_block_tool(
-                block_id=block_id, memory_bank=memory_bank, branch=branch, namespace_id=namespace
+                block_id=block_id, memory_bank=memory_bank, branch=branch
             ),
         )
     except Exception as e:
@@ -176,12 +177,24 @@ async def get_block(
 
     # 3. Handle the output from the tool
     if output.success and len(output.blocks) > 0:
+        block = output.blocks[0]
+
+        # Validate namespace if specified
+        if namespace and block.namespace_id != namespace:
+            logger.warning(
+                f"Block {block_id} found but belongs to namespace '{block.namespace_id}', not '{namespace}'"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Memory block with ID '{block_id}' not found in namespace '{namespace}'",
+            )
+
         # Get active branch from memory bank
         active_branch = getattr(memory_bank.dolt_writer, "active_branch", "unknown")
 
         # Return the enhanced response with branch context
         return SingleBlockResponse.create_with_timestamp(
-            block=output.blocks[0],  # Now properly typed as MemoryBlock
+            block=block,  # Now properly typed as MemoryBlock
             active_branch=active_branch,
             requested_branch=branch,
         )
