@@ -262,6 +262,20 @@ class StructuredMemoryBank:
                 f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in ve.errors()
             ]
             return False, f"Block validation failed: {'; '.join(simple_errors)}"
+
+        # Validate namespace exists
+        try:
+            from .tools.helpers.namespace_validation import validate_namespace_exists
+
+            validate_namespace_exists(block.namespace_id, self, raise_error=True)
+        except KeyError as e:
+            error_msg = f"Namespace validation failed: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+        except Exception as e:
+            error_msg = f"Namespace validation error: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
         # --- END VALIDATION PHASE ---
 
         # --- ATOMIC PERSISTENCE PHASE ---
@@ -455,6 +469,20 @@ class StructuredMemoryBank:
             ]
             error_details = "\n- ".join(field_errors)
             logger.error(f"Validation failed for block {block.id}:\n- {error_details}")
+            return False
+
+        # Validate namespace exists
+        try:
+            from .tools.helpers.namespace_validation import validate_namespace_exists
+
+            validate_namespace_exists(block.namespace_id, self, raise_error=True)
+        except KeyError as e:
+            error_msg = f"Namespace validation failed: {str(e)}"
+            logger.error(error_msg)
+            return False
+        except Exception as e:
+            error_msg = f"Namespace validation error: {str(e)}"
+            logger.error(error_msg)
             return False
         # --- END VALIDATION PHASE ---
 
