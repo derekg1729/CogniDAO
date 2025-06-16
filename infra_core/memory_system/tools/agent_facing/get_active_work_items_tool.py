@@ -48,6 +48,7 @@ class GetActiveWorkItemsOutput(BaseModel):
         description="The retrieved active work items, sorted by priority then creation date.",
     )
     total_count: int = Field(0, description="Total number of active work items found")
+    current_branch: Optional[str] = Field(None, description="Current Dolt branch")
     error: Optional[str] = Field(None, description="Error message if operation failed.")
     timestamp: datetime = Field(
         default_factory=datetime.now, description="Timestamp of when the operation was performed."
@@ -104,7 +105,11 @@ def get_active_work_items(
             metadata_filters["priority"] = input_data.priority_filter
 
         # Build core input for filtering work item types
-        core_input_params = {"metadata_filters": metadata_filters, "limit": input_data.limit}
+        core_input_params = {
+            "metadata_filters": metadata_filters,
+            "limit": input_data.limit,
+            "branch": memory_bank.dolt_writer.active_branch,  # Use current active branch
+        }
 
         # Add work item type filter if specified
         if input_data.work_item_type_filter:
@@ -122,7 +127,10 @@ def get_active_work_items(
 
         if not core_result.success:
             return GetActiveWorkItemsOutput(
-                success=False, error=core_result.error, timestamp=datetime.now()
+                success=False,
+                error=core_result.error,
+                current_branch=core_result.current_branch,
+                timestamp=datetime.now(),
             )
 
         # Filter for work item types if no specific type was requested
@@ -140,13 +148,23 @@ def get_active_work_items(
             success=True,
             work_items=sorted_work_items,
             total_count=len(sorted_work_items),
+            current_branch=core_result.current_branch,
             timestamp=datetime.now(),
         )
 
     except Exception as e:
         error_msg = f"Agent-facing get_active_work_items failed: {str(e)}"
         logger.error(error_msg, exc_info=True)
-        return GetActiveWorkItemsOutput(success=False, error=error_msg, timestamp=datetime.now())
+
+        # Try to get current branch even in error case
+        try:
+            current_branch = memory_bank.dolt_writer.active_branch
+        except Exception:
+            current_branch = "unknown"
+
+        return GetActiveWorkItemsOutput(
+            success=False, error=error_msg, current_branch=current_branch, timestamp=datetime.now()
+        )
 
 
 # Convenience function for backward compatibility
@@ -167,4 +185,13 @@ def get_active_work_items_tool(memory_bank=None, **kwargs) -> GetActiveWorkItems
     except Exception as e:
         error_msg = f"Validation error: {str(e)}"
         logger.error(error_msg)
-        return GetActiveWorkItemsOutput(success=False, error=error_msg, timestamp=datetime.now())
+
+        # Try to get current branch even in error case
+        try:
+            current_branch = memory_bank.dolt_writer.active_branch if memory_bank else "unknown"
+        except Exception:
+            current_branch = "unknown"
+
+        return GetActiveWorkItemsOutput(
+            success=False, error=error_msg, current_branch=current_branch, timestamp=datetime.now()
+        )
