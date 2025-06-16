@@ -87,11 +87,11 @@ def _migrate_existing_blocks(runner):
     """Update existing memory_blocks to reference the public namespace."""
     logger.info("Migrating existing memory blocks to public namespace")
 
-    # Count blocks that need migration (where namespace_id is NULL or empty)
+    # Count blocks that need migration (where namespace_id is NULL or empty/whitespace)
     count_query = """
     SELECT COUNT(*) as count 
     FROM memory_blocks 
-    WHERE namespace_id IS NULL OR namespace_id = ''
+    WHERE COALESCE(NULLIF(TRIM(namespace_id),''),NULL) IS NULL
     """
 
     count_result = runner._execute_query(count_query)
@@ -107,7 +107,7 @@ def _migrate_existing_blocks(runner):
     update_query = """
     UPDATE memory_blocks 
     SET namespace_id = %s 
-    WHERE namespace_id IS NULL OR namespace_id = ''
+    WHERE COALESCE(NULLIF(TRIM(namespace_id),''),NULL) IS NULL
     """
 
     try:
@@ -142,11 +142,12 @@ def _add_not_null_constraint(runner):
         logger.info("namespace_id column already has NOT NULL constraint")
         return
 
-    # Add NOT NULL constraint
+    # Add NOT NULL constraint with DEFAULT value
     # Note: In MySQL/Dolt, we need to use MODIFY COLUMN to change nullability
+    # Keep VARCHAR(255) to match existing schema and add DEFAULT 'public'
     alter_query = """
     ALTER TABLE memory_blocks 
-    MODIFY COLUMN namespace_id CHAR(36) NOT NULL
+    MODIFY COLUMN namespace_id VARCHAR(255) NOT NULL DEFAULT 'public'
     """
 
     try:
@@ -173,7 +174,7 @@ def rollback(runner):
     try:
         alter_query = """
         ALTER TABLE memory_blocks 
-        MODIFY COLUMN namespace_id CHAR(36) NULL
+        MODIFY COLUMN namespace_id VARCHAR(255) NULL
         """
         runner._execute_update(alter_query)
         logger.info("Removed NOT NULL constraint from namespace_id")

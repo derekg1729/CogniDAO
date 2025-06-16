@@ -5,11 +5,15 @@
 This module provides a MigrationRunner class that subclasses DoltMySQLBase
 to execute migrations through the Dolt SQL server connection.
 
+Following the DoltHub recommended "Schema Branch and Merge" pattern:
+https://www.dolthub.com/blog/2024-04-18-dolt-schema-migrations/
+
 Key features:
 - Discovers migration files in the migrations directory
 - Tracks applied migrations in a migrations table
 - Executes migrations in order with proper error handling
-- Refuses to run on protected branches (main, master)
+- Restricts execution to schema-related branches only
+- Provides transactional migration execution
 - Provides idempotent migration execution
 """
 
@@ -28,6 +32,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Schema branch patterns - following DoltHub recommendations
+SCHEMA_BRANCH_PATTERNS = ["schema", "schema-update", "schema-migration", "migrations", "schema-dev"]
+
 
 class MigrationError(Exception):
     """Exception raised when migration operations fail."""
@@ -41,12 +48,54 @@ class MigrationRunner(DoltMySQLBase):
 
     Subclasses DoltMySQLBase to leverage connection management and branch protection.
     Maintains a migrations table to track which migrations have been applied.
+
+    Following DoltHub's "Schema Branch and Merge" pattern, this runner only
+    operates on dedicated schema branches to isolate schema changes.
     """
 
     def __init__(self, config: DoltConnectionConfig):
         super().__init__(config)
         self.migrations_dir = Path(__file__).parent
         self._ensure_migrations_table()
+
+    def _is_schema_branch(self, branch: str) -> bool:
+        """
+        Check if a branch is a valid schema branch for migrations.
+
+        Following DoltHub recommendations, migrations should only run on
+        dedicated schema branches, not on main data branches.
+
+        Args:
+            branch: Branch name to check
+
+        Returns:
+            True if branch is a valid schema branch
+        """
+        branch_lower = branch.lower()
+        return any(pattern in branch_lower for pattern in SCHEMA_BRANCH_PATTERNS)
+
+    def _check_schema_branch_restriction(self, operation: str, target_branch: str) -> None:
+        """
+        Check if the operation is attempting to run on a non-schema branch.
+
+        Args:
+            operation: Description of the operation being attempted
+            target_branch: The specific branch being targeted
+
+        Raises:
+            MigrationError: If attempting to run migrations on non-schema branch
+        """
+        if not self._is_schema_branch(target_branch):
+            logger.error(
+                f"Blocked {operation} on non-schema branch '{target_branch}' - "
+                f"migrations should only run on schema branches: {SCHEMA_BRANCH_PATTERNS}"
+            )
+            raise MigrationError(
+                f"Migration {operation} blocked: branch '{target_branch}' is not a schema branch. "
+                f"Use a branch containing one of: {SCHEMA_BRANCH_PATTERNS}"
+            )
+
+        logger.debug(f"Schema branch check passed: {operation} on branch '{target_branch}'")
 
     def _ensure_migrations_table(self) -> None:
         """Create the migrations tracking table if it doesn't exist."""
@@ -63,6 +112,56 @@ class MigrationRunner(DoltMySQLBase):
             logger.debug("Migrations table ensured")
         except Exception as e:
             raise MigrationError(f"Failed to create migrations table: {e}")
+
+    def _execute_in_transaction(self, operation_func, *args, **kwargs):
+        """
+        Execute an operation within a transaction for safety.
+
+        Args:
+            operation_func: Function to execute within transaction
+            *args, **kwargs: Arguments to pass to operation_func
+
+        Returns:
+            Result of operation_func
+
+        Raises:
+            MigrationError: If transaction fails
+        """
+        # Use persistent connection if available, otherwise create new one
+        if self._use_persistent and self._persistent_connection:
+            connection = self._persistent_connection
+            connection_is_persistent = True
+        else:
+            connection = self._get_connection()
+            connection_is_persistent = False
+
+        try:
+            # Start transaction
+            cursor = connection.cursor()
+            cursor.execute("START TRANSACTION")
+
+            try:
+                # Execute the operation
+                result = operation_func(*args, **kwargs)
+
+                # Commit transaction
+                cursor.execute("COMMIT")
+                logger.debug("Transaction committed successfully")
+                return result
+
+            except Exception as e:
+                # Rollback on any error
+                cursor.execute("ROLLBACK")
+                logger.error(f"Transaction rolled back due to error: {e}")
+                raise
+            finally:
+                cursor.close()
+
+        except Exception as e:
+            raise MigrationError(f"Transaction execution failed: {e}")
+        finally:
+            if not connection_is_persistent:
+                connection.close()
 
     def discover_migrations(self) -> List[str]:
         """
@@ -132,9 +231,41 @@ class MigrationRunner(DoltMySQLBase):
 
         return module
 
+    def _apply_migration_unsafe(self, migration_id: str) -> bool:
+        """
+        Apply a single migration without transaction wrapper.
+
+        This is the internal implementation called within a transaction.
+
+        Args:
+            migration_id: The migration identifier to apply
+
+        Returns:
+            True if migration was applied successfully
+        """
+        logger.info(f"Applying migration: {migration_id}")
+
+        # Load the migration module
+        migration_module = self._load_migration_module(migration_id)
+
+        # Check for required apply function
+        if not hasattr(migration_module, "apply"):
+            raise MigrationError(f"Migration {migration_id} missing apply() function")
+
+        # Execute the migration
+        migration_module.apply(self)
+
+        # Record successful application
+        insert_sql = "INSERT INTO migrations (id, success) VALUES (%s, %s)"
+        self._execute_update(insert_sql, (migration_id, True))
+
+        # Note: CREATE/ALTER statements return 0 affected rows, which is normal
+        logger.info(f"Migration {migration_id} applied successfully")
+        return True
+
     def apply(self, migration_id: str) -> bool:
         """
-        Apply a single migration.
+        Apply a single migration with transaction safety.
 
         Args:
             migration_id: The migration identifier to apply
@@ -146,25 +277,9 @@ class MigrationRunner(DoltMySQLBase):
             logger.info(f"Migration {migration_id} already applied, skipping")
             return True
 
-        logger.info(f"Applying migration: {migration_id}")
-
         try:
-            # Load the migration module
-            migration_module = self._load_migration_module(migration_id)
-
-            # Check for required apply function
-            if not hasattr(migration_module, "apply"):
-                raise MigrationError(f"Migration {migration_id} missing apply() function")
-
-            # Execute the migration
-            migration_module.apply(self)
-
-            # Record successful application
-            insert_sql = "INSERT INTO migrations (id, success) VALUES (%s, %s)"
-            self._execute_update(insert_sql, (migration_id, True))
-
-            logger.info(f"Migration {migration_id} applied successfully")
-            return True
+            # Execute migration within transaction
+            return self._execute_in_transaction(self._apply_migration_unsafe, migration_id)
 
         except Exception as e:
             error_msg = f"Migration {migration_id} failed: {e}"
@@ -181,19 +296,24 @@ class MigrationRunner(DoltMySQLBase):
 
             raise MigrationError(error_msg)
 
-    def run_until(self, target_migration: Optional[str] = None) -> bool:
+    def run_until(self, target_migration: Optional[str] = None, force: bool = False) -> bool:
         """
         Run migrations up to and including the target migration.
 
         Args:
             target_migration: Migration ID to run until (None = run all)
+            force: Skip schema branch restriction (use with caution)
 
         Returns:
             True if all migrations were applied successfully
         """
-        # Check branch protection
+        # Check branch protection (unless forced)
         current_branch = self.active_branch
         self._check_branch_protection("migration execution", current_branch)
+
+        # Check schema branch restriction (unless forced)
+        if not force:
+            self._check_schema_branch_restriction("migration execution", current_branch)
 
         logger.info(f"Starting migration run on branch: {current_branch}")
 
@@ -231,20 +351,29 @@ class MigrationRunner(DoltMySQLBase):
 def main():
     """CLI entry point for the migration runner."""
     parser = argparse.ArgumentParser(
-        description="Run Dolt database migrations",
+        description="Run Dolt database migrations on schema branches",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python -m infra_core.migrations.runner --branch schema-update
-  python -m infra_core.migrations.runner --branch feat/namespaces --target 0001_namespace_seed
+  python -m infra_core.memory_system.migrations.runner --branch schema-update
+  python -m infra_core.memory_system.migrations.runner --branch schema-dev --target 0001_namespace_seed
+  python -m infra_core.memory_system.migrations.runner --branch main --force  # Use with caution!
+
+Schema Branch Pattern:
+  Following DoltHub recommendations, migrations should run on dedicated schema branches.
+  Valid branch names must contain one of: schema, schema-update, schema-migration, migrations, schema-dev
         """,
     )
 
     parser.add_argument(
-        "--branch", required=True, help="Dolt branch to run migrations on (required for safety)"
+        "--branch", required=True, help="Dolt branch to run migrations on (must be a schema branch)"
     )
 
     parser.add_argument("--target", help="Target migration to run until (default: run all)")
+
+    parser.add_argument(
+        "--force", action="store_true", help="Skip schema branch restriction (use with caution)"
+    )
 
     parser.add_argument(
         "--dry-run",
@@ -288,7 +417,7 @@ Examples:
 
         else:
             # Run the migrations
-            success = runner.run_until(args.target)
+            success = runner.run_until(args.target, force=args.force)
             if not success:
                 logger.error("Migration run failed")
                 sys.exit(1)
