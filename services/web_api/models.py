@@ -21,6 +21,9 @@ from infra_core.memory_system.schemas.memory_block import MemoryBlock
 # Import DoltBranchInfo for proper branch typing
 from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import DoltBranchInfo
 
+# Import NamespaceInfo for proper namespace typing
+from infra_core.memory_system.tools.agent_facing.dolt_namespace_tool import NamespaceInfo
+
 # Import relation types for validation
 
 
@@ -168,6 +171,18 @@ class BranchesResponse(BranchContextResponse):
         ..., description="List of all available Dolt branches with metadata"
     )
     total_branches: int = Field(..., description="Total number of branches available")
+
+
+class NamespacesResponse(BranchContextResponse):
+    """
+    Enhanced response for namespaces endpoint that includes current context.
+    Uses proper NamespaceInfo typing for frontend TypeScript generation.
+    """
+
+    namespaces: List[NamespaceInfo] = Field(
+        ..., description="List of all available namespaces with metadata"
+    )
+    total_count: int = Field(..., description="Total number of namespaces available")
 
 
 class SingleBlockResponse(BranchContextResponse):

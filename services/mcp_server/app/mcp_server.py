@@ -110,6 +110,11 @@ from infra_core.memory_system.tools.agent_facing.bulk_create_links_tool import (
     BulkCreateLinksInput,
     BulkCreateLinksOutput,
 )
+from infra_core.memory_system.tools.agent_facing.dolt_namespace_tool import (
+    list_namespaces_tool,
+    ListNamespacesInput,
+    ListNamespacesOutput,
+)
 
 
 # Configure logging
@@ -980,6 +985,37 @@ async def dolt_list_branches(input):
             active_branch="unknown",
             message=f"Branch listing failed: {str(e)}",
             error=f"Error during dolt_list_branches: {str(e)}",
+        ).model_dump(mode="json")
+
+
+@mcp.tool("ListNamespaces")
+async def list_namespaces(input):
+    """List all available namespaces with their metadata
+
+    Returns:
+        success: Whether the operation succeeded
+        namespaces: List of namespace information objects
+        total_count: Total number of namespaces
+        message: Human-readable result message
+        active_branch: Current active branch
+        error: Error message if operation failed
+        timestamp: Timestamp of operation
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = ListNamespacesInput(**input)
+        result = list_namespaces_tool(parsed_input, memory_bank=get_memory_bank())
+        return result.model_dump(mode="json")
+
+    except Exception as e:
+        logger.error(f"Error in ListNamespaces MCP tool: {e}")
+        return ListNamespacesOutput(
+            success=False,
+            namespaces=[],
+            total_count=0,
+            active_branch="unknown",
+            message=f"Namespace listing failed: {str(e)}",
+            error=f"Error during list_namespaces: {str(e)}",
         ).model_dump(mode="json")
 
 
