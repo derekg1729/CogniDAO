@@ -96,6 +96,14 @@ class InconsistentStateError(Exception):
             message += f" (block_id: {block_id})"
         super().__init__(message)
 
+    def __str__(self) -> str:
+        """Return a human-readable string representation of the error."""
+        base_msg = f"Memory bank inconsistency detected: {self.reason}"
+        if self.block_id:
+            base_msg += f"\nAffected block ID: {self.block_id}"
+        base_msg += "\nPlease check logs for details and contact system administrator."
+        return base_msg
+
 
 class StructuredMemoryBank:
     """
@@ -169,7 +177,7 @@ class StructuredMemoryBank:
         """
         return self._is_consistent
 
-    def _mark_inconsistent(self, reason: str, block_id: Optional[str] = None):
+    def _mark_inconsistent(self, reason: str, block_id: str | None = None) -> None:
         """
         Marks the memory bank as inconsistent and logs a critical error.
 
@@ -1176,18 +1184,23 @@ class StructuredMemoryBank:
         self.close_persistent_connections()
         return "Persistent connections closed - ready for commit test"
 
-    def debug_persistent_state(self) -> Dict[str, Any]:
+    def debug_persistent_state(self, force: bool = False) -> Dict[str, Any]:
         """
         Debug method to check persistent connection state.
 
         This method is only available in debug mode to prevent accidental
         exposure of internal state in production environments.
 
+        Args:
+            force: If True, bypass the debug mode check (use with caution!)
+
         Returns:
             Dictionary with debug information about persistent connections
         """
-        if not __debug__:
-            raise RuntimeError("debug_persistent_state() is only available in debug mode")
+        if not __debug__ and not force:
+            raise RuntimeError(
+                "debug_persistent_state() is only available in debug mode unless force=True"
+            )
 
         return {
             "memory_bank_branch": self.branch,
