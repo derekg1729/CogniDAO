@@ -29,6 +29,9 @@ class CreateMemoryBlockInput(BaseModel):
         ..., description="Type of memory block to create (must be registered in schema registry)"
     )
     text: str = Field(..., description="Primary content of the memory block")
+    namespace_id: str = Field(
+        "legacy", description="Namespace ID for multi-tenant organization (defaults to 'legacy')"
+    )
     state: Optional[Literal["draft", "published", "archived"]] = Field(
         "draft", description="Initial state of the block"
     )
@@ -129,6 +132,7 @@ def create_memory_block(
         block = MemoryBlock(
             type=input_data.type,
             text=input_data.text,
+            namespace_id=input_data.namespace_id,
             state=input_data.state,
             visibility=input_data.visibility,
             tags=input_data.tags,

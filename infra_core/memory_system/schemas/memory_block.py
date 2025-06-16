@@ -25,7 +25,7 @@ class MemoryBlock(BaseModel):
         description="Globally unique ID for this memory block",
     )
     namespace_id: str = Field(
-        default="public", description="Foreign key to namespaces.id for multi-tenant organization"
+        default="legacy", description="Foreign key to namespaces.id for multi-tenant organization"
     )
     type: Literal["knowledge", "task", "project", "doc", "interaction", "log", "epic", "bug"] = (
         Field(..., description="Block type used to determine structure and relationships")

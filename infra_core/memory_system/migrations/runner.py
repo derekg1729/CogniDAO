@@ -260,6 +260,9 @@ class MigrationRunner(DoltMySQLBase):
         """
         logger.info(f"Applying migration: {migration_id}")
 
+        # Ensure migrations table exists on current branch (schema branches don't inherit it)
+        self._ensure_migrations_table()
+
         # Load the migration module
         migration_module = self._load_migration_module(migration_id)
 

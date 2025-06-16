@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-"""Migration 0001: Seed default 'public' namespace and migrate existing memory blocks.
+"""Migration 0001: Seed default 'legacy' namespace and migrate existing memory blocks.
 
 This migration implements the namespace seeding strategy:
-1. INSERT the default 'public' namespace
-2. UPDATE all existing memory_blocks to reference the public namespace
+1. INSERT the default 'legacy' namespace
+2. UPDATE all existing memory_blocks to reference the legacy namespace
 3. ALTER TABLE to add NOT NULL constraint on namespace_id
 
 This migration is idempotent and can be safely re-run.
@@ -15,12 +15,12 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-# Default public namespace configuration
-PUBLIC_NAMESPACE_ID = "public"
-PUBLIC_NAMESPACE_NAME = "Public"
-PUBLIC_NAMESPACE_SLUG = "public"
-PUBLIC_NAMESPACE_OWNER_ID = "system"
-PUBLIC_NAMESPACE_DESCRIPTION = "Default public namespace for shared memory blocks"
+# Default legacy namespace configuration
+LEGACY_NAMESPACE_ID = "legacy"
+LEGACY_NAMESPACE_NAME = "Legacy"
+LEGACY_NAMESPACE_SLUG = "legacy"
+LEGACY_NAMESPACE_OWNER_ID = "system"
+LEGACY_NAMESPACE_DESCRIPTION = "Default legacy namespace for pre-migration memory blocks"
 
 
 def apply(runner):
@@ -32,10 +32,14 @@ def apply(runner):
     """
     logger.info("Starting namespace seeding migration")
 
-    # Step 1: Insert the default 'public' namespace if it doesn't exist
-    _ensure_public_namespace(runner)
+    # Step 0: Create schema (tables and columns) if they don't exist
+    _create_namespaces_table(runner)
+    _add_namespace_id_column(runner)
 
-    # Step 2: Update existing memory_blocks to reference public namespace
+    # Step 1: Insert the default 'legacy' namespace if it doesn't exist
+    _ensure_legacy_namespace(runner)
+
+    # Step 2: Update existing memory_blocks to reference legacy namespace
     _migrate_existing_blocks(runner)
 
     # Step 3: Add NOT NULL constraint to namespace_id (if not already present)
@@ -44,19 +48,91 @@ def apply(runner):
     logger.info("Namespace seeding migration completed successfully")
 
 
-def _ensure_public_namespace(runner):
-    """Insert the public namespace if it doesn't already exist."""
-    logger.info("Ensuring public namespace exists")
+def _create_namespaces_table(runner):
+    """Create the namespaces table if it doesn't exist."""
+    logger.info("Creating namespaces table if it doesn't exist")
 
-    # Check if public namespace already exists
-    check_query = "SELECT id FROM namespaces WHERE id = %s"
-    existing = runner._execute_query(check_query, (PUBLIC_NAMESPACE_ID,))
+    # Check if table already exists
+    check_query = "SHOW TABLES LIKE 'namespaces'"
+    existing = runner._execute_query(check_query)
 
     if existing:
-        logger.info("Public namespace already exists, skipping creation")
+        logger.info("Namespaces table already exists, skipping creation")
         return
 
-    # Insert the public namespace
+    # Create namespaces table (without indexes first)
+    create_query = """
+    CREATE TABLE namespaces (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(255) NOT NULL,
+        owner_id VARCHAR(255) NOT NULL,
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        description TEXT,
+        is_active BOOLEAN DEFAULT TRUE
+    )
+    """
+
+    try:
+        runner._execute_update(create_query)
+        logger.info("Successfully created namespaces table")
+
+        # Add unique constraint on slug
+        runner._execute_update("ALTER TABLE namespaces ADD UNIQUE KEY uk_namespaces_slug (slug)")
+        logger.info("Added unique constraint on slug")
+
+        # Skip explicit index on owner_id for now - can be added later if needed
+        logger.info("Skipping owner_id index to avoid Dolt duplicate index issues")
+
+    except Exception as e:
+        logger.error(f"Failed to create namespaces table: {e}")
+        raise
+
+
+def _add_namespace_id_column(runner):
+    """Add namespace_id column to memory_blocks table if it doesn't exist."""
+    logger.info("Adding namespace_id column to memory_blocks if it doesn't exist")
+
+    # Check if column already exists
+    describe_query = "DESCRIBE memory_blocks"
+    columns = runner._execute_query(describe_query)
+
+    # Check if namespace_id column exists
+    namespace_id_exists = any(col["Field"] == "namespace_id" for col in columns)
+
+    if namespace_id_exists:
+        logger.info("namespace_id column already exists in memory_blocks, skipping creation")
+        return
+
+    # Add namespace_id column
+    alter_query = """
+    ALTER TABLE memory_blocks 
+    ADD COLUMN namespace_id VARCHAR(255) NULL DEFAULT NULL,
+    ADD INDEX idx_memory_blocks_namespace (namespace_id)
+    """
+
+    try:
+        runner._execute_update(alter_query)
+        logger.info("Successfully added namespace_id column to memory_blocks")
+    except Exception as e:
+        logger.error(f"Failed to add namespace_id column: {e}")
+        raise
+
+
+def _ensure_legacy_namespace(runner):
+    """Insert the legacy namespace if it doesn't already exist."""
+    logger.info("Ensuring legacy namespace exists")
+
+    # Check if legacy namespace already exists
+    check_query = "SELECT id FROM namespaces WHERE id = %s"
+    existing = runner._execute_query(check_query, (LEGACY_NAMESPACE_ID,))
+
+    if existing:
+        logger.info("Legacy namespace already exists, skipping creation")
+        return
+
+    # Insert the legacy namespace
     insert_query = """
     INSERT INTO namespaces (id, name, slug, owner_id, created_at, description)
     VALUES (%s, %s, %s, %s, %s, %s)
@@ -64,28 +140,28 @@ def _ensure_public_namespace(runner):
 
     current_time = datetime.utcnow()
     params = (
-        PUBLIC_NAMESPACE_ID,
-        PUBLIC_NAMESPACE_NAME,
-        PUBLIC_NAMESPACE_SLUG,
-        PUBLIC_NAMESPACE_OWNER_ID,
+        LEGACY_NAMESPACE_ID,
+        LEGACY_NAMESPACE_NAME,
+        LEGACY_NAMESPACE_SLUG,
+        LEGACY_NAMESPACE_OWNER_ID,
         current_time,
-        PUBLIC_NAMESPACE_DESCRIPTION,
+        LEGACY_NAMESPACE_DESCRIPTION,
     )
 
     try:
         runner._execute_update(insert_query, params)
-        logger.info(f"Created public namespace with ID: {PUBLIC_NAMESPACE_ID}")
+        logger.info(f"Created legacy namespace with ID: {LEGACY_NAMESPACE_ID}")
     except Exception as e:
         # Check if this is a duplicate key error (race condition)
         if "duplicate" in str(e).lower() or "unique" in str(e).lower():
-            logger.info("Public namespace was created by another process, continuing")
+            logger.info("Legacy namespace was created by another process, continuing")
         else:
             raise
 
 
 def _migrate_existing_blocks(runner):
-    """Update existing memory_blocks to reference the public namespace."""
-    logger.info("Migrating existing memory blocks to public namespace")
+    """Update existing memory_blocks to reference the legacy namespace."""
+    logger.info("Migrating existing memory blocks to legacy namespace")
 
     # Count blocks that need migration (where namespace_id is NULL or empty/whitespace)
     count_query = """
@@ -101,9 +177,9 @@ def _migrate_existing_blocks(runner):
         logger.info("No memory blocks need namespace migration")
         return
 
-    logger.info(f"Found {blocks_to_migrate} memory blocks to migrate to public namespace")
+    logger.info(f"Found {blocks_to_migrate} memory blocks to migrate to legacy namespace")
 
-    # Update blocks to reference public namespace
+    # Update blocks to reference legacy namespace
     update_query = """
     UPDATE memory_blocks 
     SET namespace_id = %s 
@@ -111,8 +187,8 @@ def _migrate_existing_blocks(runner):
     """
 
     try:
-        rows_updated = runner._execute_update(update_query, (PUBLIC_NAMESPACE_ID,))
-        logger.info(f"Successfully migrated {rows_updated} memory blocks to public namespace")
+        rows_updated = runner._execute_update(update_query, (LEGACY_NAMESPACE_ID,))
+        logger.info(f"Successfully migrated {rows_updated} memory blocks to legacy namespace")
     except Exception as e:
         logger.error(f"Failed to migrate memory blocks: {e}")
         raise
@@ -144,10 +220,10 @@ def _add_not_null_constraint(runner):
 
     # Add NOT NULL constraint with DEFAULT value
     # Note: In MySQL/Dolt, we need to use MODIFY COLUMN to change nullability
-    # Keep VARCHAR(255) to match existing schema and add DEFAULT 'public'
+    # Keep VARCHAR(255) to match existing schema and add DEFAULT 'legacy'
     alter_query = """
     ALTER TABLE memory_blocks 
-    MODIFY COLUMN namespace_id VARCHAR(255) NOT NULL DEFAULT 'public'
+    MODIFY COLUMN namespace_id VARCHAR(255) NOT NULL DEFAULT 'legacy'
     """
 
     try:
@@ -184,7 +260,7 @@ def rollback(runner):
     # Step 2: Reset memory_blocks namespace_id to NULL
     try:
         update_query = "UPDATE memory_blocks SET namespace_id = NULL WHERE namespace_id = %s"
-        rows_updated = runner._execute_update(update_query, (PUBLIC_NAMESPACE_ID,))
+        rows_updated = runner._execute_update(update_query, (LEGACY_NAMESPACE_ID,))
         logger.info(f"Reset {rows_updated} memory blocks to NULL namespace_id")
     except Exception as e:
         logger.warning(f"Failed to reset memory blocks: {e}")
@@ -192,8 +268,8 @@ def rollback(runner):
     # Step 3: Delete public namespace
     try:
         delete_query = "DELETE FROM namespaces WHERE id = %s"
-        runner._execute_update(delete_query, (PUBLIC_NAMESPACE_ID,))
-        logger.info("Deleted public namespace")
+        runner._execute_update(delete_query, (LEGACY_NAMESPACE_ID,))
+        logger.info("Deleted legacy namespace")
     except Exception as e:
         logger.warning(f"Failed to delete public namespace: {e}")
 

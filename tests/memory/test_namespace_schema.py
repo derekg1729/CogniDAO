@@ -76,10 +76,10 @@ class TestMemoryBlockWithNamespace:
     """Test MemoryBlock with namespace_id field."""
 
     def test_memory_block_default_namespace(self):
-        """Test that MemoryBlock defaults to 'public' namespace."""
+        """Test that MemoryBlock defaults to 'legacy' namespace."""
         block = MemoryBlock(type="knowledge", text="Test block content")
 
-        assert block.namespace_id == "public"
+        assert block.namespace_id == "legacy"
         assert block.type == "knowledge"
         assert block.text == "Test block content"
 
@@ -104,8 +104,8 @@ class TestMemoryBlockWithNamespace:
             metadata={"source": "migration"},
         )
 
-        # Should default to public namespace
-        assert block.namespace_id == "public"
+        # Should default to legacy namespace
+        assert block.namespace_id == "legacy"
         assert block.id == "test-block-123"
         assert block.type == "doc"
         assert block.tags == ["legacy", "test"]
@@ -132,7 +132,7 @@ class TestSchemaGeneration:
         schema_sql = generate_table_schema(MemoryBlock, "memory_blocks")
 
         # Verify namespace_id field
-        assert "namespace_id VARCHAR(255) NOT NULL DEFAULT 'public'" in schema_sql
+        assert "namespace_id VARCHAR(255) NOT NULL DEFAULT 'legacy'" in schema_sql
 
         # Verify FK constraint
         assert (
@@ -212,8 +212,8 @@ class TestNamespaceIntegration:
         assert block2.namespace_id == namespace_id
         assert block1.namespace_id == block2.namespace_id
 
-    def test_public_namespace_default_behavior(self):
-        """Test that public namespace is the default for all blocks."""
+    def test_legacy_namespace_default_behavior(self):
+        """Test that legacy namespace is the default for all blocks."""
         blocks = [
             MemoryBlock(type="knowledge", text="Knowledge block"),
             MemoryBlock(type="task", text="Task block"),
@@ -221,4 +221,4 @@ class TestNamespaceIntegration:
         ]
 
         for block in blocks:
-            assert block.namespace_id == "public"
+            assert block.namespace_id == "legacy"
