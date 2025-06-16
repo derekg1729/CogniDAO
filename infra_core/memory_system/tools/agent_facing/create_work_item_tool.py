@@ -41,6 +41,11 @@ class CreateWorkItemInput(BaseModel):
     title: str = Field(..., description="Short, descriptive title of the work item")
     description: str = Field(..., description="Detailed description of the work item")
 
+    # Namespace field for multi-tenant support
+    namespace_id: str = Field(
+        "legacy", description="Namespace ID for multi-tenant organization (defaults to 'legacy')"
+    )
+
     # Common fields across work item types
     owner: Optional[str] = Field(None, description="Owner or assignee of the work item")
     status: Optional[WorkStatusLiteral] = Field(
@@ -200,6 +205,7 @@ def create_work_item(input_data: CreateWorkItemInput, memory_bank) -> CreateWork
     core_input = CoreCreateMemoryBlockInput(
         type=input_data.type,
         text=input_data.description,
+        namespace_id=input_data.namespace_id,
         metadata=final_metadata,
         tags=input_data.tags,
         source_file=input_data.source_file,

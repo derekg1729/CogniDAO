@@ -307,6 +307,7 @@ async def create_work_item(input):
         type: Type of work item to create (project, epic, task, or bug)
         title: Title of the work item
         description: Description of the work item
+        namespace_id: Namespace ID for multi-tenant organization (defaults to 'legacy')
         owner: Owner or assignee of the work item
         acceptance_criteria: List of acceptance criteria for the work item
     """
@@ -330,6 +331,7 @@ async def get_memory_block(input):
 
     Filtered Block Retrieval (specify at least one):
         type_filter: Filter by block type (knowledge, task, project, doc, interaction, bug, epic)
+        namespace_id: Optional filter by namespace ID for multi-tenant operations
         tag_filters: List of tags to filter by (all must match)
         metadata_filters: Metadata key-value pairs to filter by (exact matches)
         limit: Maximum number of results to return (1-100)

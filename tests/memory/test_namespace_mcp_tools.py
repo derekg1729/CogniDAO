@@ -22,6 +22,9 @@ from infra_core.memory_system.tools.memory_core.query_memory_blocks_tool import 
     QueryMemoryBlocksInput,
     query_memory_blocks_core,
 )
+from infra_core.memory_system.tools.memory_core.create_memory_block_tool import (
+    CreateMemoryBlockInput,
+)
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
 
 
@@ -186,24 +189,163 @@ class TestNamespaceMCPTools:
         assert namespace_ids == {"legacy", "user-123"}
 
     def test_namespace_isolation_validation(self, mock_memory_bank):
-        """Test that namespace filtering provides proper isolation."""
-        # Test that legacy namespace only sees legacy blocks
-        legacy_input = GetMemoryBlockInput(type_filter="doc", namespace_id="legacy")
-        legacy_result = get_memory_block_core(legacy_input, mock_memory_bank)
+        """Test that different namespaces properly isolate data"""
+        # This validates the complete namespace isolation workflow
 
-        # Test that user namespace only sees user blocks
-        user_input = GetMemoryBlockInput(type_filter="doc", namespace_id="user-123")
-        user_result = get_memory_block_core(user_input, mock_memory_bank)
+        # 1. Create block in default namespace
+        result_legacy = mock_memory_bank.create_memory_block(
+            CreateMemoryBlockInput(
+                type="knowledge", text="Legacy knowledge content", namespace_id="legacy"
+            )
+        )
+        assert result_legacy.success, f"Failed to create legacy block: {result_legacy.error}"
 
-        # Verify isolation
-        assert legacy_result.success is True
-        assert user_result.success is True
-        assert len(legacy_result.blocks) == 1
-        assert len(user_result.blocks) == 1
-        assert legacy_result.blocks[0].namespace_id == "legacy"
-        assert user_result.blocks[0].namespace_id == "user-123"
+        # 2. Create block in custom namespace
+        result_custom = mock_memory_bank.create_memory_block(
+            CreateMemoryBlockInput(
+                type="knowledge", text="Custom knowledge content", namespace_id="custom-tenant"
+            )
+        )
+        assert result_custom.success, f"Failed to create custom block: {result_custom.error}"
 
-        # Verify no cross-contamination
-        legacy_ids = {block.id for block in legacy_result.blocks}
-        user_ids = {block.id for block in user_result.blocks}
-        assert legacy_ids.isdisjoint(user_ids)
+        # 3. Verify namespace filtering works correctly
+        legacy_blocks = get_memory_block_core(
+            GetMemoryBlockInput(type_filter="knowledge", namespace_id="legacy"), mock_memory_bank
+        )
+        assert legacy_blocks.success, "Failed to query legacy namespace"
+        assert len([b for b in legacy_blocks.blocks if b.id == result_legacy.id]) == 1, (
+            "Legacy block not found in legacy namespace"
+        )
+        assert len([b for b in legacy_blocks.blocks if b.id == result_custom.id]) == 0, (
+            "Custom block incorrectly found in legacy namespace"
+        )
+
+        custom_blocks = get_memory_block_core(
+            GetMemoryBlockInput(type_filter="knowledge", namespace_id="custom-tenant"),
+            mock_memory_bank,
+        )
+        assert custom_blocks.success, "Failed to query custom namespace"
+        assert len([b for b in custom_blocks.blocks if b.id == result_custom.id]) == 1, (
+            "Custom block not found in custom namespace"
+        )
+        assert len([b for b in custom_blocks.blocks if b.id == result_legacy.id]) == 0, (
+            "Legacy block incorrectly found in custom namespace"
+        )
+
+    def test_create_work_item_agent_default_namespace(self, mock_memory_bank):
+        """Test CreateWorkItem with default namespace"""
+        from infra_core.memory_system.tools.agent_facing.create_work_item_tool import (
+            create_work_item,
+            CreateWorkItemInput,
+        )
+
+        # Create work item without specifying namespace_id (should default to 'legacy')
+        result = create_work_item(
+            CreateWorkItemInput(
+                type="task",
+                title="Test Task",
+                description="Test task description",
+                acceptance_criteria=["Criteria 1", "Criteria 2"],
+            ),
+            mock_memory_bank,
+        )
+
+        assert result.success, f"CreateWorkItem failed: {result.error}"
+        assert result.id is not None, "Work item ID should not be None"
+
+        # Verify the work item was created in legacy namespace
+        retrieved = get_memory_block_core(
+            GetMemoryBlockInput(block_ids=[result.id]), mock_memory_bank
+        )
+        assert retrieved.success, "Failed to retrieve created work item"
+        assert len(retrieved.blocks) == 1, "Should retrieve exactly one work item"
+        assert retrieved.blocks[0].namespace_id == "legacy", (
+            f"Expected 'legacy' namespace, got '{retrieved.blocks[0].namespace_id}'"
+        )
+
+    def test_create_work_item_agent_custom_namespace(self, mock_memory_bank):
+        """Test CreateWorkItem with custom namespace"""
+        from infra_core.memory_system.tools.agent_facing.create_work_item_tool import (
+            create_work_item,
+            CreateWorkItemInput,
+        )
+
+        # Create work item with custom namespace
+        result = create_work_item(
+            CreateWorkItemInput(
+                type="epic",
+                title="Test Epic",
+                description="Test epic description",
+                acceptance_criteria=["Epic criteria"],
+                namespace_id="custom-workspace",
+                owner="test-owner",
+            ),
+            mock_memory_bank,
+        )
+
+        assert result.success, f"CreateWorkItem failed: {result.error}"
+        assert result.id is not None, "Work item ID should not be None"
+
+        # Verify the work item was created in custom namespace
+        retrieved = get_memory_block_core(
+            GetMemoryBlockInput(block_ids=[result.id]), mock_memory_bank
+        )
+        assert retrieved.success, "Failed to retrieve created work item"
+        assert len(retrieved.blocks) == 1, "Should retrieve exactly one work item"
+        assert retrieved.blocks[0].namespace_id == "custom-workspace", (
+            f"Expected 'custom-workspace' namespace, got '{retrieved.blocks[0].namespace_id}'"
+        )
+
+    def test_create_work_item_namespace_isolation(self, mock_memory_bank):
+        """Test that work items in different namespaces are properly isolated"""
+        from infra_core.memory_system.tools.agent_facing.create_work_item_tool import (
+            create_work_item,
+            CreateWorkItemInput,
+        )
+
+        # Create work item in default namespace
+        result_legacy = create_work_item(
+            CreateWorkItemInput(
+                type="task",
+                title="Legacy Task",
+                description="Task in legacy namespace",
+                acceptance_criteria=["Done"],
+            ),
+            mock_memory_bank,
+        )
+        assert result_legacy.success, f"Failed to create legacy work item: {result_legacy.error}"
+
+        # Create work item in custom namespace
+        result_custom = create_work_item(
+            CreateWorkItemInput(
+                type="task",
+                title="Custom Task",
+                description="Task in custom namespace",
+                acceptance_criteria=["Done"],
+                namespace_id="custom-project",
+            ),
+            mock_memory_bank,
+        )
+        assert result_custom.success, f"Failed to create custom work item: {result_custom.error}"
+
+        # Verify namespace isolation - legacy namespace should only see legacy work item
+        legacy_blocks = get_memory_block_core(
+            GetMemoryBlockInput(type_filter="task", namespace_id="legacy"), mock_memory_bank
+        )
+        assert legacy_blocks.success, "Failed to query legacy namespace"
+        legacy_ids = [b.id for b in legacy_blocks.blocks]
+        assert result_legacy.id in legacy_ids, "Legacy work item not found in legacy namespace"
+        assert result_custom.id not in legacy_ids, (
+            "Custom work item incorrectly found in legacy namespace"
+        )
+
+        # Verify namespace isolation - custom namespace should only see custom work item
+        custom_blocks = get_memory_block_core(
+            GetMemoryBlockInput(type_filter="task", namespace_id="custom-project"), mock_memory_bank
+        )
+        assert custom_blocks.success, "Failed to query custom namespace"
+        custom_ids = [b.id for b in custom_blocks.blocks]
+        assert result_custom.id in custom_ids, "Custom work item not found in custom namespace"
+        assert result_legacy.id not in custom_ids, (
+            "Legacy work item incorrectly found in custom namespace"
+        )
