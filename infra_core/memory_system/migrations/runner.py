@@ -32,8 +32,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Schema branch patterns - following DoltHub recommendations
-SCHEMA_BRANCH_PATTERNS = ["schema", "schema-update", "schema-migration", "migrations", "schema-dev"]
+# Schema branch prefix - must be exactly "schema-update" or start with "schema-update/"
+SCHEMA_BRANCH_PREFIX = "schema-update"
 
 
 class MigrationError(Exception):
@@ -62,8 +62,7 @@ class MigrationRunner(DoltMySQLBase):
         """
         Check if a branch is a valid schema branch for migrations.
 
-        Following DoltHub recommendations, migrations should only run on
-        dedicated schema branches, not on main data branches.
+        Only allows branches that are exactly "schema-update" or start with "schema-update/".
 
         Args:
             branch: Branch name to check
@@ -71,8 +70,7 @@ class MigrationRunner(DoltMySQLBase):
         Returns:
             True if branch is a valid schema branch
         """
-        branch_lower = branch.lower()
-        return any(pattern in branch_lower for pattern in SCHEMA_BRANCH_PATTERNS)
+        return branch == SCHEMA_BRANCH_PREFIX or branch.startswith(f"{SCHEMA_BRANCH_PREFIX}/")
 
     def _check_schema_branch_restriction(self, operation: str, target_branch: str) -> None:
         """
@@ -88,11 +86,11 @@ class MigrationRunner(DoltMySQLBase):
         if not self._is_schema_branch(target_branch):
             logger.error(
                 f"Blocked {operation} on non-schema branch '{target_branch}' - "
-                f"migrations should only run on schema branches: {SCHEMA_BRANCH_PATTERNS}"
+                f"migrations must run on '{SCHEMA_BRANCH_PREFIX}' or branches starting with '{SCHEMA_BRANCH_PREFIX}/'"
             )
             raise MigrationError(
-                f"Migration {operation} blocked: branch '{target_branch}' is not a schema branch. "
-                f"Use a branch containing one of: {SCHEMA_BRANCH_PATTERNS}"
+                f"Migration {operation} blocked: branch '{target_branch}' is not a valid schema branch. "
+                f"Branch must be exactly '{SCHEMA_BRANCH_PREFIX}' or start with '{SCHEMA_BRANCH_PREFIX}/'"
             )
 
         logger.debug(f"Schema branch check passed: {operation} on branch '{target_branch}'")
@@ -127,6 +125,10 @@ class MigrationRunner(DoltMySQLBase):
         Raises:
             MigrationError: If transaction fails
         """
+        # Store original persistent connection state
+        original_use_persistent = self._use_persistent
+        original_persistent_connection = self._persistent_connection
+
         # Use persistent connection if available, otherwise create new one
         if self._use_persistent and self._persistent_connection:
             connection = self._persistent_connection
@@ -134,11 +136,19 @@ class MigrationRunner(DoltMySQLBase):
         else:
             connection = self._get_connection()
             connection_is_persistent = False
+            # Temporarily enable persistent mode to ensure all operations use this connection
+            self._persistent_connection = connection
+            self._use_persistent = True
 
         try:
             # Start transaction
             cursor = connection.cursor()
             cursor.execute("START TRANSACTION")
+
+            # Debug check for autocommit status
+            cursor.execute("SELECT @@autocommit")
+            autocommit_result = cursor.fetchone()
+            logger.debug(f"Autocommit status during transaction: {autocommit_result}")
 
             try:
                 # Execute the operation
@@ -160,8 +170,13 @@ class MigrationRunner(DoltMySQLBase):
         except Exception as e:
             raise MigrationError(f"Transaction execution failed: {e}")
         finally:
+            # Restore original persistent connection state
             if not connection_is_persistent:
+                # We created a temporary connection, clean it up
+                self._persistent_connection = original_persistent_connection
+                self._use_persistent = original_use_persistent
                 connection.close()
+            # If it was already persistent, leave the state as-is
 
     def discover_migrations(self) -> List[str]:
         """
@@ -184,7 +199,7 @@ class MigrationRunner(DoltMySQLBase):
         # Sort by migration ID (assumes NNNN_ prefix for ordering)
         migration_files.sort()
 
-        logger.info(f"Discovered {len(migration_files)} migration files: {migration_files}")
+        logger.debug(f"Discovered {len(migration_files)} migration files: {migration_files}")
         return migration_files
 
     def already_applied(self, migration_id: str) -> bool:
@@ -356,12 +371,13 @@ def main():
         epilog="""
 Examples:
   python -m infra_core.memory_system.migrations.runner --branch schema-update
-  python -m infra_core.memory_system.migrations.runner --branch schema-dev --target 0001_namespace_seed
+  python -m infra_core.memory_system.migrations.runner --branch schema-update/feature-name --target 0001_namespace_seed
   python -m infra_core.memory_system.migrations.runner --branch main --force  # Use with caution!
 
-Schema Branch Pattern:
-  Following DoltHub recommendations, migrations should run on dedicated schema branches.
-  Valid branch names must contain one of: schema, schema-update, schema-migration, migrations, schema-dev
+Schema Branch Restriction:
+  Migrations can only run on branches that are exactly "schema-update" or start with "schema-update/".
+  Examples of valid branches: schema-update, schema-update/namespaces, schema-update/feature-xyz
+  Examples of invalid branches: main, develop, feat/namespaces, schema, migrations
         """,
     )
 
