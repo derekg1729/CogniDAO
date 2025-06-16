@@ -238,7 +238,7 @@ def rollback(runner):
     """
     Rollback the namespace seeding migration.
 
-    WARNING: This will remove the public namespace and reset all memory_blocks
+    WARNING: This will remove the legacy namespace and reset all memory_blocks
     to have NULL namespace_id. Use with extreme caution.
 
     Args:
@@ -265,12 +265,12 @@ def rollback(runner):
     except Exception as e:
         logger.warning(f"Failed to reset memory blocks: {e}")
 
-    # Step 3: Delete public namespace
+    # Step 3: Delete legacy namespace
     try:
         delete_query = "DELETE FROM namespaces WHERE id = %s"
         runner._execute_update(delete_query, (LEGACY_NAMESPACE_ID,))
         logger.info("Deleted legacy namespace")
     except Exception as e:
-        logger.warning(f"Failed to delete public namespace: {e}")
+        logger.warning(f"Failed to delete legacy namespace: {e}")
 
     logger.warning("Namespace seeding migration rollback completed")
