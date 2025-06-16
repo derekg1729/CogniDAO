@@ -27,7 +27,9 @@ def mock_memory_bank():
     """Provides a MagicMock instance of StructuredMemoryBank."""
     mock_bank = MagicMock(spec=StructuredMemoryBank)
     mock_bank.query_semantic = MagicMock(return_value=[])  # Default: return empty list
-    mock_bank.create_memory_block = MagicMock(return_value=True)  # Default: simulate success
+    mock_bank.create_memory_block = MagicMock(
+        return_value=(True, None)
+    )  # Default: simulate success
     return mock_bank
 
 

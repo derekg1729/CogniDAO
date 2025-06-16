@@ -100,14 +100,14 @@ def test_create_memory_block_schema_lookup_fails(mock_memory_bank):
 
 def test_create_memory_block_persistence_failure(mock_memory_bank, sample_input):
     """Test memory block creation when persistence fails."""
-    mock_memory_bank.create_memory_block.return_value = False
+    mock_memory_bank.create_memory_block.return_value = (False, "Database connection failed")
 
     result = create_memory_block(sample_input, mock_memory_bank)
 
     assert isinstance(result, CreateMemoryBlockOutput)
     assert result.success is False
     assert result.id is None
-    assert "Failed to persist" in result.error
+    assert "Database connection failed" in result.error
 
 
 def test_create_memory_block_tool_initialization():
@@ -213,7 +213,7 @@ def test_create_memory_block_injects_system_metadata(mock_memory_bank):
     def capture_block(*args, **kwargs):
         nonlocal block_passed_to_bank
         block_passed_to_bank = args[0]  # First arg is the block
-        return True  # Simulate successful persistence
+        return (True, None)  # Simulate successful persistence
 
     mock_memory_bank.create_memory_block.side_effect = capture_block
     mock_memory_bank.get_latest_schema_version.return_value = 1  # Assume schema exists
@@ -257,7 +257,7 @@ def test_create_memory_block_respects_provided_system_metadata(mock_memory_bank)
     def capture_block(*args, **kwargs):
         nonlocal block_passed_to_bank
         block_passed_to_bank = args[0]
-        return True
+        return (True, None)
 
     mock_memory_bank.create_memory_block.side_effect = capture_block
     mock_memory_bank.get_latest_schema_version.return_value = 1

@@ -34,7 +34,11 @@ if str(project_root_dir) not in sys.path:
 try:
     from infra_core.memory_system.schemas.memory_block import MemoryBlock
     from infra_core.memory_system.property_mapper import PropertyMapper
-    from infra_core.memory_system.dolt_mysql_base import DoltMySQLBase, DEFAULT_PROTECTED_BRANCH
+    from infra_core.memory_system.dolt_mysql_base import (
+        DoltMySQLBase,
+        DEFAULT_PROTECTED_BRANCH,
+        MainBranchProtectionError,
+    )
 except ImportError as e:
     # Add more context to the error message
     raise ImportError(
@@ -187,6 +191,9 @@ class DoltMySQLWriter(DoltMySQLBase):
             logger.info(f"Successfully wrote block {block.id} via MySQL connection")
             return True, commit_hash
 
+        except MainBranchProtectionError:
+            # Let branch protection errors propagate to caller for specific handling
+            raise
         except Exception as e:
             if not connection_is_persistent:
                 connection.rollback()

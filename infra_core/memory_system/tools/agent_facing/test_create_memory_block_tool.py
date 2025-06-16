@@ -18,7 +18,7 @@ class TestCreateMemoryBlockTool:
         """Create a mock StructuredMemoryBank instance."""
         mock = MagicMock(spec=StructuredMemoryBank)
         mock.get_latest_schema_version.return_value = 1
-        mock.create_memory_block.return_value = True
+        mock.create_memory_block.return_value = (True, None)
 
         # Configure dolt_writer mock with active_branch
         mock.dolt_writer = MagicMock()
@@ -60,7 +60,10 @@ class TestCreateMemoryBlockTool:
     def test_create_memory_block_persistence_error(self, mock_memory_bank):
         """Test memory block creation when persistence fails."""
         # Configure mock to fail persistence
-        mock_memory_bank.create_memory_block.return_value = False
+        mock_memory_bank.create_memory_block.return_value = (
+            False,
+            "Failed to persist memory block",
+        )
 
         # Create input model
         input_data = CreateMemoryBlockInput(

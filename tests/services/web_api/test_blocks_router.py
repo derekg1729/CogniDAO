@@ -364,8 +364,8 @@ def test_create_block_success(
 
     # Mock the output of the (tool's internal) call to memory_bank.create_memory_block
     # The tool itself constructs the MemoryBlock, so the mock_memory_bank.create_memory_block
-    # will be called with a MemoryBlock instance. We'll simulate it returns True.
-    mock_memory_bank.create_memory_block.return_value = True
+    # will be called with a MemoryBlock instance. We'll simulate it returns tuple (True, None).
+    mock_memory_bank.create_memory_block.return_value = (True, None)
 
     # When the tool is successful, the endpoint will try to fetch the created block
     # by its ID. We need to mock this call.
@@ -404,7 +404,7 @@ def test_create_block_success(
         assert block_arg.type == payload["type"]
         assert block_arg.text == payload["text"]
         assert block_arg.metadata["title"] == payload["metadata"]["title"]
-        return True  # Simulate success
+        return (True, None)  # Simulate success with new tuple format
 
     mock_memory_bank.create_memory_block.side_effect = capture_block_and_succeed
 
@@ -473,7 +473,10 @@ def test_create_block_memory_bank_failure(
 ):
     """Test block creation failure when the memory bank returns False from its create method."""
     payload = create_valid_task_payload()
-    mock_memory_bank.create_memory_block.return_value = False  # Underlying bank save fails
+    mock_memory_bank.create_memory_block.return_value = (
+        False,
+        "Failed to persist memory block",
+    )  # Underlying bank save fails
 
     response = client_with_mock_bank.post("/api/blocks", json=payload)
 

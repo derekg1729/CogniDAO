@@ -16,7 +16,10 @@ def mock_memory_bank():
     """Provides a MagicMock replacement for the StructuredMemoryBank."""
     mock = MagicMock(spec=StructuredMemoryBank)
     mock.get_all_memory_blocks.return_value = []
-    mock.create_memory_block.return_value = True  # Default success
+    mock.create_memory_block.return_value = (
+        True,
+        None,
+    )  # Updated to return tuple (success, error_message)
     return mock
 
 

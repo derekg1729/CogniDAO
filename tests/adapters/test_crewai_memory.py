@@ -27,7 +27,7 @@ def test_save_thought(memory_bank):
     metadata = {"source": "test"}
 
     # Mock successful save
-    memory_bank.create_memory_block.return_value = True
+    memory_bank.create_memory_block.return_value = (True, None)
 
     # Execute
     success = storage.save(thought, metadata)
@@ -51,7 +51,7 @@ def test_save_thought_failure(memory_bank):
     thought = "Test thought content"
 
     # Mock failed save
-    memory_bank.create_memory_block.return_value = False
+    memory_bank.create_memory_block.return_value = (False, "Mock failure")
 
     # Execute
     success = storage.save(thought)
