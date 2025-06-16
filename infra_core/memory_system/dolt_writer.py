@@ -105,17 +105,18 @@ class DoltMySQLWriter(DoltMySQLBase):
             # Step 1: Write to memory_blocks table using REPLACE INTO for idempotency
             memory_blocks_query = """
             REPLACE INTO memory_blocks (
-                id, type, schema_version, text, state, visibility, block_version,
+                id, namespace_id, type, schema_version, text, state, visibility, block_version,
                 parent_id, has_children, tags, source_file, source_uri, confidence,
                 created_by, created_at, updated_at, embedding
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
             """
 
             # Prepare values, handling JSON serialization
             values = (
                 block.id,
+                block.namespace_id,
                 block.type,
                 getattr(block, "schema_version", None),
                 block.text,
