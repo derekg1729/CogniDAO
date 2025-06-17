@@ -243,8 +243,10 @@ class TestGitCogniAgent(unittest.TestCase):
         }
         mock_act.return_value = results
 
-        # Call the method
-        result = self.agent.review_and_save("https://github.com/test-owner/test-repo/pull/123")
+        # Call the method with test_mode=True to prevent file leaks
+        result = self.agent.review_and_save(
+            "https://github.com/test-owner/test-repo/pull/123", test_mode=True
+        )
 
         # Verify calls
         mock_load.assert_called_once()
@@ -276,8 +278,8 @@ class TestGitCogniAgent(unittest.TestCase):
         }
         mock_prepare.return_value = input_data
 
-        # Call the method
-        result = self.agent.review_and_save("invalid-url")
+        # Call the method with test_mode=True to prevent file leaks
+        result = self.agent.review_and_save("invalid-url", test_mode=True)
 
         # Verify that record_action was called
         self.agent.record_action.assert_called_once()
@@ -299,8 +301,10 @@ class TestGitCogniAgent(unittest.TestCase):
         }
         mock_prepare.return_value = input_data
 
-        # Call the method
-        result = self.agent.review_and_save("https://github.com/test-owner/test-repo/pull/123")
+        # Call the method with test_mode=True to prevent file leaks
+        result = self.agent.review_and_save(
+            "https://github.com/test-owner/test-repo/pull/123", test_mode=True
+        )
 
         # Verify that record_action was called
         self.agent.record_action.assert_called_once()
@@ -322,8 +326,10 @@ class TestGitCogniAgent(unittest.TestCase):
         }
         mock_prepare.return_value = input_data
 
-        # Call the method
-        result = self.agent.review_and_save("https://github.com/test-owner/test-repo/pull/123")
+        # Call the method with test_mode=True to prevent file leaks
+        result = self.agent.review_and_save(
+            "https://github.com/test-owner/test-repo/pull/123", test_mode=True
+        )
 
         # Verify that record_action was called
         self.agent.record_action.assert_called_once()
