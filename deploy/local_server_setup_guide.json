@@ -1,121 +1,114 @@
 {
-    "setup_windows_laptop_for_cogni_deploy": {
-      "prereqs": [
-        {
-          "desc": "Install WSL 2 (required by Docker Desktop)",
-          "command": "wsl --install --distribution Ubuntu",
-          "environment": "Admin PowerShell"
-        },
-        {
-          "desc": "Reboot once WSL finishes installing",
-          "note": "Open a new PowerShell window *after* reboot",
-          "environment": "—"
-        }
-      ],
-  
-      "installations": [
-        {
-          "tool": "Docker Desktop",
-          "command": "winget install --id Docker.DockerDesktop -e --source winget",
-          "post": "Log out → log in → verify `docker version` works in PowerShell",
-          "environment": "Admin PowerShell"
-        },
-        {
-          "tool": "OpenSSH Server",
-          "desc": "Install OpenSSH, start service, set to auto‑start, allow firewall rule",
-          "steps": [
-            "winget install \"OpenSSH Preview\"",
-            "Start-Service sshd",
-            "Set-Service sshd -StartupType Automatic",
-            "New-NetFirewallRule -Name sshd -DisplayName \"OpenSSH (Private)\" -Profile Private -Protocol TCP -LocalPort 22 -Action Allow"
-          ],
-          "environment": "Admin PowerShell"
-        },
-        {
-          "tool": "GitHub CLI (gh)",
-          "command": "winget install GitHub.cli",
-          "environment": "Admin PowerShell"
-        },
-        {
-          "tool": "Git for Windows (git + ssh-keygen)",
-          "command": "winget install Git.Git",
-          "environment": "Admin PowerShell"
-        }
-      ],
-  
-      "local_user": [
-        {
-          "desc": "Create a user named **ubuntu** (workflow expects it)",
-          "command": "net user ubuntu \"<STRONG_RANDOM_PASSWORD>\" /add && net localgroup docker-users ubuntu /add",
-          "environment": "Admin PowerShell"
-        },
-        {
-          "desc": "Create first login for ubuntu user",
-          "command": "runas /user:ubuntu powershell",
-          "note": "Close PowerShell window after login",
-          "environment": "Admin PowerShell"
-        },
-        {
-          "desc": "Allow password‑less docker in WSL", 
-          "command": "sudo usermod -aG docker $USER",
-          "environment": "WSL Ubuntu shell"
-        }
-      ],
-  
-      "ssh_keys": [
-        {
-          "desc": "Generate a key‑pair for GitHub Actions",
-          "command": "ssh-keygen -t ed25519 -f cogni_actions_preview",
-          "environment": "Admin PowerShell"
-        },
-        {
-          "desc": "Authorize the public key for ubuntu",
-          "command": [
-            "type ~/.ssh/cogni_actions_preview.pub >> C:\\Users\\ubuntu\\.ssh\\authorized_keys",
-            "icacls C:\\Users\\ubuntu\\.ssh\\authorized_keys /inheritance:r /grant ubuntu:F"
-          ],
-          "environment": "Admin PowerShell"
-        }
-      ],
-  
-      "ip_address": {
-        "desc": "Find Windows host LAN IP (for PREVIEW/PROD_SERVER_IP)",
-        "command": "powershell -NoLogo -Command \"(Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias Ethernet*).IPAddress\"",
+  "setup_windows_laptop_for_cogni_deploy": {
+    "prereqs": [
+      {
+        "desc": "Install WSL 2 (required by Docker Desktop)",
+        "command": "wsl --install --distribution Ubuntu",
+        "environment": "Admin PowerShell"
+      },
+      {
+        "desc": "Reboot once WSL finishes installing",
+        "note": "Open a new PowerShell window *after* reboot",
+        "environment": "—"
+      }
+    ],
+    "installations": [
+      {
+        "tool": "Docker Desktop",
+        "command": "winget install --id Docker.DockerDesktop -e --source winget",
+        "post": "Log out → log in → verify `docker version` works in PowerShell",
+        "environment": "Admin PowerShell"
+      },
+      {
+        "tool": "OpenSSH Server",
+        "desc": "Install OpenSSH, start service, set to auto‑start, allow firewall rule",
+        "steps": [
+          "winget install \"OpenSSH Preview\"",
+          "Start-Service sshd",
+          "Set-Service sshd -StartupType Automatic",
+          "New-NetFirewallRule -Name sshd -DisplayName \"OpenSSH (Private)\" -Profile Private -Protocol TCP -LocalPort 22 -Action Allow"
+        ],
+        "environment": "Admin PowerShell"
+      },
+      {
+        "tool": "GitHub CLI (gh)",
+        "command": "winget install GitHub.cli",
+        "environment": "Admin PowerShell"
+      },
+      {
+        "tool": "Git for Windows (git + ssh-keygen)",
+        "command": "winget install Git.Git",
+        "environment": "Admin PowerShell"
+      }
+    ],
+    "local_user": [
+      {
+        "desc": "Create a user named **ubuntu** (workflow expects it)",
+        "command": "net user ubuntu \"<STRONG_RANDOM_PASSWORD>\" /add && net localgroup docker-users ubuntu /add",
+        "environment": "Admin PowerShell"
+      },
+      {
+        "desc": "Create first login for ubuntu user",
+        "command": "runas /user:ubuntu powershell",
+        "note": "Close PowerShell window after login",
+        "environment": "Admin PowerShell"
+      },
+      {
+        "desc": "Allow password‑less docker in WSL",
+        "command": "sudo usermod -aG docker $USER",
+        "environment": "WSL Ubuntu shell"
+      }
+    ],
+    "ssh_keys": [
+      {
+        "desc": "Generate a key‑pair for GitHub Actions",
+        "command": "ssh-keygen -t ed25519 -f cogni_actions_preview",
+        "environment": "Admin PowerShell"
+      },
+      {
+        "desc": "Authorize the public key for ubuntu",
+        "command": [
+          "type ~/.ssh/cogni_actions_preview.pub >> C:\\Users\\ubuntu\\.ssh\\authorized_keys",
+          "icacls C:\\Users\\ubuntu\\.ssh\\authorized_keys /inheritance:r /grant ubuntu:F"
+        ],
+        "environment": "Admin PowerShell"
+      }
+    ],
+    "ip_address": {
+      "desc": "Find Windows host LAN IP (for PREVIEW/PROD_SERVER_IP)",
+      "command": "powershell -NoLogo -Command \"(Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias Ethernet*).IPAddress\"",
+      "environment": "PowerShell (non‑admin OK)"
+    },
+    "github_secret_values": {
+      "repository_level": {
+        "OPENAI_API_KEY": "<your-openai-key>",
+        "COGNI_API_KEY": "<your-cogni-key>"
+      },
+      "environment_preview": {
+        "PREVIEW_SSH_KEY": "<paste FULL contents of cogni_actions **private** key>",
+        "PREVIEW_SERVER_IP": "<output of IP step>"
+      },
+      "environment_prod": {
+        "PROD_SSH_KEY": "<same key or second key>",
+        "PROD_SERVER_IP": "<same IP for laptop‑prod MVP>"
+      }
+    },
+    "final_checks": [
+      {
+        "desc": "Verify SSH into laptop works from laptop itself",
+        "command": "ssh -i ~/.ssh/cogni_actions_preview ubuntu@127.0.0.1 hostname",
+        "environment": "PowerShell or WSL"
+      },
+      {
+        "desc": "Authenticate gh CLI (needed for deploy.sh --preview / --prod)",
+        "command": "gh auth login --web",
         "environment": "PowerShell (non‑admin OK)"
       },
-  
-      "github_secret_values": {
-        "repository_level": {
-          "OPENAI_API_KEY": "<your-openai-key>",
-          "COGNI_API_KEY": "<your-cogni-key>"
-        },
-        "environment_preview": {
-          "PREVIEW_SSH_KEY": "<paste FULL contents of cogni_actions **private** key>",
-          "PREVIEW_SERVER_IP": "<output of IP step>"
-        },
-        "environment_prod": {
-          "PROD_SSH_KEY": "<same key or second key>",
-          "PROD_SERVER_IP": "<same IP for laptop‑prod MVP>"
-        }
-      },
-  
-      "final_checks": [
-        {
-          "desc": "Verify SSH into laptop works from laptop itself",
-          "command": "ssh -i ~/.ssh/cogni_actions_preview ubuntu@127.0.0.1 hostname",
-          "environment": "PowerShell or WSL"
-        },
-        {
-          "desc": "Authenticate gh CLI (needed for deploy.sh --preview / --prod)",
-          "command": "gh auth login --web",
-          "environment": "PowerShell (non‑admin OK)"
-        },
-        {
-          "desc": "Run local dev server to ensure Docker works",
-          "command": "scripts\\deploy.sh --local",
-          "environment": "Repo root → PowerShell"
-        }
-      ]
-    }
+      {
+        "desc": "Run local dev server to ensure Docker works",
+        "command": "scripts\\deploy.sh --local",
+        "environment": "Repo root → PowerShell"
+      }
+    ]
   }
-  
+}

@@ -51,13 +51,28 @@ class OpenAIModelHandler(BaseModelHandler):
     def client(self) -> OpenAI:
         """
         Get or initialize OpenAI client.
+        Optionally uses Helicone proxy for observability if HELICONE_API_KEY is set.
 
         Returns:
             OpenAI client instance
         """
         if self._client is None:
             if self._api_key:
-                self._client = OpenAI(api_key=self._api_key)
+                # Check for Helicone API key for optional observability
+                import os
+
+                helicone_key = os.environ.get("HELICONE_API_KEY")
+
+                if helicone_key:
+                    # Use Helicone proxy for observability
+                    self._client = OpenAI(
+                        api_key=self._api_key,
+                        base_url="https://oai.helicone.ai/v1",
+                        default_headers={"Helicone-Auth": f"Bearer {helicone_key}"},
+                    )
+                else:
+                    # Standard OpenAI client
+                    self._client = OpenAI(api_key=self._api_key)
             else:
                 self._client = initialize_openai_client()
         return self._client

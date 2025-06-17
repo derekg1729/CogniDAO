@@ -12,6 +12,7 @@ You need to add these secrets to your GitHub repository:
 | `SSH_PRIVATE_KEY` | The private SSH key for connecting to your server |
 | `OPENAI_API_KEY` | Your OpenAI API key |
 | `COGNI_API_KEY` | Your API authentication key |
+| `HELICONE_API_KEY` | Your Helicone API key for OpenAI observability (optional) |
 
 ## Step 1: Generate SSH Keys (if needed)
 
@@ -87,6 +88,11 @@ Copy everything, including the `-----BEGIN OPENSSH PRIVATE KEY-----` and `-----E
 
 - Name: `COGNI_API_KEY`
 - Value: Your Cogni API key (e.g., `k7jVMOVGZc0Xi1n48XcEhnGEzq6wvC6f`)
+
+### HELICONE_API_KEY
+
+- Name: `HELICONE_API_KEY`
+- Value: Your Helicone API key for OpenAI observability (optional)
 
 ## Step 4: Server Preparation
 
