@@ -45,6 +45,9 @@ def apply(runner):
     # Step 3: Add NOT NULL constraint to namespace_id (if not already present)
     _add_not_null_constraint(runner)
 
+    # Step 4: Add explicit FK constraint with proper ON DELETE/UPDATE behavior
+    _add_namespace_fk_constraint(runner)
+
     logger.info("Namespace seeding migration completed successfully")
 
 
@@ -232,6 +235,61 @@ def _add_not_null_constraint(runner):
     except Exception as e:
         logger.error(f"Failed to add NOT NULL constraint: {e}")
         raise
+
+
+def _add_namespace_fk_constraint(runner):
+    """Ensure memory_blocks.namespace_id has explicit FK with RESTRICT/CASCADE."""
+    logger.info("Adding explicit FK constraint with proper ON DELETE/UPDATE behavior")
+
+    # First, drop any existing FK constraints that might exist (safe approach)
+    # We'll attempt to drop known constraint names and ignore if they don't exist
+    potential_constraint_names = [
+        "fk_namespace",
+        "fk_memory_blocks_namespace",
+        "memory_blocks_ibfk_1",
+    ]
+
+    for constraint_name in potential_constraint_names:
+        try:
+            drop_sql = f"ALTER TABLE memory_blocks DROP FOREIGN KEY {constraint_name}"
+            runner._execute_update(drop_sql)
+            logger.info(f"Dropped existing FK constraint: {constraint_name}")
+        except Exception as e:
+            # Expected if constraint doesn't exist - this is safe to ignore
+            error_msg = str(e).lower()
+            if any(
+                phrase in error_msg
+                for phrase in [
+                    "doesn't exist",
+                    "does not exist",
+                    "unknown constraint",
+                    "can't drop",
+                    "was not found",
+                ]
+            ):
+                logger.debug(f"FK constraint {constraint_name} doesn't exist, skipping")
+            else:
+                logger.warning(f"Unexpected error dropping FK constraint {constraint_name}: {e}")
+
+    # Now add the new FK constraint with explicit behavior
+    try:
+        add_constraint_sql = """
+        ALTER TABLE memory_blocks
+        ADD CONSTRAINT fk_memory_blocks_namespace
+        FOREIGN KEY (namespace_id) REFERENCES namespaces(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE
+        """
+        runner._execute_update(add_constraint_sql)
+        logger.info(
+            "Successfully added FK constraint with explicit ON DELETE RESTRICT ON UPDATE CASCADE behavior"
+        )
+    except Exception as e:
+        # Check if constraint already exists (idempotency)
+        if "duplicate" in str(e).lower() or "already exists" in str(e).lower():
+            logger.info("FK constraint already exists with proper behavior")
+        else:
+            logger.error(f"Failed to add FK constraint: {e}")
+            raise
 
 
 def rollback(runner):

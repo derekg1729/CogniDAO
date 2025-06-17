@@ -27,6 +27,7 @@ from infra_core.memory_system.tools.agent_facing.create_work_item_tool import (
 from infra_core.memory_system.tools.agent_facing.create_memory_block_agent_tool import (
     create_memory_block_agent_tool,
     CreateMemoryBlockAgentInput,
+    CreateMemoryBlockAgentOutput,
 )
 from infra_core.memory_system.tools.agent_facing.update_memory_block_tool import (
     update_memory_block_tool,
@@ -99,6 +100,9 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     dolt_approve_pull_request_tool,
     DoltApprovePullRequestInput,
     DoltApprovePullRequestOutput,
+    dolt_reset_tool,
+    DoltResetInput,
+    DoltResetOutput,
 )
 from infra_core.memory_system.tools.agent_facing.bulk_create_blocks_tool import (
     bulk_create_blocks,
@@ -142,11 +146,12 @@ if importlib.util.find_spec("llama_index.embeddings.huggingface") is None:
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.append(str(project_root))
 
-# Global variables for lazy initialization
+# Global state for MCP server
 _memory_bank = None
 _link_manager = None
 _pm_links = None
 _current_branch = None
+_current_namespace = None  # Add global namespace state
 
 
 # Detect current Git branch or use environment variable
@@ -188,18 +193,55 @@ def get_current_branch() -> str:
     # return "main"
 
 
+def get_current_namespace() -> str:
+    """
+    Get the current namespace for MCP operations.
+
+    This checks the DOLT_NAMESPACE environment variable first,
+    then falls back to the default 'legacy' namespace.
+
+    Returns:
+        The namespace to use for all MCP operations
+    """
+    # First check environment variable
+    env_namespace = os.environ.get("DOLT_NAMESPACE")
+    logger.info("🔍 [NAMESPACE] Checking DOLT_NAMESPACE environment variable...")
+
+    if env_namespace:
+        logger.info(
+            f"✅ [NAMESPACE] Using namespace from DOLT_NAMESPACE environment variable: '{env_namespace}'"
+        )
+        return env_namespace
+
+    # Fallback to legacy namespace
+    logger.info("📋 [NAMESPACE] DOLT_NAMESPACE not set, using default 'legacy' namespace")
+    return "legacy"
+
+
 def _initialize_memory_system():
     """
     Lazy initialization of the memory system components.
     This prevents database connections during module import for testing.
     """
-    global _memory_bank, _link_manager, _pm_links, _current_branch
+    global _memory_bank, _link_manager, _pm_links, _current_branch, _current_namespace
 
     if _memory_bank is not None:
         return _memory_bank, _link_manager, _pm_links
 
+    # Log environment variables for debugging
+    logger.info("🔍 [ENV] MCP Server Environment Variables:")
+    logger.info(f"    DOLT_NAMESPACE = '{os.environ.get('DOLT_NAMESPACE', '(not set)')}'")
+    logger.info(f"    DOLT_BRANCH = '{os.environ.get('DOLT_BRANCH', '(not set)')}'")
+    logger.info(f"    DOLT_HOST = '{os.environ.get('DOLT_HOST', '(not set)')}'")
+    logger.info(f"    DOLT_DATABASE = '{os.environ.get('DOLT_DATABASE', '(not set)')}'")
+
     # Get the branch to use for Dolt operations
     _current_branch = get_current_branch()
+
+    # Get the namespace to use for MCP operations
+    logger.info("🚀 [NAMESPACE] Initializing namespace context...")
+    _current_namespace = get_current_namespace()
+    logger.info(f"🎯 [NAMESPACE] Global namespace context set to: '{_current_namespace}'")
 
     # Initialize StructuredMemoryBank using environment variables
     CHROMA_PATH = os.environ.get("CHROMA_PATH", "/tmp/cogni_chroma")  # Make configurable
@@ -304,6 +346,81 @@ def get_pm_links():
     return pm_links
 
 
+def get_current_namespace_context() -> str:
+    """
+    Get the current namespace context for this MCP session.
+
+    Returns the namespace that will be used for all MCP operations
+    unless explicitly overridden in individual tool calls.
+
+    Returns:
+        The current namespace identifier
+    """
+    current_ns = _current_namespace or get_current_namespace()
+    logger.info(f"📋 [NAMESPACE] Current namespace context: '{current_ns}'")
+    return current_ns
+
+
+def inject_current_namespace(input_data: dict) -> dict:
+    """
+    Inject the current namespace into tool input if not already specified.
+
+    This ensures all MCP tools use the same namespace context unless explicitly overridden.
+
+    Args:
+        input_data: Input dictionary for MCP tool
+
+    Returns:
+        Input dictionary with namespace_id set to current namespace if not present
+    """
+    if "namespace_id" not in input_data or input_data["namespace_id"] is None:
+        current_ns = _current_namespace or get_current_namespace()
+        input_data["namespace_id"] = current_ns
+        logger.info(
+            f"🔧 [NAMESPACE] Injected current namespace: '{current_ns}' (no namespace specified in request)"
+        )
+    else:
+        logger.info(
+            f"🎯 [NAMESPACE] Using explicit namespace from request: '{input_data['namespace_id']}'"
+        )
+    return input_data
+
+
+def standardize_mcp_response(response_data, include_namespace: bool = True):
+    """
+    DRY helper to standardize MCP tool output responses with consistent namespace context.
+
+    This ensures all MCP tools return responses with namespace_id for consistency,
+    enabling clients to understand which namespace context was used for the operation.
+
+    Args:
+        response_data: The tool response (dict, Pydantic model, or other)
+        include_namespace: Whether to include namespace_id in the response (default: True)
+
+    Returns:
+        Standardized response with namespace_id included if requested
+    """
+    if not include_namespace:
+        return response_data
+
+    # Handle Pydantic models - convert to dict first
+    if hasattr(response_data, "model_dump"):
+        response_dict = response_data.model_dump(mode="json")
+    elif isinstance(response_data, dict):
+        response_dict = response_data.copy()
+    else:
+        # For other types, just return as-is
+        return response_data
+
+    # Add namespace_id to response if not already present
+    if "namespace_id" not in response_dict:
+        current_ns = _current_namespace or get_current_namespace()
+        response_dict["namespace_id"] = current_ns
+        logger.info(f"📤 [NAMESPACE] Added namespace '{current_ns}' to tool response")
+
+    return response_dict
+
+
 # Create a FastMCP server instance with a specific name
 mcp = FastMCP("cogni-memory")
 
@@ -317,18 +434,22 @@ async def create_work_item(input):
         type: Type of work item to create (project, epic, task, or bug)
         title: Title of the work item
         description: Description of the work item
-        namespace_id: Namespace ID for multi-tenant organization (defaults to 'legacy')
+        namespace_id: Namespace ID for multi-tenant organization (defaults to current namespace)
         owner: Owner or assignee of the work item
         acceptance_criteria: List of acceptance criteria for the work item
     """
     try:
+        # Inject current namespace if not specified
+        input = inject_current_namespace(input)
+
         # Parse dict input into Pydantic model
         parsed_input = CreateWorkItemInput(**input)
         result = create_work_item_tool(parsed_input, memory_bank=get_memory_bank())
-        return result
+        return standardize_mcp_response(result, include_namespace=True)
     except Exception as e:
         logger.error(f"Error creating work item: {e}")
-        return {"error": str(e)}
+        error_response = {"error": str(e)}
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the GetMemoryBlock tool
@@ -341,7 +462,7 @@ async def get_memory_block(input):
 
     Filtered Block Retrieval (specify at least one):
         type_filter: Filter by block type (knowledge, task, project, doc, interaction, bug, epic)
-        namespace_id: Optional filter by namespace ID for multi-tenant operations
+        namespace_id: Optional filter by namespace ID for multi-tenant operations (defaults to current namespace)
         tag_filters: List of tags to filter by (all must match)
         metadata_filters: Metadata key-value pairs to filter by (exact matches)
         limit: Maximum number of results to return (1-100)
@@ -350,6 +471,10 @@ async def get_memory_block(input):
     Cannot specify both block_ids and filtering parameters.
     """
     try:
+        # Inject current namespace if not specified and not using block_ids
+        if "block_ids" not in input or input["block_ids"] is None:
+            input = inject_current_namespace(input)
+
         # Parse dict input into Pydantic model
         input_data = GetMemoryBlockInput(**input)
 
@@ -359,16 +484,17 @@ async def get_memory_block(input):
         )
 
         # Return the complete result
-        return result.model_dump(mode="json")
+        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
 
     except Exception as e:
         logger.error(f"Error in GetMemoryBlock MCP tool: {e}")
-        return GetMemoryBlockOutput(
+        error_response = GetMemoryBlockOutput(
             success=False,
             blocks=[],
             error=f"Error retrieving memory blocks: {str(e)}",
             timestamp=datetime.now(),
         ).model_dump(mode="json")
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the GetMemoryLinks tool
@@ -393,16 +519,17 @@ async def get_memory_links(input):
         )
 
         # Return the complete result
-        return result.model_dump(mode="json")
+        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
 
     except Exception as e:
         logger.error(f"Error in GetMemoryLinks MCP tool: {e}")
-        return GetMemoryLinksOutput(
+        error_response = GetMemoryLinksOutput(
             success=False,
             links=[],
             error=f"Error retrieving memory links: {str(e)}",
             timestamp=datetime.now(),
         ).model_dump(mode="json")
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the GetActiveWorkItems tool
@@ -427,16 +554,17 @@ async def get_active_work_items(input):
         )
 
         # Return the complete result
-        return result.model_dump(mode="json")
+        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
 
     except Exception as e:
         logger.error(f"Error in GetActiveWorkItems MCP tool: {e}")
-        return GetActiveWorkItemsOutput(
+        error_response = GetActiveWorkItemsOutput(
             success=False,
             work_items=[],
             error=f"Error retrieving active work items: {str(e)}",
             timestamp=datetime.now(),
         ).model_dump(mode="json")
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the QueryMemoryBlocksSemantic tool
@@ -447,7 +575,7 @@ async def query_memory_blocks_semantic(input):
     Semantic Search with Filters:
         query_text: Text to search for semantically (required)
         type_filter: Optional filter by block type (knowledge, task, project, doc, interaction, bug, epic)
-        namespace_id: Optional filter by namespace ID for multi-tenant operations
+        namespace_id: Optional filter by namespace ID for multi-tenant operations (defaults to current namespace)
         tag_filters: Optional list of tags to filter by (all must match)
         metadata_filters: Optional metadata key-value pairs to filter by (exact matches)
         top_k: Maximum number of results to return (1-20, default: 5)
@@ -455,23 +583,24 @@ async def query_memory_blocks_semantic(input):
     Output contains 'blocks' array of semantically relevant memory blocks.
     """
     try:
+        # Inject current namespace if not specified
+        input = inject_current_namespace(input)
+
         # Parse dict input into Pydantic model
-        input_data = QueryMemoryBlocksInput(**input)
-
-        # Execute the core query function
-        result = query_memory_blocks_core(input_data, get_memory_bank())
-
-        # Return the complete result
-        return result.model_dump(mode="json")
+        parsed_input = QueryMemoryBlocksInput(**input)
+        result = query_memory_blocks_core(parsed_input, memory_bank=get_memory_bank())
+        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
 
     except Exception as e:
         logger.error(f"Error in QueryMemoryBlocksSemantic MCP tool: {e}")
-        return QueryMemoryBlocksOutput(
+        error_response = QueryMemoryBlocksOutput(
             success=False,
             blocks=[],
-            error=f"Error performing semantic search: {str(e)}",
-            timestamp=datetime.now(),
+            message=f"Semantic query failed: {str(e)}",
+            active_branch="unknown",
+            error=f"Error during query_memory_blocks_semantic: {str(e)}",
         ).model_dump(mode="json")
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the GetLinkedBlocks tool
@@ -497,11 +626,11 @@ async def get_linked_blocks(input):
         )
 
         # Return the complete result
-        return result.model_dump(mode="json")
+        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
 
     except Exception as e:
         logger.error(f"Error in GetLinkedBlocks MCP tool: {e}")
-        return GetLinkedBlocksOutput(
+        error_response = GetLinkedBlocksOutput(
             success=False,
             source_block_id=input.get("source_block_id", "unknown"),
             linked_blocks=[],
@@ -509,6 +638,7 @@ async def get_linked_blocks(input):
             error=f"Error retrieving linked blocks: {str(e)}",
             timestamp=datetime.now(),
         ).model_dump(mode="json")
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the UpdateMemoryBlock tool
@@ -535,10 +665,11 @@ async def update_memory_block(input):
         # Parse dict input into Pydantic model
         parsed_input = UpdateMemoryBlockToolInput(**input)
         result = update_memory_block_tool(parsed_input, memory_bank=get_memory_bank())
-        return result
+        return standardize_mcp_response(result, include_namespace=True)
     except Exception as e:
         logger.error(f"Error updating memory block: {e}")
-        return {"error": str(e)}
+        error_response = {"error": str(e)}
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the DeleteMemoryBlock tool
@@ -557,10 +688,11 @@ async def delete_memory_block(input):
         # Parse dict input into Pydantic model
         parsed_input = DeleteMemoryBlockToolInput(**input)
         result = delete_memory_block_tool(parsed_input, memory_bank=get_memory_bank())
-        return result
+        return standardize_mcp_response(result, include_namespace=True)
     except Exception as e:
         logger.error(f"Error deleting memory block: {e}")
-        return {"error": str(e)}
+        error_response = {"error": str(e)}
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the UpdateWorkItem tool
@@ -595,10 +727,11 @@ async def update_work_item(input):
         # Parse dict input into Pydantic model
         parsed_input = UpdateWorkItemInput(**input)
         result = update_work_item_tool(parsed_input, memory_bank=get_memory_bank())
-        return result
+        return standardize_mcp_response(result, include_namespace=True)
     except Exception as e:
         logger.error(f"Error updating work item: {e}")
-        return {"error": str(e)}
+        error_response = {"error": str(e)}
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the CreateBlockLink tool
@@ -630,10 +763,15 @@ async def create_block_link(input):
         )
 
         # Return result in appropriate format for MCP
-        return result.model_dump(mode="json")
+        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
     except Exception as e:
         logger.error(f"Error creating block link: {e}")
-        return {"success": False, "message": "Failed to create block link", "error_details": str(e)}
+        error_response = {
+            "success": False,
+            "message": "Failed to create block link",
+            "error_details": str(e),
+        }
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the CreateMemoryBlock tool
@@ -644,7 +782,7 @@ async def create_memory_block(input):
     Args:
         type: Type of memory block to create (doc, knowledge, or log)
         content: Primary content/text of the memory block
-        namespace_id: Namespace ID for multi-tenant organization (defaults to 'legacy')
+        namespace_id: Namespace ID for multi-tenant organization (defaults to current namespace)
         title: Title of the memory block
         audience: Intended audience (doc type only)
         section: Section or category (doc type only)
@@ -657,13 +795,22 @@ async def create_memory_block(input):
         visibility: Visibility level of the block
     """
     try:
+        # Inject current namespace if not specified
+        input = inject_current_namespace(input)
+
         # Parse dict input into Pydantic model
         parsed_input = CreateMemoryBlockAgentInput(**input)
         result = create_memory_block_agent_tool(parsed_input, memory_bank=get_memory_bank())
-        return result
+        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
     except Exception as e:
-        logger.error(f"Error creating memory block: {e}")
-        return {"error": str(e)}
+        logger.error(f"Error in CreateMemoryBlock MCP tool: {e}")
+        error_response = CreateMemoryBlockAgentOutput(
+            success=False,
+            block_type=input.get("type", "unknown"),
+            active_branch=get_memory_bank().dolt_writer.active_branch,
+            error=f"Error during create_memory_block: {str(e)}",
+        ).model_dump(mode="json")
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the BulkCreateBlocks tool
@@ -692,10 +839,10 @@ async def bulk_create_blocks_mcp(input):
         # Parse dict input into Pydantic model
         parsed_input = BulkCreateBlocksInput(**input)
         result = bulk_create_blocks(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump(mode="json")
+        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
     except Exception as e:
         logger.error(f"Error in BulkCreateBlocks MCP tool: {e}")
-        return BulkCreateBlocksOutput(
+        error_response = BulkCreateBlocksOutput(
             success=False,
             partial_success=False,
             total_blocks=0,
@@ -705,6 +852,7 @@ async def bulk_create_blocks_mcp(input):
             active_branch="unknown",
             timestamp=datetime.now(),
         ).model_dump(mode="json")
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the BulkCreateLinks tool
@@ -733,10 +881,10 @@ async def bulk_create_links_mcp(input):
         # Parse dict input into Pydantic model
         parsed_input = BulkCreateLinksInput(**input)
         result = bulk_create_links(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump(mode="json")
+        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
     except Exception as e:
         logger.error(f"Error in BulkCreateLinks MCP tool: {e}")
-        return BulkCreateLinksOutput(
+        error_response = BulkCreateLinksOutput(
             success=False,
             partial_success=False,
             total_specs=0,
@@ -748,6 +896,7 @@ async def bulk_create_links_mcp(input):
             active_branch=None,
             timestamp=datetime.now(),
         ).model_dump(mode="json")
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the DoltCommit tool
@@ -837,6 +986,35 @@ async def dolt_add(input):
         ).model_dump(mode="json")
 
 
+# Register the DoltReset tool
+@mcp.tool("DoltReset")
+async def dolt_reset(input):
+    """Reset working changes in Dolt for the current session.
+
+    Args:
+        tables: Optional list of specific tables to reset. If not provided, all working changes will be discarded.
+        hard: Whether to perform a hard reset, discarding all changes (default: True)
+
+    Returns:
+        success: Whether the reset operation succeeded
+        message: Human-readable result message
+        tables_reset: List of tables that were reset (if specific tables were targeted)
+        error: Error message if operation failed
+        timestamp: Timestamp of operation
+    """
+    try:
+        parsed_input = DoltResetInput(**input)
+        result = dolt_reset_tool(parsed_input, memory_bank=get_memory_bank())
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error in DoltReset MCP tool: {e}")
+        return DoltResetOutput(
+            success=False,
+            message=f"Reset failed: {str(e)}",
+            error=f"Error during dolt_reset: {str(e)}",
+        ).model_dump(mode="json")
+
+
 # Register the DoltPush tool
 @mcp.tool("DoltPush")
 async def dolt_push(input):
@@ -889,11 +1067,11 @@ async def dolt_status(input):
         # Parse dict input into Pydantic model
         parsed_input = DoltStatusInput(**input)
         result = dolt_status_tool(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump(mode="json")
+        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
 
     except Exception as e:
         logger.error(f"Error in DoltStatus MCP tool: {e}")
-        return DoltStatusOutput(
+        error_response = DoltStatusOutput(
             success=False,
             active_branch="unknown",
             is_clean=False,
@@ -901,6 +1079,7 @@ async def dolt_status(input):
             message=f"Status check failed: {str(e)}",
             error=str(e),
         ).model_dump(mode="json")
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the DoltPull tool
@@ -1010,11 +1189,11 @@ async def list_namespaces(input):
         # Parse dict input into Pydantic model
         parsed_input = ListNamespacesInput(**input)
         result = list_namespaces_tool(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump(mode="json")
+        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
 
     except Exception as e:
         logger.error(f"Error in ListNamespaces MCP tool: {e}")
-        return ListNamespacesOutput(
+        error_response = ListNamespacesOutput(
             success=False,
             namespaces=[],
             total_count=0,
@@ -1022,6 +1201,7 @@ async def list_namespaces(input):
             message=f"Namespace listing failed: {str(e)}",
             error=f"Error during list_namespaces: {str(e)}",
         ).model_dump(mode="json")
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the CreateNamespace tool
@@ -1037,6 +1217,9 @@ async def create_namespace(input):
         description: Optional description of the namespace
         is_active: Whether the namespace is active (defaults to True)
 
+    Note: This creates a new namespace but does not change the current namespace context.
+    Use DOLT_NAMESPACE environment variable to set the active namespace for all operations.
+
     Returns:
         success: Whether the operation succeeded
         namespace_id: ID of the created namespace
@@ -1049,17 +1232,18 @@ async def create_namespace(input):
         # Parse dict input into Pydantic model
         parsed_input = CreateNamespaceInput(**input)
         result = create_namespace_tool(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump(mode="json")
+        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
 
     except Exception as e:
         logger.error(f"Error in CreateNamespace MCP tool: {e}")
-        return CreateNamespaceOutput(
+        error_response = CreateNamespaceOutput(
             success=False,
             namespace_id=None,
             message=f"Namespace creation failed: {str(e)}",
             active_branch="unknown",
             error=f"Error during create_namespace: {str(e)}",
         ).model_dump(mode="json")
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the DoltDiff tool

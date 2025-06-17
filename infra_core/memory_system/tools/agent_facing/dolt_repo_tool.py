@@ -133,6 +133,28 @@ class DoltAddOutput(BaseDoltOutput):
     pass  # All fields inherited from BaseDoltOutput
 
 
+class DoltResetInput(BaseModel):
+    """Input model for the dolt_reset tool."""
+
+    tables: Optional[List[str]] = Field(
+        default=None,
+        description="Optional list of specific tables to reset. If not provided, all working changes will be discarded.",
+    )
+    hard: bool = Field(
+        default=True,
+        description="Whether to perform a hard reset, discarding all changes (default: True)",
+    )
+
+
+class DoltResetOutput(BaseDoltOutput):
+    """Output model for the dolt_reset tool."""
+
+    tables_reset: Optional[List[str]] = Field(
+        default=None,
+        description="List of tables that were reset (if specific tables were targeted)",
+    )
+
+
 class DoltCommitInput(BaseModel):
     """Input model for the dolt_commit tool."""
 
@@ -926,6 +948,55 @@ def dolt_add_tool(input_data: DoltAddInput, memory_bank: StructuredMemoryBank) -
             active_branch=memory_bank.dolt_writer.active_branch,
             error=message,
             error_code="ADD_FAILED",
+        )
+
+
+@dolt_tool("RESET")
+def dolt_reset_tool(
+    input_data: DoltResetInput, memory_bank: StructuredMemoryBank
+) -> DoltResetOutput:
+    """
+    Reset working changes in Dolt using the DoltWriter's reset method.
+
+    Args:
+        input_data: The reset parameters
+        memory_bank: StructuredMemoryBank instance with Dolt writer access
+
+    Returns:
+        DoltResetOutput with success status and message
+    """
+    try:
+        # Use the proper abstraction layer
+        success, message = memory_bank.dolt_writer.reset(
+            hard=input_data.hard, tables=input_data.tables
+        )
+
+        if success:
+            return DoltResetOutput(
+                success=True,
+                message=message,
+                active_branch=memory_bank.dolt_writer.active_branch,
+                tables_reset=input_data.tables,
+            )
+        else:
+            return DoltResetOutput(
+                success=False,
+                message=message,
+                active_branch=memory_bank.dolt_writer.active_branch,
+                error=message,
+                error_code="RESET_FAILED",
+                tables_reset=input_data.tables,
+            )
+
+    except Exception as e:
+        error_msg = f"Exception during dolt_reset: {str(e)}"
+        return DoltResetOutput(
+            success=False,
+            message=error_msg,
+            active_branch=getattr(memory_bank.dolt_writer, "active_branch", "unknown"),
+            error=error_msg,
+            error_code="EXCEPTION",
+            tables_reset=input_data.tables,
         )
 
 
