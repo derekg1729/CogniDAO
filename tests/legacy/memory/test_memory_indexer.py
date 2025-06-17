@@ -52,8 +52,16 @@ class TestMemoryIndexer:
         except ImportError:
             pytest.skip("ChromaDB not installed")
 
-        # Directly import the memory_indexer module
-        memory_indexer_path = os.path.join(os.path.dirname(__file__), "..", "memory_indexer.py")
+        # Directly import the memory_indexer module from the correct location
+        memory_indexer_path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "..",
+            "legacy_logseq",
+            "memory",
+            "memory_indexer.py",
+        )
         spec = importlib.util.spec_from_file_location("memory_indexer", memory_indexer_path)
         memory_indexer = importlib.util.module_from_spec(spec)
 
@@ -167,8 +175,16 @@ class TestMemoryIndexer:
         except ImportError:
             pytest.skip("ChromaDB not installed")
 
-        # Directly import the memory_indexer module
-        memory_indexer_path = os.path.join(os.path.dirname(__file__), "..", "memory_indexer.py")
+        # Directly import the memory_indexer module from the correct location
+        memory_indexer_path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "..",
+            "legacy_logseq",
+            "memory",
+            "memory_indexer.py",
+        )
         spec = importlib.util.spec_from_file_location("memory_indexer", memory_indexer_path)
         memory_indexer = importlib.util.module_from_spec(spec)
 

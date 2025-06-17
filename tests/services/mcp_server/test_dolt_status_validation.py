@@ -17,7 +17,10 @@ from pydantic import ValidationError
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "app"))
+# Fix path to point to the correct location of the MCP server
+sys.path.insert(
+    0, str(Path(__file__).parent.parent.parent.parent / "services" / "mcp_server" / "app")
+)
 
 from mcp_server import dolt_status
 from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import DoltStatusOutput
