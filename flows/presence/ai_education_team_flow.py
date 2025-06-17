@@ -179,9 +179,34 @@ async def run_ai_education_team_with_outro(
         return {"success": False, "error": "MCP setup failed"}
 
     try:
-        # Setup OpenAI client
-        model_client = OpenAIChatCompletionClient(model="gpt-4o")
-        logger.info("✅ OpenAI client configured")
+        # Setup OpenAI client with Helicone support
+        import os
+
+        # Check for Helicone configuration
+        helicone_api_key = os.getenv("HELICONE_API_KEY", "").strip()
+        helicone_base_url = os.getenv("HELICONE_BASE_URL", "https://oai.helicone.ai/v1").strip()
+
+        if helicone_api_key:
+            # Configure for Helicone observability
+            model_client = OpenAIChatCompletionClient(
+                model="gpt-4o",
+                base_url=helicone_base_url,
+                default_headers={
+                    "Helicone-Auth": f"Bearer {helicone_api_key}",
+                    "Helicone-Session-Id": "ai-education-team-flow",
+                    "Helicone-Property-Flow": "ai-education-team",
+                    "Helicone-Property-Environment": "production",
+                },
+            )
+            logger.info(
+                f"✅ OpenAI client configured with Helicone observability at {helicone_base_url}"
+            )
+        else:
+            # Standard OpenAI configuration
+            model_client = OpenAIChatCompletionClient(model="gpt-4o")
+            logger.info(
+                "✅ OpenAI client configured (no Helicone observability - set HELICONE_API_KEY to enable)"
+            )
 
         cogni_tools = mcp_setup["tools"]
         tool_specs_text = mcp_setup.get(
@@ -281,6 +306,7 @@ Important: Use the tool specifications provided in your system message to ensure
         logger.info("🔄 Starting outro routine: Systematic Dolt operations...")
 
         # Create dedicated Dolt commit agent using the same MCP connection
+        # Note: Using the same model_client instance ensures Helicone observability for all agents
         dolt_commit_agent = AssistantAgent(
             name="dolt_commit_agent",
             model_client=model_client,

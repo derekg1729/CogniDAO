@@ -41,7 +41,7 @@ def initialize_openai_client() -> OpenAI:
     # Check for Helicone API key for optional observability
     helicone_key = os.environ.get("HELICONE_API_KEY")
 
-    if helicone_key:
+    if helicone_key and helicone_key.strip():
         # Use Helicone proxy for observability
         # Support both SaaS and self-hosted via HELICONE_BASE_URL
         helicone_base_url = os.environ.get("HELICONE_BASE_URL", "https://oai.helicone.ai/v1")

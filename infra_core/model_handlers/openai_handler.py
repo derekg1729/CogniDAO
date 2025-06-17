@@ -63,7 +63,7 @@ class OpenAIModelHandler(BaseModelHandler):
 
                 helicone_key = os.environ.get("HELICONE_API_KEY")
 
-                if helicone_key:
+                if helicone_key and helicone_key.strip():
                     # Use Helicone proxy for observability
                     # Support both SaaS and self-hosted via HELICONE_BASE_URL
                     helicone_base_url = os.environ.get(
