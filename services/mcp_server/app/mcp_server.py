@@ -166,9 +166,9 @@ def get_current_branch() -> str:
         logger.info(f"Using branch from DOLT_BRANCH environment variable: {env_branch}")
         return env_branch
 
-    # STUBBED: Always return "main" for now to ensure consistent Dolt branch usage
-    logger.info("STUBBED: Always returning 'main' branch (Git detection disabled)")
-    return "main"
+    # STUBBED: Always return "feat/prompt-templates" for current development work
+    logger.info("STUBBED: Using current development branch 'feat/prompt-templates'")
+    return "feat/prompt-templates"
 
     # # Try to detect Git branch
     # try:

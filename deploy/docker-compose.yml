@@ -108,6 +108,9 @@ services:
       - TOOLHIVE_API=http://toolhive:8080
       # OpenAI API Key for AutoGen flows (explicit override)
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # Helicone observability configuration (sitecustomize.py will auto-configure OpenAI SDK)
+      - HELICONE_API_KEY=${HELICONE_API_KEY}
+      - HELICONE_BASE_URL=${HELICONE_BASE_URL:-https://oai.helicone.ai/v1}
     depends_on:
       prefect-server:
         condition: service_healthy

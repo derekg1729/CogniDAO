@@ -35,6 +35,14 @@ ENV DOLT_PORT=3306
 ENV DOLT_DATABASE=cogni-dao-memory
 ENV CHROMA_PATH=/app/chroma
 ENV CHROMA_COLLECTION_NAME=cogni_mcp_collection
+# Agent branch and namespace configuration
+# Build arguments for dynamic configuration
+ARG DOLT_BRANCH=test
+ARG DOLT_NAMESPACE=legacy
+
+# Environment variables (can be overridden at runtime)
+ENV DOLT_BRANCH=${DOLT_BRANCH}
+ENV DOLT_NAMESPACE=${DOLT_NAMESPACE}
 
 # Create chroma directory
 RUN mkdir -p /app/chroma
