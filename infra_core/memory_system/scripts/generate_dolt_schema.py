@@ -16,6 +16,7 @@ sys.path.append(str(project_root))
 try:
     from infra_core.memory_system.schemas.memory_block import MemoryBlock
     from infra_core.memory_system.schemas.common import BlockLink, NodeSchemaRecord, BlockProperty
+    from infra_core.memory_system.schemas.namespace import Namespace
     from infra_core.constants import MEMORY_DOLT_ROOT
     from pydantic import BaseModel
 except ImportError as e:
@@ -46,6 +47,7 @@ FIELD_TYPE_OVERRIDES = {
     "text": "LONGTEXT",
     "embedding": "LONGTEXT",
     "id": "VARCHAR(255)",
+    "namespace_id": "VARCHAR(255)",
     "type": "VARCHAR(50)",
     "state": "VARCHAR(50)",
     "visibility": "VARCHAR(50)",
@@ -186,6 +188,9 @@ def generate_table_schema(model: Type[BaseModel], table_name: str) -> str:
             "    CONSTRAINT chk_valid_visibility CHECK (visibility IN ('internal', 'public', 'restricted'))"
         )
         columns.append("    CONSTRAINT chk_block_version_positive CHECK (block_version > 0)")
+        columns.append(
+            "    CONSTRAINT fk_namespace FOREIGN KEY (namespace_id) REFERENCES namespaces(id)"
+        )
 
     # Add composite primary key for BlockLinks
     if table_name == "block_links" and primary_keys:
@@ -242,11 +247,19 @@ def generate_schema_file(output_path: Path) -> None:
 
     schema_statements = []
 
+    # Generate schema for Namespace (must come first due to foreign key dependencies)
+    schema_statements.append(generate_table_schema(Namespace, "namespaces"))
+    schema_statements.append("\nCREATE UNIQUE INDEX idx_namespaces_name ON namespaces (name);")
+    schema_statements.append("\nCREATE UNIQUE INDEX idx_namespaces_slug ON namespaces (slug);")
+
     # Generate schema for MemoryBlock
-    schema_statements.append(generate_table_schema(MemoryBlock, "memory_blocks"))
+    schema_statements.append("\n" + generate_table_schema(MemoryBlock, "memory_blocks"))
     schema_statements.append(
         "\nCREATE INDEX idx_memory_blocks_type_state_visibility "
         "ON memory_blocks (type, state, visibility);"
+    )
+    schema_statements.append(
+        "\nCREATE INDEX idx_memory_blocks_namespace ON memory_blocks (namespace_id);"
     )
 
     # Generate schema for BlockLink

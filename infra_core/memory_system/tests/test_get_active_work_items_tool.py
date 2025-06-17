@@ -62,6 +62,8 @@ class TestGetActiveWorkItemsCore:
     def memory_bank(self):
         """Create a mock memory bank for testing."""
         mock_memory_bank = MagicMock()
+        # Mock the active_branch property to return a string
+        mock_memory_bank.dolt_writer.active_branch = "test-branch"
         return mock_memory_bank
 
     @pytest.fixture
@@ -92,6 +94,7 @@ class TestGetActiveWorkItemsCore:
         ) as mock_get_blocks:
             mock_get_blocks.return_value.success = True
             mock_get_blocks.return_value.blocks = active_items
+            mock_get_blocks.return_value.current_branch = "test-branch"
 
             # Execute
             input_data = GetActiveWorkItemsInput()
@@ -122,6 +125,7 @@ class TestGetActiveWorkItemsCore:
         ) as mock_get_blocks:
             mock_get_blocks.return_value.success = True
             mock_get_blocks.return_value.blocks = filtered_items
+            mock_get_blocks.return_value.current_branch = "test-branch"
 
             # Execute
             input_data = GetActiveWorkItemsInput(priority_filter="P1")
@@ -146,6 +150,7 @@ class TestGetActiveWorkItemsCore:
         ) as mock_get_blocks:
             mock_get_blocks.return_value.success = True
             mock_get_blocks.return_value.blocks = filtered_items
+            mock_get_blocks.return_value.current_branch = "test-branch"
 
             # Execute
             input_data = GetActiveWorkItemsInput(work_item_type_filter="task")
@@ -168,6 +173,7 @@ class TestGetActiveWorkItemsCore:
         ) as mock_get_blocks:
             mock_get_blocks.return_value.success = True
             mock_get_blocks.return_value.blocks = active_items[:2]  # Simulate limit applied
+            mock_get_blocks.return_value.current_branch = "test-branch"
 
             # Execute
             input_data = GetActiveWorkItemsInput(limit=2)
@@ -185,6 +191,7 @@ class TestGetActiveWorkItemsCore:
         ) as mock_get_blocks:
             mock_get_blocks.return_value.success = True
             mock_get_blocks.return_value.blocks = []
+            mock_get_blocks.return_value.current_branch = "test-branch"
 
             # Execute
             input_data = GetActiveWorkItemsInput()
@@ -203,6 +210,7 @@ class TestGetActiveWorkItemsCore:
         ) as mock_get_blocks:
             mock_get_blocks.return_value.success = False
             mock_get_blocks.return_value.error = "Database connection failed"
+            mock_get_blocks.return_value.current_branch = "test-branch"
 
             # Execute
             input_data = GetActiveWorkItemsInput()
@@ -251,6 +259,7 @@ class TestGetActiveWorkItemsTool:
                 success=True,
                 work_items=[],
                 total_count=0,
+                current_branch="test-branch",
                 timestamp=datetime.now(),
             )
 
@@ -268,6 +277,9 @@ class TestGetActiveWorkItemsTool:
 
     def test_tool_wrapper_input_validation_error(self, memory_bank):
         """Test tool wrapper handling of input validation errors."""
+        # Mock the active_branch property
+        memory_bank.dolt_writer.active_branch = "test-branch"
+
         # Execute with invalid priority
         result = get_active_work_items_tool(
             priority_filter="P10",  # Invalid priority
@@ -280,6 +292,9 @@ class TestGetActiveWorkItemsTool:
 
     def test_tool_wrapper_exception_handling(self, memory_bank):
         """Test tool wrapper handling of unexpected exceptions."""
+        # Mock the active_branch property
+        memory_bank.dolt_writer.active_branch = "test-branch"
+
         with patch(
             "infra_core.memory_system.tools.agent_facing.get_active_work_items_tool.get_active_work_items"
         ) as mock_core:

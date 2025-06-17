@@ -55,6 +55,12 @@ class UpdateMemoryBlockInput(BaseModel):
     # Required fields
     block_id: str = Field(..., description="ID of the memory block to update")
 
+    # Namespace field for multi-tenant support
+    namespace_id: Optional[str] = Field(
+        None,
+        description="Namespace ID for multi-tenant organization (if not provided, uses block's current namespace)",
+    )
+
     # Concurrency control field (canonical)
     previous_block_version: Optional[int] = Field(
         None, description="Expected current block version for optimistic locking"

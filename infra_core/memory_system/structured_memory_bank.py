@@ -19,10 +19,15 @@ from infra_core.memory_system.dolt_reader import (
 )
 from infra_core.memory_system.dolt_writer import (
     DoltMySQLWriter,
+    PERSISTED_TABLES,
 )
 from infra_core.memory_system.llama_memory import LlamaMemory
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
 from infra_core.memory_system.schemas.common import BlockLink
+from infra_core.memory_system.tools.helpers.namespace_validation import (
+    validate_namespace_exists,
+    get_default_namespace,
+)
 
 # --- Path Setup ---
 script_dir = Path(__file__).parent
@@ -75,6 +80,31 @@ def diff_memory_blocks(
     return changes
 
 
+class InconsistentStateError(Exception):
+    """
+    Raised when the memory bank detects an inconsistent state between Dolt and LlamaIndex.
+
+    This indicates a critical error where the two storage systems are out of sync,
+    and operations should be aborted until the inconsistency is resolved.
+    """
+
+    def __init__(self, reason: str, block_id: Optional[str] = None):
+        self.reason = reason
+        self.block_id = block_id
+        message = f"Memory bank inconsistent state: {reason}"
+        if block_id:
+            message += f" (block_id: {block_id})"
+        super().__init__(message)
+
+    def __str__(self) -> str:
+        """Return a human-readable string representation of the error."""
+        base_msg = f"Memory bank inconsistency detected: {self.reason}"
+        if self.block_id:
+            base_msg += f"\nAffected block ID: {self.block_id}"
+        base_msg += "\nPlease check logs for details and contact system administrator."
+        return base_msg
+
+
 class StructuredMemoryBank:
     """
     Manages MemoryBlocks using Dolt for persistence and LlamaIndex for indexing.
@@ -101,7 +131,8 @@ class StructuredMemoryBank:
             auto_commit: Whether to automatically commit changes after successful operations (default: False).
                         When False, changes remain in working set until explicit commit via MCP tools.
         """
-        self.branch = branch
+        # Normalize branch name to lowercase for consistency
+        self.branch = branch.lower().strip()
         self.auto_commit = auto_commit
         self.connection_config = dolt_connection_config
 
@@ -146,15 +177,45 @@ class StructuredMemoryBank:
         """
         return self._is_consistent
 
-    def _mark_inconsistent(self, reason: str):
+    def _mark_inconsistent(self, reason: str, block_id: str | None = None) -> None:
         """
         Marks the memory bank as inconsistent and logs a critical error.
 
         Args:
             reason: The reason why the memory bank is inconsistent.
+            block_id: Optional block ID associated with the inconsistency.
         """
         self._is_consistent = False
+        self._inconsistency_reason = reason
+        self._inconsistency_block_id = block_id
         logger.critical(f"StructuredMemoryBank is in an inconsistent state: {reason}")
+
+    def get_inconsistency_details(self) -> Optional[Dict[str, Any]]:
+        """
+        Get details about the current inconsistency, if any.
+
+        Returns:
+            Dictionary with inconsistency details if state is inconsistent, None otherwise.
+            Contains 'reason', 'block_id' (if applicable), and 'timestamp'.
+        """
+        if not self._is_consistent:
+            return {
+                "reason": getattr(self, "_inconsistency_reason", "Unknown reason"),
+                "block_id": getattr(self, "_inconsistency_block_id", None),
+                "is_consistent": False,
+            }
+        return None
+
+    def raise_if_inconsistent(self):
+        """
+        Raise InconsistentStateError if the memory bank is in an inconsistent state.
+
+        This allows upstream services to abort operations instead of silently continuing.
+        """
+        if not self._is_consistent:
+            reason = getattr(self, "_inconsistency_reason", "Unknown inconsistency detected")
+            block_id = getattr(self, "_inconsistency_block_id", None)
+            raise InconsistentStateError(reason, block_id)
 
     def _store_block_proof(self, block_id: str, operation: str, commit_hash: str) -> bool:
         """
@@ -262,11 +323,23 @@ class StructuredMemoryBank:
                 f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in ve.errors()
             ]
             return False, f"Block validation failed: {'; '.join(simple_errors)}"
+
+        # Validate namespace exists
+        try:
+            validate_namespace_exists(block.namespace_id, self, raise_error=True)
+        except KeyError as e:
+            error_msg = f"Namespace validation failed: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+        except Exception as e:
+            error_msg = f"Namespace validation error: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
         # --- END VALIDATION PHASE ---
 
         # --- ATOMIC PERSISTENCE PHASE ---
         # Tables to track for commit/rollback
-        tables = ["memory_blocks", "block_properties", "block_links"]
+        tables = PERSISTED_TABLES
         dolt_write_success = False
         llama_success = False
 
@@ -343,7 +416,8 @@ class StructuredMemoryBank:
                                     f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
                                 )
                                 self._mark_inconsistent(
-                                    f"Dolt commit failed and rollback failed for block {block.id}"
+                                    f"Dolt commit failed and rollback failed for block {block.id}",
+                                    block.id,
                                 )
 
                             return False, error_msg
@@ -360,6 +434,8 @@ class StructuredMemoryBank:
                     logger.info(
                         f"Successfully created memory block {block.id} (uncommitted - auto_commit=False)"
                     )
+                    # Store proof with placeholder commit hash to track staged operations
+                    self._store_block_proof(block.id, "create", "STAGED")
                     return True, None
 
             else:
@@ -375,7 +451,8 @@ class StructuredMemoryBank:
                         f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
                     )
                     self._mark_inconsistent(
-                        f"LlamaIndex operation failed and Dolt rollback failed for block {block.id}"
+                        f"LlamaIndex operation failed and Dolt rollback failed for block {block.id}",
+                        block.id,
                     )
 
                 return False, error_msg  # error_msg was set in the LlamaIndex exception handler
@@ -398,7 +475,8 @@ class StructuredMemoryBank:
                     f"Failed to rollback Dolt changes after exception: {rollback_e}. Database may be in an inconsistent state!"
                 )
                 self._mark_inconsistent(
-                    f"Exception during create and Dolt rollback failed for block {block.id}"
+                    f"Exception during create and Dolt rollback failed for block {block.id}",
+                    block.id,
                 )
 
             return False, error_msg
@@ -456,11 +534,23 @@ class StructuredMemoryBank:
             error_details = "\n- ".join(field_errors)
             logger.error(f"Validation failed for block {block.id}:\n- {error_details}")
             return False
+
+        # Validate namespace exists
+        try:
+            validate_namespace_exists(block.namespace_id, self, raise_error=True)
+        except KeyError as e:
+            error_msg = f"Namespace validation failed: {str(e)}"
+            logger.error(error_msg)
+            return False
+        except Exception as e:
+            error_msg = f"Namespace validation error: {str(e)}"
+            logger.error(error_msg)
+            return False
         # --- END VALIDATION PHASE ---
 
         # --- ATOMIC PERSISTENCE PHASE ---
         # Tables to track for commit/rollback
-        tables = ["memory_blocks", "block_properties", "block_links"]
+        tables = PERSISTED_TABLES
         dolt_write_success = False
         llama_success = False
 
@@ -534,7 +624,8 @@ class StructuredMemoryBank:
                                     f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
                                 )
                                 self._mark_inconsistent(
-                                    f"Dolt commit failed and rollback failed for block {block.id}"
+                                    f"Dolt commit failed and rollback failed for block {block.id}",
+                                    block.id,
                                 )
 
                             return False
@@ -550,6 +641,8 @@ class StructuredMemoryBank:
                     logger.info(
                         f"Successfully updated memory block {block.id} (uncommitted - auto_commit=False)"
                     )
+                    # Store proof with placeholder commit hash to track staged operations
+                    self._store_block_proof(block.id, "update", "STAGED")
                     return True
 
             else:
@@ -565,7 +658,8 @@ class StructuredMemoryBank:
                         f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
                     )
                     self._mark_inconsistent(
-                        f"LlamaIndex operation failed and Dolt rollback failed for block {block.id}"
+                        f"LlamaIndex operation failed and Dolt rollback failed for block {block.id}",
+                        block.id,
                     )
 
                 return False
@@ -587,7 +681,8 @@ class StructuredMemoryBank:
                     f"Failed to rollback Dolt changes after exception: {rollback_e}. Database may be in an inconsistent state!"
                 )
                 self._mark_inconsistent(
-                    f"Exception during update and Dolt rollback failed for block {block.id}"
+                    f"Exception during update and Dolt rollback failed for block {block.id}",
+                    block.id,
                 )
 
             return False
@@ -624,7 +719,7 @@ class StructuredMemoryBank:
 
         # --- ATOMIC DELETION PHASE ---
         # Tables to track for commit/rollback
-        tables = ["memory_blocks", "block_properties", "block_links"]
+        tables = PERSISTED_TABLES
 
         # Step 1: Delete from Dolt without auto-commit
         try:
@@ -702,7 +797,8 @@ class StructuredMemoryBank:
                                     f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
                                 )
                                 self._mark_inconsistent(
-                                    f"Dolt commit failed and rollback failed for deleted block {block_id}"
+                                    f"Dolt commit failed and rollback failed for deleted block {block_id}",
+                                    block_id,
                                 )
 
                             return False
@@ -728,7 +824,8 @@ class StructuredMemoryBank:
                                 f"Failed to rollback Dolt changes: {rollback_e}. Database may be in an inconsistent state!"
                             )
                             self._mark_inconsistent(
-                                f"Dolt commit failed and rollback failed for deleted block {block_id}"
+                                f"Dolt commit failed and rollback failed for deleted block {block_id}",
+                                block_id,
                             )
 
                         return False
@@ -737,6 +834,8 @@ class StructuredMemoryBank:
                     logger.info(
                         f"Successfully deleted memory block {block_id} (uncommitted - auto_commit=False)"
                     )
+                    # Store proof with placeholder commit hash to track staged operations
+                    self._store_block_proof(block_id, "delete", "STAGED")
                     return True
             else:
                 # LlamaIndex delete failed - rollback Dolt changes
@@ -769,7 +868,8 @@ class StructuredMemoryBank:
                     f"Failed to rollback Dolt changes after exception: {rollback_e}. Database may be in an inconsistent state!"
                 )
                 self._mark_inconsistent(
-                    f"Exception during delete and Dolt rollback failed for block {block_id}"
+                    f"Exception during delete and Dolt rollback failed for block {block_id}",
+                    block_id,
                 )
 
             return False
@@ -1084,13 +1184,24 @@ class StructuredMemoryBank:
         self.close_persistent_connections()
         return "Persistent connections closed - ready for commit test"
 
-    def debug_persistent_state(self) -> Dict[str, Any]:
+    def debug_persistent_state(self, force: bool = False) -> Dict[str, Any]:
         """
         Debug method to check persistent connection state.
+
+        This method is only available in debug mode to prevent accidental
+        exposure of internal state in production environments.
+
+        Args:
+            force: If True, bypass the debug mode check (use with caution!)
 
         Returns:
             Dictionary with debug information about persistent connections
         """
+        if not __debug__ and not force:
+            raise RuntimeError(
+                "debug_persistent_state() is only available in debug mode unless force=True"
+            )
+
         return {
             "memory_bank_branch": self.branch,
             "reader_use_persistent": getattr(self.dolt_reader, "_use_persistent", "UNKNOWN"),
@@ -1102,3 +1213,33 @@ class StructuredMemoryBank:
             "writer_has_connection": getattr(self.dolt_writer, "_persistent_connection", None)
             is not None,
         }
+
+    def namespace_exists(self, namespace_id: str) -> bool:
+        """
+        Check if a namespace exists in the database.
+
+        This is the single authoritative method for namespace existence checking,
+        used by validation helpers and MCP tools.
+
+        Args:
+            namespace_id: The namespace ID to check (case-insensitive)
+
+        Returns:
+            True if the namespace exists, False otherwise
+        """
+        try:
+            # Normalize namespace_id to lowercase for case-insensitive comparison
+            normalized_id = namespace_id.lower().strip()
+
+            # Fast path for default namespace
+            if normalized_id == get_default_namespace():
+                return True
+
+            # Query database with case-insensitive comparison
+            query = "SELECT id FROM namespaces WHERE LOWER(id) = %s"
+            result = self.dolt_reader._execute_query(query, (normalized_id,))
+            return len(result) > 0
+
+        except Exception as e:
+            logger.error(f"Error checking namespace existence for '{namespace_id}': {e}")
+            return False

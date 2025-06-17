@@ -27,6 +27,9 @@ class QueryMemoryBlocksInput(BaseModel):
     type_filter: Optional[
         Literal["knowledge", "task", "project", "doc", "interaction", "log", "epic", "bug"]
     ] = Field(None, description="Optional filter by block type")
+    namespace_id: Optional[str] = Field(
+        None, description="Optional filter by namespace ID for multi-tenant operations"
+    )
     tag_filters: Optional[List[str]] = Field(None, description="Optional list of tags to filter by")
     top_k: Optional[int] = Field(5, description="Maximum number of results to return", ge=1, le=20)
     metadata_filters: Optional[Dict[str, Any]] = Field(
@@ -70,6 +73,10 @@ def query_memory_blocks_core(
         # Apply type filter if specified
         if input_data.type_filter:
             blocks = [b for b in blocks if b.type == input_data.type_filter]
+
+        # Apply namespace filter if specified
+        if input_data.namespace_id:
+            blocks = [b for b in blocks if b.namespace_id == input_data.namespace_id]
 
         # Apply tag filters if specified
         if input_data.tag_filters:

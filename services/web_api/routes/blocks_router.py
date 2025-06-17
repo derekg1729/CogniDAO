@@ -47,6 +47,7 @@ async def get_all_blocks(
     ),
     case_insensitive: bool = Query(False, description="Case-insensitive type filtering"),
     branch: str = Query("main", description="Dolt branch to read from (default: 'main')"),
+    namespace: str = Query("legacy", description="Filter by namespace (default: 'legacy')"),
 ) -> BlocksResponse:
     """
     Retrieves memory blocks from the StructuredMemoryBank with branch context.
@@ -55,6 +56,7 @@ async def get_all_blocks(
     - type: Optional filter for block type (e.g., "project", "knowledge", "task")
     - case_insensitive: If True, type filtering will be case-insensitive
     - branch: Dolt branch to read from (default: "main")
+    - namespace: Filter by namespace (default: "legacy")
     """
     # Validate branch name for security
     try:
@@ -93,6 +95,12 @@ async def get_all_blocks(
             else:
                 all_blocks = [block for block in all_blocks if block.type == block_type_filter]
 
+        # Filter blocks by namespace (always applied, defaults to 'legacy')
+        if namespace:
+            logger.info(f"Filtering blocks by namespace: {namespace}")
+            filters_applied["namespace"] = namespace
+            all_blocks = [block for block in all_blocks if block.namespace_id == namespace]
+
         logger.info(f"Retrieved {len(all_blocks)} blocks (filtered from {original_count})")
 
         # Get active branch from memory bank
@@ -102,6 +110,7 @@ async def get_all_blocks(
             blocks=all_blocks,  # Now properly typed as List[MemoryBlock]
             total_count=len(all_blocks),
             filters_applied=filters_applied if filters_applied else None,
+            namespace_context=namespace,
             active_branch=active_branch,
             requested_branch=branch,
         )
@@ -126,6 +135,7 @@ async def get_block(
     request: Request,
     block_id: str,
     branch: str = Query("main", description="Dolt branch to read from (default: 'main')"),
+    namespace: str = Query("legacy", description="Filter by namespace (default: 'legacy')"),
 ) -> SingleBlockResponse:
     """
     Retrieves a specific memory block by its ID using the get_memory_block_tool with branch context.
@@ -150,6 +160,7 @@ async def get_block(
     try:
         # Wrap blocking I/O in threadpool to prevent event loop blocking
         loop = asyncio.get_event_loop()
+        # Don't pass namespace_id to avoid validation error - we'll filter after retrieval
         output = await loop.run_in_executor(
             None,
             lambda: get_memory_block_tool(
@@ -166,12 +177,24 @@ async def get_block(
 
     # 3. Handle the output from the tool
     if output.success and len(output.blocks) > 0:
+        block = output.blocks[0]
+
+        # Validate namespace if specified
+        if namespace and block.namespace_id != namespace:
+            logger.warning(
+                f"Block {block_id} found but belongs to namespace '{block.namespace_id}', not '{namespace}'"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Memory block with ID '{block_id}' not found in namespace '{namespace}'",
+            )
+
         # Get active branch from memory bank
         active_branch = getattr(memory_bank.dolt_writer, "active_branch", "unknown")
 
         # Return the enhanced response with branch context
         return SingleBlockResponse.create_with_timestamp(
-            block=output.blocks[0],  # Now properly typed as MemoryBlock
+            block=block,  # Now properly typed as MemoryBlock
             active_branch=active_branch,
             requested_branch=branch,
         )

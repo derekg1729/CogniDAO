@@ -29,6 +29,9 @@ class GetMemoryBlockInput(BaseModel):
     type_filter: Optional[
         Literal["knowledge", "task", "project", "doc", "interaction", "bug", "epic"]
     ] = Field(None, description="Optional filter by block type")
+    namespace_id: Optional[str] = Field(
+        None, description="Optional filter by namespace ID for multi-tenant operations"
+    )
     tag_filters: Optional[List[str]] = Field(
         None, description="Optional list of tags to filter by (all must match)"
     )
@@ -44,10 +47,12 @@ class GetMemoryBlockInput(BaseModel):
 
     def model_post_init(self, __context):
         """Validate that either block_ids is provided OR filtering parameters are provided."""
-        if self.block_ids and (self.type_filter or self.tag_filters or self.metadata_filters):
+        if self.block_ids and (
+            self.type_filter or self.namespace_id or self.tag_filters or self.metadata_filters
+        ):
             raise ValueError("Cannot specify both block_ids and filtering parameters")
         if not self.block_ids and not (
-            self.type_filter or self.tag_filters or self.metadata_filters
+            self.type_filter or self.namespace_id or self.tag_filters or self.metadata_filters
         ):
             raise ValueError("Must specify either block_ids OR at least one filtering parameter")
 
@@ -131,7 +136,7 @@ def get_memory_block_core(input_data: GetMemoryBlockInput, memory_bank) -> GetMe
     else:
         # Multiple block retrieval with filtering
         logger.debug(
-            f"Attempting to retrieve memory blocks with filters: type={input_data.type_filter}, tags={input_data.tag_filters}, metadata={input_data.metadata_filters}"
+            f"Attempting to retrieve memory blocks with filters: type={input_data.type_filter}, namespace_id={input_data.namespace_id}, tags={input_data.tag_filters}, metadata={input_data.metadata_filters}"
         )
 
         try:
@@ -142,6 +147,13 @@ def get_memory_block_core(input_data: GetMemoryBlockInput, memory_bank) -> GetMe
             if input_data.type_filter:
                 logger.debug(f"Applying type filter: {input_data.type_filter}")
                 all_blocks = [block for block in all_blocks if block.type == input_data.type_filter]
+
+            # Apply namespace filter if specified (following blocks_router.py pattern)
+            if input_data.namespace_id:
+                logger.debug(f"Applying namespace filter: {input_data.namespace_id}")
+                all_blocks = [
+                    block for block in all_blocks if block.namespace_id == input_data.namespace_id
+                ]
 
             # Apply tag filters if specified (following query_memory_blocks_tool.py pattern)
             if input_data.tag_filters:
