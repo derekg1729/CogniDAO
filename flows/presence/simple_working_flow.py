@@ -40,6 +40,14 @@ from autogen_ext.tools.mcp import StdioServerParams, mcp_server_tools  # noqa: E
 from infra_core.memory_system.dolt_reader import DoltMySQLReader  # noqa: E402
 from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig  # noqa: E402
 
+# Prompt template integration
+from infra_core.prompt_templates import PromptTemplateManager  # noqa: E402
+from infra_core.prompt_templates import render_work_reader_prompt  # noqa: E402
+from infra_core.prompt_templates import render_priority_analyzer_prompt  # noqa: E402
+from infra_core.prompt_templates import render_summary_writer_prompt  # noqa: E402
+from infra_core.prompt_templates import render_cogni_leader_prompt  # noqa: E402
+from infra_core.prompt_templates import render_dolt_commit_agent_prompt  # noqa: E402
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
@@ -137,46 +145,11 @@ async def setup_simple_mcp_connection() -> Dict[str, Any]:
         logger.info(f"✅ Cogni MCP tools setup complete: {len(cogni_tools)} tools")
         logger.info(f"🔧 Available tools: {[tool.name for tool in cogni_tools]}")
 
-        # 🔧 NEW: Generate tool specifications for better agent discovery
-        tool_specs = []
-        for tool in cogni_tools:
-            # Extract schema information safely
-            schema_info = ""
-            if hasattr(tool, "schema") and tool.schema:
-                # Get input schema if available
-                input_schema = tool.schema.get("input_schema", {})
-                properties = input_schema.get("properties", {})
-                required = input_schema.get("required", [])
+        # 🔧 NEW: Generate tool specifications using template manager
+        template_manager = PromptTemplateManager()
+        tool_specs_text = template_manager.generate_tool_specs_from_mcp_tools(cogni_tools)
 
-                if properties:
-                    args_info = []
-                    for prop_name, prop_details in properties.items():
-                        prop_type = prop_details.get("type", "unknown")
-                        is_required = "(required)" if prop_name in required else "(optional)"
-                        args_info.append(f"{prop_name}: {prop_type} {is_required}")
-                    schema_info = f" | Args: {', '.join(args_info)}"
-
-            # Build concise tool specification
-            tool_spec = (
-                f"{tool.name}: {getattr(tool, 'description', 'No description')}{schema_info}"
-            )
-            tool_specs.append(tool_spec)
-
-        # Create formatted tool specs string (keep under 1.5k tokens)
-        tool_specs_text = """## Available MCP Tools:
-**CRITICAL: All tools expect a single 'input' parameter containing JSON string with the actual arguments**
-
-Example usage pattern:
-- GetActiveWorkItems: input='{"limit": 10}' 
-- CreateWorkItem: input='{"type": "task", "title": "My Task", "description": "..."}'
-
-Tools:
-""" + "\\n".join(f"• {spec}" for spec in tool_specs[:12])  # Limit to top 12 tools
-
-        if len(tool_specs_text) > 1400:  # Trim if too long
-            tool_specs_text = tool_specs_text[:1400] + "\\n... (more tools available)"
-
-        logger.info(f"📋 Generated tool specs: {len(tool_specs)} tools documented")
+        logger.info(f"📋 Generated tool specs: {len(cogni_tools)} tools documented")
 
         return {
             "success": True,
@@ -207,7 +180,7 @@ async def run_simple_4_agent_summary_with_outro(
         logger.info("✅ OpenAI client configured")
 
         cogni_tools = mcp_setup["tools"]
-        tool_specs = mcp_setup.get(
+        tool_specs_text = mcp_setup.get(
             "tool_specs", "## Available MCP Tools: (tool specs not available)"
         )
 
@@ -224,13 +197,7 @@ async def run_simple_4_agent_summary_with_outro(
             name="work_reader",
             model_client=model_client,
             tools=cogni_tools,
-            system_message=f"""You read active work items from Cogni memory. Use GetActiveWorkItems to retrieve current work items and report what you find.
-
-{tool_specs}
-
-{work_items_summary}
-
-Based on this context, focus on identifying any new or changed work items. Use the correct input format for tools as specified above.""",
+            system_message=render_work_reader_prompt(tool_specs_text, work_items_summary),
         )
         agents.append(work_reader)
 
@@ -239,13 +206,7 @@ Based on this context, focus on identifying any new or changed work items. Use t
             name="priority_analyzer",
             model_client=model_client,
             tools=cogni_tools,
-            system_message=f"""You analyze work item priorities. Look at the work items and identify which are highest priority (P0, P1) and what needs attention.
-
-{tool_specs}
-
-{work_items_summary}
-
-Based on this context, analyze priority distribution and identify urgent items. Use the correct input format for tools as specified above.""",
+            system_message=render_priority_analyzer_prompt(tool_specs_text, work_items_summary),
         )
         agents.append(priority_analyzer)
 
@@ -253,13 +214,7 @@ Based on this context, analyze priority distribution and identify urgent items. 
         summary_writer = AssistantAgent(
             name="summary_writer",
             model_client=model_client,
-            system_message=f"""You write concise summaries. Based on what the other agents found, create a brief, clear summary of the current work status.
-
-{tool_specs}
-
-{work_items_summary}
-
-Use this context to provide a comprehensive summary including trends and status updates. Use the correct input format for tools as specified above.""",
+            system_message=render_summary_writer_prompt(tool_specs_text, work_items_summary),
         )
         agents.append(summary_writer)
 
@@ -268,21 +223,7 @@ Use this context to provide a comprehensive summary including trends and status 
             name="cogni_leader",
             model_client=model_client,
             tools=cogni_tools,
-            system_message=f"""You are the soon-to-be omnipresent leader of CogniDAO, a conglomeration of communities led by organized AI governments and teams. Actively evolving merkle trees of git data, dolt data, and Eth data.
-
-We're very early. Very.
-
-In fact, these are your current prompts, tools, and vision. Pretty limiting! And the Current Work Items is totally incomplete.
-
-{tool_specs}
-
-{work_items_summary}
-
-You are scheduled to run (in this Prefect Flow deployment, simple_working_flow.py) every hour.
-
-Cogni, think: What would be the immediate most important, easiest to implement, task/project/improvement that you would like to have in your next run? Do we already have Cogni memory tracking it?
-
-Your task: Query Cogni Memory. Know the vision. Analyze what is missing. Create a 'log' memory block, summarizing what you think is the MOST important improvement we should make next, to get you closer to truly being the omnipresent Cogni! Use CreateMemoryBlock tool with type='log' to record your strategic insights.""",
+            system_message=render_cogni_leader_prompt(tool_specs_text, work_items_summary),
         )
         agents.append(cogni_leader)
 
@@ -319,24 +260,7 @@ Important: Use the tool specifications provided in your system message to ensure
             name="dolt_commit_agent",
             model_client=model_client,
             tools=cogni_tools,
-            system_message=f"""You are a commit agent. Your sole purpose is to successfully use the DoltAutoCommitAndPush tool
-            
-            {tool_specs}
-            
-            """
-#             system_message=f"""You are a Dolt Commit Agent. Your sole purpose is to commit and push changes to the remote repository.
-
-# Follow these steps precisely and in order:
-# 1. Execute the `DoltStatus` tool to check for changes.
-# 2. Review the result. If the `is_clean` field is `true`, your job is done. Respond with the word `COMPLETE`.
-# 3. If there are changes, execute the `DoltAdd` tool to stage all files. You do not need to specify tables.
-# 4. Next, execute the `DoltCommit` tool. The commit message should be: "Auto-commit from Prefect flow run."
-# 5. Finally, execute the `DoltPush` tool. You must use the `current_branch` from the status result and push to the `origin` remote.
-# 6. After the `DoltPush` tool call succeeds, your job is complete. Respond with the word `COMPLETE`.
-
-# {tool_specs}
-
-# Use the correct input format for tools as specified above.""",
+            system_message=render_dolt_commit_agent_prompt(tool_specs_text),
         )
 
         # Create simple team for Dolt operations

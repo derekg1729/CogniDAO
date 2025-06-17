@@ -26,6 +26,7 @@ pre-commit
 tqdm>=4.65.0
 jsonpatch>=1.33  # For JSON Patch RFC-6902 support in memory block updates
 unidiff>=0.7.0   # For unified diff patch support in memory block updates
+jinja2>=3.0.0    # For prompt template rendering
 
 # API and Web
 fastapi>=0.110.0

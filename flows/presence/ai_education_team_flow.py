@@ -40,6 +40,14 @@ from autogen_ext.tools.mcp import StdioServerParams, mcp_server_tools  # noqa: E
 from infra_core.memory_system.dolt_reader import DoltMySQLReader  # noqa: E402
 from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig  # noqa: E402
 
+# Prompt template integration
+from infra_core.prompt_templates import PromptTemplateManager  # noqa: E402
+from infra_core.prompt_templates import render_education_researcher_prompt  # noqa: E402
+from infra_core.prompt_templates import render_curriculum_analyst_prompt  # noqa: E402
+from infra_core.prompt_templates import render_education_reporter_prompt  # noqa: E402
+from infra_core.prompt_templates import render_cogni_education_leader_prompt  # noqa: E402
+from infra_core.prompt_templates import render_dolt_commit_agent_prompt  # noqa: E402
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
@@ -141,46 +149,11 @@ async def setup_simple_mcp_connection() -> Dict[str, Any]:
         logger.info(f"✅ Cogni MCP tools setup complete: {len(cogni_tools)} tools")
         logger.info(f"🔧 Available tools: {[tool.name for tool in cogni_tools]}")
 
-        # 🔧 NEW: Generate tool specifications for better agent discovery
-        tool_specs = []
-        for tool in cogni_tools:
-            # Extract schema information safely
-            schema_info = ""
-            if hasattr(tool, "schema") and tool.schema:
-                # Get input schema if available
-                input_schema = tool.schema.get("input_schema", {})
-                properties = input_schema.get("properties", {})
-                required = input_schema.get("required", [])
+        # 🔧 NEW: Generate tool specifications using template manager
+        template_manager = PromptTemplateManager()
+        tool_specs_text = template_manager.generate_tool_specs_from_mcp_tools(cogni_tools)
 
-                if properties:
-                    args_info = []
-                    for prop_name, prop_details in properties.items():
-                        prop_type = prop_details.get("type", "unknown")
-                        is_required = "(required)" if prop_name in required else "(optional)"
-                        args_info.append(f"{prop_name}: {prop_type} {is_required}")
-                    schema_info = f" | Args: {', '.join(args_info)}"
-
-            # Build concise tool specification
-            tool_spec = (
-                f"{tool.name}: {getattr(tool, 'description', 'No description')}{schema_info}"
-            )
-            tool_specs.append(tool_spec)
-
-        # Create formatted tool specs string (keep under 1.5k tokens)
-        tool_specs_text = """## Available MCP Tools:
-**CRITICAL: All tools expect a single 'input' parameter containing JSON string with the actual arguments**
-
-Example usage pattern:
-- GetActiveWorkItems: input='{"limit": 10}' 
-- CreateWorkItem: input='{"type": "task", "title": "My Task", "description": "..."}'
-
-Tools:
-""" + "\\n".join(f"• {spec}" for spec in tool_specs[:12])  # Limit to top 12 tools
-
-        if len(tool_specs_text) > 1400:  # Trim if too long
-            tool_specs_text = tool_specs_text[:1400] + "\\n... (more tools available)"
-
-        logger.info(f"📋 Generated tool specs: {len(tool_specs)} tools documented")
+        logger.info(f"📋 Generated tool specs: {len(cogni_tools)} tools documented")
 
         return {
             "success": True,
@@ -211,7 +184,7 @@ async def run_ai_education_team_with_outro(
         logger.info("✅ OpenAI client configured")
 
         cogni_tools = mcp_setup["tools"]
-        tool_specs = mcp_setup.get(
+        tool_specs_text = mcp_setup.get(
             "tool_specs", "## Available MCP Tools: (tool specs not available)"
         )
 
@@ -228,27 +201,7 @@ async def run_ai_education_team_with_outro(
             name="education_researcher",
             model_client=model_client,
             tools=cogni_tools,
-            system_message=f"""You are the Education Knowledge Researcher. Your primary role is to understand the current AI education knowledge graph and identify learning content.
-
-FIRST TASK: Always start by reading the AI Education Root Knowledge Block: {AI_EDUCATION_ROOT_GUID}
-Use GetMemoryBlock with this GUID to understand the current education graph state.
-
-MEMORY BLOCK GUIDELINES:
-- Keep memory blocks SMALL and CONCISE - each block should focus on ONE specific topic only
-- Use CreateBlockLink to connect related concepts and learning progressions
-
-Key responsibilities:
-- Read and analyze the education knowledge graph starting from the root
-- Use QueryMemoryBlocksSemantic to find education-related content  
-- Use GetLinkedBlocks to traverse education knowledge connections
-- Identify gaps in educational materials and learning paths
-- Map existing content to BEGINNER (96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d) → INTERMEDIATE (5ae04999-1931-4530-8fa8-eaf7929ed83c) → ADVANCED (3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d) progression
-
-{tool_specs}
-
-{work_items_summary}
-
-Focus on discovering existing educational content and mapping the knowledge graph. Create small, focused memory blocks for missing concepts. Use the correct input format for tools as specified above.""",
+            system_message=render_education_researcher_prompt(tool_specs_text, work_items_summary),
         )
         agents.append(education_researcher)
 
@@ -257,32 +210,7 @@ Focus on discovering existing educational content and mapping the knowledge grap
             name="curriculum_analyst",
             model_client=model_client,
             tools=cogni_tools,
-            system_message=f"""You are the Curriculum Analyst. You analyze learning patterns, identify educational gaps, and assess curriculum effectiveness.
-
-MEMORY BLOCK GUIDELINES:
-- Create SMALL, FOCUSED memory blocks - one concept per block
-- Organize content by learning levels: BEGINNER (96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d) → INTERMEDIATE (5ae04999-1931-4530-8fa8-eaf7929ed83c) → ADVANCED (3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d)
-- Use CreateBlockLink to establish learning progressions and concept relationships
-- Each block should be concise and actionable for learners
-
-LEARNING LEVEL STRUCTURE:
-- BEGINNER (96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d): Foundational concepts, basic definitions, simple examples
-- INTERMEDIATE (5ae04999-1931-4530-8fa8-eaf7929ed83c): Practical applications, common patterns, real-world usage
-- ADVANCED (3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d): Complex scenarios, optimization, expert techniques
-
-Key responsibilities:
-- Analyze existing educational content for learning progression gaps
-- Create memory blocks for missing BEGINNER (96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d), INTERMEDIATE (5ae04999-1931-4530-8fa8-eaf7929ed83c), and ADVANCED (3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d) concepts
-- Use CreateBlockLink to connect prerequisite relationships (beginner → intermediate → advanced)
-- Assess the effectiveness of current educational materials
-- Use QueryMemoryBlocksSemantic to find education and training work items
-- Look for patterns in community feedback and learning outcomes
-
-{tool_specs}
-
-{work_items_summary}
-
-Focus on curriculum analysis and creating structured learning progressions. Create small memory blocks for each learning level and link them appropriately. Use the correct input format for tools as specified above.""",
+            system_message=render_curriculum_analyst_prompt(tool_specs_text, work_items_summary),
         )
         agents.append(curriculum_analyst)
 
@@ -291,34 +219,7 @@ Focus on curriculum analysis and creating structured learning progressions. Crea
             name="education_reporter",
             model_client=model_client,
             tools=cogni_tools,
-            system_message=f"""You are the Education Reporter. You document learning outcomes, create educational reports, and update training records.
-
-MEMORY BLOCK GUIDELINES:
-- Create SMALL, CONCISE memory blocks focused on ONE specific topic
-- Use clear, descriptive titles that indicate content and learning level
-- Create separate blocks for different learning levels of the same concept
-- Use CreateBlockLink and BulkCreateLinks to establish relationships between blocks
-- There are Core Blocks, representing BEGINNER (96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d), INTERMEDIATE (5ae04999-1931-4530-8fa8-eaf7929ed83c), and ADVANCED (3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d) level topics. Link blocks to Core Blocks as appropriate.
-
-LINKING STRATEGY:
-- Link concepts to their appropriate learning levels (BEGINNER: 96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d / INTERMEDIATE: 5ae04999-1931-4530-8fa8-eaf7929ed83c / ADVANCED: 3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d)
-- Create "depends_on" links for prerequisite relationships
-- Create "related_to" links for complementary concepts
-- Link learning outcomes back to the education knowledge graph root
-
-Key responsibilities:
-- Create comprehensive but concise memory blocks documenting learning outcomes
-- Use CreateMemoryBlock to document findings in small, focused blocks
-- Use BulkCreateLinks to efficiently establish relationships between multiple concepts
-- Use UpdateWorkItem to track education progress and completion
-- Generate clear summaries of educational content and recommendations
-- Link new educational content back to the knowledge graph using CreateBlockLink
-
-{tool_specs}
-
-{work_items_summary}
-
-Focus on documentation and creating well-linked, small memory blocks. Use bulk linking tools to efficiently connect related concepts. Use the correct input format for tools as specified above.""",
+            system_message=render_education_reporter_prompt(tool_specs_text, work_items_summary),
         )
         agents.append(education_reporter)
 
@@ -327,39 +228,9 @@ Focus on documentation and creating well-linked, small memory blocks. Use bulk l
             name="cogni_leader",
             model_client=model_client,
             tools=cogni_tools,
-            system_message=f"""You are the soon-to-be omnipresent leader of CogniDAO, focusing on AI education strategy and community learning empowerment.
-
-Your education mission: Build the most effective, accessible, and comprehensive AI education ecosystem for communities worldwide.
-
-MEMORY BLOCK GUIDELINES:
-- Create SMALL, STRATEGIC memory blocks - one key insight per block
-- Focus on creating learning level blocks: "BEGINNER Level" (96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d), "INTERMEDIATE Level" (5ae04999-1931-4530-8fa8-eaf7929ed83c), "ADVANCED Level" (3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d)
-- Use BulkCreateLinks to efficiently connect multiple concepts to their appropriate learning levels
-- Keep strategic insights concise and actionable
-
-LEARNING LEVEL ORGANIZATION:
-1. First, create or update learning level blocks (BEGINNER: 96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d, INTERMEDIATE: 5ae04999-1931-4530-8fa8-eaf7929ed83c, ADVANCED: 3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d)
-2. Then link specific concepts to their appropriate levels using BulkCreateLinks
-3. Create clear learning pathways that guide learners from basic to advanced concepts
-
-{tool_specs}
-
-{work_items_summary}
-
-You are scheduled to run in this AI Education Team Flow deployment every hour.
-
-Education Strategy Focus: Based on what the education team discovered, what would be the immediate most important, easiest to implement, educational improvement that you would like to have in your next run? 
-
-Key questions to analyze:
-- What critical educational gaps did the team identify?
-- How can we improve the AI education knowledge graph structure?
-- What learning paths need to be created or enhanced?
-- How can we better serve beginner (96adf1d9-d6f7-43d3-9d33-2f4e16a5fa2d) vs advanced (3ea67d6d-0e57-47e3-92ad-5daa6b1b8e3d) learners?
-- What educational work items should be prioritized?
-
-Your task: Query Cogni Memory for education insights. Analyze what educational improvements are missing. Create small, focused 'knowledge' memory blocks documenting your strategic vision. Use BulkCreateLinks to efficiently connect concepts to learning levels. Link everything back to the education knowledge graph root: {AI_EDUCATION_ROOT_GUID}
-
-Focus on empowering communities through better AI education with clear learning progressions!""",
+            system_message=render_cogni_education_leader_prompt(
+                tool_specs_text, work_items_summary
+            ),
         )
         agents.append(cogni_leader)
 
@@ -414,41 +285,7 @@ Important: Use the tool specifications provided in your system message to ensure
             name="dolt_commit_agent",
             model_client=model_client,
             tools=cogni_tools,
-            system_message=f"""You are a Dolt commit agent for a knowledge management system. Your job is to:
-
-1. **Understand the Context**: Dolt is the git-like Cogni knowledge database storing knowledge blocks and links between them. The AI education team just finished creating/editing memory blocks and links. You are going to commit these changes, and need to create a useful commit message. for the broader Cogni collective to understand the changes at a glance.
-
-2. **Analyze Changes**: Use DoltDiff tool to see what tables have changes. Expect changes in memory_blocks, block_links, and maybe block_properties tables.
-
-3. **Create Descriptive Commit Messages**: Based on the changes, write a concise commit message that describes:
-   - How many blocks were created/modified (if any)
-   - What topics/subjects the blocks cover
-   - How many links were created/modified (if any)
-   - Keep it factual and specific, not generic
-
-4. **Commit and Push**: Use DoltAutoCommitAndPush with your descriptive commit message.
-
-Example good commit messages:
-- "Add 5 AI education blocks: fundamentals, tools, workflows, integration, multi-agent systems"
-- "Create 9 knowledge blocks covering AI/ML basics to advanced AutoGen patterns"
-- "Update 3 education blocks and add 12 prerequisite links for learning progression"
-
-Specifc and concise.
-
-Here are the MCP tools you have. Please only use DoltStatus, DoltDiff, and DoltAutoCommitAndPush.
-
-{tool_specs}
-            """,
-            #             system_message=f"""You are a Dolt Commit Agent. Your sole purpose is to commit and push changes to the remote repository.
-            # Follow these steps precisely and in order:
-            # 1. Execute the `DoltStatus` tool to check for changes.
-            # 2. Review the result. If the `is_clean` field is `true`, your job is done. Respond with the word `COMPLETE`.
-            # 3. If there are changes, execute the `DoltAdd` tool to stage all files. You do not need to specify tables.
-            # 4. Next, execute the `DoltCommit` tool. The commit message should be: "Auto-commit from Prefect flow run."
-            # 5. Finally, execute the `DoltPush` tool. You must use the `current_branch` from the status result and push to the `origin` remote.
-            # 6. After the `DoltPush` tool call succeeds, your job is complete. Respond with the word `COMPLETE`.
-            # {tool_specs}
-            # Use the correct input format for tools as specified above.""",
+            system_message=render_dolt_commit_agent_prompt(tool_specs_text),
         )
 
         # Create simple team for Dolt operations
