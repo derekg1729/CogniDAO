@@ -22,6 +22,7 @@ if str(workspace_root) not in sys.path:
 
 import asyncio  # noqa: E402
 import logging  # noqa: E402
+import os  # noqa: E402
 from datetime import datetime  # noqa: E402
 from typing import Any, Dict  # noqa: E402
 
@@ -107,8 +108,13 @@ async def read_current_work_items() -> Dict[str, Any]:
 
 
 @task(name="setup_simple_mcp_connection")
-async def setup_simple_mcp_connection() -> Dict[str, Any]:
-    """Setup MCP connection and generate tool specifications for agents"""
+async def setup_simple_mcp_connection(branch: str = None, namespace: str = None) -> Dict[str, Any]:
+    """Setup MCP connection and generate tool specifications for agents
+    
+    Args:
+        branch: Dolt branch to use (defaults to MCP_DOLT_BRANCH env var or 'ai-education-team')
+        namespace: Namespace to use (defaults to MCP_DOLT_NAMESPACE env var or 'legacy')
+    """
     logger = get_run_logger()
 
     try:
@@ -123,6 +129,12 @@ async def setup_simple_mcp_connection() -> Dict[str, Any]:
         logger.info(f"🔧 Using MCP server at: {cogni_mcp_path}")
 
         # StdioServerParams for Cogni MCP server - PROVEN working config
+        # Use provided parameters or fall back to environment variables or defaults
+        mcp_branch = branch or os.environ.get("MCP_DOLT_BRANCH", "ai-education-team")
+        mcp_namespace = namespace or os.environ.get("MCP_DOLT_NAMESPACE", "legacy")
+        
+        logger.info(f"🎯 MCP Configuration - Branch: '{mcp_branch}', Namespace: '{mcp_namespace}'")
+        
         server_params = StdioServerParams(
             command="python",
             args=[str(cogni_mcp_path)],
@@ -136,7 +148,8 @@ async def setup_simple_mcp_connection() -> Dict[str, Any]:
                 "DOLT_ROOT_PASSWORD": "kXMnM6firYohXzK+2r0E0DmSjOl6g3A2SmXc6ALDOlA=",
                 "DOLT_DATABASE": "cogni-dao-memory",
                 "MYSQL_DATABASE": "cogni-dao-memory",
-                "DOLT_BRANCH": "ai-education-team",  # Configure AI education team branch
+                "DOLT_BRANCH": mcp_branch,  # Configurable branch
+                "DOLT_NAMESPACE": mcp_namespace,  # Configurable namespace
                 "CHROMA_PATH": "/tmp/chroma",
                 "CHROMA_COLLECTION_NAME": "cogni_mcp_collection",
             },
@@ -341,6 +354,12 @@ async def ai_education_team_flow() -> Dict[str, Any]:
     logger.info(
         "🔧 Using PROVEN working stdio MCP transport + Education Knowledge Graph + Strategic AI"
     )
+    
+    # Get branch and namespace configuration for this flow run
+    flow_branch = os.environ.get("MCP_DOLT_BRANCH", "ai-education-team")
+    flow_namespace = os.environ.get("MCP_DOLT_NAMESPACE", "legacy")
+    logger.info(f"🌟 FLOW CONFIGURATION: Working on Branch='{flow_branch}', Namespace='{flow_namespace}'")
+    logger.info(f"🔧 Environment variables: MCP_DOLT_BRANCH={os.environ.get('MCP_DOLT_BRANCH', 'NOT_SET')}, MCP_DOLT_NAMESPACE={os.environ.get('MCP_DOLT_NAMESPACE', 'NOT_SET')}")
 
     try:
         # Step 1: Read current work items for context
@@ -353,8 +372,8 @@ async def ai_education_team_flow() -> Dict[str, Any]:
                 f"⚠️ Work items context failed: {work_items_context.get('error', 'Unknown error')}"
             )
 
-        # Step 2: Setup MCP connection
-        mcp_setup = await setup_simple_mcp_connection()
+        # Step 2: Setup MCP connection with explicit branch and namespace
+        mcp_setup = await setup_simple_mcp_connection(branch=flow_branch, namespace=flow_namespace)
 
         if not mcp_setup.get("success"):
             logger.error(f"❌ MCP setup failed: {mcp_setup.get('error')}")
