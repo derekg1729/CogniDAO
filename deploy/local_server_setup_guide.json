@@ -110,5 +110,13 @@
         "environment": "Repo root → PowerShell"
       }
     ]
+  },
+  "env_example": {
+    "OPENAI_API_KEY": "<your-openai-key>",
+    "HELICONE_API_KEY": "<your-helicone-key-optional>",
+    "HELICONE_BASE_URL": "https://oai.helicone.ai/v1 # or http://helicone:8585/v1 for self-host",
+    "COGNI_API_KEY": "<your-cogni-key>",
+    "DOLT_REMOTES_DEFAULT_HOST": "dolthub.com",
+    "DOLT_REMOTES_DEFAULT_PORT": "443"
   }
 }

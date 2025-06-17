@@ -13,6 +13,7 @@ You need to add these secrets to your GitHub repository:
 | `OPENAI_API_KEY` | Your OpenAI API key |
 | `COGNI_API_KEY` | Your API authentication key |
 | `HELICONE_API_KEY` | Your Helicone API key for OpenAI observability (optional) |
+| `HELICONE_BASE_URL` | Helicone proxy URL (optional, defaults to https://oai.helicone.ai/v1, use http://helicone:8585/v1 for self-hosted) |
 
 ## Step 1: Generate SSH Keys (if needed)
 
@@ -93,6 +94,11 @@ Copy everything, including the `-----BEGIN OPENSSH PRIVATE KEY-----` and `-----E
 
 - Name: `HELICONE_API_KEY`
 - Value: Your Helicone API key for OpenAI observability (optional)
+
+### HELICONE_BASE_URL
+
+- Name: `HELICONE_BASE_URL`
+- Value: Your Helicone proxy URL (optional, defaults to https://oai.helicone.ai/v1, use http://helicone:8585/v1 for self-hosted)
 
 ## Step 4: Server Preparation
 

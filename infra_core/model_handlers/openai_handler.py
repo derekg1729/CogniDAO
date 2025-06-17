@@ -65,15 +65,20 @@ class OpenAIModelHandler(BaseModelHandler):
 
                 if helicone_key:
                     # Use Helicone proxy for observability
+                    # Support both SaaS and self-hosted via HELICONE_BASE_URL
+                    helicone_base_url = os.environ.get(
+                        "HELICONE_BASE_URL", "https://oai.helicone.ai/v1"
+                    )
                     self._client = OpenAI(
                         api_key=self._api_key,
-                        base_url="https://oai.helicone.ai/v1",
+                        base_url=helicone_base_url,
                         default_headers={"Helicone-Auth": f"Bearer {helicone_key}"},
                     )
                 else:
                     # Standard OpenAI client
                     self._client = OpenAI(api_key=self._api_key)
             else:
+                # Use initialize_openai_client which already has Helicone support
                 self._client = initialize_openai_client()
         return self._client
 
@@ -88,6 +93,11 @@ class OpenAIModelHandler(BaseModelHandler):
         top_p: float = 1.0,
         frequency_penalty: float = 0.0,
         presence_penalty: float = 0.0,
+        # Helicone observability headers
+        helicone_user_id: Optional[str] = None,
+        helicone_session_id: Optional[str] = None,
+        helicone_cache_enabled: Optional[bool] = None,
+        helicone_properties: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """
         Create a chat completion using OpenAI API.
@@ -102,6 +112,10 @@ class OpenAIModelHandler(BaseModelHandler):
             top_p: Nucleus sampling parameter
             frequency_penalty: Frequency penalty parameter
             presence_penalty: Presence penalty parameter
+            helicone_user_id: User ID for Helicone observability
+            helicone_session_id: Session ID for Helicone observability
+            helicone_cache_enabled: Cache enabled flag for Helicone observability
+            helicone_properties: Properties for Helicone observability
 
         Returns:
             Response from OpenAI API
@@ -117,6 +131,10 @@ class OpenAIModelHandler(BaseModelHandler):
             top_p=top_p,
             frequency_penalty=frequency_penalty,
             presence_penalty=presence_penalty,
+            helicone_user_id=helicone_user_id,
+            helicone_session_id=helicone_session_id,
+            helicone_cache_enabled=helicone_cache_enabled,
+            helicone_properties=helicone_properties,
         )
 
     def extract_content(self, response: Dict[str, Any]) -> str:

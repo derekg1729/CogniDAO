@@ -43,9 +43,11 @@ def initialize_openai_client() -> OpenAI:
 
     if helicone_key:
         # Use Helicone proxy for observability
+        # Support both SaaS and self-hosted via HELICONE_BASE_URL
+        helicone_base_url = os.environ.get("HELICONE_BASE_URL", "https://oai.helicone.ai/v1")
         return OpenAI(
             api_key=api_key,
-            base_url="https://oai.helicone.ai/v1",
+            base_url=helicone_base_url,
             default_headers={"Helicone-Auth": f"Bearer {helicone_key}"},
         )
     else:
@@ -65,6 +67,11 @@ def create_completion(
     top_p: float = 1.0,
     frequency_penalty: float = 0.0,
     presence_penalty: float = 0.0,
+    # Helicone observability headers
+    helicone_user_id: Optional[str] = None,
+    helicone_session_id: Optional[str] = None,
+    helicone_cache_enabled: Optional[bool] = None,
+    helicone_properties: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """
     Create a completion using OpenAI ChatCompletion API.
@@ -80,6 +87,10 @@ def create_completion(
         top_p: Nucleus sampling parameter
         frequency_penalty: Frequency penalty parameter
         presence_penalty: Presence penalty parameter
+        helicone_user_id: User ID for Helicone observability
+        helicone_session_id: Session ID for Helicone observability
+        helicone_cache_enabled: Cache enabled flag for Helicone observability
+        helicone_properties: Properties for Helicone observability
 
     Returns:
         Response from OpenAI API
@@ -98,6 +109,18 @@ def create_completion(
     # Add the current user prompt
     messages.append({"role": "user", "content": user_prompt})
 
+    # Build extra headers for Helicone observability (if enabled)
+    extra_headers = {}
+    if helicone_user_id:
+        extra_headers["Helicone-User-Id"] = helicone_user_id
+    if helicone_session_id:
+        extra_headers["Helicone-Session-Id"] = helicone_session_id
+    if helicone_cache_enabled is not None:
+        extra_headers["Helicone-Cache-Enabled"] = str(helicone_cache_enabled).lower()
+    if helicone_properties:
+        for key, value in helicone_properties.items():
+            extra_headers[f"Helicone-Property-{key}"] = value
+
     # Call the API
     response = client.chat.completions.create(
         model=model,
@@ -107,6 +130,7 @@ def create_completion(
         top_p=top_p,
         frequency_penalty=frequency_penalty,
         presence_penalty=presence_penalty,
+        extra_headers=extra_headers if extra_headers else None,
     )
 
     return response.model_dump()
