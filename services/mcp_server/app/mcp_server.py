@@ -386,7 +386,7 @@ def inject_current_namespace(input_data: dict) -> dict:
     return input_data
 
 
-def standardize_mcp_response(response_dict: dict, include_namespace: bool = True) -> dict:
+def standardize_mcp_response(response_data, include_namespace: bool = True):
     """
     DRY helper to standardize MCP tool output responses with consistent namespace context.
 
@@ -394,14 +394,23 @@ def standardize_mcp_response(response_dict: dict, include_namespace: bool = True
     enabling clients to understand which namespace context was used for the operation.
 
     Args:
-        response_dict: The tool response dictionary to standardize
+        response_data: The tool response (dict, Pydantic model, or other)
         include_namespace: Whether to include namespace_id in the response (default: True)
 
     Returns:
-        Standardized response dictionary with namespace_id included if requested
+        Standardized response with namespace_id included if requested
     """
     if not include_namespace:
-        return response_dict
+        return response_data
+
+    # Handle Pydantic models - convert to dict first
+    if hasattr(response_data, "model_dump"):
+        response_dict = response_data.model_dump(mode="json")
+    elif isinstance(response_data, dict):
+        response_dict = response_data.copy()
+    else:
+        # For other types, just return as-is
+        return response_data
 
     # Add namespace_id to response if not already present
     if "namespace_id" not in response_dict:
@@ -439,7 +448,8 @@ async def create_work_item(input):
         return standardize_mcp_response(result, include_namespace=True)
     except Exception as e:
         logger.error(f"Error creating work item: {e}")
-        return standardize_mcp_response({"error": str(e)}, include_namespace=True)
+        error_response = {"error": str(e)}
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the GetMemoryBlock tool
@@ -658,7 +668,8 @@ async def update_memory_block(input):
         return standardize_mcp_response(result, include_namespace=True)
     except Exception as e:
         logger.error(f"Error updating memory block: {e}")
-        return standardize_mcp_response({"error": str(e)}, include_namespace=True)
+        error_response = {"error": str(e)}
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the DeleteMemoryBlock tool
@@ -680,7 +691,8 @@ async def delete_memory_block(input):
         return standardize_mcp_response(result, include_namespace=True)
     except Exception as e:
         logger.error(f"Error deleting memory block: {e}")
-        return standardize_mcp_response({"error": str(e)}, include_namespace=True)
+        error_response = {"error": str(e)}
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the UpdateWorkItem tool
@@ -718,7 +730,8 @@ async def update_work_item(input):
         return standardize_mcp_response(result, include_namespace=True)
     except Exception as e:
         logger.error(f"Error updating work item: {e}")
-        return standardize_mcp_response({"error": str(e)}, include_namespace=True)
+        error_response = {"error": str(e)}
+        return standardize_mcp_response(error_response, include_namespace=True)
 
 
 # Register the CreateBlockLink tool

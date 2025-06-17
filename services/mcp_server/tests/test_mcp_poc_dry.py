@@ -146,16 +146,21 @@ async def test_create_work_item_with_conftest_fixture(mcp_app, sample_work_item_
     # Validate response structure - it should be a CreateWorkItemOutput model
     assert result is not None, "Result should not be None"
 
-    # If it's a Pydantic model, check for expected attributes
+    # Handle both response formats (Pydantic model or dict)
     if hasattr(result, "success"):
         assert result.success is True, "CreateWorkItem should report success=True"
         assert hasattr(result, "id"), "Result should have an id attribute"
         assert hasattr(result, "work_item_type"), "Result should have work_item_type attribute"
         assert result.work_item_type == "task", "Work item type should match input"
 
-    # If it's an error dict (fallback), check that
-    elif isinstance(result, dict) and "error" in result:
-        pytest.fail(f"CreateWorkItem returned error: {result['error']}")
+    # If it's a dict response, check dict format
+    elif isinstance(result, dict):
+        if "error" in result and result["error"] is not None:
+            pytest.fail(f"CreateWorkItem returned error: {result['error']}")
+        else:
+            assert result.get("success") is True, "CreateWorkItem should report success=True"
+            assert result.get("id") is not None, "Result should have an id"
+            assert result.get("work_item_type") == "task", "Work item type should match input"
 
     else:
         pytest.fail(f"CreateWorkItem returned unexpected type: {type(result)}")
