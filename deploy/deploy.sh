@@ -144,6 +144,14 @@ EOF
                     status "✅ Local development environment ready at http://localhost:8000"
                     rm -f /tmp/health_response.json
                     
+                    # Sync Dolt repository with latest changes using SQL commands
+                    status "Syncing Dolt repository with remote origin..."
+                    if docker exec deploy-dolt-db-1 sh -c "cd /dolthub-dbs/cogni/cogni-dao-memory && dolt sql -q 'CALL DOLT_CHECKOUT(\"ai-education-team\"); CALL DOLT_PULL(\"origin\", \"ai-education-team\");'" 2>/dev/null; then
+                        status "✅ Dolt repository synchronized with ai-education-team branch"
+                    else
+                        warning "⚠️ Dolt sync failed, continuing anyway..."
+                    fi
+                    
                     # Set up Prefect work pool and verify
                     status "Setting up Prefect work pool..."
                     
@@ -219,6 +227,14 @@ EOF
                 # Fallback: if jq not available, trust the 200 status code
                 status "✅ Local development environment ready at http://localhost:8000 (200 OK)"
                 rm -f /tmp/health_response.json
+                
+                # Sync Dolt repository with latest changes using SQL commands
+                status "Syncing Dolt repository with remote origin..."
+                if docker exec deploy-dolt-db-1 sh -c "cd /dolthub-dbs/cogni/cogni-dao-memory && dolt sql -q 'CALL DOLT_CHECKOUT(\"ai-education-team\"); CALL DOLT_PULL(\"origin\", \"ai-education-team\");'" 2>/dev/null; then
+                    status "✅ Dolt repository synchronized with ai-education-team branch"
+                else
+                    warning "⚠️ Dolt sync failed, continuing anyway..."
+                fi
                 
                 # Set up Prefect work pool and verify
                 status "Setting up Prefect work pool..."
