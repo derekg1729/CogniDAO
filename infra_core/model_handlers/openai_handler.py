@@ -51,34 +51,17 @@ class OpenAIModelHandler(BaseModelHandler):
     def client(self) -> OpenAI:
         """
         Get or initialize OpenAI client.
-        Optionally uses Helicone proxy for observability if HELICONE_API_KEY is set.
+        Helicone observability is handled automatically via sitecustomize.py monkey-patch.
 
         Returns:
             OpenAI client instance
         """
         if self._client is None:
             if self._api_key:
-                # Check for Helicone API key for optional observability
-                import os
-
-                helicone_key = os.environ.get("HELICONE_API_KEY")
-
-                if helicone_key and helicone_key.strip():
-                    # Use Helicone proxy for observability
-                    # Support both SaaS and self-hosted via HELICONE_BASE_URL
-                    helicone_base_url = os.environ.get(
-                        "HELICONE_BASE_URL", "https://oai.helicone.ai/v1"
-                    )
-                    self._client = OpenAI(
-                        api_key=self._api_key,
-                        base_url=helicone_base_url,
-                        default_headers={"Helicone-Auth": f"Bearer {helicone_key}"},
-                    )
-                else:
-                    # Standard OpenAI client
-                    self._client = OpenAI(api_key=self._api_key)
+                # Lightweight client - sitecustomize.py handles Helicone automatically
+                self._client = OpenAI(api_key=self._api_key)
             else:
-                # Use initialize_openai_client which already has Helicone support
+                # Use initialize_openai_client which may have additional logic
                 self._client = initialize_openai_client()
         return self._client
 

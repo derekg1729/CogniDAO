@@ -179,34 +179,9 @@ async def run_ai_education_team_with_outro(
         return {"success": False, "error": "MCP setup failed"}
 
     try:
-        # Setup OpenAI client with Helicone support
-        import os
-
-        # Check for Helicone configuration
-        helicone_api_key = os.getenv("HELICONE_API_KEY", "").strip()
-        helicone_base_url = os.getenv("HELICONE_BASE_URL", "https://oai.helicone.ai/v1").strip()
-
-        if helicone_api_key:
-            # Configure for Helicone observability
-            model_client = OpenAIChatCompletionClient(
-                model="gpt-4o",
-                base_url=helicone_base_url,
-                default_headers={
-                    "Helicone-Auth": f"Bearer {helicone_api_key}",
-                    "Helicone-Session-Id": "ai-education-team-flow",
-                    "Helicone-Property-Flow": "ai-education-team",
-                    "Helicone-Property-Environment": "production",
-                },
-            )
-            logger.info(
-                f"✅ OpenAI client configured with Helicone observability at {helicone_base_url}"
-            )
-        else:
-            # Standard OpenAI configuration
-            model_client = OpenAIChatCompletionClient(model="gpt-4o")
-            logger.info(
-                "✅ OpenAI client configured (no Helicone observability - set HELICONE_API_KEY to enable)"
-            )
+        # Setup OpenAI client - Helicone observability handled automatically by sitecustomize.py
+        model_client = OpenAIChatCompletionClient(model="gpt-4o")
+        logger.info("✅ OpenAI client configured")
 
         cogni_tools = mcp_setup["tools"]
         tool_specs_text = mcp_setup.get(
