@@ -1,8 +1,11 @@
 """
-Tests for namespace functionality in MCP tools.
+Test namespace injection for MCP tools.
 
-This test suite validates that all MCP tools properly support namespace operations
-and maintain proper isolation between namespaces.
+Tests that MCP tools properly inject the current namespace when blocks
+are created without an explicit namespace_id.
+
+SKIPPED: All tests in this file are skipped to prevent production database contamination
+as referenced in bug 84c5996e-8fe5-49c1-90e5-36f1cf8555ad.
 """
 
 import pytest
@@ -26,6 +29,10 @@ from infra_core.memory_system.tools.memory_core.create_memory_block_tool import 
     CreateMemoryBlockInput,
 )
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
+
+pytestmark = pytest.mark.skip(
+    reason="CRITICAL: Namespace MCP tests contaminate production namespace - bug 84c5996e-8fe5-49c1-90e5-36f1cf8555ad"
+)
 
 
 class TestNamespaceMCPTools:

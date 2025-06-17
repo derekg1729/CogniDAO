@@ -142,8 +142,10 @@ class TestFileManagement(unittest.TestCase):
             )
             mock_record.return_value = output_path
 
-            # Call review_and_save
-            result = self.agent.review_and_save("https://github.com/test-owner/test-repo/pull/123")  # noqa: F841
+            # Call review_and_save with test_mode=True to prevent file leaks
+            self.agent.review_and_save(
+                "https://github.com/test-owner/test-repo/pull/123", test_mode=True
+            )  # noqa: F841
 
             # Verify record_action was called with the correct prefix
             call_args = mock_record.call_args[1]

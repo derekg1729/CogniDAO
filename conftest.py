@@ -17,7 +17,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 # Configure pytest
-pytest_plugins = ["infra_core.memory_system.tests.conftest"]
+# pytest_plugins = ["tests.infra_core.memory_system.conftest"]  # Temporarily commented during consolidation
 
 
 # === General Testing Fixtures ===
