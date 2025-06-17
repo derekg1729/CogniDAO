@@ -1,13 +1,19 @@
 """
-Integration tests for the MCP Server.
+Integration tests for MCP server functionality.
 
-These tests verify the complete workflow of creating, retrieving, and updating
-memory blocks and work items through the MCP server interface.
+Tests the overall MCP server behavior in realistic scenarios.
+
+SKIPPED: All tests in this file are skipped to prevent production database contamination
+as referenced in bug 84c5996e-8fe5-49c1-90e5-36f1cf8555ad.
 """
 
 import uuid
 
 import pytest
+
+pytestmark = pytest.mark.skip(
+    reason="CRITICAL: MCP integration tests contaminate production namespace - bug 84c5996e-8fe5-49c1-90e5-36f1cf8555ad"
+)
 
 
 @pytest.mark.asyncio

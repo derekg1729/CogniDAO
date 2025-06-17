@@ -3,10 +3,17 @@ Integration tests for MCP server with SQLLinkManager.
 
 These tests ensure that the MCP server correctly uses SQLLinkManager
 and that link operations persist to the actual database.
+
+SKIPPED: All tests in this file are skipped to prevent production database contamination
+as referenced in bug 84c5996e-8fe5-49c1-90e5-36f1cf8555ad.
 """
 
 import pytest
 import uuid
+
+pytestmark = pytest.mark.skip(
+    reason="CRITICAL: MCP integration tests contaminate production namespace - bug 84c5996e-8fe5-49c1-90e5-36f1cf8555ad"
+)
 
 
 @pytest.mark.asyncio

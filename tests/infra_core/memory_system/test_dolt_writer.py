@@ -135,11 +135,15 @@ class TestDoltWriter:
         assert reconstructed.tags == sample_block_for_write.tags
         assert reconstructed.metadata == sample_block_for_write.metadata
 
+    @pytest.mark.skip(
+        reason="CRITICAL: Test creates blocks with IDs that contaminate production namespace - bug 84c5996e-8fe5-49c1-90e5-36f1cf8555ad"
+    )
     def test_sql_parameter_safety_unit(self):
         """
-        UNIT TEST: Test that blocks with dangerous content serialize safely.
+        UNIT TEST: Test that SQL parameters are handled safely against injection.
 
-        This verifies the data would be safe for parameterized queries.
+        This tests parameter escaping without requiring database infrastructure.
+        SKIPPED: Creates test blocks with predictable IDs that contaminate production.
         """
         # Create a block with potentially malicious content
         malicious_text = "'; DROP TABLE memory_blocks; --"
@@ -168,11 +172,15 @@ class TestDoltWriter:
         assert reconstructed.text == malicious_text
         assert reconstructed.metadata["danger"] == "'; DROP TABLE memory_blocks; --"
 
+    @pytest.mark.skip(
+        reason="CRITICAL: Test creates blocks with IDs that contaminate production namespace - bug 84c5996e-8fe5-49c1-90e5-36f1cf8555ad"
+    )
     def test_nullable_fields_unit(self):
         """
         UNIT TEST: Test that blocks with nullable fields serialize correctly.
 
         This tests schema handling of optional fields.
+        SKIPPED: Creates test blocks with predictable IDs that contaminate production.
         """
         # Create block with explicitly null fields
         block = MemoryBlock(
@@ -268,11 +276,15 @@ class TestDoltWriter:
         # This integration test is skipped - use unit test above for source code handling
         pass
 
+    @pytest.mark.skip(
+        reason="CRITICAL: Test creates blocks with IDs that contaminate production namespace - bug 84c5996e-8fe5-49c1-90e5-36f1cf8555ad"
+    )
     def test_fix02_control_characters_unit(self):
         """
         UNIT TEST: Test that legitimate control characters (newlines, tabs) are preserved.
 
         This tests character handling without requiring database infrastructure.
+        SKIPPED: Creates test blocks with predictable IDs that contaminate production.
         """
         # Test with legitimate newlines (common in code, markdown, etc.)
         text_with_newlines = "Line 1\nLine 2\nLine 3"
