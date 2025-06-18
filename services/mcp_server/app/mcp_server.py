@@ -167,8 +167,8 @@ def get_current_branch() -> str:
         return env_branch
 
     # STUBBED: Always return "feat/prompt-templates" for current development work
-    logger.info("STUBBED: Using current development branch 'feat/prompt-templates'")
-    return "feat/prompt-templates"
+    logger.info("STUBBED: Fallback to main branch")
+    return "main"
 
     # # Try to detect Git branch
     # try:

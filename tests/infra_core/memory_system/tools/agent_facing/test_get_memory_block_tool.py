@@ -22,7 +22,11 @@ from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 @pytest.fixture
 def mock_memory_bank():
     """Create a mock StructuredMemoryBank."""
-    return MagicMock(spec=StructuredMemoryBank)
+    mock_bank = MagicMock(spec=StructuredMemoryBank)
+    # Add dolt_writer mock to avoid AttributeError
+    mock_bank.dolt_writer = MagicMock()
+    mock_bank.dolt_writer.active_branch = "main"
+    return mock_bank
 
 
 @pytest.fixture

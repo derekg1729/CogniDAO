@@ -119,6 +119,7 @@ class TestOpenAIHandler(unittest.TestCase):
             top_p=1.0,
             frequency_penalty=0.0,
             presence_penalty=0.0,
+            extra_headers=None,
         )
 
     def test_create_completion_with_history(self):
@@ -156,6 +157,7 @@ class TestOpenAIHandler(unittest.TestCase):
             top_p=1.0,
             frequency_penalty=0.0,
             presence_penalty=0.0,
+            extra_headers=None,
         )
 
     def test_create_completion_system_message_dict(self):
