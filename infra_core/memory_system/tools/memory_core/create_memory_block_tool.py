@@ -129,6 +129,10 @@ def create_memory_block(
             )
 
         # Create the memory block
+        logger.error(
+            f"🔍 DEBUG: About to create MemoryBlock with namespace_id='{input_data.namespace_id}'"
+        )
+
         block = MemoryBlock(
             type=input_data.type,
             text=input_data.text,
@@ -141,6 +145,10 @@ def create_memory_block(
             confidence=input_data.confidence,
             created_by=input_data.created_by,  # Default is now handled by input model
             schema_version=schema_version,
+        )
+
+        logger.error(
+            f"🔍 DEBUG: Created MemoryBlock with namespace_id='{block.namespace_id}' (expected: '{input_data.namespace_id}')"
         )
 
         # Persist to Dolt and index in LlamaMemory

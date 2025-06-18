@@ -138,6 +138,14 @@ class DoltMySQLWriter(DoltMySQLBase):
                 json.dumps(block.embedding) if block.embedding else None,
             )
 
+            # 🔍 DEBUG: Log the actual SQL values being passed to the database
+            logger.error(
+                f"🔍 DEBUG: DoltMySQLWriter SQL values - ID: {values[0]}, namespace_id: {values[1]}"
+            )
+            logger.error(
+                f"🔍 DEBUG: DoltMySQLWriter block.namespace_id before SQL: {block.namespace_id}"
+            )
+
             cursor.execute(memory_blocks_query, values)
 
             # Step 2: Handle metadata properties using PropertyMapper

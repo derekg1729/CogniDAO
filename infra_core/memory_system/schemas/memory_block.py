@@ -5,9 +5,13 @@ MemoryBlock: Core data structure for the Memory System.
 from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
 import uuid
+import logging
 from pydantic import BaseModel, Field, field_validator
 
 from .common import ConfidenceScore
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 
 class MemoryBlock(BaseModel):
@@ -79,6 +83,20 @@ class MemoryBlock(BaseModel):
     embedding: Optional[List[float]] = Field(
         None, description="Optional vector embedding of the block's content"
     )
+
+    def __init__(self, **data):
+        """Initialize MemoryBlock with debug logging for namespace_id tracking."""
+        namespace_id_input = data.get("namespace_id", "NOT_PROVIDED")
+        logger.error(
+            f"🔍 DEBUG: MemoryBlock.__init__ called with namespace_id='{namespace_id_input}'"
+        )
+
+        super().__init__(**data)
+
+        logger.error(
+            f"🔍 DEBUG: MemoryBlock.__init__ completed with self.namespace_id='{self.namespace_id}'"
+        )
+        logger.error(f"🔍 DEBUG: MemoryBlock ID: {self.id}")
 
     @field_validator("state")
     def validate_state(cls, v):

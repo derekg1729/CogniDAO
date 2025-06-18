@@ -386,7 +386,7 @@ def inject_current_namespace(input_data: dict) -> dict:
     return input_data
 
 
-def standardize_mcp_response(response_data, include_namespace: bool = True):
+def standardize_mcp_response(response_data):
     """
     DRY helper to standardize MCP tool output responses with consistent namespace context.
 
@@ -398,27 +398,11 @@ def standardize_mcp_response(response_data, include_namespace: bool = True):
         include_namespace: Whether to include namespace_id in the response (default: True)
 
     Returns:
-        Standardized response with namespace_id included if requested
+        Standardized response (currently passes through unchanged, but kept for future use)
     """
-    if not include_namespace:
-        return response_data
-
-    # Handle Pydantic models - convert to dict first
-    if hasattr(response_data, "model_dump"):
-        response_dict = response_data.model_dump(mode="json")
-    elif isinstance(response_data, dict):
-        response_dict = response_data.copy()
-    else:
-        # For other types, just return as-is
-        return response_data
-
-    # Add namespace_id to response if not already present
-    if "namespace_id" not in response_dict:
-        current_ns = _current_namespace or get_current_namespace()
-        response_dict["namespace_id"] = current_ns
-        logger.info(f"📤 [NAMESPACE] Added namespace '{current_ns}' to tool response")
-
-    return response_dict
+    # Currently just pass through - namespace injection removed to fix override issues
+    # This wrapper is kept for future standardization needs
+    return response_data
 
 
 # Create a FastMCP server instance with a specific name
@@ -439,17 +423,14 @@ async def create_work_item(input):
         acceptance_criteria: List of acceptance criteria for the work item
     """
     try:
-        # Inject current namespace if not specified
-        input = inject_current_namespace(input)
-
-        # Parse dict input into Pydantic model
+        # Parse dict input into Pydantic model (let model default handle namespace)
         parsed_input = CreateWorkItemInput(**input)
         result = create_work_item_tool(parsed_input, memory_bank=get_memory_bank())
-        return standardize_mcp_response(result, include_namespace=True)
+        return standardize_mcp_response(result)
     except Exception as e:
         logger.error(f"Error creating work item: {e}")
         error_response = {"error": str(e)}
-        return standardize_mcp_response(error_response, include_namespace=True)
+        return standardize_mcp_response(error_response)
 
 
 # Register the GetMemoryBlock tool
@@ -484,7 +465,7 @@ async def get_memory_block(input):
         )
 
         # Return the complete result
-        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
+        return standardize_mcp_response(result.model_dump(mode="json"))
 
     except Exception as e:
         logger.error(f"Error in GetMemoryBlock MCP tool: {e}")
@@ -494,7 +475,7 @@ async def get_memory_block(input):
             error=f"Error retrieving memory blocks: {str(e)}",
             timestamp=datetime.now(),
         ).model_dump(mode="json")
-        return standardize_mcp_response(error_response, include_namespace=True)
+        return standardize_mcp_response(error_response)
 
 
 # Register the GetMemoryLinks tool
@@ -519,7 +500,7 @@ async def get_memory_links(input):
         )
 
         # Return the complete result
-        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
+        return standardize_mcp_response(result.model_dump(mode="json"))
 
     except Exception as e:
         logger.error(f"Error in GetMemoryLinks MCP tool: {e}")
@@ -529,7 +510,7 @@ async def get_memory_links(input):
             error=f"Error retrieving memory links: {str(e)}",
             timestamp=datetime.now(),
         ).model_dump(mode="json")
-        return standardize_mcp_response(error_response, include_namespace=True)
+        return standardize_mcp_response(error_response)
 
 
 # Register the GetActiveWorkItems tool
@@ -554,7 +535,7 @@ async def get_active_work_items(input):
         )
 
         # Return the complete result
-        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
+        return standardize_mcp_response(result.model_dump(mode="json"))
 
     except Exception as e:
         logger.error(f"Error in GetActiveWorkItems MCP tool: {e}")
@@ -564,7 +545,7 @@ async def get_active_work_items(input):
             error=f"Error retrieving active work items: {str(e)}",
             timestamp=datetime.now(),
         ).model_dump(mode="json")
-        return standardize_mcp_response(error_response, include_namespace=True)
+        return standardize_mcp_response(error_response)
 
 
 # Register the QueryMemoryBlocksSemantic tool
@@ -589,7 +570,7 @@ async def query_memory_blocks_semantic(input):
         # Parse dict input into Pydantic model
         parsed_input = QueryMemoryBlocksInput(**input)
         result = query_memory_blocks_core(parsed_input, memory_bank=get_memory_bank())
-        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
+        return standardize_mcp_response(result.model_dump(mode="json"))
 
     except Exception as e:
         logger.error(f"Error in QueryMemoryBlocksSemantic MCP tool: {e}")
@@ -600,7 +581,7 @@ async def query_memory_blocks_semantic(input):
             active_branch="unknown",
             error=f"Error during query_memory_blocks_semantic: {str(e)}",
         ).model_dump(mode="json")
-        return standardize_mcp_response(error_response, include_namespace=True)
+        return standardize_mcp_response(error_response)
 
 
 # Register the GetLinkedBlocks tool
@@ -626,7 +607,7 @@ async def get_linked_blocks(input):
         )
 
         # Return the complete result
-        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
+        return standardize_mcp_response(result.model_dump(mode="json"))
 
     except Exception as e:
         logger.error(f"Error in GetLinkedBlocks MCP tool: {e}")
@@ -638,7 +619,7 @@ async def get_linked_blocks(input):
             error=f"Error retrieving linked blocks: {str(e)}",
             timestamp=datetime.now(),
         ).model_dump(mode="json")
-        return standardize_mcp_response(error_response, include_namespace=True)
+        return standardize_mcp_response(error_response)
 
 
 # Register the UpdateMemoryBlock tool
@@ -665,11 +646,11 @@ async def update_memory_block(input):
         # Parse dict input into Pydantic model
         parsed_input = UpdateMemoryBlockToolInput(**input)
         result = update_memory_block_tool(parsed_input, memory_bank=get_memory_bank())
-        return standardize_mcp_response(result, include_namespace=True)
+        return standardize_mcp_response(result)
     except Exception as e:
         logger.error(f"Error updating memory block: {e}")
         error_response = {"error": str(e)}
-        return standardize_mcp_response(error_response, include_namespace=True)
+        return standardize_mcp_response(error_response)
 
 
 # Register the DeleteMemoryBlock tool
@@ -688,11 +669,11 @@ async def delete_memory_block(input):
         # Parse dict input into Pydantic model
         parsed_input = DeleteMemoryBlockToolInput(**input)
         result = delete_memory_block_tool(parsed_input, memory_bank=get_memory_bank())
-        return standardize_mcp_response(result, include_namespace=True)
+        return standardize_mcp_response(result)
     except Exception as e:
         logger.error(f"Error deleting memory block: {e}")
         error_response = {"error": str(e)}
-        return standardize_mcp_response(error_response, include_namespace=True)
+        return standardize_mcp_response(error_response)
 
 
 # Register the UpdateWorkItem tool
@@ -727,11 +708,11 @@ async def update_work_item(input):
         # Parse dict input into Pydantic model
         parsed_input = UpdateWorkItemInput(**input)
         result = update_work_item_tool(parsed_input, memory_bank=get_memory_bank())
-        return standardize_mcp_response(result, include_namespace=True)
+        return standardize_mcp_response(result)
     except Exception as e:
         logger.error(f"Error updating work item: {e}")
         error_response = {"error": str(e)}
-        return standardize_mcp_response(error_response, include_namespace=True)
+        return standardize_mcp_response(error_response)
 
 
 # Register the CreateBlockLink tool
@@ -763,7 +744,7 @@ async def create_block_link(input):
         )
 
         # Return result in appropriate format for MCP
-        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
+        return standardize_mcp_response(result.model_dump(mode="json"))
     except Exception as e:
         logger.error(f"Error creating block link: {e}")
         error_response = {
@@ -771,7 +752,7 @@ async def create_block_link(input):
             "message": "Failed to create block link",
             "error_details": str(e),
         }
-        return standardize_mcp_response(error_response, include_namespace=True)
+        return standardize_mcp_response(error_response)
 
 
 # Register the CreateMemoryBlock tool
@@ -801,7 +782,7 @@ async def create_memory_block(input):
         # Parse dict input into Pydantic model
         parsed_input = CreateMemoryBlockAgentInput(**input)
         result = create_memory_block_agent_tool(parsed_input, memory_bank=get_memory_bank())
-        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
+        return standardize_mcp_response(result.model_dump(mode="json"))
     except Exception as e:
         logger.error(f"Error in CreateMemoryBlock MCP tool: {e}")
         error_response = CreateMemoryBlockAgentOutput(
@@ -810,7 +791,7 @@ async def create_memory_block(input):
             active_branch=get_memory_bank().dolt_writer.active_branch,
             error=f"Error during create_memory_block: {str(e)}",
         ).model_dump(mode="json")
-        return standardize_mcp_response(error_response, include_namespace=True)
+        return standardize_mcp_response(error_response)
 
 
 # Register the BulkCreateBlocks tool
@@ -839,7 +820,7 @@ async def bulk_create_blocks_mcp(input):
         # Parse dict input into Pydantic model
         parsed_input = BulkCreateBlocksInput(**input)
         result = bulk_create_blocks(parsed_input, memory_bank=get_memory_bank())
-        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
+        return standardize_mcp_response(result.model_dump(mode="json"))
     except Exception as e:
         logger.error(f"Error in BulkCreateBlocks MCP tool: {e}")
         error_response = BulkCreateBlocksOutput(
@@ -852,7 +833,7 @@ async def bulk_create_blocks_mcp(input):
             active_branch="unknown",
             timestamp=datetime.now(),
         ).model_dump(mode="json")
-        return standardize_mcp_response(error_response, include_namespace=True)
+        return standardize_mcp_response(error_response)
 
 
 # Register the BulkCreateLinks tool
@@ -881,7 +862,7 @@ async def bulk_create_links_mcp(input):
         # Parse dict input into Pydantic model
         parsed_input = BulkCreateLinksInput(**input)
         result = bulk_create_links(parsed_input, memory_bank=get_memory_bank())
-        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
+        return standardize_mcp_response(result.model_dump(mode="json"))
     except Exception as e:
         logger.error(f"Error in BulkCreateLinks MCP tool: {e}")
         error_response = BulkCreateLinksOutput(
@@ -896,7 +877,7 @@ async def bulk_create_links_mcp(input):
             active_branch=None,
             timestamp=datetime.now(),
         ).model_dump(mode="json")
-        return standardize_mcp_response(error_response, include_namespace=True)
+        return standardize_mcp_response(error_response)
 
 
 # Register the DoltCommit tool
@@ -1067,7 +1048,7 @@ async def dolt_status(input):
         # Parse dict input into Pydantic model
         parsed_input = DoltStatusInput(**input)
         result = dolt_status_tool(parsed_input, memory_bank=get_memory_bank())
-        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
+        return standardize_mcp_response(result.model_dump(mode="json"))
 
     except Exception as e:
         logger.error(f"Error in DoltStatus MCP tool: {e}")
@@ -1079,7 +1060,7 @@ async def dolt_status(input):
             message=f"Status check failed: {str(e)}",
             error=str(e),
         ).model_dump(mode="json")
-        return standardize_mcp_response(error_response, include_namespace=True)
+        return standardize_mcp_response(error_response)
 
 
 # Register the DoltPull tool
@@ -1189,7 +1170,7 @@ async def list_namespaces(input):
         # Parse dict input into Pydantic model
         parsed_input = ListNamespacesInput(**input)
         result = list_namespaces_tool(parsed_input, memory_bank=get_memory_bank())
-        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
+        return standardize_mcp_response(result.model_dump(mode="json"))
 
     except Exception as e:
         logger.error(f"Error in ListNamespaces MCP tool: {e}")
@@ -1201,7 +1182,7 @@ async def list_namespaces(input):
             message=f"Namespace listing failed: {str(e)}",
             error=f"Error during list_namespaces: {str(e)}",
         ).model_dump(mode="json")
-        return standardize_mcp_response(error_response, include_namespace=True)
+        return standardize_mcp_response(error_response)
 
 
 # Register the CreateNamespace tool
@@ -1232,7 +1213,7 @@ async def create_namespace(input):
         # Parse dict input into Pydantic model
         parsed_input = CreateNamespaceInput(**input)
         result = create_namespace_tool(parsed_input, memory_bank=get_memory_bank())
-        return standardize_mcp_response(result.model_dump(mode="json"), include_namespace=True)
+        return standardize_mcp_response(result.model_dump(mode="json"))
 
     except Exception as e:
         logger.error(f"Error in CreateNamespace MCP tool: {e}")
@@ -1243,7 +1224,7 @@ async def create_namespace(input):
             active_branch="unknown",
             error=f"Error during create_namespace: {str(e)}",
         ).model_dump(mode="json")
-        return standardize_mcp_response(error_response, include_namespace=True)
+        return standardize_mcp_response(error_response)
 
 
 # Register the DoltDiff tool

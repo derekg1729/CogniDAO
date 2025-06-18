@@ -89,7 +89,7 @@ class DoltMySQLReader(DoltMySQLBase):
             self._ensure_branch(connection, branch)
 
             query = """
-            SELECT id, type, schema_version, text, state, visibility, block_version,
+            SELECT id, namespace_id, type, schema_version, text, state, visibility, block_version,
             parent_id, has_children, tags, source_file, source_uri, confidence, 
             created_by, created_at, updated_at, embedding
         FROM memory_blocks 
@@ -156,7 +156,7 @@ class DoltMySQLReader(DoltMySQLBase):
             self._ensure_branch(connection, branch)
 
             query = """
-            SELECT id, type, schema_version, text, state, visibility, block_version,
+            SELECT id, namespace_id, type, schema_version, text, state, visibility, block_version,
             parent_id, has_children, tags, source_file, source_uri, confidence, 
             created_by, created_at, updated_at, embedding
         FROM memory_blocks
@@ -340,7 +340,7 @@ class DoltMySQLReader(DoltMySQLBase):
                 where_clause = " OR ".join(tag_conditions)
 
             query = f"""
-            SELECT id, type, schema_version, text, state, visibility, block_version,
+            SELECT id, namespace_id, type, schema_version, text, state, visibility, block_version,
             parent_id, has_children, tags, source_file, source_uri, confidence, 
             created_by, created_at, updated_at, embedding
         FROM memory_blocks 
