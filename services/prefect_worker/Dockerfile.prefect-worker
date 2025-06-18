@@ -10,7 +10,7 @@ RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
 # Copy sitecustomize.py for universal Helicone integration
-# This enables automatic OpenAI SDK routing through Helicone when HELICONE_API_KEY is set
+# Uses environment variable proxy approach for automatic OpenAI SDK routing
 COPY sitecustomize.py /usr/local/lib/python3.12/site-packages/
 
 # Set the workspace as working directory for flows

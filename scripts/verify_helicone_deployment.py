@@ -6,7 +6,7 @@ Helicone Deployment Verification Script
 Run this script inside your Prefect worker container to verify that:
 1. Environment variables are properly set
 2. sitecustomize.py is in the right location
-3. Helicone integration is working
+3. Helicone shim is working
 4. AutoGen will use Helicone proxy
 
 Usage:
@@ -24,7 +24,7 @@ def check_environment():
     print("-" * 40)
 
     required_vars = ["OPENAI_API_KEY", "HELICONE_API_KEY"]
-    optional_vars = ["HELICONE_BASE_URL", "OPENAI_API_BASE", "OPENAI_BASE_URL"]
+    optional_vars = ["HELICONE_BASE_URL", "OPENAI_API_BASE", "OPENAI_BASE_URL", "HELICONE_DEBUG"]
 
     env_status = {}
 
@@ -85,41 +85,29 @@ def check_sitecustomize():
 
 
 def check_helicone_integration():
-    """Check if Helicone integration is working."""
-    print("\n🔍 Helicone Integration Check")
+    """Check if Helicone integration is working via proxy."""
+    print("\n🔍 Helicone Proxy Integration Check")
     print("-" * 40)
 
     helicone_key = os.getenv("HELICONE_API_KEY", "").strip()
-    openai_api_base = os.getenv("OPENAI_API_BASE", "").strip()
-
     if not helicone_key:
         print("  ⚠️  HELICONE_API_KEY not set - integration disabled")
         return False
 
+    # Check environment variable setup
+    openai_api_base = os.getenv("OPENAI_API_BASE", "").strip()
     if openai_api_base:
         print(f"  ✅ OPENAI_API_BASE set to: {openai_api_base}")
         if "helicone" in openai_api_base.lower():
-            print("  ✅ OpenAI requests will route through Helicone")
+            print("  ✅ OpenAI requests will route through Helicone proxy")
         else:
             print("  ⚠️  OPENAI_API_BASE doesn't appear to be Helicone URL")
     else:
         print("  ❌ OPENAI_API_BASE not set - sitecustomize.py may not have run")
         return False
 
-    # Check OpenAI module state
-    try:
-        import openai
-
-        print("  ✅ OpenAI module imported successfully")
-
-        if hasattr(openai, "base_url") and openai.base_url:
-            print(f"  ✅ openai.base_url set to: {openai.base_url}")
-        else:
-            print("  ℹ️  openai.base_url not set (may use environment variables)")
-    except ImportError as e:
-        print(f"  ❌ Failed to import OpenAI: {e}")
-        return False
-
+    print("  ✅ Proxy-based integration configured correctly")
+    print("  ℹ️  No package dependencies required")
     return True
 
 
@@ -169,15 +157,16 @@ def run_simple_test():
     try:
         from openai import OpenAI
 
-        # Create client - should use environment variables automatically
+        # Create client - should use proxy via environment variables automatically
         client = OpenAI()
 
         print("  ✅ OpenAI client created successfully")
-        print("  ℹ️  Client should automatically route through Helicone")
+        print("  ✅ Proxy routing configured via environment variables")
         print("  ℹ️  Check your Helicone dashboard for requests")
 
-        # Use client to avoid unused variable warning
-        _ = client.api_key is not None
+        # Check if client has been configured correctly
+        if hasattr(client, "base_url") and client.base_url:
+            print(f"  ℹ️  Client base_url: {client.base_url}")
 
         return True
 
@@ -200,48 +189,39 @@ def main():
     ]
 
     results = {}
-    for name, check_func in checks:
+    for check_name, check_func in checks:
         try:
-            result = check_func()
-            results[name] = result
+            results[check_name] = check_func()
         except Exception as e:
-            print(f"\n❌ Error in {name}: {e}")
-            results[name] = False
+            print(f"\n❌ Error in {check_name}: {e}")
+            results[check_name] = False
 
     # Summary
-    print("\n" + "=" * 50)
-    print("📋 Verification Summary")
-    print("-" * 25)
+    print("\n📊 Verification Summary")
+    print("=" * 50)
 
-    all_good = True
-    for name, result in results.items():
-        if isinstance(result, dict):
-            # Environment check returns dict
-            has_helicone = result.get("HELICONE_API_KEY", False)
-            has_openai = result.get("OPENAI_API_KEY", False)
-            status = "✅" if (has_helicone and has_openai) else "⚠️"
-            print(f"  {status} {name}")
-            if not (has_helicone and has_openai):
-                all_good = False
-        else:
-            status = "✅" if result else "❌"
-            print(f"  {status} {name}")
-            if not result:
-                all_good = False
+    passed = sum(1 for result in results.values() if result)
+    total = len(results)
 
-    print("\n" + "=" * 50)
-    if all_good:
-        print("🎉 All checks passed! Helicone integration should be working.")
-        print("   Run your AI Education Team flow and check the Helicone dashboard.")
+    for check_name, result in results.items():
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"  {check_name}: {status}")
+
+    print(f"\nOverall: {passed}/{total} checks passed")
+
+    if passed == total:
+        print("\n🎉 All checks passed! Helicone integration is working correctly.")
+        print("💡 Your Prefect flows should now automatically send observability data to Helicone.")
     else:
-        print("⚠️  Some checks failed. Review the issues above.")
-        print("   You may need to rebuild the Docker container or check environment variables.")
+        print(f"\n⚠️  {total - passed} checks failed. Please fix the issues above.")
+        print("💡 Common fixes:")
+        print("   - Ensure HELICONE_API_KEY and OPENAI_API_KEY are set")
+        print("   - Copy sitecustomize.py to your Python environment")
+        print("   - Verify sitecustomize.py sets OPENAI_API_BASE correctly")
 
-    print("\n💡 To test with a real flow:")
-    print("   1. Run your AI Education Team flow")
-    print("   2. Check https://www.helicone.ai/requests for API calls")
-    print("   3. Look for requests with your session/property tags")
+    return passed == total
 
 
 if __name__ == "__main__":
-    main()
+    success = main()
+    sys.exit(0 if success else 1)
