@@ -83,12 +83,8 @@ def get_memory_block_core(input_data: GetMemoryBlockInput, memory_bank) -> GetMe
     Returns:
         GetMemoryBlockOutput with the retrieved blocks or error information
     """
-    # Get current branch
-    try:
-        branch_result = memory_bank.dolt_writer._execute_query("SELECT active_branch() as branch")
-        current_branch = branch_result[0]["branch"] if branch_result else "unknown"
-    except Exception:
-        current_branch = "unknown"
+    # Use the same branch for output as was used for the query (DRY principle)
+    current_branch = input_data.branch
 
     if input_data.block_ids:
         # Block retrieval by ID(s)
@@ -97,7 +93,7 @@ def get_memory_block_core(input_data: GetMemoryBlockInput, memory_bank) -> GetMe
         try:
             # Get all blocks from the specified branch, then filter by IDs
             # This leverages the existing tested branch support in get_all_memory_blocks
-            all_blocks = memory_bank.get_all_memory_blocks(branch=input_data.branch)
+            all_blocks = memory_bank.get_all_memory_blocks(branch=current_branch)
             block_dict = {block.id: block for block in all_blocks}
 
             retrieved_blocks = []
@@ -116,6 +112,7 @@ def get_memory_block_core(input_data: GetMemoryBlockInput, memory_bank) -> GetMe
                 return GetMemoryBlockOutput(
                     success=False,
                     blocks=retrieved_blocks,  # Return any found blocks
+                    current_branch=current_branch,
                     error=error_msg,
                     timestamp=datetime.now(),
                 )
@@ -131,7 +128,12 @@ def get_memory_block_core(input_data: GetMemoryBlockInput, memory_bank) -> GetMe
         except Exception as e:
             error_msg = f"Error retrieving memory blocks: {str(e)}"
             logger.error(error_msg, exc_info=True)
-            return GetMemoryBlockOutput(success=False, error=error_msg, timestamp=datetime.now())
+            return GetMemoryBlockOutput(
+                success=False,
+                current_branch=current_branch,
+                error=error_msg,
+                timestamp=datetime.now(),
+            )
 
     else:
         # Multiple block retrieval with filtering
@@ -190,4 +192,9 @@ def get_memory_block_core(input_data: GetMemoryBlockInput, memory_bank) -> GetMe
         except Exception as e:
             error_msg = f"Error filtering memory blocks: {str(e)}"
             logger.error(error_msg, exc_info=True)
-            return GetMemoryBlockOutput(success=False, error=error_msg, timestamp=datetime.now())
+            return GetMemoryBlockOutput(
+                success=False,
+                current_branch=current_branch,
+                error=error_msg,
+                timestamp=datetime.now(),
+            )

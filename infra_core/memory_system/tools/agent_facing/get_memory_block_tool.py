@@ -60,7 +60,7 @@ def get_memory_block(input_data: GetMemoryBlockInput, memory_bank) -> GetMemoryB
 
 # Convenience function for single block retrieval by ID (backward compatibility)
 def get_memory_block_tool(
-    block_id: str = None, memory_bank=None, branch: str = "main", **kwargs
+    block_id: str = None, memory_bank=None, branch: str = None, **kwargs
 ) -> GetMemoryBlockOutput:
     """
     Convenience function for single block retrieval by ID.
@@ -68,13 +68,17 @@ def get_memory_block_tool(
     Args:
         block_id: ID of the block to retrieve
         memory_bank: Memory bank instance
-        branch: Dolt branch to read from (default: 'main')
+        branch: Dolt branch to read from (defaults to current active branch)
         **kwargs: Additional parameters passed to GetMemoryBlockInput
 
     Returns:
         GetMemoryBlockOutput with the retrieved block(s)
     """
     try:
+        # Use active branch if no specific branch provided
+        if branch is None:
+            branch = memory_bank.dolt_writer.active_branch
+
         if block_id:
             # Convert single ID to list for consistent API
             input_data = GetMemoryBlockInput(block_ids=[block_id], branch=branch, **kwargs)
