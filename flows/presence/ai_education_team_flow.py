@@ -55,7 +55,7 @@ logging.basicConfig(level=logging.INFO)
 # AI Education Graph Root - GUID for the foundational knowledge block
 AI_EDUCATION_ROOT_GUID = "44bff8a7-6518-4514-92f9-49622fc72484"
 MCP_DOLT_BRANCH = "ai-education-team"
-MCP_DOLT_NAMESPACE = "ai-education"
+MCP_DOLT_NAMESPACE = "legacy"
 
 
 @task(name="read_current_work_items")
