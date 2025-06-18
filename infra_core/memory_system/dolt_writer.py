@@ -53,7 +53,7 @@ logging.basicConfig(
 )
 
 # Standard tables that store memory block data and should be included in commits/rollbacks
-PERSISTED_TABLES = ["memory_blocks", "block_properties", "block_links"]
+PERSISTED_TABLES = ["memory_blocks", "block_properties", "block_links", "block_proofs"]
 
 
 class DoltMySQLWriter(DoltMySQLBase):

@@ -128,14 +128,19 @@ class TestDoltRepoTool:
         assert result.success is True
         assert result.commit_hash == expected_hash
         assert "Successfully committed changes" in result.message
-        assert result.tables_committed == ["memory_blocks", "block_properties", "block_links"]
+        assert result.tables_committed == [
+            "memory_blocks",
+            "block_properties",
+            "block_links",
+            "block_proofs",
+        ]
         assert result.error is None
         assert isinstance(result.timestamp, datetime)
 
         # Verify mock calls
         mock_writer.commit_changes.assert_called_once_with(
             commit_msg="Test commit message",
-            tables=["memory_blocks", "block_properties", "block_links"],
+            tables=["memory_blocks", "block_properties", "block_links", "block_proofs"],
         )
 
     def test_successful_commit_with_custom_tables(self, mock_memory_bank):
@@ -185,7 +190,7 @@ class TestDoltRepoTool:
         expected_commit_msg = "Feature implementation\n\nAuthor: TestAgent"
         mock_writer.commit_changes.assert_called_once_with(
             commit_msg=expected_commit_msg,
-            tables=["memory_blocks", "block_properties", "block_links"],
+            tables=["memory_blocks", "block_properties", "block_links", "block_proofs"],
         )
 
     def test_failed_commit_operation(self, mock_memory_bank):
@@ -206,7 +211,12 @@ class TestDoltRepoTool:
         assert result.commit_hash is None
         assert "Dolt commit operation failed" in result.message
         assert result.error == "Dolt commit operation failed - no commit hash returned"
-        assert result.tables_committed == ["memory_blocks", "block_properties", "block_links"]
+        assert result.tables_committed == [
+            "memory_blocks",
+            "block_properties",
+            "block_links",
+            "block_proofs",
+        ]
 
     def test_commit_with_exception(self, mock_memory_bank):
         """Test commit operation when an exception occurs."""
