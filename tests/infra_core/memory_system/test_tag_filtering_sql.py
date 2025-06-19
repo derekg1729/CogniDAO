@@ -30,6 +30,7 @@ def test_read_memory_blocks_by_tags_integration():
     mock_sql_return = [
         {
             "id": "test-id-123",
+            "namespace_id": "legacy",
             "type": "doc",
             "tags": json.dumps([tag_to_find, "other-tag"]),
             "text": "some text",
@@ -67,7 +68,7 @@ def test_read_memory_blocks_by_tags_integration():
             # --- Assertions ---
             # 1. The SQL query should have been executed correctly.
             expected_query = (
-                "SELECT id, type, schema_version, text, state, visibility, block_version,"
+                "SELECT id, namespace_id, type, schema_version, text, state, visibility, block_version,"
                 " parent_id, has_children, tags, source_file, source_uri, confidence, "
                 "created_by, created_at, updated_at, embedding "
                 "FROM memory_blocks "

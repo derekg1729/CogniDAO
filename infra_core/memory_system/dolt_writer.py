@@ -53,7 +53,7 @@ logging.basicConfig(
 )
 
 # Standard tables that store memory block data and should be included in commits/rollbacks
-PERSISTED_TABLES = ["memory_blocks", "block_properties", "block_links"]
+PERSISTED_TABLES = ["memory_blocks", "block_properties", "block_links", "block_proofs"]
 
 
 class DoltMySQLWriter(DoltMySQLBase):
@@ -136,6 +136,14 @@ class DoltMySQLWriter(DoltMySQLBase):
                 block.created_at,
                 block.updated_at,
                 json.dumps(block.embedding) if block.embedding else None,
+            )
+
+            # 🔍 DEBUG: Log the actual SQL values being passed to the database
+            logger.error(
+                f"🔍 DEBUG: DoltMySQLWriter SQL values - ID: {values[0]}, namespace_id: {values[1]}"
+            )
+            logger.error(
+                f"🔍 DEBUG: DoltMySQLWriter block.namespace_id before SQL: {block.namespace_id}"
             )
 
             cursor.execute(memory_blocks_query, values)

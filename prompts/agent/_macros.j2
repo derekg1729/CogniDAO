@@ -1,0 +1,25 @@
+{# Shared macro for MCP tool specifications #}
+{% macro tool_specs(tools) -%}
+## Available MCP Tools:
+**CRITICAL: All tools expect a single 'input' parameter containing JSON string with the actual arguments**
+
+Example usage pattern:
+- GetActiveWorkItems: input='{"limit": 10}' 
+- CreateWorkItem: input='{"type": "task", "title": "My Task", "description": "..."}'
+
+Tools:
+{%- for tool in tools[:12] %}
+• {{ tool.name }}: {{ tool.description|default('No description') }}
+{%- if tool.schema and tool.schema.input_schema and tool.schema.input_schema.properties %}
+ | Args: {% for prop_name, prop_details in tool.schema.input_schema.properties.items() %}{{ prop_name }}: {{ prop_details.type|default('unknown') }} {% if prop_name in tool.schema.input_schema.required|default([]) %}(required){% else %}(optional){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+{%- endif %}
+{%- endfor %}
+{%- if tools|length > 12 %}
+... (more tools available)
+{%- endif %}
+{%- endmacro %}
+
+{# Shared macro for work items context #}
+{% macro work_items_context(work_items_summary) -%}
+{{ work_items_summary|default("## Current Work Items Context:\n- No context available.") }}
+{%- endmacro %} 

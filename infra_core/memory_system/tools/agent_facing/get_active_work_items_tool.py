@@ -37,6 +37,9 @@ class GetActiveWorkItemsInput(BaseModel):
     limit: Optional[int] = Field(
         None, description="Maximum number of results to return", ge=1, le=100
     )
+    namespace_id: str = Field(
+        "cogni-project-management", description="Namespace ID"
+    )
 
 
 class GetActiveWorkItemsOutput(BaseModel):
@@ -106,6 +109,7 @@ def get_active_work_items(
 
         # Build core input for filtering work item types
         core_input_params = {
+            "namespace_id": input_data.namespace_id,
             "metadata_filters": metadata_filters,
             "limit": input_data.limit,
             "branch": memory_bank.dolt_writer.active_branch,  # Use current active branch

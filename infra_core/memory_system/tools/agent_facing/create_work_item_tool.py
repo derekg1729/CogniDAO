@@ -43,7 +43,8 @@ class CreateWorkItemInput(BaseModel):
 
     # Namespace field for multi-tenant support
     namespace_id: str = Field(
-        "legacy", description="Namespace ID for multi-tenant organization (defaults to 'legacy')"
+        "cogni-project-management",
+        description="Namespace ID for multi-tenant organization (defaults to 'legacy')",
     )
 
     # Common fields across work item types

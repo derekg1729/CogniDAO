@@ -159,6 +159,7 @@ class TestPersistentConnectionUsage:
             title="Test Task",
             description="Test Description",
             owner="test-user",
+            namespace_id="legacy",
             acceptance_criteria=["Task should be completed", "Tests should pass"],
         )
 

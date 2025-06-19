@@ -51,14 +51,17 @@ class OpenAIModelHandler(BaseModelHandler):
     def client(self) -> OpenAI:
         """
         Get or initialize OpenAI client.
+        Helicone observability is handled automatically via sitecustomize.py monkey-patch.
 
         Returns:
             OpenAI client instance
         """
         if self._client is None:
             if self._api_key:
+                # Lightweight client - sitecustomize.py handles Helicone automatically
                 self._client = OpenAI(api_key=self._api_key)
             else:
+                # Use initialize_openai_client which may have additional logic
                 self._client = initialize_openai_client()
         return self._client
 
@@ -73,6 +76,11 @@ class OpenAIModelHandler(BaseModelHandler):
         top_p: float = 1.0,
         frequency_penalty: float = 0.0,
         presence_penalty: float = 0.0,
+        # Helicone observability headers
+        helicone_user_id: Optional[str] = None,
+        helicone_session_id: Optional[str] = None,
+        helicone_cache_enabled: Optional[bool] = None,
+        helicone_properties: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """
         Create a chat completion using OpenAI API.
@@ -87,6 +95,10 @@ class OpenAIModelHandler(BaseModelHandler):
             top_p: Nucleus sampling parameter
             frequency_penalty: Frequency penalty parameter
             presence_penalty: Presence penalty parameter
+            helicone_user_id: User ID for Helicone observability
+            helicone_session_id: Session ID for Helicone observability
+            helicone_cache_enabled: Cache enabled flag for Helicone observability
+            helicone_properties: Properties for Helicone observability
 
         Returns:
             Response from OpenAI API
@@ -102,6 +114,10 @@ class OpenAIModelHandler(BaseModelHandler):
             top_p=top_p,
             frequency_penalty=frequency_penalty,
             presence_penalty=presence_penalty,
+            helicone_user_id=helicone_user_id,
+            helicone_session_id=helicone_session_id,
+            helicone_cache_enabled=helicone_cache_enabled,
+            helicone_properties=helicone_properties,
         )
 
     def extract_content(self, response: Dict[str, Any]) -> str:
