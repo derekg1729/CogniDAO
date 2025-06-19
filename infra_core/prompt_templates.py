@@ -222,3 +222,15 @@ def render_namespace_migrator_prompt(tool_specs: str, work_items_summary: str) -
     """Render namespace migrator agent prompt"""
     manager = PromptTemplateManager()
     return manager.render_agent_prompt("namespace_migrator", tool_specs, work_items_summary)
+
+
+def render_branch_merger_prompt(tool_specs: str, work_items_summary: str) -> str:
+    """Render branch merger agent prompt"""
+    manager = PromptTemplateManager()
+    return manager.render_agent_prompt("branch_merger", tool_specs, work_items_summary)
+
+
+def render_conflict_detector_prompt(tool_specs: str, work_items_summary: str) -> str:
+    """Render conflict detector agent prompt"""
+    manager = PromptTemplateManager()
+    return manager.render_agent_prompt("conflict_detector", tool_specs, work_items_summary)

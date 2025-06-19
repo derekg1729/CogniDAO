@@ -76,3 +76,21 @@ deployments:
     work_queue_name:
     job_variables: {}
   schedules: []  # Manual trigger only for safety
+
+- name: dolt-staging
+  version:
+  tags:
+  - cogni
+  - dolt
+  - staging
+  - branch-management
+  - merge-operations
+  concurrency_limit:
+  description: 'Dolt Staging Crew: 2 agents analyze branches for conflicts and merge clean feature branches into staging for integration testing'
+  entrypoint: dolt_staging_flow.py:dolt_staging_crew_flow
+  parameters: {}
+  work_pool:
+    name: cogni-pool
+    work_queue_name:
+    job_variables: {}
+  schedules: []  # Manual trigger for controlled staging updates
