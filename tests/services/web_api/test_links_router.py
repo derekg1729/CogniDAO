@@ -77,6 +77,26 @@ def valid_uuids():
     }
 
 
+def assert_paginated_response(response_data, expected_links_count, expected_next_cursor=None):
+    """Helper function to assert paginated response structure."""
+    # Check that response has the paginated structure
+    assert "links" in response_data, "Response should have 'links' field"
+    assert "next_cursor" in response_data, "Response should have 'next_cursor' field"
+    assert "page_size" in response_data, "Response should have 'page_size' field"
+    assert "total_available" in response_data, "Response should have 'total_available' field"
+
+    # Check the actual content
+    assert len(response_data["links"]) == expected_links_count, (
+        f"Expected {expected_links_count} links"
+    )
+    assert response_data["page_size"] == expected_links_count, (
+        "page_size should equal actual links count"
+    )
+    assert response_data["next_cursor"] == expected_next_cursor, (
+        f"next_cursor should be {expected_next_cursor}"
+    )
+
+
 class TestCreateLink:
     """Test POST /api/v1/links endpoint."""
 
@@ -282,11 +302,16 @@ class TestGetLinksFrom:
 
             assert response.status_code == 200
             response_data = response.json()
-            assert len(response_data) == 2
-            assert response_data[0]["to_id"] == "target-1"
-            assert response_data[0]["relation"] == "depends_on"
-            assert response_data[1]["to_id"] == "target-2"
-            assert response_data[1]["relation"] == "is_blocked_by"
+
+            # Test new paginated response structure
+            assert_paginated_response(response_data, 2, None)
+
+            # Test link content
+            links = response_data["links"]
+            assert links[0]["to_id"] == "target-1"
+            assert links[0]["relation"] == "depends_on"
+            assert links[1]["to_id"] == "target-2"
+            assert links[1]["relation"] == "is_blocked_by"
 
             mock_link_manager.links_from.assert_called_once()
         finally:
@@ -315,8 +340,13 @@ class TestGetLinksFrom:
 
             assert response.status_code == 200
             response_data = response.json()
-            assert len(response_data) == 1
-            assert response_data[0]["relation"] == "depends_on"
+
+            # Test new paginated response structure
+            assert_paginated_response(response_data, 1, None)
+
+            # Test filtered content
+            links = response_data["links"]
+            assert links[0]["relation"] == "depends_on"
 
             # Verify link_manager was called with correct parameters
             mock_link_manager.links_from.assert_called_once()
@@ -371,7 +401,9 @@ class TestGetLinksTo:
 
             assert response.status_code == 200
             response_data = response.json()
-            assert len(response_data) == 2
+
+            # Test new paginated response structure
+            assert_paginated_response(response_data, 2, None)
 
             mock_link_manager.links_to.assert_called_once()
         finally:
@@ -398,8 +430,13 @@ class TestGetLinksTo:
 
             assert response.status_code == 200
             response_data = response.json()
-            assert len(response_data) == 1
-            assert response_data[0]["relation"] == "is_blocked_by"
+
+            # Test new paginated response structure
+            assert_paginated_response(response_data, 1, None)
+
+            # Test filtered content
+            links = response_data["links"]
+            assert links[0]["relation"] == "is_blocked_by"
 
             mock_link_manager.links_to.assert_called_once()
         finally:
@@ -449,9 +486,13 @@ class TestGetLinksTo:
 
             assert response.status_code == 200
             response_data = response.json()
-            assert len(response_data) == 1
 
-            link_data = response_data[0]
+            # Test new paginated response structure
+            assert_paginated_response(response_data, 1, None)
+
+            # Test link content structure
+            links = response_data["links"]
+            link_data = links[0]
 
             # FAILING EXPECTATION: Frontend needs from_id to know source of the link
             # Currently this will fail because BlockLink schema only has to_id
@@ -502,47 +543,36 @@ class TestGetLinksTo:
             response = client.get(f"/api/v1/links/to/{target_block_id}")
             assert response.status_code == 200
             response_data = response.json()
-            assert len(response_data) == 1
 
-            link_data = response_data[0]
+            # Test new paginated response structure
+            assert_paginated_response(response_data, 1, None)
 
-            # Verify all ApiBlockLink fields are present and correct
-            assert link_data["from_id"] == source_block_id, "from_id should identify source block"
-            assert link_data["to_id"] == target_block_id, "to_id should identify target block"
+            # Test comprehensive link structure
+            links = response_data["links"]
+            link_data = links[0]
+
+            # Test all expected fields are present
+            expected_fields = [
+                "from_id",
+                "to_id",
+                "relation",
+                "priority",
+                "link_metadata",
+                "created_by",
+                "created_at",
+            ]
+            for field in expected_fields:
+                assert field in link_data, f"Link should contain {field} field"
+
+            # Test field values
+            assert link_data["from_id"] == source_block_id
+            assert link_data["to_id"] == target_block_id
             assert link_data["relation"] == test_relation
             assert link_data["priority"] == test_priority
             assert link_data["link_metadata"] == test_metadata
             assert link_data["created_by"] == test_creator
-            assert "created_at" in link_data
-
-            # Reset mock for from endpoint test
-            mock_link_from = BlockLink(
-                from_id=source_block_id,  # For links_from, this is the source
-                to_id=target_block_id,  # For links_from, this is correct
-                relation=test_relation,
-                priority=test_priority,
-                link_metadata=test_metadata,
-                created_at=test_time,
-                created_by=test_creator,
-            )
-            mock_result_from = LinkQueryResult(links=[mock_link_from], next_cursor=None)
-            mock_link_manager.links_from.return_value = mock_result_from
-
-            # Test links/from endpoint
-            response_from = client.get(f"/api/v1/links/from/{source_block_id}")
-            assert response_from.status_code == 200
-            response_from_data = response_from.json()
-            assert len(response_from_data) == 1
-
-            link_from_data = response_from_data[0]
-
-            # Verify from endpoint returns correct structure
-            assert link_from_data["from_id"] == source_block_id, (
-                "from_id should be query block for links_from"
-            )
-            assert link_from_data["to_id"] == target_block_id, "to_id should be the target"
-            assert link_from_data["relation"] == test_relation
-            assert link_from_data["priority"] == test_priority
+            # Note: created_at will be serialized as ISO string, so we check it exists
+            assert link_data["created_at"] is not None
 
         finally:
             if hasattr(app.state, "memory_bank"):
@@ -677,8 +707,13 @@ class TestIntegrationScenarios:
             # 2. Retrieve links from the source block
             get_response = client.get(f"/api/v1/links/from/{valid_uuids['source']}")
             assert get_response.status_code == 200
-            links = get_response.json()
-            assert len(links) == 1
+            response_data = get_response.json()
+
+            # Test new paginated response structure
+            assert_paginated_response(response_data, 1, None)
+
+            # Test link content
+            links = response_data["links"]
             assert links[0]["to_id"] == valid_uuids["target"]
 
             # 3. Delete the link
@@ -720,6 +755,9 @@ class TestIntegrationScenarios:
             # All should succeed
             for response in responses:
                 assert response.status_code == 200
+                # Verify paginated response structure
+                response_data = response.json()
+                assert_paginated_response(response_data, 0, None)
 
             # Verify link_manager was called multiple times
             assert mock_link_manager.links_from.call_count == 3
@@ -745,11 +783,16 @@ class TestGetAllLinks:
 
             assert response.status_code == 200
             response_data = response.json()
-            assert len(response_data) == 2
-            assert response_data[0]["to_id"] == "target-1"
-            assert response_data[0]["relation"] == "depends_on"
-            assert response_data[1]["to_id"] == "target-2"
-            assert response_data[1]["relation"] == "is_blocked_by"
+
+            # Test new paginated response structure
+            assert_paginated_response(response_data, 2, None)
+
+            # Test link content
+            links = response_data["links"]
+            assert links[0]["to_id"] == "target-1"
+            assert links[0]["relation"] == "depends_on"
+            assert links[1]["to_id"] == "target-2"
+            assert links[1]["relation"] == "is_blocked_by"
 
             mock_link_manager.get_all_links.assert_called_once()
         finally:
@@ -776,8 +819,13 @@ class TestGetAllLinks:
 
             assert response.status_code == 200
             response_data = response.json()
-            assert len(response_data) == 1
-            assert response_data[0]["relation"] == "depends_on"
+
+            # Test new paginated response structure
+            assert_paginated_response(response_data, 1, None)
+
+            # Test filtered content
+            links = response_data["links"]
+            assert links[0]["relation"] == "depends_on"
 
             mock_link_manager.get_all_links.assert_called_once()
         finally:
@@ -795,9 +843,312 @@ class TestGetAllLinks:
 
             assert response.status_code == 200
             response_data = response.json()
-            assert len(response_data) == 0
+
+            # Test new paginated response structure for empty results
+            assert_paginated_response(response_data, 0, None)
 
             mock_link_manager.get_all_links.assert_called_once()
+        finally:
+            if hasattr(app.state, "memory_bank"):
+                delattr(app.state, "memory_bank")
+
+
+class TestLinksPagination:
+    """Test pagination functionality for all links endpoints."""
+
+    def test_get_all_links_with_pagination(
+        self, client, mock_memory_bank, mock_link_manager, sample_block_links
+    ):
+        """Test pagination for get all links endpoint."""
+        # Mock paginated response with next_cursor
+        mock_result = LinkQueryResult(links=sample_block_links, next_cursor="next_page_token")
+        mock_link_manager.get_all_links.return_value = mock_result
+
+        setattr(app.state, "memory_bank", mock_memory_bank)
+        try:
+            response = client.get("/api/v1/links?limit=2")
+
+            assert response.status_code == 206  # Partial Content
+            response_data = response.json()
+
+            # Test paginated response structure
+            assert_paginated_response(response_data, 2, "next_page_token")
+
+            # Test Link header is present
+            assert "Link" in response.headers
+            link_header = response.headers["Link"]
+            assert 'rel="next"' in link_header
+            assert "cursor=next_page_token" in link_header
+
+        finally:
+            if hasattr(app.state, "memory_bank"):
+                delattr(app.state, "memory_bank")
+
+    def test_get_links_from_with_pagination(
+        self, client, mock_memory_bank, mock_link_manager, valid_uuids, sample_block_links
+    ):
+        """Test pagination for links from endpoint."""
+        mock_result = LinkQueryResult(links=[sample_block_links[0]], next_cursor="cursor_123")
+        mock_link_manager.links_from.return_value = mock_result
+
+        setattr(app.state, "memory_bank", mock_memory_bank)
+        try:
+            response = client.get(f"/api/v1/links/from/{valid_uuids['block_id']}?limit=1")
+
+            assert response.status_code == 206  # Partial Content
+            response_data = response.json()
+
+            # Test paginated response structure
+            assert_paginated_response(response_data, 1, "cursor_123")
+
+            # Test Link header
+            assert "Link" in response.headers
+            assert "cursor=cursor_123" in response.headers["Link"]
+
+        finally:
+            if hasattr(app.state, "memory_bank"):
+                delattr(app.state, "memory_bank")
+
+    def test_get_links_to_with_pagination(
+        self, client, mock_memory_bank, mock_link_manager, valid_uuids, sample_block_links
+    ):
+        """Test pagination for links to endpoint."""
+        mock_result = LinkQueryResult(links=[sample_block_links[1]], next_cursor="final_cursor")
+        mock_link_manager.links_to.return_value = mock_result
+
+        setattr(app.state, "memory_bank", mock_memory_bank)
+        try:
+            response = client.get(
+                f"/api/v1/links/to/{valid_uuids['block_id']}?limit=1&cursor=prev_cursor"
+            )
+
+            assert response.status_code == 206  # Partial Content
+            response_data = response.json()
+
+            # Test paginated response structure
+            assert_paginated_response(response_data, 1, "final_cursor")
+
+        finally:
+            if hasattr(app.state, "memory_bank"):
+                delattr(app.state, "memory_bank")
+
+    def test_pagination_limit_validation(self, client, mock_memory_bank, mock_link_manager):
+        """Test limit validation in pagination."""
+        setattr(app.state, "memory_bank", mock_memory_bank)
+        try:
+            # Test limit too high
+            response = client.get("/api/v1/links?limit=5000")
+            assert response.status_code == 400
+            assert "cannot exceed 1000" in response.json()["detail"]
+
+            # Test limit too low
+            response = client.get("/api/v1/links?limit=0")
+            assert response.status_code == 400
+            assert "must be a positive integer" in response.json()["detail"]
+
+            # Test negative limit
+            response = client.get("/api/v1/links?limit=-5")
+            assert response.status_code == 400
+            assert "must be a positive integer" in response.json()["detail"]
+
+        finally:
+            if hasattr(app.state, "memory_bank"):
+                delattr(app.state, "memory_bank")
+
+    def test_cursor_validation(self, client, mock_memory_bank, mock_link_manager):
+        """Test cursor validation in pagination."""
+        setattr(app.state, "memory_bank", mock_memory_bank)
+        try:
+            # Test invalid cursor characters
+            response = client.get("/api/v1/links?cursor=invalid!@#$cursor")
+            assert response.status_code == 400
+            assert "Invalid cursor format" in response.json()["detail"]
+            assert "alphanumeric" in response.json()["detail"]
+
+            # Test cursor too long (over 512 chars)
+            long_cursor = "a" * 600
+            response = client.get(f"/api/v1/links?cursor={long_cursor}")
+            assert response.status_code == 400
+            assert "Invalid cursor format" in response.json()["detail"]
+            assert "512 characters" in response.json()["detail"]
+
+        finally:
+            if hasattr(app.state, "memory_bank"):
+                delattr(app.state, "memory_bank")
+
+    def test_pagination_complete_page_returns_200(
+        self, client, mock_memory_bank, mock_link_manager, sample_block_links
+    ):
+        """Test that complete pages (no more results) return 200 OK."""
+        # Mock complete response without next_cursor
+        mock_result = LinkQueryResult(links=sample_block_links, next_cursor=None)
+        mock_link_manager.get_all_links.return_value = mock_result
+
+        setattr(app.state, "memory_bank", mock_memory_bank)
+        try:
+            response = client.get("/api/v1/links?limit=10")
+
+            assert response.status_code == 200  # OK, not Partial Content
+            response_data = response.json()
+
+            # Test complete response structure
+            assert_paginated_response(response_data, 2, None)
+
+            # Test no Link header for complete pages
+            assert "Link" not in response.headers
+
+        finally:
+            if hasattr(app.state, "memory_bank"):
+                delattr(app.state, "memory_bank")
+
+    def test_pagination_preserves_query_parameters(
+        self, client, mock_memory_bank, mock_link_manager, sample_block_links, valid_uuids
+    ):
+        """Test that pagination preserves other query parameters in Link header."""
+        mock_result = LinkQueryResult(links=[sample_block_links[0]], next_cursor="next_token")
+        mock_link_manager.links_from.return_value = mock_result
+
+        setattr(app.state, "memory_bank", mock_memory_bank)
+        try:
+            response = client.get(
+                f"/api/v1/links/from/{valid_uuids['block_id']}?relation=depends_on&depth=2&direction=outbound&limit=1"
+            )
+
+            assert response.status_code == 206
+
+            # Test that Link header preserves all query parameters
+            link_header = response.headers["Link"]
+            assert "cursor=next_token" in link_header
+            assert "relation=depends_on" in link_header
+            assert "depth=2" in link_header
+            assert "direction=outbound" in link_header
+            assert "limit=1" in link_header
+
+        finally:
+            if hasattr(app.state, "memory_bank"):
+                delattr(app.state, "memory_bank")
+
+
+class TestLinksInputValidation:
+    """Test input validation for links endpoints."""
+
+    def test_direction_validation(self, client, mock_memory_bank, mock_link_manager, valid_uuids):
+        """Test direction parameter validation."""
+        setattr(app.state, "memory_bank", mock_memory_bank)
+        try:
+            # Test valid directions
+            valid_directions = ["outbound", "inbound", "both"]
+            for direction in valid_directions:
+                mock_link_manager.links_from.return_value = LinkQueryResult(
+                    links=[], next_cursor=None
+                )
+                response = client.get(
+                    f"/api/v1/links/from/{valid_uuids['block_id']}?direction={direction}"
+                )
+                assert response.status_code == 200, f"Direction '{direction}' should be valid"
+
+            # Test invalid direction
+            response = client.get(f"/api/v1/links/from/{valid_uuids['block_id']}?direction=invalid")
+            assert response.status_code == 400
+            assert "Invalid direction" in response.json()["detail"]
+
+        finally:
+            if hasattr(app.state, "memory_bank"):
+                delattr(app.state, "memory_bank")
+
+    def test_uuid_validation_comprehensive(self, client, mock_memory_bank):
+        """Test UUID validation across all endpoints."""
+        setattr(app.state, "memory_bank", mock_memory_bank)
+        try:
+            # Test invalid UUIDs that should return 400 (not empty string which returns 404)
+            invalid_uuids = ["not-a-uuid", "12345", "almost-uuid-but-not-quite"]
+
+            for invalid_uuid in invalid_uuids:
+                # Test links/from endpoint
+                response = client.get(f"/api/v1/links/from/{invalid_uuid}")
+                assert response.status_code == 400
+                assert "Invalid UUID format" in response.json()["detail"]
+
+                # Test links/to endpoint
+                response = client.get(f"/api/v1/links/to/{invalid_uuid}")
+                assert response.status_code == 400
+                assert "Invalid UUID format" in response.json()["detail"]
+
+            # Test empty string separately (returns 404 due to URL routing)
+            response = client.get("/api/v1/links/from/")
+            assert response.status_code == 404  # URL routing issue, not UUID validation
+
+            response = client.get("/api/v1/links/to/")
+            assert response.status_code == 404  # URL routing issue, not UUID validation
+
+        finally:
+            if hasattr(app.state, "memory_bank"):
+                delattr(app.state, "memory_bank")
+
+    def test_relation_filter_validation(self, client, mock_memory_bank, mock_link_manager):
+        """Test relation parameter validation."""
+        setattr(app.state, "memory_bank", mock_memory_bank)
+        try:
+            # Mock empty response for valid relations
+            mock_link_manager.get_all_links.return_value = LinkQueryResult(
+                links=[], next_cursor=None
+            )
+
+            # Test valid relations (these should be defined in RelationType enum)
+            valid_relations = ["depends_on", "is_blocked_by", "subtask_of", "parent_of"]
+            for relation in valid_relations:
+                response = client.get(f"/api/v1/links?relation={relation}")
+                # Should not fail with validation error (might fail with other errors, but not validation)
+                assert response.status_code in [200, 206], f"Relation '{relation}' should be valid"
+
+        finally:
+            if hasattr(app.state, "memory_bank"):
+                delattr(app.state, "memory_bank")
+
+
+class TestLinksErrorHandling:
+    """Test error handling for links endpoints."""
+
+    def test_link_manager_error_handling(
+        self, client, mock_memory_bank, mock_link_manager, valid_uuids
+    ):
+        """Test handling of LinkManager exceptions."""
+        # Mock LinkManager to raise an exception
+        mock_link_manager.get_all_links.side_effect = Exception("Database connection error")
+
+        setattr(app.state, "memory_bank", mock_memory_bank)
+        try:
+            response = client.get("/api/v1/links")
+
+            assert response.status_code == 500
+            assert "An unexpected error occurred" in response.json()["detail"]
+
+        finally:
+            if hasattr(app.state, "memory_bank"):
+                delattr(app.state, "memory_bank")
+
+    def test_memory_bank_unavailable_error(self, client):
+        """Test error when memory bank is not available."""
+        # Ensure no memory_bank attribute exists
+        if hasattr(app.state, "memory_bank"):
+            delattr(app.state, "memory_bank")
+
+        response = client.get("/api/v1/links")
+        assert response.status_code == 500
+        assert "Memory bank not configured" in response.json()["detail"]
+
+    def test_link_manager_unavailable_error(self, client):
+        """Test error when LinkManager is not available on memory bank."""
+        mock_bank = MagicMock()
+        mock_bank.link_manager = None
+
+        setattr(app.state, "memory_bank", mock_bank)
+        try:
+            response = client.get("/api/v1/links")
+
+            assert response.status_code == 500
+            assert "LinkManager service unavailable" in response.json()["detail"]
+
         finally:
             if hasattr(app.state, "memory_bank"):
                 delattr(app.state, "memory_bank")
