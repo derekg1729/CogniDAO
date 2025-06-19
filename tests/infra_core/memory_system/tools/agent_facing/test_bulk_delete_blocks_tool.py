@@ -431,3 +431,210 @@ class TestBulkDeleteBlocksTool:
             # Verify the default was used
             call_args = mock_delete.call_args[0][0]
             assert call_args.validate_dependencies is False  # Should use the default override
+
+    def test_skipped_blocks_reporting(self):
+        """Test that skipped_block_ids are correctly reported when stop_on_first_error=True."""
+        # Arrange
+        block_specs = [
+            DeleteSpec(
+                block_id="aaaaaaaa-bbbb-cccc-dddd-123456789001",
+                validate_dependencies=True,
+            ),
+            DeleteSpec(
+                block_id="bbbbbbbb-cccc-dddd-eeee-123456789002",
+                validate_dependencies=True,
+            ),
+            DeleteSpec(
+                block_id="cccccccc-dddd-eeee-ffff-123456789003",
+                validate_dependencies=True,
+            ),
+        ]
+
+        input_data = BulkDeleteBlocksInput(blocks=block_specs, stop_on_first_error=True)
+
+        # Mock first block fails
+        mock_results = [
+            DeleteMemoryBlockOutput(
+                success=False,
+                id=None,
+                error="Memory block with ID 'aaaaaaaa-bbbb-cccc-dddd-123456789001' not found",
+                error_code=DeleteErrorCode.BLOCK_NOT_FOUND,
+                deleted_block_type=None,
+                deleted_block_version=None,
+                timestamp=datetime.now(),
+                processing_time_ms=25.4,
+            ),
+        ]
+
+        with patch(
+            "infra_core.memory_system.tools.agent_facing.bulk_delete_blocks_tool.delete_memory_block_core"
+        ) as mock_delete:
+            mock_delete.side_effect = mock_results
+
+            # Act
+            result = bulk_delete_blocks(input_data, self.mock_memory_bank)
+
+            # Assert
+            assert result.success is False
+            assert result.partial_success is False
+            assert result.total_blocks == 3
+            assert result.successful_blocks == 0
+            assert result.failed_blocks == 1
+            assert len(result.results) == 1  # Only first block processed
+
+            # Verify skipped blocks are correctly reported
+            assert len(result.skipped_block_ids) == 2
+            assert result.skipped_block_ids == [
+                "bbbbbbbb-cccc-dddd-eeee-123456789002",
+                "cccccccc-dddd-eeee-ffff-123456789003",
+            ]
+
+            # Verify only 1 block was attempted
+            assert mock_delete.call_count == 1
+
+    def test_no_skipped_blocks_when_stop_on_first_error_false(self):
+        """Test that skipped_block_ids is empty when stop_on_first_error=False."""
+        # Arrange
+        block_specs = [
+            DeleteSpec(
+                block_id="aaaaaaaa-bbbb-cccc-dddd-123456789001",
+                validate_dependencies=True,
+            ),
+            DeleteSpec(
+                block_id="bbbbbbbb-cccc-dddd-eeee-123456789002",
+                validate_dependencies=True,
+            ),
+        ]
+
+        input_data = BulkDeleteBlocksInput(blocks=block_specs, stop_on_first_error=False)
+
+        # Mock all failures
+        mock_results = [
+            DeleteMemoryBlockOutput(
+                success=False,
+                id=None,
+                error="Error 1",
+                error_code=DeleteErrorCode.BLOCK_NOT_FOUND,
+                deleted_block_type=None,
+                deleted_block_version=None,
+                timestamp=datetime.now(),
+                processing_time_ms=25.4,
+            ),
+            DeleteMemoryBlockOutput(
+                success=False,
+                id=None,
+                error="Error 2",
+                error_code=DeleteErrorCode.BLOCK_NOT_FOUND,
+                deleted_block_type=None,
+                deleted_block_version=None,
+                timestamp=datetime.now(),
+                processing_time_ms=30.1,
+            ),
+        ]
+
+        with patch(
+            "infra_core.memory_system.tools.agent_facing.bulk_delete_blocks_tool.delete_memory_block_core"
+        ) as mock_delete:
+            mock_delete.side_effect = mock_results
+
+            # Act
+            result = bulk_delete_blocks(input_data, self.mock_memory_bank)
+
+            # Assert
+            assert result.success is False
+            assert result.partial_success is False
+            assert result.total_blocks == 2
+            assert result.successful_blocks == 0
+            assert result.failed_blocks == 2
+            assert len(result.results) == 2  # Both blocks processed
+
+            # Verify no blocks were skipped
+            assert len(result.skipped_block_ids) == 0
+            assert result.skipped_block_ids == []
+
+            # Verify both blocks were attempted
+            assert mock_delete.call_count == 2
+
+    def test_error_summary_aggregation(self):
+        """Test that error_summary correctly aggregates error codes and counts."""
+        # Arrange - multiple blocks with different error types
+        block_specs = [
+            DeleteSpec(block_id="aaaaaaaa-bbbb-cccc-dddd-123456789001"),
+            DeleteSpec(block_id="bbbbbbbb-cccc-dddd-eeee-123456789002"),
+            DeleteSpec(block_id="cccccccc-dddd-eeee-ffff-123456789003"),
+            DeleteSpec(block_id="dddddddd-eeee-ffff-aaaa-123456789004"),
+        ]
+
+        input_data = BulkDeleteBlocksInput(blocks=block_specs, stop_on_first_error=False)
+
+        # Mock different error types
+        mock_results = [
+            DeleteMemoryBlockOutput(
+                success=False,
+                id=None,
+                error="Block not found",
+                error_code=DeleteErrorCode.BLOCK_NOT_FOUND,
+                deleted_block_type=None,
+                deleted_block_version=None,
+                timestamp=datetime.now(),
+                processing_time_ms=25.4,
+            ),
+            DeleteMemoryBlockOutput(
+                success=False,
+                id=None,
+                error="Has dependencies",
+                error_code=DeleteErrorCode.DEPENDENCIES_EXIST,
+                deleted_block_type=None,
+                deleted_block_version=None,
+                timestamp=datetime.now(),
+                processing_time_ms=30.1,
+            ),
+            DeleteMemoryBlockOutput(
+                success=False,
+                id=None,
+                error="Block not found again",
+                error_code=DeleteErrorCode.BLOCK_NOT_FOUND,
+                deleted_block_type=None,
+                deleted_block_version=None,
+                timestamp=datetime.now(),
+                processing_time_ms=22.8,
+            ),
+            DeleteMemoryBlockOutput(
+                success=True,
+                id="dddddddd-eeee-ffff-aaaa-123456789004",
+                error=None,
+                error_code=None,
+                deleted_block_type="task",
+                deleted_block_version=1,
+                timestamp=datetime.now(),
+                processing_time_ms=45.2,
+            ),
+        ]
+
+        with patch(
+            "infra_core.memory_system.tools.agent_facing.bulk_delete_blocks_tool.delete_memory_block_core"
+        ) as mock_delete:
+            mock_delete.side_effect = mock_results
+
+            # Act
+            result = bulk_delete_blocks(input_data, self.mock_memory_bank)
+
+            # Assert
+            assert result.success is False
+            assert result.partial_success is True
+            assert result.total_blocks == 4
+            assert result.successful_blocks == 1
+            assert result.failed_blocks == 3
+
+            # Verify error summary aggregates correctly
+            expected_error_summary = {
+                "BLOCK_NOT_FOUND": 2,  # Two BLOCK_NOT_FOUND errors
+                "DEPENDENCIES_EXIST": 1,  # One DEPENDENCIES_EXIST error
+            }
+            assert result.error_summary == expected_error_summary
+
+            # Verify no blocks were skipped
+            assert len(result.skipped_block_ids) == 0
+
+            # Verify all blocks were attempted
+            assert mock_delete.call_count == 4

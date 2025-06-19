@@ -5,7 +5,7 @@ This tool provides efficient bulk deletion of memory blocks with independent suc
 allowing partial success scenarios where some blocks succeed and others fail.
 """
 
-from typing import Optional, List
+from typing import Dict, List, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 import logging
@@ -95,6 +95,14 @@ class BulkDeleteBlocksOutput(BaseModel):
     successful_blocks: int = Field(..., description="Number of blocks deleted successfully")
     failed_blocks: int = Field(..., description="Number of blocks that failed to delete")
     results: List[DeleteResult] = Field(..., description="Individual results for each block")
+    skipped_block_ids: List[BlockIdType] = Field(
+        default_factory=list,
+        description="Block IDs that were skipped due to stop_on_first_error=True",
+    )
+    error_summary: Dict[str, int] = Field(
+        default_factory=dict,
+        description="Summary of error types and their counts for quick client analysis",
+    )
     active_branch: str = Field(..., description="Current active branch")
     timestamp: datetime = Field(
         default_factory=datetime.now, description="When the bulk operation completed"
@@ -116,6 +124,20 @@ def bulk_delete_blocks(input_data: BulkDeleteBlocksInput, memory_bank) -> BulkDe
     - Individual blocks are deleted independently (current implementation)
     - Each deletion is atomic at the individual block level
 
+    Timing Semantics:
+    - total_processing_time_ms: Total wall-clock time for the entire bulk operation
+    - Individual processing_time_ms: Time for each block's deletion attempt
+    - Timing includes validation, core deletion, and result processing
+
+    Stop Behavior:
+    - stop_on_first_error=False: Process all blocks, report all results
+    - stop_on_first_error=True: Stop on first failure, remaining blocks are skipped
+    - skipped_block_ids: Contains IDs of blocks not processed due to early termination
+
+    Dependency Validation Precedence:
+    - Per-block validate_dependencies (if specified) overrides default_validate_dependencies
+    - If block spec doesn't specify, uses default_validate_dependencies from input
+
     Args:
         input_data: Input data containing list of block specifications to delete
         memory_bank: StructuredMemoryBank instance for persistence
@@ -134,6 +156,19 @@ def bulk_delete_blocks(input_data: BulkDeleteBlocksInput, memory_bank) -> BulkDe
         >>> result = bulk_delete_blocks(input_data, memory_bank)
         >>> # result.success = True if ALL deletions succeeded
         >>> # result.partial_success = True if ANY deletions succeeded
+        >>> # result.skipped_block_ids = [] (no blocks skipped)
+
+        >>> # Partial success scenario with dependency validation
+        >>> input_data = BulkDeleteBlocksInput(
+        ...     blocks=[
+        ...         DeleteSpec(block_id="valid-id", validate_dependencies=True),
+        ...         DeleteSpec(block_id="has-deps-id", validate_dependencies=False)
+        ...     ],
+        ...     stop_on_first_error=False
+        ... )
+        >>> result = bulk_delete_blocks(input_data, memory_bank)
+        >>> # First may fail due to dependencies, second force-deletes
+        >>> # result.partial_success = True if at least one succeeded
     """
     start_time = datetime.now()
     logger.info(f"Starting bulk deletion of {len(input_data.blocks)} blocks")
@@ -229,11 +264,21 @@ def bulk_delete_blocks(input_data: BulkDeleteBlocksInput, memory_bank) -> BulkDe
 
     # Calculate skipped blocks (only when stop_on_first_error=True)
     processed_blocks = len(results)
-    skipped_blocks = len(input_data.blocks) - processed_blocks
+    skipped_block_ids = []
+    if input_data.stop_on_first_error and processed_blocks < len(input_data.blocks):
+        # Collect IDs of blocks that were not processed
+        skipped_block_ids = [spec.block_id for spec in input_data.blocks[processed_blocks:]]
+
+    # Generate error summary for client analysis
+    error_summary = {}
+    for result in results:
+        if not result.success and result.error_code:
+            error_code_str = result.error_code.value if result.error_code else "UNKNOWN"
+            error_summary[error_code_str] = error_summary.get(error_code_str, 0) + 1
 
     logger.info(
         f"Bulk deletion completed: {successful_count} successful, {failed_count} failed, "
-        f"{skipped_blocks} skipped, total time: {total_processing_time:.2f}ms"
+        f"{len(skipped_block_ids)} skipped, total time: {total_processing_time:.2f}ms"
     )
 
     return BulkDeleteBlocksOutput(
@@ -243,6 +288,8 @@ def bulk_delete_blocks(input_data: BulkDeleteBlocksInput, memory_bank) -> BulkDe
         successful_blocks=successful_count,
         failed_blocks=failed_count,
         results=results,
+        skipped_block_ids=skipped_block_ids,
+        error_summary=error_summary,
         active_branch=memory_bank.dolt_writer.active_branch,
         timestamp=datetime.now(),
         total_processing_time_ms=total_processing_time,
