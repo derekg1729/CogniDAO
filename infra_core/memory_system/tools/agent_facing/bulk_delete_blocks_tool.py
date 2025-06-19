@@ -99,6 +99,9 @@ class BulkDeleteBlocksOutput(BaseModel):
     timestamp: datetime = Field(
         default_factory=datetime.now, description="When the bulk operation completed"
     )
+    total_processing_time_ms: Optional[float] = Field(
+        None, description="Total time taken to process all deletions in milliseconds"
+    )
 
 
 def bulk_delete_blocks(input_data: BulkDeleteBlocksInput, memory_bank) -> BulkDeleteBlocksOutput:
@@ -119,7 +122,20 @@ def bulk_delete_blocks(input_data: BulkDeleteBlocksInput, memory_bank) -> BulkDe
 
     Returns:
         BulkDeleteBlocksOutput containing overall status and individual results
+
+    Examples:
+        >>> # Basic bulk deletion
+        >>> input_data = BulkDeleteBlocksInput(
+        ...     blocks=[
+        ...         DeleteSpec(block_id="12345678-1234-1234-1234-123456789001"),
+        ...         DeleteSpec(block_id="12345678-1234-1234-1234-123456789002")
+        ...     ]
+        ... )
+        >>> result = bulk_delete_blocks(input_data, memory_bank)
+        >>> # result.success = True if ALL deletions succeeded
+        >>> # result.partial_success = True if ANY deletions succeeded
     """
+    start_time = datetime.now()
     logger.info(f"Starting bulk deletion of {len(input_data.blocks)} blocks")
 
     results = []
@@ -208,9 +224,16 @@ def bulk_delete_blocks(input_data: BulkDeleteBlocksInput, memory_bank) -> BulkDe
     overall_success = failed_count == 0  # True only if ALL blocks succeeded
     partial_success = successful_count > 0  # True if ANY blocks succeeded
 
+    # Calculate total processing time
+    total_processing_time = (datetime.now() - start_time).total_seconds() * 1000
+
+    # Calculate skipped blocks (only when stop_on_first_error=True)
+    processed_blocks = len(results)
+    skipped_blocks = len(input_data.blocks) - processed_blocks
+
     logger.info(
         f"Bulk deletion completed: {successful_count} successful, {failed_count} failed, "
-        f"{len(input_data.blocks) - len(results)} skipped"
+        f"{skipped_blocks} skipped, total time: {total_processing_time:.2f}ms"
     )
 
     return BulkDeleteBlocksOutput(
@@ -222,6 +245,7 @@ def bulk_delete_blocks(input_data: BulkDeleteBlocksInput, memory_bank) -> BulkDe
         results=results,
         active_branch=memory_bank.dolt_writer.active_branch,
         timestamp=datetime.now(),
+        total_processing_time_ms=total_processing_time,
     )
 
 
