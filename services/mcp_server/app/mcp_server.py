@@ -119,6 +119,11 @@ from infra_core.memory_system.tools.agent_facing.bulk_delete_blocks_tool import 
     BulkDeleteBlocksInput,
     BulkDeleteBlocksOutput,
 )
+from infra_core.memory_system.tools.agent_facing.bulk_update_namespace_tool import (
+    bulk_update_namespace,
+    BulkUpdateNamespaceInput,
+    BulkUpdateNamespaceOutput,
+)
 from infra_core.memory_system.tools.agent_facing.dolt_namespace_tool import (
     list_namespaces_tool,
     ListNamespacesInput,
@@ -924,6 +929,56 @@ async def bulk_delete_blocks_mcp(input):
             results=[],
             active_branch="unknown",
             timestamp=datetime.now(),
+        ).model_dump(mode="json")
+        return standardize_mcp_response(error_response)
+
+
+# Register the BulkUpdateNamespace tool
+@mcp.tool("BulkUpdateNamespace")
+async def bulk_update_namespace_mcp(input):
+    """Update namespace of multiple memory blocks in a single operation with independent success tracking
+
+    Args:
+        blocks: List of block specifications to update (1-500 blocks)
+        target_namespace_id: Target namespace ID to move all blocks to
+        stop_on_first_error: If True, stop processing on first error. If False, continue and report all results.
+        author: Author of the namespace updates
+        agent_id: Agent identifier for tracking
+        session_id: Session ID for grouping updates
+
+    Returns:
+        success: Whether ALL blocks were updated successfully (failed_count == 0)
+        partial_success: Whether at least one block was updated successfully
+        total_blocks: Total number of blocks attempted
+        successful_blocks: Number of blocks updated successfully
+        failed_blocks: Number of blocks that failed to update
+        results: Individual results for each block
+        target_namespace_id: Target namespace that was attempted
+        namespace_validated: Whether the target namespace was validated to exist
+        active_branch: Current active branch
+        timestamp: When the bulk operation completed
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = BulkUpdateNamespaceInput(**input)
+        result = bulk_update_namespace(parsed_input, memory_bank=get_memory_bank())
+        return standardize_mcp_response(result.model_dump(mode="json"))
+    except Exception as e:
+        logger.error(f"Error in BulkUpdateNamespace MCP tool: {e}")
+        error_response = BulkUpdateNamespaceOutput(
+            success=False,
+            partial_success=False,
+            total_blocks=0,
+            successful_blocks=0,
+            failed_blocks=0,
+            results=[],
+            skipped_block_ids=[],
+            error_summary={"UNKNOWN_ERROR": 1},
+            target_namespace_id="unknown",
+            namespace_validated=False,
+            active_branch="unknown",
+            timestamp=datetime.now(),
+            total_processing_time_ms=0,
         ).model_dump(mode="json")
         return standardize_mcp_response(error_response)
 

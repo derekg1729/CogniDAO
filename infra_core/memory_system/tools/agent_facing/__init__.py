@@ -20,6 +20,7 @@ from .create_block_link_tool import create_block_link_agent
 from .bulk_create_blocks_tool import bulk_create_blocks_tool
 from .bulk_create_links_tool import bulk_create_links_tool
 from .bulk_delete_blocks_tool import bulk_delete_blocks_tool
+from .bulk_update_namespace_tool import bulk_update_namespace_tool
 
 # Export all tools to make them available
 __all__ = [
@@ -38,4 +39,5 @@ __all__ = [
     "bulk_create_blocks_tool",
     "bulk_create_links_tool",
     "bulk_delete_blocks_tool",
+    "bulk_update_namespace_tool",
 ]
