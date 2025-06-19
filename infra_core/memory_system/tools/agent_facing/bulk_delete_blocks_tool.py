@@ -126,8 +126,10 @@ def bulk_delete_blocks(input_data: BulkDeleteBlocksInput, memory_bank) -> BulkDe
 
     Timing Semantics:
     - total_processing_time_ms: Total wall-clock time for the entire bulk operation
+      (includes overhead, coordination, and sequential processing time)
     - Individual processing_time_ms: Time for each block's deletion attempt
-    - Timing includes validation, core deletion, and result processing
+    - Note: total_processing_time_ms is NOT the sum of individual processing times
+      due to bulk operation overhead and sequential coordination costs
 
     Stop Behavior:
     - stop_on_first_error=False: Process all blocks, report all results
@@ -169,6 +171,19 @@ def bulk_delete_blocks(input_data: BulkDeleteBlocksInput, memory_bank) -> BulkDe
         >>> result = bulk_delete_blocks(input_data, memory_bank)
         >>> # First may fail due to dependencies, second force-deletes
         >>> # result.partial_success = True if at least one succeeded
+
+        >>> # Early termination scenario with skipped blocks
+        >>> input_data = BulkDeleteBlocksInput(
+        ...     blocks=[
+        ...         DeleteSpec(block_id="nonexistent-id"),
+        ...         DeleteSpec(block_id="valid-id-1"),
+        ...         DeleteSpec(block_id="valid-id-2")
+        ...     ],
+        ...     stop_on_first_error=True
+        ... )
+        >>> result = bulk_delete_blocks(input_data, memory_bank)
+        >>> # First block fails (not found), remaining blocks are skipped
+        >>> # result.skipped_block_ids = ["valid-id-1", "valid-id-2"]
     """
     start_time = datetime.now()
     logger.info(f"Starting bulk deletion of {len(input_data.blocks)} blocks")
