@@ -58,3 +58,21 @@ deployments:
   - cron: "0 * * * *"
     timezone: "UTC"
     active: true
+
+- name: cleanup-cogni
+  version:
+  tags:
+  - cogni
+  - cleanup
+  - namespace-migration
+  - maintenance
+  - system-health
+  concurrency_limit:
+  description: 'Cleanup Cogni Flow: 2 agents identify test artifacts for deletion and migrate legacy blocks to proper namespaces for system maintenance'
+  entrypoint: cleanup_cogni_flow.py:cleanup_team_flow
+  parameters: {}
+  work_pool:
+    name: cogni-pool
+    work_queue_name:
+    job_variables: {}
+  schedules: []  # Manual trigger only for safety
