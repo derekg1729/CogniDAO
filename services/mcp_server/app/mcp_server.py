@@ -114,6 +114,11 @@ from infra_core.memory_system.tools.agent_facing.bulk_create_links_tool import (
     BulkCreateLinksInput,
     BulkCreateLinksOutput,
 )
+from infra_core.memory_system.tools.agent_facing.bulk_delete_blocks_tool import (
+    bulk_delete_blocks,
+    BulkDeleteBlocksInput,
+    BulkDeleteBlocksOutput,
+)
 from infra_core.memory_system.tools.agent_facing.dolt_namespace_tool import (
     list_namespaces_tool,
     ListNamespacesInput,
@@ -875,6 +880,49 @@ async def bulk_create_links_mcp(input):
             total_actual_links=0,
             results=[],
             active_branch=None,
+            timestamp=datetime.now(),
+        ).model_dump(mode="json")
+        return standardize_mcp_response(error_response)
+
+
+# Register the BulkDeleteBlocks tool
+@mcp.tool("BulkDeleteBlocks")
+async def bulk_delete_blocks_mcp(input):
+    """Delete multiple memory blocks in a single operation with independent success tracking
+
+    Args:
+        blocks: List of block specifications to delete (1-1000 blocks)
+        stop_on_first_error: If True, stop processing on first error. If False, continue and report all results.
+        default_validate_dependencies: Default dependency validation setting for blocks that don't specify it
+        author: Identifier for who is performing the deletions
+        agent_id: Agent identifier for tracking
+        session_id: Session ID for grouping related deletions
+
+    Returns:
+        success: Whether ALL blocks were deleted successfully (failed_count == 0)
+        partial_success: Whether at least one block was deleted successfully
+        total_blocks: Total number of blocks attempted
+        successful_blocks: Number of blocks deleted successfully
+        failed_blocks: Number of blocks that failed to delete
+        results: Individual results for each block
+        active_branch: Current active branch
+        timestamp: When the bulk operation completed
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = BulkDeleteBlocksInput(**input)
+        result = bulk_delete_blocks(parsed_input, memory_bank=get_memory_bank())
+        return standardize_mcp_response(result.model_dump(mode="json"))
+    except Exception as e:
+        logger.error(f"Error in BulkDeleteBlocks MCP tool: {e}")
+        error_response = BulkDeleteBlocksOutput(
+            success=False,
+            partial_success=False,
+            total_blocks=0,
+            successful_blocks=0,
+            failed_blocks=0,
+            results=[],
+            active_branch="unknown",
             timestamp=datetime.now(),
         ).model_dump(mode="json")
         return standardize_mcp_response(error_response)
