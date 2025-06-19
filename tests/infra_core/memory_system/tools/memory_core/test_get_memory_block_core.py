@@ -3,21 +3,15 @@ Tests for the GetMemoryBlock core tool.
 """
 
 import pytest
-from unittest.mock import MagicMock
 
 from infra_core.memory_system.tools.memory_core.get_memory_block_core import (
     GetMemoryBlockInput,
     get_memory_block_core,
 )
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
-from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 
 
-@pytest.fixture
-def mock_memory_bank():
-    """Create a mock StructuredMemoryBank."""
-    bank = MagicMock(spec=StructuredMemoryBank)
-    return bank
+# Removed duplicate mock_memory_bank fixture - using the DRY one from conftest.py that includes dolt_writer
 
 
 @pytest.fixture
