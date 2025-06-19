@@ -52,7 +52,7 @@ logging.basicConfig(level=logging.INFO)
 
 # Cleanup Configuration
 MCP_DOLT_BRANCH = "feat/cleanup"
-MCP_DOLT_NAMESPACE = "cogni-project-management"
+MCP_DOLT_NAMESPACE = "legacy"
 
 
 @task(name="read_current_work_items")
