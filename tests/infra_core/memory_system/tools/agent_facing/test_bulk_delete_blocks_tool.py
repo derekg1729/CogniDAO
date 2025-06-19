@@ -32,6 +32,30 @@ class TestBulkDeleteBlocksTool:
         """Set up test fixtures."""
         self.mock_memory_bank = Mock()
         self.mock_memory_bank.dolt_writer.active_branch = "test-branch"
+        self.mock_memory_bank.branch = "test-branch"  # Ensure branch consistency
+
+        # Mock commit_changes to return success by default
+        self.mock_memory_bank.dolt_writer.commit_changes.return_value = (
+            True,
+            "mock_commit_hash_123",
+        )
+
+        # Mock add_to_staging to return success (individual deletes call this)
+        self.mock_memory_bank.dolt_writer.add_to_staging.return_value = (
+            True,
+            "Successfully staged changes",
+        )
+
+        # Mock get_diff_summary for guardrail check (simulate staged changes)
+        self.mock_memory_bank.dolt_writer.get_diff_summary.return_value = [
+            {"table_name": "memory_blocks", "rows_added": 0, "rows_deleted": 2, "rows_modified": 0}
+        ]
+
+        # Mock discard_changes for rollback scenarios
+        self.mock_memory_bank.dolt_writer.discard_changes.return_value = None
+
+        # Mock _store_block_proof method
+        self.mock_memory_bank._store_block_proof.return_value = True
 
     def test_successful_bulk_deletion(self):
         """Test successful deletion of multiple blocks."""

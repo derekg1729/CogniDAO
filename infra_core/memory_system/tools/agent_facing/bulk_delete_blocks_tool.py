@@ -17,6 +17,7 @@ from ..memory_core.delete_memory_block_core import (
     DeleteMemoryBlockInput as CoreDeleteMemoryBlockInput,
 )
 from ..memory_core.delete_memory_block_models import DeleteErrorCode
+from ...dolt_writer import PERSISTED_TABLES
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -283,6 +284,139 @@ def bulk_delete_blocks(input_data: BulkDeleteBlocksInput, memory_bank) -> BulkDe
     if input_data.stop_on_first_error and processed_blocks < len(input_data.blocks):
         # Collect IDs of blocks that were not processed
         skipped_block_ids = [spec.block_id for spec in input_data.blocks[processed_blocks:]]
+
+    # --- COMMIT PHASE: Fix auto_commit=False bug ---
+    # Explicitly commit changes if any deletions succeeded
+    if successful_count > 0:
+        try:
+            commit_msg = f"Bulk delete {successful_count} memory blocks"
+            if len(input_data.blocks) > 1:
+                commit_msg += f" (out of {len(input_data.blocks)} attempted)"
+
+            logger.info(f"Committing {successful_count} successful deletions to database...")
+
+            # writer.delete_memory_block() already staged each row,
+            # so we skip an extra add_to_staging() call here.
+            logger.info(
+                f"DEBUG: Calling commit_changes with message: '{commit_msg}', tables: {PERSISTED_TABLES}"
+            )
+
+            # Optional guardrail: Verify something was staged
+            try:
+                diff = memory_bank.dolt_writer.get_diff_summary("WORKING", "STAGED")
+                if not diff:
+                    logger.warning("No changes staged - this may indicate staging failed silently")
+            except Exception as diff_e:
+                logger.warning(f"Could not verify staging status: {diff_e}")
+
+            # CRITICAL ASSERTION: Verify branch consistency between deletion and commit phases
+            current_active_branch = memory_bank.dolt_writer.active_branch
+            memory_bank_branch = memory_bank.branch
+            logger.info(
+                f"DEBUG: Branch consistency check - memory_bank.branch: '{memory_bank_branch}', dolt_writer.active_branch: '{current_active_branch}'"
+            )
+
+            if memory_bank_branch != current_active_branch:
+                logger.error(
+                    f"CRITICAL: Branch mismatch detected! Deletions on '{memory_bank_branch}', commit on '{current_active_branch}'"
+                )
+                # Mark all "successful" deletions as failed due to branch mismatch
+                for result in results:
+                    if result.success:
+                        result.success = False
+                        result.error = f"Branch mismatch: deletions on '{memory_bank_branch}', commit on '{current_active_branch}'"
+                        result.error_code = DeleteErrorCode.DELETION_FAILED
+
+                # Generate error summary for branch mismatch
+                branch_error_summary = {
+                    "DELETION_FAILED": len([r for r in results if not r.success])
+                }
+
+                return BulkDeleteBlocksOutput(
+                    success=False,
+                    partial_success=False,
+                    total_blocks=len(input_data.blocks),
+                    successful_blocks=0,
+                    failed_blocks=len(results),
+                    results=results,
+                    skipped_block_ids=skipped_block_ids,
+                    error_summary=branch_error_summary,
+                    active_branch=current_active_branch,
+                    timestamp=datetime.now(),
+                    total_processing_time_ms=total_processing_time,
+                )
+
+            commit_success, commit_hash = memory_bank.dolt_writer.commit_changes(
+                commit_msg=commit_msg, tables=PERSISTED_TABLES
+            )
+
+            logger.info(
+                f"DEBUG: commit_changes returned - success: {commit_success}, hash: {commit_hash}"
+            )
+            logger.info(
+                f"DEBUG: commit_success type: {type(commit_success)}, commit_hash type: {type(commit_hash)}"
+            )
+
+            if commit_success:
+                logger.info(f"Successfully committed bulk deletion changes: {commit_hash}")
+                # Store block proof for successful deletions
+                for result in results:
+                    if result.success:
+                        memory_bank._store_block_proof(result.block_id, "delete", commit_hash)
+            else:
+                # Commit failed - all "successful" deletions are now failures
+                logger.error(f"DEBUG: Commit failed! success={commit_success}, hash={commit_hash}")
+                logger.error("Failed to commit bulk deletion changes. Rolling back all deletions.")
+
+                # Attempt rollback
+                try:
+                    memory_bank.dolt_writer.discard_changes(PERSISTED_TABLES)
+                    logger.info("Successfully rolled back all deletion changes.")
+                except Exception as rollback_e:
+                    logger.critical(
+                        f"Failed to rollback deletion changes: {rollback_e}. Database may be in an inconsistent state!"
+                    )
+
+                # Mark all "successful" deletions as failed
+                for result in results:
+                    if result.success:
+                        result.success = False
+                        result.error = "Bulk deletion commit failed - changes rolled back"
+                        result.error_code = DeleteErrorCode.DELETION_FAILED
+
+                # Update counts
+                failed_count = len(results)
+                successful_count = 0
+                overall_success = False
+                partial_success = False
+
+        except Exception as commit_e:
+            logger.error(f"Exception during bulk deletion commit: {commit_e}", exc_info=True)
+
+            # Attempt rollback
+            try:
+                memory_bank.dolt_writer.discard_changes(PERSISTED_TABLES)
+                logger.info("Successfully rolled back deletion changes after commit exception.")
+            except Exception as rollback_e:
+                logger.critical(
+                    f"Failed to rollback after commit exception: {rollback_e}. Database may be in an inconsistent state!"
+                )
+
+            # Mark all "successful" deletions as failed
+            for result in results:
+                if result.success:
+                    result.success = False
+                    result.error = f"Bulk deletion commit exception: {str(commit_e)}"
+                    result.error_code = DeleteErrorCode.INTERNAL_ERROR
+
+            # Update counts
+            failed_count = len(results)
+            successful_count = 0
+            overall_success = False
+            partial_success = False
+    else:
+        logger.info("No successful deletions to commit.")
+    # --- END COMMIT PHASE ---
 
     # Generate error summary for client analysis
     error_summary = {}
