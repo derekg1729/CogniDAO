@@ -597,7 +597,7 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
         query_dict = query.to_dict()
         relation = query_dict.get("relation")
         limit = query_dict.get("limit", 100)
-        # cursor = query_dict.get("cursor")  # TODO: Implement pagination
+        cursor = query_dict.get("cursor")
 
         # Build SQL query
         where_clauses = []
@@ -609,15 +609,24 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
 
         where_clause = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
+        # Handle cursor-based pagination
+        offset = 0
+        if cursor:
+            try:
+                offset = int(cursor)
+            except (ValueError, TypeError):
+                # Invalid cursor, ignore it
+                offset = 0
+
         sql_query = f"""
         SELECT from_id, to_id, relation, priority, link_metadata, created_by, created_at
         FROM block_links 
         {where_clause}
         ORDER BY priority DESC, created_at DESC
-        LIMIT %s
+        LIMIT %s OFFSET %s
         """
 
-        params.append(limit)
+        params.extend([limit, offset])
 
         result = self._execute_query(sql_query, params)
 
@@ -635,5 +644,10 @@ class SQLLinkManager(LinkManager, DoltMySQLBase):
                 )
                 links.append(link)
 
-        # TODO: Implement pagination with cursor
-        return LinkQueryResult(links=links, next_cursor=None)
+        # Determine next cursor for pagination
+        next_cursor = None
+        if len(links) == limit:
+            # If we got exactly the limit, there might be more
+            next_cursor = str(offset + limit)
+
+        return LinkQueryResult(links=links, next_cursor=next_cursor)
