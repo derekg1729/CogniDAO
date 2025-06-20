@@ -35,14 +35,11 @@ from autogen_agentchat.teams import RoundRobinGroupChat  # noqa: E402
 from autogen_agentchat.conditions import MaxMessageTermination  # noqa: E402
 from autogen_agentchat.ui import Console  # noqa: E402
 from autogen_ext.models.openai import OpenAIChatCompletionClient  # noqa: E402
-from autogen_ext.tools.mcp import StdioServerParams, mcp_server_tools  # noqa: E402
 
-# Dolt integration for work item context
-from infra_core.memory_system.dolt_reader import DoltMySQLReader  # noqa: E402
-from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig  # noqa: E402
+# Shared tasks - import the functions we'll use
+from .shared_tasks import setup_cogni_mcp_connection, read_work_items_context  # noqa: E402
 
 # Prompt template integration
-from infra_core.prompt_templates import PromptTemplateManager  # noqa: E402
 from infra_core.prompt_templates import render_test_artifact_detector_prompt  # noqa: E402
 from infra_core.prompt_templates import render_namespace_migrator_prompt  # noqa: E402
 from infra_core.prompt_templates import render_dolt_commit_agent_prompt  # noqa: E402
@@ -55,129 +52,9 @@ MCP_DOLT_BRANCH = "feat/cleanup"
 MCP_DOLT_NAMESPACE = "legacy"
 
 
-@task(name="read_current_work_items")
-async def read_current_work_items() -> Dict[str, Any]:
-    """Read current work items using DoltMySQLReader for agent context"""
-    logger = get_run_logger()
-
-    try:
-        # Setup Dolt connection
-        config = DoltConnectionConfig()
-        reader = DoltMySQLReader(config)
-
-        logger.info("🔍 Reading current work items from work_items_core view...")
-
-        # Read latest work items (limit 10 for context)
-        work_items = reader.read_work_items_core_view(limit=10, branch="feat/cleanup")
-
-        if work_items:
-            logger.info(f"✅ Found {len(work_items)} work items for agent context")
-
-            # Create summary for agent prompts
-            summary_lines = ["## Current Work Items Context:"]
-            for item in work_items:
-                item_line = f"- {item['work_item_type'].upper()}: {item['id']} | {item['state']} | by {item['created_by']} | {item['created_at']}"
-                summary_lines.append(item_line)
-
-            work_items_summary = "\n".join(summary_lines)
-
-            return {
-                "success": True,
-                "work_items": work_items,
-                "work_items_summary": work_items_summary,
-                "count": len(work_items),
-            }
-        else:
-            logger.info("📝 No work items found in work_items_core view")
-            return {
-                "success": True,
-                "work_items": [],
-                "work_items_summary": "## Current Work Items Context:\n- No active work items found in the system.",
-                "count": 0,
-            }
-
-    except Exception as e:
-        logger.error(f"❌ Failed to read work items: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "work_items_summary": "## Current Work Items Context:\n- Error reading work items from database.",
-            "count": 0,
-        }
-
-
-@task(name="setup_simple_mcp_connection")
-async def setup_simple_mcp_connection(branch: str = None, namespace: str = None) -> Dict[str, Any]:
-    """Setup MCP connection and generate tool specifications for agents
-
-    Args:
-        branch: Dolt branch to use (defaults to MCP_DOLT_BRANCH env var or 'ai-education-team')
-        namespace: Namespace to use (defaults to MCP_DOLT_NAMESPACE env var or 'legacy')
-    """
-    logger = get_run_logger()
-
-    try:
-        # CRITICAL: Use container-aware path resolution
-        # In container: /workspace/services/mcp_server/app/mcp_server.py
-        cogni_mcp_path = Path("/workspace/services/mcp_server/app/mcp_server.py")
-
-        if not cogni_mcp_path.exists():
-            logger.error(f"❌ Cogni MCP server not found at: {cogni_mcp_path}")
-            return {"success": False, "error": "MCP server file not found"}
-
-        logger.info(f"🔧 Using MCP server at: {cogni_mcp_path}")
-
-        # StdioServerParams for Cogni MCP server - PROVEN working config
-        # Use provided parameters or fall back to environment variables or defaults
-        mcp_branch = branch or os.environ.get("MCP_DOLT_BRANCH", "ai-education-team")
-        mcp_namespace = namespace or os.environ.get("MCP_DOLT_NAMESPACE", "legacy")
-
-        logger.info(f"🎯 MCP Configuration - Branch: '{mcp_branch}', Namespace: '{mcp_namespace}'")
-
-        server_params = StdioServerParams(
-            command="python",
-            args=[str(cogni_mcp_path)],
-            env={
-                # Python path fix for container - CRITICAL
-                "PYTHONPATH": "/workspace",  # Add workspace to Python path
-                # Dolt connection config
-                "DOLT_HOST": "dolt-db",  # Container network hostname
-                "DOLT_PORT": "3306",
-                "DOLT_USER": "root",
-                "DOLT_ROOT_PASSWORD": "kXMnM6firYohXzK+2r0E0DmSjOl6g3A2SmXc6ALDOlA=",
-                "DOLT_DATABASE": "cogni-dao-memory",
-                "MYSQL_DATABASE": "cogni-dao-memory",
-                "DOLT_BRANCH": mcp_branch,  # Configurable branch
-                "DOLT_NAMESPACE": mcp_namespace,  # Configurable namespace
-                "CHROMA_PATH": "/tmp/chroma",
-                "CHROMA_COLLECTION_NAME": "cogni_mcp_collection",
-            },
-            read_timeout_seconds=30,
-        )
-
-        logger.info("🔧 Setting up Cogni MCP tools via stdio...")
-        cogni_tools = await mcp_server_tools(server_params)
-
-        logger.info(f"✅ Cogni MCP tools setup complete: {len(cogni_tools)} tools")
-        logger.info(f"🔧 Available tools: {[tool.name for tool in cogni_tools]}")
-
-        # 🔧 NEW: Generate tool specifications using template manager
-        template_manager = PromptTemplateManager()
-        tool_specs_text = template_manager.generate_tool_specs_from_mcp_tools(cogni_tools)
-
-        logger.info(f"📋 Generated tool specs: {len(cogni_tools)} tools documented")
-
-        return {
-            "success": True,
-            "tools_count": len(cogni_tools),
-            "tools": cogni_tools,
-            "tool_names": [tool.name for tool in cogni_tools],
-            "tool_specs": tool_specs_text,  # NEW: Tool specifications for agents
-        }
-
-    except Exception as e:
-        logger.error(f"❌ Failed to setup Cogni MCP tools: {e}")
-        return {"success": False, "error": str(e)}
+# Duplicate tasks removed - now using shared_tasks.py:
+# - read_current_work_items -> read_work_items_context
+# - setup_simple_mcp_connection -> setup_cogni_mcp_connection
 
 
 @task(name="run_cleanup_team_with_outro")
@@ -345,7 +222,7 @@ async def cleanup_team_flow() -> Dict[str, Any]:
 
     try:
         # Step 1: Read current work items for context
-        work_items_context = await read_current_work_items()
+        work_items_context = await read_work_items_context(branch=MCP_DOLT_BRANCH)
 
         if work_items_context.get("success"):
             logger.info(f"✅ Work items context loaded: {work_items_context.get('count', 0)} items")
@@ -354,7 +231,7 @@ async def cleanup_team_flow() -> Dict[str, Any]:
                 f"⚠️ Work items context failed: {work_items_context.get('error', 'Unknown error')}"
             )
         # Step 2: Setup MCP connection with explicit branch and namespace
-        mcp_setup = await setup_simple_mcp_connection(
+        mcp_setup = await setup_cogni_mcp_connection(
             branch=MCP_DOLT_BRANCH, namespace=MCP_DOLT_NAMESPACE
         )
 
