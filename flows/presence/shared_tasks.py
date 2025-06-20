@@ -32,6 +32,12 @@ from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig  # noq
 # Prompt template integration
 from infra_core.prompt_templates import PromptTemplateManager  # noqa: E402
 
+# Import additional modules needed for automated outro
+import json  # noqa: E402
+from autogen_core import CancellationToken  # noqa: E402
+from autogen_ext.models.openai import OpenAIChatCompletionClient  # noqa: E402
+from autogen_core.models import UserMessage  # noqa: E402
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
@@ -215,3 +221,147 @@ async def read_work_items_context(branch: str = "main", limit: int = 10) -> Dict
             "work_items_summary": "## Current Work Items Context:\n- Error reading work items from database.",
             "count": 0,
         }
+
+
+async def call_mcp_tool_direct(
+    tool_name: str, tool_args: Dict[str, Any], mcp_tools: list
+) -> Dict[str, Any]:
+    """Call a specific MCP tool with given arguments using AutoGen tool interface - Direct version for shared tasks"""
+
+    try:
+        # Find the tool by name
+        target_tool = None
+        for tool in mcp_tools:
+            if tool.name == tool_name:
+                target_tool = tool
+                break
+
+        if not target_tool:
+            return {"success": False, "error": f"Tool '{tool_name}' not found"}
+
+        # Call the tool using AutoGen's run_json method
+        cancellation_token = CancellationToken()
+
+        # MCP tools expect input as a JSON string wrapped in an 'input' key
+        tool_input = {"input": json.dumps(tool_args)}
+
+        result = await target_tool.run_json(tool_input, cancellation_token)
+
+        # Extract result content using the tool's method
+        result_content = target_tool.return_value_as_string(result)
+
+        return {
+            "success": True,
+            "result": result_content,
+            "tool_used": tool_name,
+        }
+
+    except Exception as e:
+        return {"success": False, "error": str(e), "tool_used": tool_name}
+
+
+@task(name="automated_dolt_outro")
+async def automated_dolt_outro(
+    mcp_tools: list, model_client: OpenAIChatCompletionClient, flow_context: str = "Flow completed"
+) -> Dict[str, Any]:
+    """
+    Automated Dolt outro routine using direct MCP calls + AI summary generation
+
+    This replaces the duplicate outro code across all flows with a clean, automated approach:
+    1. Direct MCP calls to get Dolt status and diff
+    2. AI completion to generate concise PR summary
+    3. Auto-commit and push with generated message
+
+    Args:
+        mcp_tools: List of MCP tool objects from setup_cogni_mcp_connection
+        model_client: OpenAI client instance for AI completion
+        flow_context: Context description for the commit message (e.g., "AI Education Team flow completed")
+
+    Returns:
+        Dict containing:
+        - success: Whether the outro was successful
+        - commit_message: Generated commit message
+        - auto_commit_result: Result from DoltAutoCommitAndPush
+        - error: Error message if outro failed
+    """
+    logger = get_run_logger()
+    logger.info("🔄 Starting automated Dolt outro routine...")
+
+    try:
+        # Step 1: Get Dolt status using direct MCP call
+        logger.info("📊 Reading Dolt repository status...")
+        status_result = await call_mcp_tool_direct("DoltStatus", {}, mcp_tools)
+
+        if not status_result.get("success"):
+            logger.warning(f"⚠️ Status check failed: {status_result.get('error')}")
+            status_info = "Status unavailable"
+        else:
+            status_info = status_result.get("result", "No status data")
+
+        # Step 2: Get Dolt diff using direct MCP call
+        logger.info("📋 Reading staged changes diff...")
+        diff_result = await call_mcp_tool_direct("DoltDiff", {"mode": "staged"}, mcp_tools)
+
+        if not diff_result.get("success"):
+            logger.warning(f"⚠️ Diff check failed: {diff_result.get('error')}")
+            diff_info = "Diff unavailable"
+        else:
+            diff_info = diff_result.get("result", "No diff data")
+
+        # Step 3: Generate AI summary using direct OpenAI call
+        logger.info("🤖 Generating AI commit message summary...")
+
+        summary_prompt = f"""Based on this Dolt repository status and diff, create a concise commit message that summarizes the data changes:
+
+## Repository Status:
+{status_info}
+
+## Staged Changes:
+{diff_info}
+
+## Flow Context:
+{flow_context}
+
+Generate a clear, concise commit message (1-2 sentences) that describes what data was changed or added. Focus on the actual data changes, not the process."""
+
+        try:
+            response = await model_client.create(
+                [UserMessage(content=summary_prompt, source="user")]
+            )
+
+            commit_message = response.content.strip()
+            logger.info(f"✅ Generated commit message: {commit_message}")
+
+        except Exception as e:
+            logger.warning(f"⚠️ AI summary generation failed: {e}")
+            commit_message = f"data: {flow_context} - automated commit"
+
+        # Step 4: Auto-commit and push using direct MCP call
+        logger.info("🚀 Executing auto-commit and push...")
+
+        auto_result = await call_mcp_tool_direct(
+            "DoltAutoCommitAndPush",
+            {"commit_message": commit_message, "author": "automated-outro"},
+            mcp_tools,
+        )
+
+        if auto_result.get("success"):
+            logger.info("✅ Automated Dolt outro completed successfully!")
+            return {
+                "success": True,
+                "commit_message": commit_message,
+                "auto_commit_result": auto_result.get("result"),
+                "status_info": status_info,
+                "diff_info": diff_info,
+            }
+        else:
+            logger.error(f"❌ Auto-commit failed: {auto_result.get('error')}")
+            return {
+                "success": False,
+                "error": f"Auto-commit failed: {auto_result.get('error')}",
+                "commit_message": commit_message,
+            }
+
+    except Exception as e:
+        logger.error(f"❌ Automated outro failed: {e}")
+        return {"success": False, "error": str(e)}

@@ -29,7 +29,7 @@ if str(workspace_root) not in sys.path:
     sys.path.insert(0, str(workspace_root))
 
 # Import proven working MCP setup from shared_tasks
-from flows.presence.shared_tasks import setup_cogni_mcp_connection  # noqa: E402
+from flows.presence.shared_tasks import setup_cogni_mcp_connection, automated_dolt_outro  # noqa: E402
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -211,6 +211,7 @@ async def dolt_ops_flow(
     - "commit": Commit changes (requires commit_message)
     - "push": Push to remote
     - "auto": Full workflow - add, commit, push (requires commit_message)
+    - "outro": Automated outro - status + diff + AI summary + auto-commit
 
     Parameters:
     - operation: Which Dolt operation to perform
@@ -267,6 +268,21 @@ async def dolt_ops_flow(
                 remote=remote,
                 branch=branch,
             )
+
+        elif operation == "outro":
+            # Demonstrate automated outro functionality
+            from autogen_ext.models.openai import OpenAIChatCompletionClient
+
+            model_client = OpenAIChatCompletionClient(model="gpt-4o-mini")
+
+            result = await automated_dolt_outro(
+                mcp_tools=mcp_tools,
+                model_client=model_client,
+                flow_context=f"Dolt ops demo - testing automated outro with context: {commit_message or 'No specific context'}",
+            )
+
+            # Clean up model client
+            await model_client.close()
 
         else:
             return {"status": "failed", "error": f"Unknown operation: {operation}"}
