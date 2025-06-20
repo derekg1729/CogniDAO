@@ -223,43 +223,6 @@ async def read_work_items_context(branch: str = "main", limit: int = 10) -> Dict
         }
 
 
-async def call_mcp_tool_direct(
-    tool_name: str, tool_args: Dict[str, Any], mcp_tools: list
-) -> Dict[str, Any]:
-    """Call a specific MCP tool with given arguments using AutoGen tool interface - Direct version for shared tasks"""
-
-    try:
-        # Find the tool by name
-        target_tool = None
-        for tool in mcp_tools:
-            if tool.name == tool_name:
-                target_tool = tool
-                break
-
-        if not target_tool:
-            return {"success": False, "error": f"Tool '{tool_name}' not found"}
-
-        # Call the tool using AutoGen's run_json method
-        cancellation_token = CancellationToken()
-
-        # MCP tools expect input as a JSON string wrapped in an 'input' key
-        tool_input = {"input": json.dumps(tool_args)}
-
-        result = await target_tool.run_json(tool_input, cancellation_token)
-
-        # Extract result content using the tool's method
-        result_content = target_tool.return_value_as_string(result)
-
-        return {
-            "success": True,
-            "result": result_content,
-            "tool_used": tool_name,
-        }
-
-    except Exception as e:
-        return {"success": False, "error": str(e), "tool_used": tool_name}
-
-
 @task(name="automated_dolt_outro")
 async def automated_dolt_outro(
     mcp_tools: list, model_client: OpenAIChatCompletionClient, flow_context: str = "Flow completed"
@@ -288,9 +251,34 @@ async def automated_dolt_outro(
     logger.info("🔄 Starting automated Dolt outro routine...")
 
     try:
-        # Step 1: Get Dolt status using direct MCP call
+        # Helper function to call MCP tools (inlined from removed duplicate)
+        async def call_tool(tool_name: str, tool_args: Dict[str, Any]) -> Dict[str, Any]:
+            """Call MCP tool using AutoGen interface"""
+            try:
+                # Find the tool by name
+                target_tool = None
+                for tool in mcp_tools:
+                    if tool.name == tool_name:
+                        target_tool = tool
+                        break
+
+                if not target_tool:
+                    return {"success": False, "error": f"Tool '{tool_name}' not found"}
+
+                # Call the tool using AutoGen's run_json method
+                cancellation_token = CancellationToken()
+                tool_input = {"input": json.dumps(tool_args)}
+                result = await target_tool.run_json(tool_input, cancellation_token)
+                result_content = target_tool.return_value_as_string(result)
+
+                return {"success": True, "result": result_content, "tool_used": tool_name}
+
+            except Exception as e:
+                return {"success": False, "error": str(e), "tool_used": tool_name}
+
+        # Step 1: Get Dolt status
         logger.info("📊 Reading Dolt repository status...")
-        status_result = await call_mcp_tool_direct("DoltStatus", {}, mcp_tools)
+        status_result = await call_tool("DoltStatus", {})
 
         if not status_result.get("success"):
             logger.warning(f"⚠️ Status check failed: {status_result.get('error')}")
@@ -298,9 +286,9 @@ async def automated_dolt_outro(
         else:
             status_info = status_result.get("result", "No status data")
 
-        # Step 2: Get Dolt diff using direct MCP call
+        # Step 2: Get Dolt diff
         logger.info("📋 Reading staged changes diff...")
-        diff_result = await call_mcp_tool_direct("DoltDiff", {"mode": "staged"}, mcp_tools)
+        diff_result = await call_tool("DoltDiff", {"mode": "staged"})
 
         if not diff_result.get("success"):
             logger.warning(f"⚠️ Diff check failed: {diff_result.get('error')}")
@@ -336,13 +324,12 @@ Generate a clear, concise commit message (1-2 sentences) that describes what dat
             logger.warning(f"⚠️ AI summary generation failed: {e}")
             commit_message = f"data: {flow_context} - automated commit"
 
-        # Step 4: Auto-commit and push using direct MCP call
+        # Step 4: Auto-commit and push
         logger.info("🚀 Executing auto-commit and push...")
 
-        auto_result = await call_mcp_tool_direct(
+        auto_result = await call_tool(
             "DoltAutoCommitAndPush",
             {"commit_message": commit_message, "author": "automated-outro"},
-            mcp_tools,
         )
 
         if auto_result.get("success"):
