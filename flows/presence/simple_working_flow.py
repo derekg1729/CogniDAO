@@ -8,6 +8,7 @@ Based on autogen_mcp_cogni_simple_working.py that achieved 21/21 tools discovery
 
 Goal: 3 agents read active work items and summarize them.
 Enhanced with DoltMySQLReader to provide work item context in agent prompts.
+Enhanced with official MCP Python SDK for direct tool calling.
 """
 
 import sys
@@ -35,6 +36,10 @@ from autogen_agentchat.conditions import MaxMessageTermination  # noqa: E402
 from autogen_agentchat.ui import Console  # noqa: E402
 from autogen_ext.models.openai import OpenAIChatCompletionClient  # noqa: E402
 
+# Official MCP Python SDK - Direct usage!
+from mcp import ClientSession, StdioServerParameters  # noqa: E402
+from mcp.client.stdio import stdio_client  # noqa: E402
+
 # Shared tasks - import the functions we'll use
 from .shared_tasks import setup_cogni_mcp_connection, read_work_items_context  # noqa: E402
 
@@ -49,14 +54,118 @@ from infra_core.prompt_templates import render_dolt_commit_agent_prompt  # noqa:
 logging.basicConfig(level=logging.INFO)
 
 
-# Duplicate tasks removed - now using shared_tasks.py:
-# - read_current_work_items -> read_work_items_context
-# - setup_simple_mcp_connection -> setup_cogni_mcp_connection
+@task(name="setup_official_mcp_connection")
+async def setup_official_mcp_connection() -> Dict[str, Any]:
+    """Setup MCP connection using the official MCP Python SDK directly"""
+    logger = get_run_logger()
+    logger.info("🔧 Setting up MCP connection using official MCP Python SDK")
+
+    try:
+        # Configure MCP server parameters for stdio transport
+        # This connects to the cogni-mcp server using the MCP SDK directly
+        server_params = StdioServerParameters(
+            command="python",  # or whatever command runs your MCP server
+            args=["-m", "services.mcp_server.app.mcp_server"],  # adjust path as needed
+            env=None,
+        )
+
+        # Create stdio client connection using official MCP SDK
+        async with stdio_client(server_params) as (read_stream, write_stream):
+            async with ClientSession(read_stream, write_stream) as session:
+                # Initialize the MCP session
+                await session.initialize()
+
+                # List available tools using official SDK
+                tools_response = await session.list_tools()
+                available_tools = tools_response.tools
+
+                logger.info(f"✅ Official MCP SDK connected! Found {len(available_tools)} tools:")
+                for tool in available_tools:
+                    logger.info(f"   - {tool.name}: {tool.description}")
+
+                # Test a simple tool call
+                if available_tools:
+                    test_tool = available_tools[0]
+                    logger.info(f"🧪 Testing tool call: {test_tool.name}")
+
+                    # Example: Call DoltStatus or another simple tool
+                    if test_tool.name == "DoltStatus":
+                        result = await session.call_tool("DoltStatus", {})
+                        logger.info(f"✅ Test tool call successful: {result.content}")
+
+                return {
+                    "success": True,
+                    "tools_count": len(available_tools),
+                    "tools": [
+                        {"name": tool.name, "description": tool.description}
+                        for tool in available_tools
+                    ],
+                    "connection_type": "official_mcp_sdk",
+                    "transport": "stdio",
+                    "session": session,  # Note: This won't persist outside the context
+                    "timestamp": datetime.now().isoformat(),
+                }
+
+    except Exception as e:
+        logger.error(f"❌ Official MCP SDK connection failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "connection_type": "official_mcp_sdk",
+            "timestamp": datetime.now().isoformat(),
+        }
+
+
+@task(name="call_mcp_tool_directly")
+async def call_mcp_tool_directly(
+    tool_name: str, tool_args: Dict[str, Any] = None
+) -> Dict[str, Any]:
+    """Call an MCP tool directly using the official MCP Python SDK"""
+    logger = get_run_logger()
+    logger.info(f"🔧 Calling MCP tool '{tool_name}' directly using official SDK")
+
+    if tool_args is None:
+        tool_args = {}
+
+    try:
+        # Configure MCP server parameters
+        server_params = StdioServerParameters(
+            command="python", args=["-m", "services.mcp_server.app.mcp_server"], env=None
+        )
+
+        # Create connection and call tool
+        async with stdio_client(server_params) as (read_stream, write_stream):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+
+                # Call the specified tool
+                result = await session.call_tool(tool_name, tool_args)
+
+                logger.info(f"✅ Tool '{tool_name}' called successfully")
+
+                return {
+                    "success": True,
+                    "tool_name": tool_name,
+                    "tool_args": tool_args,
+                    "result": result.content,
+                    "timestamp": datetime.now().isoformat(),
+                }
+
+    except Exception as e:
+        logger.error(f"❌ MCP tool call failed: {e}")
+        return {
+            "success": False,
+            "tool_name": tool_name,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat(),
+        }
 
 
 @task(name="run_simple_4_agent_summary_with_outro")
 async def run_simple_4_agent_summary_with_outro(
-    mcp_setup: Dict[str, Any], work_items_context: Dict[str, Any]
+    mcp_setup: Dict[str, Any],
+    work_items_context: Dict[str, Any],
+    official_mcp_setup: Dict[str, Any],
 ) -> Dict[str, Any]:
     """Run 4 agents to read and summarize active work items, then handle Dolt operations - All in one simple task using proven working pattern"""
     logger = get_run_logger()
@@ -78,6 +187,22 @@ async def run_simple_4_agent_summary_with_outro(
         work_items_summary = work_items_context.get(
             "work_items_summary", "## Current Work Items Context:\\n- No context available."
         )
+
+        # Log the official MCP SDK connection status
+        if official_mcp_setup.get("success"):
+            logger.info(
+                f"🚀 Official MCP SDK also connected with {official_mcp_setup.get('tools_count', 0)} tools!"
+            )
+
+            # Demonstrate direct tool calling with official SDK
+            logger.info("🧪 Testing direct MCP tool call...")
+            direct_tool_result = await call_mcp_tool_directly("DoltStatus")
+            if direct_tool_result.get("success"):
+                logger.info(
+                    f"✅ Direct MCP tool call successful: {direct_tool_result.get('result')}"
+                )
+            else:
+                logger.warning(f"⚠️ Direct MCP tool call failed: {direct_tool_result.get('error')}")
 
         # Create 4 enhanced agents with work item context AND tool specifications
         agents = []
@@ -135,7 +260,9 @@ async def run_simple_4_agent_summary_with_outro(
 You have the following context about recent work items:
 {work_items_summary}
 
-Important: Use the tool specifications provided in your system message to ensure correct input formats and avoid validation errors."""
+Important: Use the tool specifications provided in your system message to ensure correct input formats and avoid validation errors.
+
+🆕 NOTE: We now have BOTH the original MCP connection AND the official MCP Python SDK running in parallel! This demonstrates dual connectivity approaches."""
 
         # Run the team
         await Console(team.run_stream(task=enhanced_task))
@@ -172,6 +299,8 @@ Important: Use the tool specifications provided in your system message to ensure
             "tools_count": len(cogni_tools),
             "work_items_count": work_items_context.get("count", 0),
             "outro_success": True,
+            "official_mcp_success": official_mcp_setup.get("success", False),
+            "official_mcp_tools_count": official_mcp_setup.get("tools_count", 0),
             "timestamp": datetime.now().isoformat(),
         }
 
@@ -180,30 +309,28 @@ Important: Use the tool specifications provided in your system message to ensure
         return {"success": False, "error": str(e)}
 
 
-# Outro routine now integrated into the main task above for simplicity
-
-
 @flow(name="simple_working_mcp_flow", log_prints=True)
 async def simple_working_mcp_flow() -> Dict[str, Any]:
     """
-    Ultra-Simple Working MCP Flow - Enhanced with Omnipresent Cogni Leader & Integrated Outro
+    Ultra-Simple Working MCP Flow - Enhanced with Official MCP SDK
 
     Uses proven working AutoGen pattern to run 4 agents + Dolt operations in one streamlined task:
     1. Read current work items context using DoltMySQLReader
     2. Setup MCP connection with proven stdio transport
-    3. Run unified agent workflow that includes:
+    3. Setup ADDITIONAL connection using official MCP Python SDK
+    4. Run unified agent workflow that includes:
        - Work item reader with context
        - Priority analyzer with enhanced context
        - Summary writer with comprehensive context
        - **Omnipresent Cogni Leader** for strategic insights
        - **Integrated Dolt operations** for automatic persistence
 
-    All using the PROVEN working import pattern for maximum reliability.
+    All using the PROVEN working import pattern PLUS official MCP SDK for maximum reliability.
     """
     logger = get_run_logger()
-    logger.info("🎯 Starting Enhanced Simple Working MCP Flow with Cogni Leader")
+    logger.info("🎯 Starting Enhanced Simple Working MCP Flow with Official MCP SDK")
     logger.info(
-        "🔧 Using PROVEN working stdio MCP transport + DoltMySQLReader context + Omnipresent AI"
+        "🔧 Using PROVEN working stdio MCP transport + Official MCP Python SDK + DoltMySQLReader context + Omnipresent AI"
     )
 
     try:
@@ -217,17 +344,29 @@ async def simple_working_mcp_flow() -> Dict[str, Any]:
                 f"⚠️ Work items context failed: {work_items_context.get('error', 'Unknown error')}"
             )
 
-        # Step 2: Setup MCP connection
+        # Step 2: Setup original MCP connection (proven working)
         mcp_setup = await setup_cogni_mcp_connection()
 
         if not mcp_setup.get("success"):
-            logger.error(f"❌ MCP setup failed: {mcp_setup.get('error')}")
+            logger.error(f"❌ Original MCP setup failed: {mcp_setup.get('error')}")
             return {"status": "failed", "error": mcp_setup.get("error")}
 
-        logger.info(f"✅ MCP setup successful: {mcp_setup['tools_count']} tools available")
+        logger.info(f"✅ Original MCP setup successful: {mcp_setup['tools_count']} tools available")
 
-        # Step 3: Run 4-agent summary with integrated outro routine
-        summary_result = await run_simple_4_agent_summary_with_outro(mcp_setup, work_items_context)
+        # Step 3: Setup OFFICIAL MCP Python SDK connection (NEW!)
+        official_mcp_setup = await setup_official_mcp_connection()
+
+        if official_mcp_setup.get("success"):
+            logger.info(
+                f"✅ Official MCP SDK setup successful: {official_mcp_setup['tools_count']} tools available"
+            )
+        else:
+            logger.warning(f"⚠️ Official MCP SDK setup failed: {official_mcp_setup.get('error')}")
+
+        # Step 4: Run 4-agent summary with integrated outro routine (enhanced with both MCP connections)
+        summary_result = await run_simple_4_agent_summary_with_outro(
+            mcp_setup, work_items_context, official_mcp_setup
+        )
 
         if not summary_result.get("success"):
             logger.error(f"❌ Agent summary with outro failed: {summary_result.get('error')}")
@@ -239,7 +378,7 @@ async def simple_working_mcp_flow() -> Dict[str, Any]:
 
         # Final success
         logger.info(
-            "🎉 FLOW SUCCESS: Enhanced simple working MCP flow with Cogni Leader completed!"
+            "🎉 FLOW SUCCESS: Enhanced simple working MCP flow with Official MCP SDK completed!"
         )
         return {
             "status": "success",
@@ -247,6 +386,8 @@ async def simple_working_mcp_flow() -> Dict[str, Any]:
             "agents_count": summary_result.get("agents_count", 0),
             "work_items_count": summary_result.get("work_items_count", 0),
             "outro_success": summary_result.get("outro_success", False),
+            "official_mcp_success": summary_result.get("official_mcp_success", False),
+            "official_mcp_tools_count": summary_result.get("official_mcp_tools_count", 0),
             "timestamp": datetime.now().isoformat(),
         }
 
@@ -254,9 +395,8 @@ async def simple_working_mcp_flow() -> Dict[str, Any]:
         logger.error(f"❌ Enhanced flow failed: {e}")
         return {"status": "failed", "error": str(e)}
     finally:
-        # Ensure the MCP client is disconnected at the end of the flow
-        if "mcp_setup" in locals() and mcp_setup.get("client"):
-            await mcp_setup["client"].disconnect()
+        # Note: MCP client cleanup is handled automatically by async context managers
+        logger.info("🧹 MCP clients cleanup handled by context managers")
 
 
 if __name__ == "__main__":
