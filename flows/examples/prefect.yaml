@@ -1,0 +1,78 @@
+# Welcome to your prefect.yaml file! You can use this file for storing and managing
+# configuration for deploying your flows. We recommend committing this file to source
+# control along with your flow code.
+
+# Generic metadata about this project
+name: cogni-examples
+prefect-version: 3.3.3
+
+# build section allows you to manage and build docker images
+build:
+
+# push section allows you to manage if and how this project is uploaded to remote locations
+push:
+
+# pull section allows you to provide instructions for cloning this project in remote locations
+pull:
+- prefect.deployments.steps.set_working_directory:
+    directory: /workspace/flows/examples
+
+# the deployments section allows you to provide configuration for deploying flows
+deployments:
+- name: echo-tool-demo
+  version:
+  tags:
+  - cogni
+  - mcp
+  - echo
+  - minimal
+  - sdk
+  - stdio
+  concurrency_limit:
+  description: 'Echo Tool Demo: Minimal MCP SDK example demonstrating the simplest possible MCP client usage with stdio transport'
+  entrypoint: echo_tool.py:echo_tool_flow
+  parameters: {}
+  work_pool:
+    name: cogni-pool
+    work_queue_name:
+    job_variables: {}
+  schedules: []
+
+- name: autogen-work-reader
+  version:
+  tags:
+  - cogni
+  - autogen
+  - mcp
+  - multi-agent
+  - work-analysis
+  - collaboration
+  concurrency_limit:
+  description: 'AutoGen Work Reader: Multi-agent MCP demo with 4 specialized agents collaboratively analyzing work items and priorities'
+  entrypoint: autogen_work_reader.py:autogen_work_reader_flow
+  parameters: {}
+  work_pool:
+    name: cogni-pool
+    work_queue_name:
+    job_variables: {}
+  schedules: []
+
+- name: dolt-ops-demo
+  version:
+  tags:
+  - cogni
+  - dolt
+  - mcp
+  - version-control
+  - git-operations
+  - automation
+  concurrency_limit:
+  description: 'Dolt Operations Demo: MCP-based version control automation demonstrating Dolt workflow operations (status, add, commit, push)'
+  entrypoint: dolt_ops.py:dolt_ops_flow
+  parameters:
+    operation: "status"
+  work_pool:
+    name: cogni-pool
+    work_queue_name:
+    job_variables: {}
+  schedules: [] 

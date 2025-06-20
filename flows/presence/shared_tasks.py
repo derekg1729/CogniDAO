@@ -63,12 +63,20 @@ async def setup_cogni_mcp_connection(
     logger = get_run_logger()
 
     try:
-        # CRITICAL: Use container-aware path resolution
-        # In container: /workspace/services/mcp_server/app/mcp_server.py
+        # CRITICAL: Use environment-aware path resolution
+        # Try container path first, then fallback to local development path
         cogni_mcp_path = Path("/workspace/services/mcp_server/app/mcp_server.py")
 
         if not cogni_mcp_path.exists():
-            logger.error(f"❌ Cogni MCP server not found at: {cogni_mcp_path}")
+            # Fallback to local development path (relative to workspace root)
+            cogni_mcp_path = workspace_root / "services" / "mcp_server" / "app" / "mcp_server.py"
+
+        if not cogni_mcp_path.exists():
+            logger.error("❌ Cogni MCP server not found at container path or local path")
+            logger.error("   Container path: /workspace/services/mcp_server/app/mcp_server.py")
+            logger.error(
+                f"   Local path: {workspace_root / 'services' / 'mcp_server' / 'app' / 'mcp_server.py'}"
+            )
             return {"success": False, "error": "MCP server file not found"}
 
         logger.info(f"🔧 Using MCP server at: {cogni_mcp_path}")
@@ -80,24 +88,37 @@ async def setup_cogni_mcp_connection(
         logger.info(f"🎯 MCP Configuration - Branch: '{mcp_branch}', Namespace: '{mcp_namespace}'")
 
         # StdioServerParams for Cogni MCP server - PROVEN working config
+        # Use environment-aware configuration
+        server_env = {
+            **os.environ,  # Include existing environment
+            # Dolt connection config - use env vars with fallbacks
+            "DOLT_HOST": os.getenv("DOLT_HOST", "localhost"),
+            "DOLT_PORT": os.getenv("DOLT_PORT", "3306"),
+            "DOLT_USER": os.getenv("DOLT_USER", "root"),
+            "DOLT_ROOT_PASSWORD": os.getenv(
+                "DOLT_ROOT_PASSWORD", "kXMnM6firYohXzK+2r0E0DmSjOl6g3A2SmXc6ALDOlA="
+            ),
+            "DOLT_DATABASE": "cogni-dao-memory",
+            "MYSQL_DATABASE": "cogni-dao-memory",
+            "DOLT_BRANCH": mcp_branch,  # Configurable branch
+            "DOLT_NAMESPACE": mcp_namespace,  # Configurable namespace
+            "CHROMA_PATH": os.getenv("CHROMA_PATH", "/tmp/chroma"),
+            "CHROMA_COLLECTION_NAME": "cogni_mcp_collection",
+        }
+
+        # Add workspace root to Python path for both container and local
+        if str(workspace_root) not in server_env.get("PYTHONPATH", ""):
+            existing_pythonpath = server_env.get("PYTHONPATH", "")
+            server_env["PYTHONPATH"] = (
+                f"{workspace_root}:{existing_pythonpath}"
+                if existing_pythonpath
+                else str(workspace_root)
+            )
+
         server_params = StdioServerParams(
             command="python",
             args=[str(cogni_mcp_path)],
-            env={
-                # Python path fix for container - CRITICAL
-                "PYTHONPATH": "/workspace",  # Add workspace to Python path
-                # Dolt connection config
-                "DOLT_HOST": "dolt-db",  # Container network hostname
-                "DOLT_PORT": "3306",
-                "DOLT_USER": "root",
-                "DOLT_ROOT_PASSWORD": "kXMnM6firYohXzK+2r0E0DmSjOl6g3A2SmXc6ALDOlA=",
-                "DOLT_DATABASE": "cogni-dao-memory",
-                "MYSQL_DATABASE": "cogni-dao-memory",
-                "DOLT_BRANCH": mcp_branch,  # Configurable branch
-                "DOLT_NAMESPACE": mcp_namespace,  # Configurable namespace
-                "CHROMA_PATH": "/tmp/chroma",
-                "CHROMA_COLLECTION_NAME": "cogni_mcp_collection",
-            },
+            env=server_env,
             read_timeout_seconds=read_timeout_seconds,
         )
 

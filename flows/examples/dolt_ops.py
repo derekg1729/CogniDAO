@@ -10,64 +10,98 @@ Demonstrates Dolt workflow automation using MCP tools:
 4. Push to remote
 
 This focuses purely on version control operations via MCP.
+Updated to use the proven working MCP pattern from shared_tasks.py
 """
 
 import asyncio
 import logging
-import os
+import sys
+from pathlib import Path
 from typing import Any, Dict
 
 from prefect import flow, task
 from prefect.logging import get_run_logger
 
-# Official MCP Python SDK
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
+# Ensure proper Python path for container environment
+current_dir = Path(__file__).parent
+workspace_root = current_dir.parent.parent  # Go up two levels: flows/examples -> flows -> workspace
+if str(workspace_root) not in sys.path:
+    sys.path.insert(0, str(workspace_root))
+
+# Import proven working MCP setup from shared_tasks
+from flows.presence.shared_tasks import setup_cogni_mcp_connection  # noqa: E402
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
 
-@task(name="check_dolt_status")
-async def check_dolt_status() -> Dict[str, Any]:
-    """Check current Dolt repository status using MCP tools"""
+@task(name="call_mcp_tool")
+async def call_mcp_tool(
+    tool_name: str, tool_args: Dict[str, Any], mcp_tools: list
+) -> Dict[str, Any]:
+    """Call a specific MCP tool with given arguments using AutoGen tool interface"""
     logger = get_run_logger()
 
-    # Environment-configurable server parameters
-    mcp_command = os.getenv("MCP_SERVER_COMMAND", "python")
-    mcp_args = os.getenv("MCP_SERVER_ARGS", "-m,services.mcp_server.app.mcp_server").split(",")
-
-    logger.info("Checking Dolt repository status")
-
     try:
-        server_params = StdioServerParameters(command=mcp_command, args=mcp_args, env=None)
+        # Find the tool by name
+        target_tool = None
+        for tool in mcp_tools:
+            if tool.name == tool_name:
+                target_tool = tool
+                break
 
-        async with stdio_client(server_params) as (read_stream, write_stream):
-            async with ClientSession(read_stream, write_stream) as session:
-                await session.initialize()
+        if not target_tool:
+            return {"success": False, "error": f"Tool '{tool_name}' not found"}
 
-                # Call DoltStatus tool
-                result = await session.call_tool("DoltStatus", {})
+        logger.info(f"📞 Calling MCP tool: {tool_name}")
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"   Arguments: {tool_args}")
 
-                logger.info("Dolt status checked successfully")
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(f"   Status: {result.content}")
+        # Import CancellationToken for AutoGen tool calling
+        from autogen_core import CancellationToken
 
-                return {"success": True, "status_result": result.content, "tool_used": "DoltStatus"}
+        # Call the tool using AutoGen's run_json method
+        cancellation_token = CancellationToken()
+
+        # MCP tools expect input as a JSON string wrapped in an 'input' key
+        import json
+
+        tool_input = {"input": json.dumps(tool_args)}
+
+        result = await target_tool.run_json(tool_input, cancellation_token)
+
+        # Extract result content using the tool's method
+        result_content = target_tool.return_value_as_string(result)
+
+        logger.info(f"✅ Tool '{tool_name}' executed successfully")
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"   Result: {result_content}")
+
+        return {
+            "success": True,
+            "result": result_content,
+            "tool_used": tool_name,
+        }
 
     except Exception as e:
-        logger.error(f"Dolt status check failed: {e}")
-        return {"success": False, "error": str(e), "tool_used": "DoltStatus"}
+        logger.error(f"❌ Tool '{tool_name}' failed: {e}")
+        return {"success": False, "error": str(e), "tool_used": tool_name}
+
+
+@task(name="check_dolt_status")
+async def check_dolt_status(mcp_tools: list) -> Dict[str, Any]:
+    """Check current Dolt repository status using MCP tools"""
+    logger = get_run_logger()
+    logger.info("Checking Dolt repository status")
+
+    result = await call_mcp_tool("DoltStatus", {}, mcp_tools)
+    return result
 
 
 @task(name="stage_dolt_changes")
-async def stage_dolt_changes(tables: list | None = None) -> Dict[str, Any]:
+async def stage_dolt_changes(mcp_tools: list, tables: list | None = None) -> Dict[str, Any]:
     """Stage Dolt changes using MCP tools"""
     logger = get_run_logger()
-
-    # Environment-configurable server parameters
-    mcp_command = os.getenv("MCP_SERVER_COMMAND", "python")
-    mcp_args = os.getenv("MCP_SERVER_ARGS", "-m,services.mcp_server.app.mcp_server").split(",")
 
     add_args = {}
     if tables:
@@ -76,40 +110,18 @@ async def stage_dolt_changes(tables: list | None = None) -> Dict[str, Any]:
     else:
         logger.info("Staging all changes")
 
-    try:
-        server_params = StdioServerParameters(command=mcp_command, args=mcp_args, env=None)
-
-        async with stdio_client(server_params) as (read_stream, write_stream):
-            async with ClientSession(read_stream, write_stream) as session:
-                await session.initialize()
-
-                # Call DoltAdd tool
-                result = await session.call_tool("DoltAdd", add_args)
-
-                logger.info("Changes staged successfully")
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(f"   Add result: {result.content}")
-
-                return {
-                    "success": True,
-                    "add_result": result.content,
-                    "tables_staged": tables or "all",
-                    "tool_used": "DoltAdd",
-                }
-
-    except Exception as e:
-        logger.error(f"Dolt add failed: {e}")
-        return {"success": False, "error": str(e), "tool_used": "DoltAdd"}
+    result = await call_mcp_tool("DoltAdd", add_args, mcp_tools)
+    if result.get("success"):
+        result["tables_staged"] = tables or "all"
+    return result
 
 
 @task(name="commit_dolt_changes")
-async def commit_dolt_changes(commit_message: str, author: str | None = None) -> Dict[str, Any]:
+async def commit_dolt_changes(
+    mcp_tools: list, commit_message: str, author: str | None = None
+) -> Dict[str, Any]:
     """Commit Dolt changes using MCP tools"""
     logger = get_run_logger()
-
-    # Environment-configurable server parameters
-    mcp_command = os.getenv("MCP_SERVER_COMMAND", "python")
-    mcp_args = os.getenv("MCP_SERVER_ARGS", "-m,services.mcp_server.app.mcp_server").split(",")
 
     commit_args = {"commit_message": commit_message}
     if author:
@@ -117,86 +129,33 @@ async def commit_dolt_changes(commit_message: str, author: str | None = None) ->
 
     logger.info(f"Committing changes: '{commit_message}'")
 
-    try:
-        server_params = StdioServerParameters(command=mcp_command, args=mcp_args, env=None)
-
-        async with stdio_client(server_params) as (read_stream, write_stream):
-            async with ClientSession(read_stream, write_stream) as session:
-                await session.initialize()
-
-                # Call DoltCommit tool
-                result = await session.call_tool("DoltCommit", commit_args)
-
-                logger.info("Changes committed successfully")
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(f"   Commit result: {result.content}")
-
-                return {
-                    "success": True,
-                    "commit_result": result.content,
-                    "commit_message": commit_message,
-                    "author": author,
-                    "tool_used": "DoltCommit",
-                }
-
-    except Exception as e:
-        logger.error(f"Dolt commit failed: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "commit_message": commit_message,
-            "tool_used": "DoltCommit",
-        }
+    result = await call_mcp_tool("DoltCommit", commit_args, mcp_tools)
+    if result.get("success"):
+        result["commit_message"] = commit_message
+        result["author"] = author
+    return result
 
 
 @task(name="push_dolt_changes")
-async def push_dolt_changes(remote: str = "origin", branch: str = "main") -> Dict[str, Any]:
+async def push_dolt_changes(
+    mcp_tools: list, remote: str = "origin", branch: str = "main"
+) -> Dict[str, Any]:
     """Push Dolt changes using MCP tools"""
     logger = get_run_logger()
 
-    # Environment-configurable server parameters
-    mcp_command = os.getenv("MCP_SERVER_COMMAND", "python")
-    mcp_args = os.getenv("MCP_SERVER_ARGS", "-m,services.mcp_server.app.mcp_server").split(",")
-
     push_args = {"remote_name": remote, "branch": branch}
-
     logger.info(f"Pushing to {remote}/{branch}")
 
-    try:
-        server_params = StdioServerParameters(command=mcp_command, args=mcp_args, env=None)
-
-        async with stdio_client(server_params) as (read_stream, write_stream):
-            async with ClientSession(read_stream, write_stream) as session:
-                await session.initialize()
-
-                # Call DoltPush tool
-                result = await session.call_tool("DoltPush", push_args)
-
-                logger.info("Changes pushed successfully")
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(f"   Push result: {result.content}")
-
-                return {
-                    "success": True,
-                    "push_result": result.content,
-                    "remote": remote,
-                    "branch": branch,
-                    "tool_used": "DoltPush",
-                }
-
-    except Exception as e:
-        logger.error(f"Dolt push failed: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "remote": remote,
-            "branch": branch,
-            "tool_used": "DoltPush",
-        }
+    result = await call_mcp_tool("DoltPush", push_args, mcp_tools)
+    if result.get("success"):
+        result["remote"] = remote
+        result["branch"] = branch
+    return result
 
 
 @task(name="auto_commit_and_push")
 async def auto_commit_and_push(
+    mcp_tools: list,
     commit_message: str,
     author: str | None = None,
     tables: list | None = None,
@@ -205,10 +164,6 @@ async def auto_commit_and_push(
 ) -> Dict[str, Any]:
     """Automated Dolt workflow: status -> add -> commit -> push"""
     logger = get_run_logger()
-
-    # Environment-configurable server parameters
-    mcp_command = os.getenv("MCP_SERVER_COMMAND", "python")
-    mcp_args = os.getenv("MCP_SERVER_ARGS", "-m,services.mcp_server.app.mcp_server").split(",")
 
     auto_args = {"commit_message": commit_message}
     if author:
@@ -222,39 +177,18 @@ async def auto_commit_and_push(
 
     logger.info(f"Running automated Dolt workflow: '{commit_message}'")
 
-    try:
-        server_params = StdioServerParameters(command=mcp_command, args=mcp_args, env=None)
-
-        async with stdio_client(server_params) as (read_stream, write_stream):
-            async with ClientSession(read_stream, write_stream) as session:
-                await session.initialize()
-
-                # Call DoltAutoCommitAndPush tool
-                result = await session.call_tool("DoltAutoCommitAndPush", auto_args)
-
-                logger.info("Automated Dolt workflow completed successfully")
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(f"   Workflow result: {result.content}")
-
-                return {
-                    "success": True,
-                    "workflow_result": result.content,
-                    "commit_message": commit_message,
-                    "author": author,
-                    "tables": tables,
-                    "remote": remote,
-                    "branch": branch,
-                    "tool_used": "DoltAutoCommitAndPush",
-                }
-
-    except Exception as e:
-        logger.error(f"Automated Dolt workflow failed: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "commit_message": commit_message,
-            "tool_used": "DoltAutoCommitAndPush",
-        }
+    result = await call_mcp_tool("DoltAutoCommitAndPush", auto_args, mcp_tools)
+    if result.get("success"):
+        result.update(
+            {
+                "commit_message": commit_message,
+                "author": author,
+                "tables": tables,
+                "remote": remote,
+                "branch": branch,
+            }
+        )
+    return result
 
 
 @flow(name="dolt_ops_flow", log_prints=True)
@@ -287,31 +221,46 @@ async def dolt_ops_flow(
     - branch: Branch name for push operations (default: "main")
 
     Environment Variables:
-    - MCP_SERVER_COMMAND: Command to run MCP server (default: "python")
-    - MCP_SERVER_ARGS: Comma-separated args (default: "-m,services.mcp_server.app.mcp_server")
+    - MCP_DOLT_BRANCH: Dolt branch to use (default: "main")
+    - MCP_DOLT_NAMESPACE: Namespace to use (default: "legacy")
     """
     logger = get_run_logger()
     logger.info(f"Starting Dolt operation: {operation}")
 
     try:
+        # Step 1: Setup MCP connection using proven working pattern
+        logger.info("🔧 Setting up MCP connection...")
+        mcp_setup = await setup_cogni_mcp_connection()
+
+        if not mcp_setup.get("success"):
+            logger.error(f"❌ MCP setup failed: {mcp_setup.get('error')}")
+            return {"status": "failed", "error": mcp_setup.get("error")}
+
+        logger.info(f"✅ MCP setup successful: {mcp_setup['tools_count']} tools available")
+        mcp_tools = mcp_setup["tools"]
+
+        # Step 2: Execute the requested operation
         if operation == "status":
-            result = await check_dolt_status()
+            result = await check_dolt_status(mcp_tools)
 
         elif operation == "add":
-            result = await stage_dolt_changes(tables=tables)
+            result = await stage_dolt_changes(mcp_tools, tables=tables)
 
         elif operation == "commit":
             if not commit_message:
                 return {"status": "failed", "error": "commit_message required for commit operation"}
-            result = await commit_dolt_changes(commit_message=commit_message, author=author)
+            result = await commit_dolt_changes(
+                mcp_tools, commit_message=commit_message, author=author
+            )
 
         elif operation == "push":
-            result = await push_dolt_changes(remote=remote, branch=branch)
+            result = await push_dolt_changes(mcp_tools, remote=remote, branch=branch)
 
         elif operation == "auto":
             if not commit_message:
                 return {"status": "failed", "error": "commit_message required for auto operation"}
             result = await auto_commit_and_push(
+                mcp_tools,
                 commit_message=commit_message,
                 author=author,
                 tables=tables,
