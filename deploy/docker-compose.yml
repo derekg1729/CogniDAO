@@ -138,6 +138,7 @@ services:
       - THV_NO_UPDATES=1  # Prevent version checks to avoid startup lag
     ports:
       - "8080:8080"  # Use ToolHive's default port 8080
+      - "24160:24160"  # Expose MCP server port for container-to-container access
     restart: unless-stopped
 
 

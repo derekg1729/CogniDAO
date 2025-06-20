@@ -11,7 +11,7 @@ Demonstrates connecting to an existing MCP server via SSE transport:
 
 This example connects to your containerized MCP server instead of spawning a new process.
 
-IMPORTANT: The default endpoint (127.0.0.1:56449) is only accessible from within
+IMPORTANT: The default endpoint (127.0.0.1:24160) is only accessible from within
 the ToolHive container network. To test from host, either:
 1. Set MCP_SSE_URL to a proxy endpoint
 2. Run this script from within a container on the same network
@@ -41,7 +41,7 @@ async def connect_and_list_tools_sse() -> Dict[str, Any]:
 
     # Environment-configurable SSE endpoint
     # Default to ToolHive internal address from `thv list` output
-    mcp_sse_url = os.getenv("MCP_SSE_URL", "http://127.0.0.1:56449/sse")
+    mcp_sse_url = os.getenv("MCP_SSE_URL", "http://toolhive:24160/sse")
 
     logger.info(f"Connecting to existing MCP server via SSE: {mcp_sse_url}")
 
@@ -87,7 +87,7 @@ async def call_single_tool_sse(tool_name: str = "DoltStatus") -> Dict[str, Any]:
     logger = get_run_logger()
 
     # Environment-configurable SSE endpoint
-    mcp_sse_url = os.getenv("MCP_SSE_URL", "http://127.0.0.1:56449/sse")
+    mcp_sse_url = os.getenv("MCP_SSE_URL", "http://toolhive:24160/sse")
 
     logger.info(f"Calling tool '{tool_name}' via SSE")
 
@@ -123,7 +123,7 @@ async def existing_mcp_connection_flow() -> Dict[str, Any]:
     4. Return results
 
     Environment Variables:
-    - MCP_SSE_URL: SSE endpoint URL (default: "http://127.0.0.1:56449/sse")
+    - MCP_SSE_URL: SSE endpoint URL (default: "http://toolhive:24160/sse")
                    Use the internal ToolHive address from `thv list` output
 
     Network Requirements:
@@ -146,11 +146,13 @@ async def existing_mcp_connection_flow() -> Dict[str, Any]:
         # Step 2: Call a simple tool
         if connection_result["tools_count"] > 0:
             # Use first available tool or default to DoltStatus
-            first_tool = (
-                connection_result["tools"][0]["name"]
-                if connection_result["tools"]
-                else "DoltStatus"
-            )
+            # first_tool = (
+            #     connection_result["tools"][0]["name"]
+            #     if connection_result["tools"]
+            #     else "DoltStatus"
+            # )
+            # hardcoding DoltStatus... first_tool kept calling CreateWorkItem
+            first_tool = "DoltStatus"
             tool_result = await call_single_tool_sse(first_tool)
 
             if tool_result.get("success"):

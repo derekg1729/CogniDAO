@@ -181,6 +181,7 @@ EOF
                         status "Deploying MCP server with ToolHive..."
                         if docker ps | grep -q toolhive; then
                             docker exec toolhive thv run \
+                              --port 24160 \
                               --name cogni-mcp \
                               --env DOLT_HOST=dolt-db \
                               --env DOLT_PORT=3306 \
@@ -257,6 +258,7 @@ EOF
                         status "Deploying MCP server with ToolHive..."
                         if docker ps | grep -q toolhive; then
                             docker exec toolhive thv run \
+                              --port 24160 \
                               --name cogni-mcp \
                               --env DOLT_HOST=dolt-db \
                               --env DOLT_PORT=3306 \

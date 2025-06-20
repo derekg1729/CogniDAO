@@ -38,6 +38,25 @@ deployments:
     job_variables: {}
   schedules: []
 
+- name: existing-mcp-connection
+  version:
+  tags:
+  - cogni
+  - mcp
+  - sse
+  - toolhive
+  - connection-test
+  concurrency_limit:
+  description: 'Existing MCP Connection: SSE transport test connecting to ToolHive MCP server to validate containerized connectivity'
+  entrypoint: existing_mcp_connection.py:existing_mcp_connection_flow
+  parameters: {}
+  work_pool:
+    name: cogni-pool
+    work_queue_name:
+    job_variables: 
+      MCP_SSE_URL: "http://toolhive:24160/sse"
+  schedules: []
+
 - name: autogen-work-reader
   version:
   tags:
