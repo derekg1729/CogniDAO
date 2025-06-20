@@ -3,19 +3,19 @@ Dolt operations as Prefect tasks using MCP HTTP endpoints
 """
 
 from prefect import task
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Sequence
 from .client import MCPClient
 
 
 @task(name="dolt_add")
 def dolt_add_task(
-    tables: Optional[list] = None, mcp_client: Optional[MCPClient] = None
+    tables: Optional[Sequence[str]] = None, mcp_client: Optional[MCPClient] = None
 ) -> Dict[str, Any]:
     """
     Prefect task wrapper for dolt.add MCP endpoint
 
     Args:
-        tables: Optional list of specific tables to add (defaults to all changes)
+        tables: Optional sequence of specific tables to add (defaults to all changes)
         mcp_client: Optional MCPClient instance (creates new one if not provided)
 
     Returns:
@@ -25,12 +25,11 @@ def dolt_add_task(
 
     payload = {}
     if tables:
-        payload["tables"] = tables
+        payload["tables"] = list(tables)
 
     try:
-        with client:
-            result = client.call("dolt.add", payload)
-            return result
+        result = client.call("dolt.add", payload)
+        return result
     except Exception as e:
         raise Exception(f"Dolt add operation failed: {e}") from e
 
@@ -40,7 +39,7 @@ def dolt_commit_task(
     message: str,
     branch: Optional[str] = None,
     author: Optional[str] = None,
-    tables: Optional[list] = None,
+    tables: Optional[Sequence[str]] = None,
     mcp_client: Optional[MCPClient] = None,
 ) -> Dict[str, Any]:
     """
@@ -50,7 +49,7 @@ def dolt_commit_task(
         message: Commit message (required)
         branch: Branch to commit to (optional, uses current branch if not specified)
         author: Author attribution for the commit
-        tables: Optional list of specific tables to commit
+        tables: Optional sequence of specific tables to commit
         mcp_client: Optional MCPClient instance (creates new one if not provided)
 
     Returns:
@@ -65,12 +64,11 @@ def dolt_commit_task(
     if author:
         payload["author"] = author
     if tables:
-        payload["tables"] = tables
+        payload["tables"] = list(tables)
 
     try:
-        with client:
-            result = client.call("dolt.commit", payload)
-            return result
+        result = client.call("dolt.commit", payload)
+        return result
     except Exception as e:
         raise Exception(f"Dolt commit operation failed: {e}") from e
 
@@ -102,32 +100,29 @@ def dolt_push_task(
         payload["branch"] = branch
 
     try:
-        with client:
-            result = client.call("dolt.push", payload)
-            return result
+        result = client.call("dolt.push", payload)
+        return result
     except Exception as e:
         raise Exception(f"Dolt push operation failed: {e}") from e
 
 
-# Convenience function for full workflow
-@task(name="dolt_add_commit_push")
 def dolt_add_commit_push_task(
     message: str,
     branch: Optional[str] = None,
     author: Optional[str] = None,
-    tables: Optional[list] = None,
+    tables: Optional[Sequence[str]] = None,
     remote_name: Optional[str] = "origin",
     force_push: bool = False,
     mcp_client: Optional[MCPClient] = None,
 ) -> Dict[str, Any]:
     """
-    Convenience task that performs add -> commit -> push in sequence
+    Convenience function that performs add -> commit -> push in sequence
 
     Args:
         message: Commit message (required)
         branch: Branch to work with (optional, uses current branch)
         author: Author attribution for the commit
-        tables: Optional list of specific tables to process
+        tables: Optional sequence of specific tables to process
         remote_name: Name of remote to push to (defaults to 'origin')
         force_push: Whether to force push
         mcp_client: Optional MCPClient instance (creates new one if not provided)
@@ -138,15 +133,12 @@ def dolt_add_commit_push_task(
     client = mcp_client or MCPClient()
 
     try:
-        # Add
         add_result = dolt_add_task(tables=tables, mcp_client=client)
 
-        # Commit
         commit_result = dolt_commit_task(
             message=message, branch=branch, author=author, tables=tables, mcp_client=client
         )
 
-        # Push
         push_result = dolt_push_task(
             branch=branch, remote_name=remote_name, force=force_push, mcp_client=client
         )
