@@ -362,7 +362,7 @@ async def dolt_ops_flow(
                 )
 
             elif operation == "outro":
-                from utils.mcp_outro import automated_dolt_outro
+                from utils.cogni_memory_mcp_outro import automated_dolt_outro
 
                 outro_result = await automated_dolt_outro(session, flow_context="manual outro call")
                 result = {

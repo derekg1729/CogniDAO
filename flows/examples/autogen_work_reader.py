@@ -250,7 +250,7 @@ async def autogen_work_reader_flow() -> Dict[str, Any]:
 
             # Auto-commit analysis results to Dolt using shared outro helper
             logger.info("🔄 Importing automated_dolt_outro helper...")
-            from utils.mcp_outro import automated_dolt_outro
+            from utils.cogni_memory_mcp_outro import automated_dolt_outro
 
             logger.info("🚀 Calling automated_dolt_outro...")
             try:
