@@ -38,8 +38,8 @@ def rainbow_source(index: int) -> Dict[str, Any]:
     # Pick color based on index, cycling through rainbow
     color_name, hex_code = RAINBOW[index % 7]
 
-    # Simulate work for 5-8 seconds
-    work_time = random.uniform(5, 8)
+    # Simulate work for 1-8 seconds (much more variance!)
+    work_time = random.uniform(1, 8)
     print(f"🌱 {color_name.upper()} source starting {work_time:.1f}s of work...")
     time.sleep(work_time)
 
@@ -70,8 +70,8 @@ def rainbow_processor(upstream_data: Dict[str, Any], processor_id: str) -> Dict[
     """
     color = upstream_data["color"]
 
-    # Simulate processing work for 3-6 seconds
-    work_time = random.uniform(3, 6)
+    # Simulate processing work for 1-6 seconds (more variance!)
+    work_time = random.uniform(1, 6)
     print(f"⚙️  {color.upper()} processor {processor_id} starting {work_time:.1f}s of work...")
     time.sleep(work_time)
 
@@ -102,8 +102,8 @@ def rainbow_aggregator(processed_data_list: List[Dict[str, Any]]) -> Dict[str, A
     colors = [data["color"] for data in processed_data_list]
     color_combo = "+".join(colors)
 
-    # Simulate aggregation work for 4-7 seconds
-    work_time = random.uniform(4, 7)
+    # Simulate aggregation work for 2-7 seconds (more variance!)
+    work_time = random.uniform(2, 7)
     print(f"🔗 Aggregating {color_combo} for {work_time:.1f}s...")
     time.sleep(work_time)
 
@@ -139,33 +139,33 @@ async def rainbow_flower(source_count: int = 4, processors_per_source: int = 2) 
     )
     print("🎨 Colors will cycle: " + " → ".join([name.title() for name, _ in RAINBOW]))
 
-    # STAGE 1: Create source tasks - these run concurrently
-    print("🌱 Stage 1: Creating source tasks...")
+    # STAGE 1 & 2: Create cascading source→processor chains (no bottleneck!)
+    print("🌱 Stage 1&2: Creating cascading source→processor chains...")
+
+    # Create all source tasks concurrently
     source_futures = []
     for i in range(source_count):
         future = rainbow_source.submit(i)
         source_futures.append(future)
 
-    # Wait for all sources to complete and get their data
-    source_results = []
-    for future in source_futures:
-        result = future.result()  # Don't await - .result() is sync when called from async flow
-        source_results.append(result)
-
-    # STAGE 2: Create processor tasks - each source feeds multiple processors
-    print("⚙️  Stage 2: Creating processor tasks...")
+    # Create processor chains - each processor starts as soon as its source completes
     processor_futures = []
-
-    for source_idx, source_data in enumerate(source_results):
+    for source_idx, source_future in enumerate(source_futures):
         for proc_idx in range(processors_per_source):
             processor_id = f"P{source_idx}-{proc_idx}"
-            future = rainbow_processor.submit(source_data, processor_id)
+            # Pass the source future directly - Prefect will resolve it automatically
+            # This creates true dependency: processor waits only for its specific source
+            future = rainbow_processor.submit(source_future, processor_id)
             processor_futures.append(future)
 
-    # Wait for all processors to complete
+    print(
+        f"🔗 Created {len(source_futures)} sources feeding {len(processor_futures)} processors (cascading execution)"
+    )
+
+    # Wait for all processors to complete (they handle their own source dependencies)
     processor_results = []
     for future in processor_futures:
-        result = future.result()  # Don't await - .result() is sync when called from async flow
+        result = future.result()  # Each processor waits for its own source
         processor_results.append(result)
 
     # STAGE 3: Create aggregator tasks - combine processors in different ways
