@@ -11,23 +11,22 @@ Demonstrates connecting to an existing MCP server with a persistent session:
 
 This example maintains one session throughout the flow, following MCP best practices.
 
-Environment Variables:
-- COGNI_MCP_SSE_URL: SSE endpoint URL (default: "http://localhost:15249/sse")
-http://toolhive:24160/sse
+Uses stdio transport to spawn MCP server process directly.
+This follows the proven working pattern from other flows for reliable deployment.
 """
 
 import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from prefect import flow, task
 from prefect.logging import get_run_logger
 
 # Official MCP Python SDK
-from mcp import ClientSession
-from mcp.client.sse import sse_client
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -40,27 +39,71 @@ class MCPConnectionError(Exception):
 
 
 @asynccontextmanager
-async def mcp_session(endpoint: Optional[str] = None):
+async def mcp_session():
     """
     Shared MCP session context manager that maintains a single session throughout flow lifecycle.
-
-    Args:
-        endpoint: MCP SSE endpoint URL (defaults to COGNI_MCP_SSE_URL env var or 'http://localhost:15249/sse')
+    Uses stdio transport to spawn MCP server process directly (proven working pattern).
     """
-    # Use SSE transport (only supported transport in MCP Python SDK)
-    transport = "sse"
-    endpoint = endpoint or os.getenv("COGNI_MCP_SSE_URL", "http://localhost:15249/sse")
+    # Use stdio transport (proven working pattern from other flows)
+    transport = "stdio"
 
     logger = get_run_logger()
     logger.info("🔗 Attempting MCP connection...")
-    logger.info(f"   Endpoint: {endpoint}")
     logger.info(f"   Transport: {transport}")
+
+    # Path resolution following proven working pattern from shared_tasks.py
+    from pathlib import Path
+
+    workspace_root = Path("/workspace")  # Container path
+    cogni_mcp_path = workspace_root / "services" / "mcp_server" / "app" / "mcp_server.py"
+
+    if not cogni_mcp_path.exists():
+        # Fallback to local development path
+        workspace_root = Path(__file__).resolve().parent.parent.parent
+        cogni_mcp_path = workspace_root / "services" / "mcp_server" / "app" / "mcp_server.py"
+
+    if not cogni_mcp_path.exists():
+        logger.error(f"❌ Cogni MCP server not found at: {cogni_mcp_path}")
+        raise MCPConnectionError(f"MCP server file not found at {cogni_mcp_path}")
+
+    logger.info(f"🔧 Using MCP server at: {cogni_mcp_path}")
+
+    # Environment configuration following proven working pattern from shared_tasks.py
+    workspace_root = Path("/workspace")  # Container workspace root
+    server_env = {
+        **os.environ,
+        "DOLT_HOST": os.getenv("DOLT_HOST", "dolt-db"),  # Use container hostname in deployment
+        "DOLT_PORT": os.getenv("DOLT_PORT", "3306"),
+        "DOLT_USER": os.getenv("DOLT_USER", "root"),
+        "DOLT_ROOT_PASSWORD": os.getenv(
+            "DOLT_ROOT_PASSWORD", "kXMnM6firYohXzK+2r0E0DmSjOl6g3A2SmXc6ALDOlA="
+        ),
+        "DOLT_DATABASE": "cogni-dao-memory",
+        "MYSQL_DATABASE": "cogni-dao-memory",
+        "CHROMA_PATH": os.getenv("CHROMA_PATH", "/tmp/chroma"),
+        "CHROMA_COLLECTION_NAME": "cogni_mcp_collection",
+    }
+
+    # Add workspace root to Python path for both container and local (CRITICAL for imports)
+    if str(workspace_root) not in server_env.get("PYTHONPATH", ""):
+        existing_pythonpath = server_env.get("PYTHONPATH", "")
+        server_env["PYTHONPATH"] = (
+            f"{workspace_root}:{existing_pythonpath}"
+            if existing_pythonpath
+            else str(workspace_root)
+        )
 
     session = None
     try:
-        logger.info("📡 Creating SSE client connection...")
-        async with sse_client(endpoint) as (read_stream, write_stream):
-            logger.info("✅ SSE client connected, creating session...")
+        logger.info("📡 Creating stdio client connection...")
+
+        # StdioServerParameters following proven working pattern
+        server_params = StdioServerParameters(
+            command="python", args=[str(cogni_mcp_path)], env=server_env
+        )
+
+        async with stdio_client(server_params) as (read_stream, write_stream):
+            logger.info("✅ Stdio client connected, creating session...")
 
             async with ClientSession(read_stream, write_stream) as session:
                 logger.info("📋 Initializing MCP session...")
@@ -76,14 +119,14 @@ async def mcp_session(endpoint: Optional[str] = None):
                 logger.info("🔚 MCP session context exiting cleanly")
 
     except ConnectionError as e:
-        logger.error(f"❌ Connection failed to {endpoint}: {e}")
-        raise MCPConnectionError(f"Connection failed to {endpoint}: {e}")
+        logger.error(f"❌ Connection failed to MCP server: {e}")
+        raise MCPConnectionError(f"Connection failed to MCP server: {e}")
     except TimeoutError as e:
-        logger.error(f"❌ Connection timeout to {endpoint}: {e}")
-        raise MCPConnectionError(f"Connection timeout to {endpoint}: {e}")
+        logger.error(f"❌ Connection timeout to MCP server: {e}")
+        raise MCPConnectionError(f"Connection timeout to MCP server: {e}")
     except Exception as e:
         logger.error(f"❌ MCP session failed: {type(e).__name__}: {e}")
-        logger.error(f"   Endpoint: {endpoint}")
+        logger.error(f"   MCP server path: {cogni_mcp_path}")
         logger.error(f"   Session state: {session}")
         import traceback
 
@@ -172,10 +215,9 @@ async def existing_mcp_connection_flow() -> Dict[str, Any]:
     MCP Connection Flow with Persistent Session
 
     Uses a single MCP session throughout the entire flow lifecycle.
-    Connects via SSE (Server-Sent Events) transport.
+    Connects via stdio transport (spawns MCP server process directly).
 
-    Environment Variables:
-    - COGNI_MCP_SSE_URL: SSE endpoint URL (default: "http://localhost:15249/sse")
+    This uses the proven working pattern from other flows for reliable deployment.
     """
     logger = get_run_logger()
     logger.info("🚀 Starting MCP connection flow with persistent session")
@@ -183,7 +225,6 @@ async def existing_mcp_connection_flow() -> Dict[str, Any]:
     try:
         # Single session for entire flow - this is the key improvement
         logger.info("🔄 Entering MCP session context...")
-        endpoint_url = os.getenv("COGNI_MCP_SSE_URL", "http://localhost:15249/sse")
         async with mcp_session() as session:
             logger.info("📡 MCP session established - using throughout flow")
             logger.info(f"   Session object: {session}")
@@ -215,8 +256,8 @@ async def existing_mcp_connection_flow() -> Dict[str, Any]:
                             {"name": tool.name, "description": tool.description or "No description"}
                             for tool in tools_result["tools"]
                         ],
-                        "transport": "sse",
-                        "endpoint": endpoint_url,
+                        "transport": "stdio",
+                        "server_path": "cogni-mcp-server",
                     },
                     "tool_call": {
                         "success": tool_result.get("success"),
@@ -240,9 +281,6 @@ async def existing_mcp_connection_flow() -> Dict[str, Any]:
 if __name__ == "__main__":
     # For direct testing
     print("Running existing_mcp_connection_flow with persistent session...")
-    print("Environment variables:")
-    print(
-        f"  COGNI_MCP_SSE_URL: {os.getenv('COGNI_MCP_SSE_URL', 'http://localhost:15249/sse (default)')}"
-    )
-    print("Note: This requires your local MCP server running on port 15249")
+    print("Using stdio transport to spawn MCP server process directly")
+    print("This follows the proven working pattern for reliable deployment")
     asyncio.run(existing_mcp_connection_flow())
