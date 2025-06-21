@@ -302,6 +302,7 @@ async def dolt_ops_flow(
     - "commit": Commit changes (requires commit_message)
     - "push": Push to remote
     - "auto": Full workflow - add, commit, push (requires commit_message)
+    - "outro": Call shared outro helper
 
     Parameters:
     - operation: Which Dolt operation to perform
@@ -359,6 +360,18 @@ async def dolt_ops_flow(
                     remote=remote,
                     branch=branch,
                 )
+
+            elif operation == "outro":
+                from utils.mcp_outro import automated_dolt_outro
+
+                outro_result = await automated_dolt_outro(session, flow_context="manual outro call")
+                result = {
+                    "success": True,
+                    "tool_name": "automated_dolt_outro",
+                    "result": type("MockResult", (), {"content": outro_result})(),
+                    "commit_message": outro_result.get("commit_message"),
+                    "push_result": outro_result.get("push_result"),
+                }
 
             else:
                 return {"status": "failed", "error": f"Unknown operation: {operation}"}

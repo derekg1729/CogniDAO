@@ -246,7 +246,26 @@ async def autogen_work_reader_flow() -> Dict[str, Any]:
                 logger.error(f"Analysis failed: {analysis_result.get('error')}")
                 return {"status": "failed", "error": analysis_result.get("error")}
 
-            logger.info("Multi-agent analysis completed successfully")
+            logger.info("Multi-agent analysis completed successfully – committing data to Dolt")
+
+            # Auto-commit analysis results to Dolt using shared outro helper
+            logger.info("🔄 Importing automated_dolt_outro helper...")
+            from utils.mcp_outro import automated_dolt_outro
+
+            logger.info("🚀 Calling automated_dolt_outro...")
+            try:
+                outro_result = await automated_dolt_outro(session, flow_context="work-reader flow")
+                logger.info(f"✅ Outro completed successfully: {outro_result}")
+            except Exception as e:
+                logger.error(f"❌ Outro failed: {type(e).__name__}: {e}")
+                import traceback
+
+                logger.error(f"   Full traceback: {traceback.format_exc()}")
+                # Continue with flow, but include error in outro result
+                outro_result = {
+                    "commit_message": f"ERROR: {str(e)}",
+                    "push_result": f"Failed: {str(e)}",
+                }
 
             # Return structured, serializable results
             return {
@@ -255,6 +274,7 @@ async def autogen_work_reader_flow() -> Dict[str, Any]:
                 "agents_count": agent_setup["agents_count"],
                 "analysis_result": analysis_result["message"],
                 "agent_names": agent_setup["agent_names"],
+                "outro": outro_result,
             }
 
     except MCPConnectionError as e:
