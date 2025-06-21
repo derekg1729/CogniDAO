@@ -7,12 +7,12 @@ Demonstrates connecting to an existing MCP server with a persistent session:
 1. Establish single MCP session for entire flow lifecycle
 2. List available tools using shared session
 3. Call tools using same shared session
-4. Support transport switching via MCP_TRANSPORT environment variable
+4. Support SSE transport via environment variable
 
 This example maintains one session throughout the flow, following MCP best practices.
 
-Uses stdio transport to spawn MCP server process directly.
-This follows the proven working pattern from other flows for reliable deployment.
+Uses SSE transport to connect to existing MCP server (ToolHive deployment).
+This follows the proven working pattern for containerized deployments.
 """
 
 import asyncio
@@ -21,12 +21,12 @@ import os
 from contextlib import asynccontextmanager
 from typing import Any, Dict
 
-from prefect import flow, task
+from prefect import flow
 from prefect.logging import get_run_logger
 
 # Official MCP Python SDK
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
+from mcp import ClientSession
+from mcp.client.sse import sse_client
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -42,68 +42,25 @@ class MCPConnectionError(Exception):
 async def mcp_session():
     """
     Shared MCP session context manager that maintains a single session throughout flow lifecycle.
-    Uses stdio transport to spawn MCP server process directly (proven working pattern).
+    Uses SSE transport to connect to existing MCP server (proven working pattern).
     """
-    # Use stdio transport (proven working pattern from other flows)
-    transport = "stdio"
+    # Use SSE transport (proven working pattern for containerized deployments)
+    transport = "sse"
 
     logger = get_run_logger()
     logger.info("🔗 Attempting MCP connection...")
     logger.info(f"   Transport: {transport}")
 
-    # Path resolution following proven working pattern from shared_tasks.py
-    from pathlib import Path
-
-    workspace_root = Path("/workspace")  # Container path
-    cogni_mcp_path = workspace_root / "services" / "mcp_server" / "app" / "mcp_server.py"
-
-    if not cogni_mcp_path.exists():
-        # Fallback to local development path
-        workspace_root = Path(__file__).resolve().parent.parent.parent
-        cogni_mcp_path = workspace_root / "services" / "mcp_server" / "app" / "mcp_server.py"
-
-    if not cogni_mcp_path.exists():
-        logger.error(f"❌ Cogni MCP server not found at: {cogni_mcp_path}")
-        raise MCPConnectionError(f"MCP server file not found at {cogni_mcp_path}")
-
-    logger.info(f"🔧 Using MCP server at: {cogni_mcp_path}")
-
-    # Environment configuration following proven working pattern from shared_tasks.py
-    workspace_root = Path("/workspace")  # Container workspace root
-    server_env = {
-        **os.environ,
-        "DOLT_HOST": os.getenv("DOLT_HOST", "dolt-db"),  # Use container hostname in deployment
-        "DOLT_PORT": os.getenv("DOLT_PORT", "3306"),
-        "DOLT_USER": os.getenv("DOLT_USER", "root"),
-        "DOLT_ROOT_PASSWORD": os.getenv(
-            "DOLT_ROOT_PASSWORD", "kXMnM6firYohXzK+2r0E0DmSjOl6g3A2SmXc6ALDOlA="
-        ),
-        "DOLT_DATABASE": "cogni-dao-memory",
-        "MYSQL_DATABASE": "cogni-dao-memory",
-        "CHROMA_PATH": os.getenv("CHROMA_PATH", "/tmp/chroma"),
-        "CHROMA_COLLECTION_NAME": "cogni_mcp_collection",
-    }
-
-    # Add workspace root to Python path for both container and local (CRITICAL for imports)
-    if str(workspace_root) not in server_env.get("PYTHONPATH", ""):
-        existing_pythonpath = server_env.get("PYTHONPATH", "")
-        server_env["PYTHONPATH"] = (
-            f"{workspace_root}:{existing_pythonpath}"
-            if existing_pythonpath
-            else str(workspace_root)
-        )
+    # SSE URL configuration following proven working pattern from prefect.yaml
+    mcp_sse_url = os.getenv("COGNI_MCP_SSE_URL", "http://toolhive:24160/sse")
+    logger.info(f"🔧 Using MCP SSE URL: {mcp_sse_url}")
 
     session = None
     try:
-        logger.info("📡 Creating stdio client connection...")
+        logger.info("📡 Creating SSE client connection...")
 
-        # StdioServerParameters following proven working pattern
-        server_params = StdioServerParameters(
-            command="python", args=[str(cogni_mcp_path)], env=server_env
-        )
-
-        async with stdio_client(server_params) as (read_stream, write_stream):
-            logger.info("✅ Stdio client connected, creating session...")
+        async with sse_client(mcp_sse_url) as (read_stream, write_stream):
+            logger.info("✅ SSE client connected, creating session...")
 
             async with ClientSession(read_stream, write_stream) as session:
                 logger.info("📋 Initializing MCP session...")
@@ -126,7 +83,7 @@ async def mcp_session():
         raise MCPConnectionError(f"Connection timeout to MCP server: {e}")
     except Exception as e:
         logger.error(f"❌ MCP session failed: {type(e).__name__}: {e}")
-        logger.error(f"   MCP server path: {cogni_mcp_path}")
+        logger.error(f"   MCP SSE URL: {mcp_sse_url}")
         logger.error(f"   Session state: {session}")
         import traceback
 
@@ -134,7 +91,6 @@ async def mcp_session():
         raise MCPConnectionError(f"Failed to establish MCP session: {type(e).__name__}: {e}")
 
 
-@task(name="list_tools_with_session", cache_policy=None)
 async def list_tools_with_session(session: ClientSession) -> Dict[str, Any]:
     """List available tools using provided session"""
     logger = get_run_logger()
@@ -173,7 +129,6 @@ async def list_tools_with_session(session: ClientSession) -> Dict[str, Any]:
         raise MCPConnectionError(f"Tool listing failed: {type(e).__name__}: {e}")
 
 
-@task(name="call_tool_with_session", cache_policy=None)
 async def call_tool_with_session(
     session: ClientSession, tool_name: str, arguments: Dict[str, Any] = None
 ) -> Dict[str, Any]:
@@ -215,9 +170,9 @@ async def existing_mcp_connection_flow() -> Dict[str, Any]:
     MCP Connection Flow with Persistent Session
 
     Uses a single MCP session throughout the entire flow lifecycle.
-    Connects via stdio transport (spawns MCP server process directly).
+    Connects via SSE transport to existing MCP server (ToolHive deployment).
 
-    This uses the proven working pattern from other flows for reliable deployment.
+    This uses the proven working pattern for containerized deployments.
     """
     logger = get_run_logger()
     logger.info("🚀 Starting MCP connection flow with persistent session")
@@ -256,8 +211,8 @@ async def existing_mcp_connection_flow() -> Dict[str, Any]:
                             {"name": tool.name, "description": tool.description or "No description"}
                             for tool in tools_result["tools"]
                         ],
-                        "transport": "stdio",
-                        "server_path": "cogni-mcp-server",
+                        "transport": "sse",
+                        "server_url": os.getenv("COGNI_MCP_SSE_URL", "http://toolhive:24160/sse"),
                     },
                     "tool_call": {
                         "success": tool_result.get("success"),
@@ -281,6 +236,6 @@ async def existing_mcp_connection_flow() -> Dict[str, Any]:
 if __name__ == "__main__":
     # For direct testing
     print("Running existing_mcp_connection_flow with persistent session...")
-    print("Using stdio transport to spawn MCP server process directly")
-    print("This follows the proven working pattern for reliable deployment")
+    print("Using SSE transport to connect to existing MCP server")
+    print("This follows the proven working pattern for containerized deployments")
     asyncio.run(existing_mcp_connection_flow())
