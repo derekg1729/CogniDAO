@@ -1,225 +1,90 @@
 #!/usr/bin/env python3
 """
-Existing MCP Connection - DRY Implementation with Persistent Session
-===================================================================
+Existing MCP Connection - DRY Implementation with Shared Helper
+===============================================================
 
-Demonstrates connecting to an existing MCP server with a persistent session:
-1. Establish single MCP session for entire flow lifecycle
-2. List available tools using shared session
-3. Call tools using same shared session
-4. Support SSE transport via environment variable
+Demonstrates using the shared `configure_existing_mcp` helper:
+1. Single import for any flow needing a live MCP session
+2. One-liner to get session and tools
+3. Direct tool usage without helper functions
 
-This example maintains one session throughout the flow, following MCP best practices.
-
-Uses SSE transport to connect to existing MCP server (ToolHive deployment).
-This follows the proven working pattern for containerized deployments.
+This example shows how any Prefect flow can now easily connect to MCP.
+Uses the shared helper that extracts the proven working SSE pattern.
 """
 
-import asyncio
-import logging
-import os
-from contextlib import asynccontextmanager
-from typing import Any, Dict
+import sys
+from pathlib import Path
 
-from prefect import flow
-from prefect.logging import get_run_logger
+# Ensure proper Python path for container environment
+current_dir = Path(__file__).parent
+workspace_root = current_dir.parent.parent  # Go up two levels: flows/examples -> flows -> workspace
+if str(workspace_root) not in sys.path:
+    sys.path.insert(0, str(workspace_root))
 
-# Official MCP Python SDK
-from mcp import ClientSession
-from mcp.client.sse import sse_client
+import asyncio  # noqa: E402
+import logging  # noqa: E402
+import os  # noqa: E402
+from typing import Any, Dict  # noqa: E402
+
+from prefect import flow  # noqa: E402
+from prefect.logging import get_run_logger  # noqa: E402
+
+# Import the shared MCP helper
+from utils.mcp_setup import configure_existing_mcp, MCPConnectionError  # noqa: E402
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
 
-class MCPConnectionError(Exception):
-    """Custom exception for MCP connection issues"""
-
-    pass
-
-
-@asynccontextmanager
-async def mcp_session():
-    """
-    Shared MCP session context manager that maintains a single session throughout flow lifecycle.
-    Uses SSE transport to connect to existing MCP server (proven working pattern).
-    """
-    # Use SSE transport (proven working pattern for containerized deployments)
-    transport = "sse"
-
-    logger = get_run_logger()
-    logger.info("🔗 Attempting MCP connection...")
-    logger.info(f"   Transport: {transport}")
-
-    # SSE URL configuration following proven working pattern from prefect.yaml
-    mcp_sse_url = os.getenv("COGNI_MCP_SSE_URL", "http://toolhive:24160/sse")
-    logger.info(f"🔧 Using MCP SSE URL: {mcp_sse_url}")
-
-    session = None
-    try:
-        logger.info("📡 Creating SSE client connection...")
-
-        async with sse_client(mcp_sse_url) as (read_stream, write_stream):
-            logger.info("✅ SSE client connected, creating session...")
-
-            async with ClientSession(read_stream, write_stream) as session:
-                logger.info("📋 Initializing MCP session...")
-
-                # Initialize the session once
-                await session.initialize()
-                logger.info("✅ MCP session initialized successfully!")
-                logger.info(f"   Session ID: {id(session)}")
-                logger.info(f"   Session type: {type(session)}")
-
-                # Yield the session for use throughout the flow
-                yield session
-                logger.info("🔚 MCP session context exiting cleanly")
-
-    except ConnectionError as e:
-        logger.error(f"❌ Connection failed to MCP server: {e}")
-        raise MCPConnectionError(f"Connection failed to MCP server: {e}")
-    except TimeoutError as e:
-        logger.error(f"❌ Connection timeout to MCP server: {e}")
-        raise MCPConnectionError(f"Connection timeout to MCP server: {e}")
-    except Exception as e:
-        logger.error(f"❌ MCP session failed: {type(e).__name__}: {e}")
-        logger.error(f"   MCP SSE URL: {mcp_sse_url}")
-        logger.error(f"   Session state: {session}")
-        import traceback
-
-        logger.error(f"   Full traceback: {traceback.format_exc()}")
-        raise MCPConnectionError(f"Failed to establish MCP session: {type(e).__name__}: {e}")
-
-
-async def list_tools_with_session(session: ClientSession) -> Dict[str, Any]:
-    """List available tools using provided session"""
-    logger = get_run_logger()
-
-    logger.info("🔧 Listing tools from MCP session...")
-    logger.info(f"   Session ID: {id(session)}")
-    logger.info(f"   Session type: {type(session)}")
-
-    try:
-        # Use the provided session directly
-        logger.info("📋 Calling session.list_tools()...")
-        tools_response = await session.list_tools()
-        logger.info(f"✅ Got tools response: {type(tools_response)}")
-
-        available_tools = tools_response.tools
-        logger.info(f"📊 Found {len(available_tools)} tools")
-
-        # Log first few tools for debugging
-        for i, tool in enumerate(available_tools[:3]):
-            logger.info(f"   🔧 Tool {i + 1}: {tool.name} - {tool.description or 'No description'}")
-
-        if len(available_tools) > 3:
-            logger.info(f"   ... and {len(available_tools) - 3} more tools")
-
-        return {
-            "success": True,
-            "tools": available_tools,  # Keep as SDK objects
-            "tools_count": len(available_tools),
-        }
-
-    except Exception as e:
-        logger.error(f"❌ Failed to list tools: {type(e).__name__}: {e}")
-        import traceback
-
-        logger.error(f"   Full traceback: {traceback.format_exc()}")
-        raise MCPConnectionError(f"Tool listing failed: {type(e).__name__}: {e}")
-
-
-async def call_tool_with_session(
-    session: ClientSession, tool_name: str, arguments: Dict[str, Any] = None
-) -> Dict[str, Any]:
-    """Call a tool using provided session"""
-    logger = get_run_logger()
-
-    logger.info(f"🛠️  Calling tool '{tool_name}'...")
-    logger.info(f"   Session ID: {id(session)}")
-    logger.info(f"   Arguments: {arguments or {}}")
-
-    try:
-        # Use the provided session directly
-        logger.info(f"📞 Executing session.call_tool('{tool_name}', {arguments or {}})...")
-        result = await session.call_tool(tool_name, arguments or {})
-
-        logger.info(f"✅ Tool '{tool_name}' executed successfully")
-        logger.info(f"   Result type: {type(result)}")
-        logger.info(f"   Result content preview: {str(result.content)[:200]}...")
-
-        return {
-            "success": True,
-            "tool_name": tool_name,
-            "result": result,  # Keep as SDK object
-        }
-
-    except Exception as e:
-        logger.error(f"❌ Tool call failed: {type(e).__name__}: {e}")
-        logger.error(f"   Tool: {tool_name}")
-        logger.error(f"   Arguments: {arguments}")
-        import traceback
-
-        logger.error(f"   Full traceback: {traceback.format_exc()}")
-        raise MCPConnectionError(f"Tool '{tool_name}' call failed: {type(e).__name__}: {e}")
-
-
 @flow(name="existing_mcp_connection_flow", log_prints=True)
 async def existing_mcp_connection_flow() -> Dict[str, Any]:
     """
-    MCP Connection Flow with Persistent Session
+    MCP Connection Flow with Shared Helper
 
-    Uses a single MCP session throughout the entire flow lifecycle.
+    Uses the shared `configure_existing_mcp` helper for clean, reusable MCP connections.
     Connects via SSE transport to existing MCP server (ToolHive deployment).
 
-    This uses the proven working pattern for containerized deployments.
+    This demonstrates the simplified pattern that any flow can now use.
     """
     logger = get_run_logger()
-    logger.info("🚀 Starting MCP connection flow with persistent session")
+    logger.info("🚀 Starting MCP connection flow with shared helper")
+
+    # Get SSE URL from environment with fallback
+    sse_url = os.getenv("COGNI_MCP_SSE_URL", "http://toolhive:24160/sse")
+    logger.info(f"🔧 Using MCP SSE URL: {sse_url}")
 
     try:
-        # Single session for entire flow - this is the key improvement
-        logger.info("🔄 Entering MCP session context...")
-        async with mcp_session() as session:
-            logger.info("📡 MCP session established - using throughout flow")
-            logger.info(f"   Session object: {session}")
+        # Single line to get session and tools - this is the key improvement
+        logger.info("🔄 Using shared MCP helper...")
+        async with configure_existing_mcp(sse_url) as (session, tools):
+            logger.info("📡 MCP session and tools ready")
             logger.info(f"   Session ID: {id(session)}")
+            logger.info(f"   Tools count: {len(tools)}")
 
-            # Step 1: List tools using shared session
-            logger.info("📋 Step 1: Listing tools...")
-            tools_result = await list_tools_with_session(session)
-            logger.info(
-                f"✅ Tools result: {tools_result.get('success')} ({tools_result.get('tools_count', 0)} tools)"
-            )
+            # Direct tool usage - much simpler than before
+            if len(tools) > 0:
+                # Find DoltStatus tool or use first available
+                first_tool = next((t.name for t in tools if t.name == "DoltStatus"), tools[0].name)
+                logger.info(f"🛠️  Calling tool: {first_tool}")
 
-            if not tools_result.get("success"):
-                logger.error("❌ Tool listing failed")
-                return {"status": "failed", "error": "Failed to list tools"}
+                # Direct session call - no helper function needed
+                result = await session.call_tool(first_tool, {"input": "{}"})
 
-            # Step 2: Call tool using same session
-            logger.info("🛠️  Step 2: Calling tool...")
-            if tools_result["tools_count"] > 0:
-                # Call DoltStatus with proper input parameter
-                tool_result = await call_tool_with_session(session, "DoltStatus", {"input": "{}"})
-
-                # Only convert to JSON at API boundary (here in flow return)
                 return {
                     "status": "success",
                     "connection": {
-                        "tools_count": tools_result["tools_count"],
+                        "tools_count": len(tools),
                         "tools": [
                             {"name": tool.name, "description": tool.description or "No description"}
-                            for tool in tools_result["tools"]
+                            for tool in tools
                         ],
                         "transport": "sse",
-                        "server_url": os.getenv("COGNI_MCP_SSE_URL", "http://toolhive:24160/sse"),
+                        "server_url": sse_url,
                     },
                     "tool_call": {
-                        "success": tool_result.get("success"),
-                        "tool_name": tool_result.get("tool_name"),
-                        "result": tool_result["result"].content
-                        if tool_result.get("success")
-                        else None,
+                        "success": True,
+                        "tool_name": first_tool,
+                        "result": result.content,
                     },
                 }
             else:
@@ -228,6 +93,9 @@ async def existing_mcp_connection_flow() -> Dict[str, Any]:
     except MCPConnectionError as e:
         logger.error(f"❌ MCP connection error: {e}")
         return {"status": "failed", "error": str(e)}
+    except ValueError as e:
+        logger.error(f"❌ Configuration error: {e}")
+        return {"status": "failed", "error": str(e)}
     except Exception as e:
         logger.error(f"❌ Flow failed: {e}")
         return {"status": "failed", "error": str(e)}
@@ -235,7 +103,7 @@ async def existing_mcp_connection_flow() -> Dict[str, Any]:
 
 if __name__ == "__main__":
     # For direct testing
-    print("Running existing_mcp_connection_flow with persistent session...")
-    print("Using SSE transport to connect to existing MCP server")
-    print("This follows the proven working pattern for containerized deployments")
+    print("Running existing_mcp_connection_flow with shared helper...")
+    print("Using shared configure_existing_mcp() helper")
+    print("This demonstrates the simplified pattern for any Prefect flow")
     asyncio.run(existing_mcp_connection_flow())
