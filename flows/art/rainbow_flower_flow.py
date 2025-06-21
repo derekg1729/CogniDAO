@@ -23,6 +23,30 @@ RAINBOW = [
 ]
 
 
+# Flow Structure Configuration
+SOURCE_COUNT = 4
+PROCESSORS_PER_SOURCE = 2  # Currently hardcoded in flow signature
+AGGREGATOR_COUNT = 3  # Currently hardcoded as 3 different aggregations
+
+# Task Timing Configuration (in seconds)
+SEED_TIME_MIN = 2
+SEED_TIME_MAX = 4
+SOURCE_TIME_MIN = 1
+SOURCE_TIME_MAX = 4
+PROCESSOR_TIME_MIN = 1
+PROCESSOR_TIME_MAX = 4
+AGGREGATOR_TIME_MIN = 2
+AGGREGATOR_TIME_MAX = 5
+CONVERGENCE_TIME_MIN = 3
+CONVERGENCE_TIME_MAX = 6
+
+# Data Configuration
+SEED_ENERGY_MIN = 1000
+SEED_ENERGY_MAX = 2000
+DATA_SIZE_MIN = 100
+DATA_SIZE_MAX = 1000
+
+
 @task
 def rainbow_seed() -> Dict[str, Any]:
     """
@@ -32,8 +56,8 @@ def rainbow_seed() -> Dict[str, Any]:
     Returns:
         Dict with seed data that will be distributed to sources
     """
-    # Simulate initial seed work for 2-4 seconds
-    work_time = random.uniform(2, 4)
+    # Simulate initial seed work
+    work_time = random.uniform(SEED_TIME_MIN, SEED_TIME_MAX)
     print(f"🌱 RAINBOW SEED starting {work_time:.1f}s of initialization work...")
     time.sleep(work_time)
 
@@ -41,8 +65,8 @@ def rainbow_seed() -> Dict[str, Any]:
         "seed_id": "rainbow_root",
         "timestamp": time.time(),
         "work_time": work_time,
-        "source_count": 4,  # This seed will spawn 4 sources
-        "initial_energy": random.randint(1000, 2000),
+        "source_count": SOURCE_COUNT,  # This seed will spawn 4 sources
+        "initial_energy": random.randint(SEED_ENERGY_MIN, SEED_ENERGY_MAX),
     }
 
     print(f"✅ RAINBOW SEED completed - ready to spawn {result['source_count']} sources!")
@@ -65,8 +89,8 @@ def rainbow_source(seed_data: Dict[str, Any], index: int) -> Dict[str, Any]:
     # Pick color based on index, cycling through rainbow
     color_name, hex_code = RAINBOW[index % 7]
 
-    # Simulate work for 1-8 seconds (much more variance!)
-    work_time = random.uniform(1, 8)
+    # Simulate work with configurable timing
+    work_time = random.uniform(SOURCE_TIME_MIN, SOURCE_TIME_MAX)
     print(
         f"🌿 {color_name.upper()} source (from seed {seed_data['seed_id']}) starting {work_time:.1f}s of work..."
     )
@@ -77,7 +101,7 @@ def rainbow_source(seed_data: Dict[str, Any], index: int) -> Dict[str, Any]:
         "hex": hex_code,
         "source_index": index,
         "work_time": work_time,
-        "data_size": random.randint(100, 1000),
+        "data_size": random.randint(DATA_SIZE_MIN, DATA_SIZE_MAX),
         "parent_seed": seed_data["seed_id"],  # Link back to root
         "seed_energy": seed_data["initial_energy"] // 4,  # Distribute seed energy
     }
@@ -101,8 +125,8 @@ def rainbow_processor(upstream_data: Dict[str, Any], processor_id: str) -> Dict[
     """
     color = upstream_data["color"]
 
-    # Simulate processing work for 1-6 seconds (more variance!)
-    work_time = random.uniform(1, 6)
+    # Simulate processing work with configurable timing
+    work_time = random.uniform(PROCESSOR_TIME_MIN, PROCESSOR_TIME_MAX)
     print(f"⚙️  {color.upper()} processor {processor_id} starting {work_time:.1f}s of work...")
     time.sleep(work_time)
 
@@ -133,8 +157,8 @@ def rainbow_aggregator(processed_data_list: List[Dict[str, Any]]) -> Dict[str, A
     colors = [data["color"] for data in processed_data_list]
     color_combo = "+".join(colors)
 
-    # Simulate aggregation work for 2-7 seconds (more variance!)
-    work_time = random.uniform(2, 7)
+    # Simulate aggregation work with configurable timing
+    work_time = random.uniform(AGGREGATOR_TIME_MIN, AGGREGATOR_TIME_MAX)
     print(f"🔗 Aggregating {color_combo} for {work_time:.1f}s...")
     time.sleep(work_time)
 
@@ -150,8 +174,57 @@ def rainbow_aggregator(processed_data_list: List[Dict[str, Any]]) -> Dict[str, A
     return result
 
 
+@task
+def rainbow_convergence(aggregator_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    The final convergence task that brings all aggregator streams back to one.
+    Runs for 3-6 seconds to create the ultimate rainbow result.
+
+    Args:
+        aggregator_results: List of results from all aggregator tasks
+
+    Returns:
+        Final unified rainbow result dictionary
+    """
+    all_colors = []
+    total_items = 0
+    total_data_size = 0
+
+    # Combine data from all aggregators
+    for agg_result in aggregator_results:
+        all_colors.extend(agg_result["colors"])
+        total_items += agg_result["total_items"]
+        total_data_size += agg_result["total_data_size"]
+
+    color_symphony = "+".join(set(all_colors))  # Unique colors
+
+    # Simulate final convergence work with configurable timing
+    work_time = random.uniform(CONVERGENCE_TIME_MIN, CONVERGENCE_TIME_MAX)
+    print(f"🌈 FINAL CONVERGENCE: Unifying {color_symphony} for {work_time:.1f}s...")
+    time.sleep(work_time)
+
+    result = {
+        "convergence_type": "rainbow_unity",
+        "all_colors": list(set(all_colors)),  # Unique colors only
+        "color_count": len(set(all_colors)),
+        "total_task_outputs": total_items,
+        "total_data_processed": total_data_size,
+        "aggregator_count": len(aggregator_results),
+        "convergence_time": work_time,
+        "final_result": f"RAINBOW_UNITY_{color_symphony}",
+        "completion_timestamp": time.time(),
+    }
+
+    print(
+        f"🌈✨ FINAL CONVERGENCE COMPLETE! Rainbow unity achieved with {result['color_count']} colors!"
+    )
+    return result
+
+
 @flow
-async def rainbow_flower(source_count: int = 4, processors_per_source: int = 2) -> None:
+async def rainbow_flower(
+    source_count: int = SOURCE_COUNT, processors_per_source: int = PROCESSORS_PER_SOURCE
+) -> None:
     """
     🌈 Rainbow Flower - A connected web of rainbow-colored data processing tasks
 
@@ -207,34 +280,40 @@ async def rainbow_flower(source_count: int = 4, processors_per_source: int = 2) 
     # STAGE 3: Create aggregator tasks - combine processors in different ways
     print("🔗 Stage 3: Creating aggregator tasks...")
 
-    # Create 3 different aggregations to show the web structure:
-    # Aggregator 1: First half of processors
-    mid_point = len(processor_results) // 2
-    agg1_data = processor_results[:mid_point]
+    # Create configurable number of aggregations to show the web structure
+    agg_futures = []
+    chunk_size = len(processor_results) // AGGREGATOR_COUNT
 
-    # Aggregator 2: Second half of processors
-    agg2_data = processor_results[mid_point:]
+    for i in range(AGGREGATOR_COUNT):
+        if i == AGGREGATOR_COUNT - 1:
+            # Last aggregator gets remaining processors
+            agg_data = processor_results[i * chunk_size :]
+        else:
+            # Regular chunk
+            agg_data = processor_results[i * chunk_size : (i + 1) * chunk_size]
 
-    # Aggregator 3: Mix of processors from different sources
-    agg3_data = [processor_results[i] for i in range(0, len(processor_results), 2)]
-
-    # Run aggregators concurrently
-    agg_futures = [
-        rainbow_aggregator.submit(agg1_data),
-        rainbow_aggregator.submit(agg2_data),
-        rainbow_aggregator.submit(agg3_data),
-    ]
+        if agg_data:  # Only create aggregator if there's data
+            future = rainbow_aggregator.submit(agg_data)
+            agg_futures.append(future)
 
     # Wait for aggregators to complete
-    final_results = []
+    aggregator_results = []
     for future in agg_futures:
         result = future.result()  # Don't await - .result() is sync when called from async flow
-        final_results.append(result)
+        aggregator_results.append(result)
 
-    print(f"🌈✨ Rainbow tree complete! {len(final_results)} final aggregations completed.")
+    # STAGE 4: Final convergence - bring all aggregators back to 1
+    print("🌈 Stage 4: Creating final convergence task...")
+    convergence_future = rainbow_convergence.submit(aggregator_results)
+    final_result = convergence_future.result()
+
+    print("🌈✨ Rainbow tree complete! Final convergence achieved.")
+    print(f"🎯 Final result: {final_result['final_result']}")
     print(
-        f"📊 Total tasks executed: 1 seed + {source_count} sources + {len(processor_results)} processors + {len(final_results)} aggregators = {1 + source_count + len(processor_results) + len(final_results)} tasks"
+        f"📊 Total tasks executed: 1 seed + {source_count} sources + {len(processor_results)} processors + {len(aggregator_results)} aggregators + 1 convergence = {1 + source_count + len(processor_results) + len(aggregator_results) + 1} tasks"
     )
+
+    return final_result
 
 
 # Main export for the deployment
