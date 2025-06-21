@@ -1568,15 +1568,6 @@ async def health_check():
     }
 
 
-# initial JSON for local MCP server:
-#  "cogni-mcp": {
-#       "command": "uv --directory /Users/derek/dev/cogni/services/mcp_server run app/mcp_server.py",
-#       "env": {
-#         "CHROMA_COLLECTION_NAME": "cogni_mcp_collection"
-#       }
-#     }
-
-
 # When this file is executed directly, use the MCP CLI
 if __name__ == "__main__":
     import os
@@ -1585,6 +1576,41 @@ if __name__ == "__main__":
     # Default to stdio for Cursor, use MCP_TRANSPORT=sse for ToolHive
     transport = os.getenv("MCP_TRANSPORT", "stdio")
 
-    # For SSE/HTTP transports, simply pass the environment variables and let FastMCP handle them
-    # According to FastMCP docs, it reads from environment variables automatically
-    mcp.run(transport=transport)
+    # 🔍 ENHANCED STARTUP LOGGING for debugging deployment issues
+    print("🚀 [MCP STARTUP] Cogni MCP Server starting...")
+    print(f"🔧 [MCP STARTUP] Transport: {transport}")
+    print("🔧 [MCP STARTUP] Environment Variables:")
+
+    # Log key environment variables
+    key_env_vars = [
+        "MCP_TRANSPORT",
+        "MCP_HOST",
+        "MCP_PORT",
+        "DOLT_HOST",
+        "DOLT_PORT",
+        "DOLT_DATABASE",
+        "DOLT_BRANCH",
+        "DOLT_NAMESPACE",
+    ]
+
+    for var in key_env_vars:
+        value = os.getenv(var, "(not set)")
+        print(f"    {var} = '{value}'")
+
+    try:
+        print(f"🎯 [MCP STARTUP] Calling mcp.run(transport='{transport}')...")
+
+        # For SSE/HTTP transports, simply pass the environment variables and let FastMCP handle them
+        # According to FastMCP docs, it reads from environment variables automatically
+        mcp.run(transport=transport)
+
+        print("✅ [MCP STARTUP] Server started successfully!")
+
+    except Exception as e:
+        print(f"❌ [MCP STARTUP] Server startup failed: {e}")
+        print(f"📊 [MCP STARTUP] Exception type: {type(e).__name__}")
+        import traceback
+
+        print("📊 [MCP STARTUP] Full traceback:")
+        traceback.print_exc()
+        raise
