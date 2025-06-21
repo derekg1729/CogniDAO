@@ -37,7 +37,7 @@ ENV CHROMA_PATH=/app/chroma
 ENV CHROMA_COLLECTION_NAME=cogni_mcp_collection
 # Agent branch and namespace configuration
 # Build arguments for dynamic configuration
-ARG DOLT_BRANCH=test
+ARG DOLT_BRANCH=feat/dolt-mcp-tools
 ARG DOLT_NAMESPACE=legacy
 
 # Environment variables (can be overridden at runtime)

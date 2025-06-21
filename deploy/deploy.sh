@@ -191,6 +191,8 @@ EOF
                               --env DOLT_USER=root \
                               --env DOLT_ROOT_PASSWORD="${DOLT_ROOT_PASSWORD}" \
                               --env DOLT_DATABASE=cogni-dao-memory \
+                              --env DOLT_BRANCH=feat/dolt-mcp-tools \
+                              --env DOLT_NAMESPACE=legacy \
                               --env CHROMA_PATH=/app/chroma \
                               --env CHROMA_COLLECTION_NAME=cogni_mcp_collection \
                               cogni-mcp:latest || warning "⚠️ MCP server deployment failed, continuing..."
@@ -270,6 +272,8 @@ EOF
                               --env DOLT_USER=root \
                               --env DOLT_ROOT_PASSWORD="${DOLT_ROOT_PASSWORD}" \
                               --env DOLT_DATABASE=cogni-dao-memory \
+                              --env DOLT_BRANCH=feat/dolt-mcp-tools \
+                              --env DOLT_NAMESPACE=legacy \
                               --env CHROMA_PATH=/app/chroma \
                               --env CHROMA_COLLECTION_NAME=cogni_mcp_collection \
                               cogni-mcp:latest || warning "⚠️ MCP server deployment failed, continuing..."
