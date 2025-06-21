@@ -5,7 +5,9 @@ The visual graph itself is the art piece - runtime behavior is secondary.
 """
 
 import asyncio
-from typing import List
+import time
+import random
+from typing import List, Dict, Any
 
 from prefect import flow, task
 
@@ -22,69 +24,181 @@ RAINBOW = [
 
 
 @task
-def rainbow_leaf(level: int, index: int) -> str:
+def rainbow_source(index: int) -> Dict[str, Any]:
     """
-    A single colorful leaf task that returns a color name.
+    A source task that generates initial data for the web.
+    Runs for 5-8 seconds to be visible in the graph.
 
     Args:
-        level: The depth level in the tree (0 = root level)
-        index: Position index within the level (determines color)
+        index: Task index for color selection
 
     Returns:
-        Color name string
+        Dict with color data and processing info
     """
     # Pick color based on index, cycling through rainbow
     color_name, hex_code = RAINBOW[index % 7]
 
-    # Return just the color name - simple and reliable
-    return f"Level {level} - {color_name.upper()}"
+    # Simulate work for 5-8 seconds
+    work_time = random.uniform(5, 8)
+    print(f"🌱 {color_name.upper()} source starting {work_time:.1f}s of work...")
+    time.sleep(work_time)
+
+    result = {
+        "color": color_name,
+        "hex": hex_code,
+        "source_index": index,
+        "work_time": work_time,
+        "data_size": random.randint(100, 1000),
+    }
+
+    print(f"✅ {color_name.upper()} source completed!")
+    return result
 
 
-def create_petal_level(level: int, width: int) -> List[str]:
+@task
+def rainbow_processor(upstream_data: Dict[str, Any], processor_id: str) -> Dict[str, Any]:
     """
-    Creates one level of rainbow tasks (a petal ring).
+    A processing task that takes data from source tasks and enriches it.
+    Runs for 3-6 seconds.
 
     Args:
-        level: Current depth level (0-based)
-        width: Number of tasks to spawn at this level
+        upstream_data: Data from upstream source task
+        processor_id: Unique identifier for this processor
 
     Returns:
-        List of task results from this level
+        Enriched data dictionary
     """
-    # Call tasks directly (no concurrency for now, just get it working)
-    results = []
-    for i in range(width):
-        result = rainbow_leaf(level, i)  # Direct call, not .submit()
-        results.append(result)
+    color = upstream_data["color"]
 
-    print(f"✅ Level {level} completed: {results}")
-    return results
+    # Simulate processing work for 3-6 seconds
+    work_time = random.uniform(3, 6)
+    print(f"⚙️  {color.upper()} processor {processor_id} starting {work_time:.1f}s of work...")
+    time.sleep(work_time)
+
+    result = {
+        **upstream_data,  # Include all upstream data
+        "processor_id": processor_id,
+        "processed_at": time.time(),
+        "processing_time": work_time,
+        "enriched_data": f"processed_{color}_{processor_id}",
+    }
+
+    print(f"✅ {color.upper()} processor {processor_id} completed!")
+    return result
+
+
+@task
+def rainbow_aggregator(processed_data_list: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    An aggregator task that combines data from multiple processors.
+    Runs for 4-7 seconds.
+
+    Args:
+        processed_data_list: List of processed data from upstream processors
+
+    Returns:
+        Aggregated result dictionary
+    """
+    colors = [data["color"] for data in processed_data_list]
+    color_combo = "+".join(colors)
+
+    # Simulate aggregation work for 4-7 seconds
+    work_time = random.uniform(4, 7)
+    print(f"🔗 Aggregating {color_combo} for {work_time:.1f}s...")
+    time.sleep(work_time)
+
+    result = {
+        "colors": colors,
+        "total_items": len(processed_data_list),
+        "total_data_size": sum(data["data_size"] for data in processed_data_list),
+        "aggregation_time": work_time,
+        "combined_result": f"aggregated_{color_combo}",
+    }
+
+    print(f"✅ Aggregation of {color_combo} completed!")
+    return result
 
 
 @flow
-async def rainbow_flower(depth: int = 2, width: int = 5) -> None:
+async def rainbow_flower(source_count: int = 4, processors_per_source: int = 2) -> None:
     """
-    🌈 Rainbow Flower - A wide breadth-first rainbow visualization
+    🌈 Rainbow Flower - A connected web of rainbow-colored data processing tasks
 
-    Creates a tiered rainbow pyramid where:
-    - Each level spans horizontally with 'width' colorful nodes
-    - Colors cycle through the 7-color rainbow spectrum
-    - Breadth-first execution creates clear visual tiers
+    Creates a complex task dependency web where:
+    - Source tasks generate initial rainbow data (5-8s each)
+    - Processor tasks enrich data from sources (3-6s each)
+    - Aggregator tasks combine multiple processed streams (4-7s each)
+    - Tasks pass real data between each other creating dependencies
 
     Args:
-        depth: Number of levels in the pyramid (2-6 recommended)
-        width: Number of nodes per level (25+ for dramatic width)
+        source_count: Number of source tasks to create (4-7 recommended)
+        processors_per_source: Number of processors per source (2-3 recommended)
     """
-    print(f"🌈 Blooming rainbow flower: {depth} levels × {width} nodes each")
+    print(
+        f"🌈 Growing rainbow web: {source_count} sources × {processors_per_source} processors each"
+    )
     print("🎨 Colors will cycle: " + " → ".join([name.title() for name, _ in RAINBOW]))
 
-    # Create each level of the flower sequentially
-    for level in range(depth):
-        print(f"🌸 Creating petal level {level + 1}/{depth}")
-        level_results = create_petal_level(level, width)
-        print(f"🌈 Level {level} results: {len(level_results)} tasks completed")
+    # STAGE 1: Create source tasks - these run concurrently
+    print("🌱 Stage 1: Creating source tasks...")
+    source_futures = []
+    for i in range(source_count):
+        future = rainbow_source.submit(i)
+        source_futures.append(future)
 
-    print("🌈✨ Rainbow flower bloomed! Check the Prefect UI for your colorful graph.")
+    # Wait for all sources to complete and get their data
+    source_results = []
+    for future in source_futures:
+        result = future.result()  # Don't await - .result() is sync when called from async flow
+        source_results.append(result)
+
+    # STAGE 2: Create processor tasks - each source feeds multiple processors
+    print("⚙️  Stage 2: Creating processor tasks...")
+    processor_futures = []
+
+    for source_idx, source_data in enumerate(source_results):
+        for proc_idx in range(processors_per_source):
+            processor_id = f"P{source_idx}-{proc_idx}"
+            future = rainbow_processor.submit(source_data, processor_id)
+            processor_futures.append(future)
+
+    # Wait for all processors to complete
+    processor_results = []
+    for future in processor_futures:
+        result = future.result()  # Don't await - .result() is sync when called from async flow
+        processor_results.append(result)
+
+    # STAGE 3: Create aggregator tasks - combine processors in different ways
+    print("🔗 Stage 3: Creating aggregator tasks...")
+
+    # Create 3 different aggregations to show the web structure:
+    # Aggregator 1: First half of processors
+    mid_point = len(processor_results) // 2
+    agg1_data = processor_results[:mid_point]
+
+    # Aggregator 2: Second half of processors
+    agg2_data = processor_results[mid_point:]
+
+    # Aggregator 3: Mix of processors from different sources
+    agg3_data = [processor_results[i] for i in range(0, len(processor_results), 2)]
+
+    # Run aggregators concurrently
+    agg_futures = [
+        rainbow_aggregator.submit(agg1_data),
+        rainbow_aggregator.submit(agg2_data),
+        rainbow_aggregator.submit(agg3_data),
+    ]
+
+    # Wait for aggregators to complete
+    final_results = []
+    for future in agg_futures:
+        result = future.result()  # Don't await - .result() is sync when called from async flow
+        final_results.append(result)
+
+    print(f"🌈✨ Rainbow web complete! {len(final_results)} final aggregations completed.")
+    print(
+        f"📊 Total tasks executed: {source_count} sources + {len(processor_results)} processors + {len(final_results)} aggregators"
+    )
 
 
 # Main export for the deployment
@@ -92,5 +206,5 @@ __all__ = ["rainbow_flower"]
 
 
 if __name__ == "__main__":
-    # Quick test run
-    asyncio.run(rainbow_flower(depth=3, width=15))
+    # Quick test run - smaller scale for testing
+    asyncio.run(rainbow_flower(source_count=3, processors_per_source=2))
