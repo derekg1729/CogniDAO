@@ -183,8 +183,8 @@ EOF
                             docker exec toolhive thv run \
                               --port 24160 \
                               --target-port 24160 \
-                              --transport sse \
                               --target-host 0.0.0.0 \
+                              --host 0.0.0.0 \
                               --name cogni-mcp \
                               --env DOLT_HOST=dolt-db \
                               --env DOLT_PORT=3306 \
@@ -262,8 +262,8 @@ EOF
                             docker exec toolhive thv run \
                               --port 24160 \
                               --target-port 24160 \
-                              --transport sse \
                               --target-host 0.0.0.0 \
+                              --host 0.0.0.0 \
                               --name cogni-mcp \
                               --env DOLT_HOST=dolt-db \
                               --env DOLT_PORT=3306 \
