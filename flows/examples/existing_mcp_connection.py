@@ -12,7 +12,7 @@ Demonstrates connecting to an existing MCP server with a persistent session:
 This example maintains one session throughout the flow, following MCP best practices.
 
 Environment Variables:
-- MCP_SSE_URL: SSE endpoint URL (default: "http://localhost:15249/sse")
+- COGNI_MCP_SSE_URL: SSE endpoint URL (default: "http://localhost:15249/sse")
 http://toolhive:24160/sse
 """
 
@@ -45,11 +45,11 @@ async def mcp_session(endpoint: Optional[str] = None):
     Shared MCP session context manager that maintains a single session throughout flow lifecycle.
 
     Args:
-        endpoint: MCP SSE endpoint URL (defaults to MCP_SSE_URL env var or 'http://localhost:15249/sse')
+        endpoint: MCP SSE endpoint URL (defaults to COGNI_MCP_SSE_URL env var or 'http://localhost:15249/sse')
     """
     # Use SSE transport (only supported transport in MCP Python SDK)
     transport = "sse"
-    endpoint = endpoint or os.getenv("MCP_SSE_URL", "http://localhost:15249/sse")
+    endpoint = endpoint or os.getenv("COGNI_MCP_SSE_URL", "http://localhost:15249/sse")
 
     logger = get_run_logger()
     logger.info("🔗 Attempting MCP connection...")
@@ -175,7 +175,7 @@ async def existing_mcp_connection_flow() -> Dict[str, Any]:
     Connects via SSE (Server-Sent Events) transport.
 
     Environment Variables:
-    - MCP_SSE_URL: SSE endpoint URL (default: "http://localhost:15249/sse")
+    - COGNI_MCP_SSE_URL: SSE endpoint URL (default: "http://localhost:15249/sse")
     """
     logger = get_run_logger()
     logger.info("🚀 Starting MCP connection flow with persistent session")
@@ -183,7 +183,7 @@ async def existing_mcp_connection_flow() -> Dict[str, Any]:
     try:
         # Single session for entire flow - this is the key improvement
         logger.info("🔄 Entering MCP session context...")
-        endpoint_url = os.getenv("MCP_SSE_URL", "http://localhost:15249/sse")
+        endpoint_url = os.getenv("COGNI_MCP_SSE_URL", "http://localhost:15249/sse")
         async with mcp_session() as session:
             logger.info("📡 MCP session established - using throughout flow")
             logger.info(f"   Session object: {session}")
@@ -241,6 +241,8 @@ if __name__ == "__main__":
     # For direct testing
     print("Running existing_mcp_connection_flow with persistent session...")
     print("Environment variables:")
-    print(f"  MCP_SSE_URL: {os.getenv('MCP_SSE_URL', 'http://localhost:15249/sse (default)')}")
+    print(
+        f"  COGNI_MCP_SSE_URL: {os.getenv('COGNI_MCP_SSE_URL', 'http://localhost:15249/sse (default)')}"
+    )
     print("Note: This requires your local MCP server running on port 15249")
     asyncio.run(existing_mcp_connection_flow())

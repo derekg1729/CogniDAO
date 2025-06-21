@@ -16,5 +16,7 @@ COPY sitecustomize.py /usr/local/lib/python3.12/site-packages/
 # Set the workspace as working directory for flows
 WORKDIR /workspace
 
+ENV COGNI_MCP_SSE_URL=http://toolhive:24160/sse
+
 # Default command (will be overridden by docker-compose)
 CMD ["prefect", "worker", "start", "--pool", "cogni-pool"] 
