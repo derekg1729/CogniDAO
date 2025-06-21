@@ -1,0 +1,38 @@
+# Welcome to your prefect.yaml file! You can use this file for storing and managing
+# configuration for deploying your flows. We recommend committing this file to source
+# control along with your flow code.
+
+# Generic metadata about this project
+name: cogni-presence
+prefect-version: 3.3.3
+
+# build section allows you to manage and build docker images
+build:
+
+# push section allows you to manage if and how this project is uploaded to remote locations
+push:
+
+# pull section allows you to provide instructions for cloning this project in remote locations
+pull:
+- prefect.deployments.steps.set_working_directory:
+    directory: /workspace/flows/art
+
+# the deployments section allows you to provide configuration for deploying flows
+deployments:
+- name: rainbow-flower
+  version:
+  tags:
+  - cogni
+  - art
+  - rainbow
+  - flower
+  - visual
+  concurrency_limit:
+  description: '🌈 Rainbow Flower - A beautiful breadth-first rainbow visualization'
+  entrypoint: rainbow_flower_flow.py:rainbow_flower
+  parameters: {}
+  work_pool:
+    name: cogni-pool
+    work_queue_name:
+    job_variables: {}
+  schedules: []
