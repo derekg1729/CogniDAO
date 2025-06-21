@@ -4,7 +4,7 @@ AutoGen Work Reader - Multi-Agent MCP Demo
 ==========================================
 
 Demonstrates multi-agent chat integration with MCP tools:
-1. Setup MCP connection (injected via dependency)
+1. Setup MCP connection via SSE helper
 2. Create specialized agents for work item analysis
 3. Run collaborative agent workflow
 4. Return structured results
@@ -14,11 +14,12 @@ This focuses purely on the agent orchestration aspect.
 
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
-from prefect import flow, task
+from prefect import flow
 from prefect.logging import get_run_logger
 
 # AutoGen MCP Integration
@@ -34,8 +35,11 @@ workspace_root = current_dir.parent.parent
 if str(workspace_root) not in sys.path:
     sys.path.insert(0, str(workspace_root))
 
-# Shared tasks for MCP connection (dependency injection approach)
-from flows.presence.shared_tasks import setup_cogni_mcp_connection, read_work_items_context  # noqa: E402
+# New SSE MCP helper
+from utils.mcp_setup import configure_existing_mcp, MCPConnectionError  # noqa: E402
+
+# AutoGen MCP tool adapters
+from autogen_ext.tools.mcp import SseMcpToolAdapter, SseServerParams  # noqa: E402
 
 # Prompt templates
 from infra_core.prompt_templates import (  # noqa: E402
@@ -49,9 +53,9 @@ from infra_core.prompt_templates import (  # noqa: E402
 logging.basicConfig(level=logging.INFO)
 
 
-@task(name="create_work_analysis_agents")
+# NO @task – Prefect can't pickle live session
 async def create_work_analysis_agents(
-    mcp_tools: List[Dict[str, Any]], tool_specs: str, work_items_context: str
+    autogen_tools: List[Any], tool_specs: str, work_items_context: str
 ) -> Dict[str, Any]:
     """Create specialized agents for work item analysis with MCP tool access"""
     logger = get_run_logger()
@@ -68,7 +72,7 @@ async def create_work_analysis_agents(
         work_reader = AssistantAgent(
             name="work_reader",
             model_client=model_client,
-            tools=mcp_tools,
+            tools=autogen_tools,
             system_message=render_work_reader_prompt(tool_specs, work_items_context),
         )
         agents.append(work_reader)
@@ -77,7 +81,7 @@ async def create_work_analysis_agents(
         priority_analyzer = AssistantAgent(
             name="priority_analyzer",
             model_client=model_client,
-            tools=mcp_tools,
+            tools=autogen_tools,
             system_message=render_priority_analyzer_prompt(tool_specs, work_items_context),
         )
         agents.append(priority_analyzer)
@@ -94,7 +98,7 @@ async def create_work_analysis_agents(
         cogni_leader = AssistantAgent(
             name="cogni_leader",
             model_client=model_client,
-            tools=mcp_tools,
+            tools=autogen_tools,
             system_message=render_cogni_leader_prompt(tool_specs, work_items_context),
         )
         agents.append(cogni_leader)
@@ -119,7 +123,6 @@ async def create_work_analysis_agents(
         }
 
 
-@task(name="run_collaborative_analysis")
 async def run_collaborative_analysis(agents: List[Any], work_items_context: str) -> Dict[str, Any]:
     """Run collaborative multi-agent analysis of work items"""
     logger = get_run_logger()
@@ -171,8 +174,8 @@ async def autogen_work_reader_flow() -> Dict[str, Any]:
     AutoGen Multi-Agent Work Analysis Flow
 
     Demonstrates collaborative agent workflow with MCP tool integration:
-    1. Setup MCP connection (dependency injected)
-    2. Load work items context
+    1. Setup SSE MCP connection via shared helper
+    2. Load work items context via MCP tools
     3. Create specialized analysis agents
     4. Run collaborative analysis workflow
     5. Return structured results
@@ -183,59 +186,80 @@ async def autogen_work_reader_flow() -> Dict[str, Any]:
     logger.info("Starting AutoGen multi-agent work analysis")
 
     try:
-        # Step 1: Setup MCP connection (dependency injected)
-        mcp_setup = await setup_cogni_mcp_connection()
+        # Step 1: Setup SSE MCP connection via shared helper
+        sse_url = os.getenv("COGNI_MCP_SSE_URL", "http://toolhive:24160/sse")
 
-        if not mcp_setup.get("success"):
-            logger.error(f"MCP setup failed: {mcp_setup.get('error')}")
-            return {"status": "failed", "error": mcp_setup.get("error")}
+        async with configure_existing_mcp(sse_url) as (session, sdk_tools):
+            logger.info(f"MCP SSE connection established: {len(sdk_tools)} tools available")
 
-        logger.info(f"MCP connection established: {mcp_setup['tools_count']} tools available")
+            # Step 2: Create AutoGen MCP tool adapters using existing session
+            sse_params = SseServerParams(url=sse_url)
 
-        # Step 2: Load work items context
-        work_items_context = await read_work_items_context(branch="main")
+            # Create AutoGen tool adapters that reuse the existing session
+            autogen_tools = [
+                SseMcpToolAdapter(server_params=sse_params, tool=tool, session=session)
+                for tool in sdk_tools
+            ]
 
-        if work_items_context.get("success"):
-            logger.info(f"Work items loaded: {work_items_context.get('count', 0)} items")
-            context_summary = work_items_context.get("work_items_summary", "No context available")
-        else:
-            logger.warning(f"Work items loading failed: {work_items_context.get('error')}")
-            context_summary = "Work items context unavailable"
+            logger.info(f"Created {len(autogen_tools)} AutoGen MCP tool adapters")
 
-        # Step 3: Create specialized agents
-        agent_setup = await create_work_analysis_agents(
-            mcp_tools=mcp_setup["tools"],
-            tool_specs=mcp_setup.get("tool_specs", "Tool specs not available"),
-            work_items_context=context_summary,
-        )
+            # Step 3: Generate simple tool specs text
+            tool_specs_lines = ["## Available MCP Tools:"]
+            for tool in sdk_tools[:12]:  # Limit to first 12 tools
+                tool_line = f"• {tool.name}: {tool.description or 'No description'}"
+                tool_specs_lines.append(tool_line)
 
-        if not agent_setup.get("success"):
-            logger.error(f"Agent creation failed: {agent_setup.get('error')}")
-            return {"status": "failed", "error": agent_setup.get("error")}
+            tool_specs_text = "\n".join(tool_specs_lines)
 
-        logger.info(f"Agents created: {agent_setup['agent_names']}")
+            # Step 4: Load work items context via MCP tools directly
+            logger.info("Loading work items context via GetActiveWorkItems MCP tool")
 
-        # Step 4: Run collaborative analysis
-        analysis_result = await run_collaborative_analysis(
-            agents=agent_setup["agents"], work_items_context=context_summary
-        )
+            try:
+                ### DIRECTLY CALLING MCP TOOLS!! A GOOD MODEL!
 
-        if not analysis_result.get("success"):
-            logger.error(f"Analysis failed: {analysis_result.get('error')}")
-            return {"status": "failed", "error": analysis_result.get("error")}
+                # Call GetActiveWorkItems directly using the session. No parsing yet.
+                context_summary = await session.call_tool("GetActiveWorkItems", {"input": "{}"})
 
-        logger.info("Multi-agent analysis completed successfully")
+            except Exception as e:
+                logger.warning(f"Failed to load work items via MCP: {e}")
+                context_summary = "Work items context unavailable due to MCP error"
 
-        # Return structured, serializable results
-        return {
-            "status": "success",
-            "mcp_tools_count": mcp_setup["tools_count"],
-            "agents_count": agent_setup["agents_count"],
-            "work_items_count": work_items_context.get("count", 0),
-            "analysis_result": analysis_result["message"],
-            "agent_names": agent_setup["agent_names"],
-        }
+            # Step 5: Create specialized agents (no task-await)
+            agent_setup = await create_work_analysis_agents(
+                autogen_tools=autogen_tools,
+                tool_specs=tool_specs_text,
+                work_items_context=context_summary,
+            )
 
+            if not agent_setup.get("success"):
+                logger.error(f"Agent creation failed: {agent_setup.get('error')}")
+                return {"status": "failed", "error": agent_setup.get("error")}
+
+            logger.info(f"Agents created: {agent_setup['agent_names']}")
+
+            # Step 6: Run collaborative analysis (no task-await)
+            analysis_result = await run_collaborative_analysis(
+                agents=agent_setup["agents"], work_items_context=context_summary
+            )
+
+            if not analysis_result.get("success"):
+                logger.error(f"Analysis failed: {analysis_result.get('error')}")
+                return {"status": "failed", "error": analysis_result.get("error")}
+
+            logger.info("Multi-agent analysis completed successfully")
+
+            # Return structured, serializable results
+            return {
+                "status": "success",
+                "mcp_tools_count": len(sdk_tools),
+                "agents_count": agent_setup["agents_count"],
+                "analysis_result": analysis_result["message"],
+                "agent_names": agent_setup["agent_names"],
+            }
+
+    except MCPConnectionError as e:
+        logger.error(f"MCP connection failed: {e}")
+        return {"status": "failed", "error": f"MCP connection failed: {e}"}
     except Exception as e:
         logger.error(f"AutoGen work reader flow failed: {e}")
         return {"status": "failed", "error": str(e)}
