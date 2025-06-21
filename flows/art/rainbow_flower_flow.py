@@ -24,12 +24,39 @@ RAINBOW = [
 
 
 @task
-def rainbow_source(index: int) -> Dict[str, Any]:
+def rainbow_seed() -> Dict[str, Any]:
+    """
+    The single root task that starts the entire rainbow web.
+    Runs for 2-4 seconds and provides seed data for all sources.
+
+    Returns:
+        Dict with seed data that will be distributed to sources
+    """
+    # Simulate initial seed work for 2-4 seconds
+    work_time = random.uniform(2, 4)
+    print(f"🌱 RAINBOW SEED starting {work_time:.1f}s of initialization work...")
+    time.sleep(work_time)
+
+    result = {
+        "seed_id": "rainbow_root",
+        "timestamp": time.time(),
+        "work_time": work_time,
+        "source_count": 4,  # This seed will spawn 4 sources
+        "initial_energy": random.randint(1000, 2000),
+    }
+
+    print(f"✅ RAINBOW SEED completed - ready to spawn {result['source_count']} sources!")
+    return result
+
+
+@task
+def rainbow_source(seed_data: Dict[str, Any], index: int) -> Dict[str, Any]:
     """
     A source task that generates initial data for the web.
-    Runs for 5-8 seconds to be visible in the graph.
+    Runs for 1-8 seconds with high variance.
 
     Args:
+        seed_data: Data from the root seed task
         index: Task index for color selection
 
     Returns:
@@ -40,7 +67,9 @@ def rainbow_source(index: int) -> Dict[str, Any]:
 
     # Simulate work for 1-8 seconds (much more variance!)
     work_time = random.uniform(1, 8)
-    print(f"🌱 {color_name.upper()} source starting {work_time:.1f}s of work...")
+    print(
+        f"🌿 {color_name.upper()} source (from seed {seed_data['seed_id']}) starting {work_time:.1f}s of work..."
+    )
     time.sleep(work_time)
 
     result = {
@@ -49,6 +78,8 @@ def rainbow_source(index: int) -> Dict[str, Any]:
         "source_index": index,
         "work_time": work_time,
         "data_size": random.randint(100, 1000),
+        "parent_seed": seed_data["seed_id"],  # Link back to root
+        "seed_energy": seed_data["initial_energy"] // 4,  # Distribute seed energy
     }
 
     print(f"✅ {color_name.upper()} source completed!")
@@ -139,13 +170,18 @@ async def rainbow_flower(source_count: int = 4, processors_per_source: int = 2) 
     )
     print("🎨 Colors will cycle: " + " → ".join([name.title() for name, _ in RAINBOW]))
 
-    # STAGE 1 & 2: Create cascading source→processor chains (no bottleneck!)
-    print("🌱 Stage 1&2: Creating cascading source→processor chains...")
+    # STAGE 0: Create the single root seed task
+    print("🌱 Stage 0: Creating root seed task...")
+    seed_future = rainbow_seed.submit()
 
-    # Create all source tasks concurrently
+    # STAGE 1 & 2: Create cascading seed→source→processor chains
+    print("🌿 Stage 1&2: Creating cascading seed→source→processor chains...")
+
+    # Create all source tasks that depend on the single seed
     source_futures = []
     for i in range(source_count):
-        future = rainbow_source.submit(i)
+        # Each source waits for the seed and gets its data
+        future = rainbow_source.submit(seed_future, i)
         source_futures.append(future)
 
     # Create processor chains - each processor starts as soon as its source completes
@@ -159,7 +195,7 @@ async def rainbow_flower(source_count: int = 4, processors_per_source: int = 2) 
             processor_futures.append(future)
 
     print(
-        f"🔗 Created {len(source_futures)} sources feeding {len(processor_futures)} processors (cascading execution)"
+        f"🔗 Created 1 seed → {len(source_futures)} sources → {len(processor_futures)} processors (cascading tree execution)"
     )
 
     # Wait for all processors to complete (they handle their own source dependencies)
@@ -195,9 +231,9 @@ async def rainbow_flower(source_count: int = 4, processors_per_source: int = 2) 
         result = future.result()  # Don't await - .result() is sync when called from async flow
         final_results.append(result)
 
-    print(f"🌈✨ Rainbow web complete! {len(final_results)} final aggregations completed.")
+    print(f"🌈✨ Rainbow tree complete! {len(final_results)} final aggregations completed.")
     print(
-        f"📊 Total tasks executed: {source_count} sources + {len(processor_results)} processors + {len(final_results)} aggregators"
+        f"📊 Total tasks executed: 1 seed + {source_count} sources + {len(processor_results)} processors + {len(final_results)} aggregators = {1 + source_count + len(processor_results) + len(final_results)} tasks"
     )
 
 
