@@ -54,7 +54,7 @@ deployments:
     name: cogni-pool
     work_queue_name:
     job_variables: 
-      MCP_SSE_URL: "http://toolhive:24160/sse"
+      COGNI_MCP_SSE_URL: "http://toolhive:24160/sse"
   schedules: []
 
 - name: autogen-work-reader
