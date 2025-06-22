@@ -114,6 +114,16 @@ from infra_core.memory_system.tools.agent_facing.bulk_create_links_tool import (
     BulkCreateLinksInput,
     BulkCreateLinksOutput,
 )
+from infra_core.memory_system.tools.agent_facing.bulk_delete_blocks_tool import (
+    bulk_delete_blocks,
+    BulkDeleteBlocksInput,
+    BulkDeleteBlocksOutput,
+)
+from infra_core.memory_system.tools.agent_facing.bulk_update_namespace_tool import (
+    bulk_update_namespace,
+    BulkUpdateNamespaceInput,
+    BulkUpdateNamespaceOutput,
+)
 from infra_core.memory_system.tools.agent_facing.dolt_namespace_tool import (
     list_namespaces_tool,
     ListNamespacesInput,
@@ -578,7 +588,7 @@ async def query_memory_blocks_semantic(input):
             success=False,
             blocks=[],
             message=f"Semantic query failed: {str(e)}",
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             error=f"Error during query_memory_blocks_semantic: {str(e)}",
         ).model_dump(mode="json")
         return standardize_mcp_response(error_response)
@@ -830,7 +840,7 @@ async def bulk_create_blocks_mcp(input):
             successful_blocks=0,
             failed_blocks=0,
             results=[],
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             timestamp=datetime.now(),
         ).model_dump(mode="json")
         return standardize_mcp_response(error_response)
@@ -876,6 +886,99 @@ async def bulk_create_links_mcp(input):
             results=[],
             active_branch=None,
             timestamp=datetime.now(),
+        ).model_dump(mode="json")
+        return standardize_mcp_response(error_response)
+
+
+# Register the BulkDeleteBlocks tool
+@mcp.tool("BulkDeleteBlocks")
+async def bulk_delete_blocks_mcp(input):
+    """Delete multiple memory blocks in a single operation with independent success tracking
+
+    Args:
+        blocks: List of block specifications to delete (1-1000 blocks)
+        stop_on_first_error: If True, stop processing on first error. If False, continue and report all results.
+        default_validate_dependencies: Default dependency validation setting for blocks that don't specify it
+        author: Identifier for who is performing the deletions
+        agent_id: Agent identifier for tracking
+        session_id: Session ID for grouping related deletions
+
+    Returns:
+        success: Whether ALL blocks were deleted successfully (failed_count == 0)
+        partial_success: Whether at least one block was deleted successfully
+        total_blocks: Total number of blocks attempted
+        successful_blocks: Number of blocks deleted successfully
+        failed_blocks: Number of blocks that failed to delete
+        results: Individual results for each block
+        active_branch: Current active branch
+        timestamp: When the bulk operation completed
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = BulkDeleteBlocksInput(**input)
+        result = bulk_delete_blocks(parsed_input, memory_bank=get_memory_bank())
+        return standardize_mcp_response(result.model_dump(mode="json"))
+    except Exception as e:
+        logger.error(f"Error in BulkDeleteBlocks MCP tool: {e}")
+        error_response = BulkDeleteBlocksOutput(
+            success=False,
+            partial_success=False,
+            total_blocks=0,
+            successful_blocks=0,
+            failed_blocks=0,
+            results=[],
+            active_branch=get_memory_bank().branch,
+            timestamp=datetime.now(),
+        ).model_dump(mode="json")
+        return standardize_mcp_response(error_response)
+
+
+# Register the BulkUpdateNamespace tool
+@mcp.tool("BulkUpdateNamespace")
+async def bulk_update_namespace_mcp(input):
+    """Update namespace of multiple memory blocks in a single operation with independent success tracking
+
+    Args:
+        blocks: List of block specifications to update (1-500 blocks)
+        target_namespace_id: Target namespace ID to move all blocks to
+        stop_on_first_error: If True, stop processing on first error. If False, continue and report all results.
+        author: Author of the namespace updates
+        agent_id: Agent identifier for tracking
+        session_id: Session ID for grouping updates
+
+    Returns:
+        success: Whether ALL blocks were updated successfully (failed_count == 0)
+        partial_success: Whether at least one block was updated successfully
+        total_blocks: Total number of blocks attempted
+        successful_blocks: Number of blocks updated successfully
+        failed_blocks: Number of blocks that failed to update
+        results: Individual results for each block
+        target_namespace_id: Target namespace that was attempted
+        namespace_validated: Whether the target namespace was validated to exist
+        active_branch: Current active branch
+        timestamp: When the bulk operation completed
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = BulkUpdateNamespaceInput(**input)
+        result = bulk_update_namespace(parsed_input, memory_bank=get_memory_bank())
+        return standardize_mcp_response(result.model_dump(mode="json"))
+    except Exception as e:
+        logger.error(f"Error in BulkUpdateNamespace MCP tool: {e}")
+        error_response = BulkUpdateNamespaceOutput(
+            success=False,
+            partial_success=False,
+            total_blocks=0,
+            successful_blocks=0,
+            failed_blocks=0,
+            results=[],
+            skipped_block_ids=[],
+            error_summary={"UNKNOWN_ERROR": 1},
+            target_namespace_id="unknown",
+            namespace_validated=False,
+            active_branch=get_memory_bank().branch,
+            timestamp=datetime.now(),
+            total_processing_time_ms=0,
         ).model_dump(mode="json")
         return standardize_mcp_response(error_response)
 
@@ -1054,7 +1157,7 @@ async def dolt_status(input):
         logger.error(f"Error in DoltStatus MCP tool: {e}")
         error_response = DoltStatusOutput(
             success=False,
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             is_clean=False,
             total_changes=0,
             message=f"Status check failed: {str(e)}",
@@ -1147,7 +1250,7 @@ async def dolt_list_branches(input):
 
         return DoltListBranchesOutput(
             success=False,
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             message=f"Branch listing failed: {str(e)}",
             error=f"Error during dolt_list_branches: {str(e)}",
         ).model_dump(mode="json")
@@ -1178,7 +1281,7 @@ async def list_namespaces(input):
             success=False,
             namespaces=[],
             total_count=0,
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             message=f"Namespace listing failed: {str(e)}",
             error=f"Error during list_namespaces: {str(e)}",
         ).model_dump(mode="json")
@@ -1221,7 +1324,7 @@ async def create_namespace(input):
             success=False,
             namespace_id=None,
             message=f"Namespace creation failed: {str(e)}",
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             error=f"Error during create_namespace: {str(e)}",
         ).model_dump(mode="json")
         return standardize_mcp_response(error_response)
@@ -1247,7 +1350,7 @@ async def dolt_diff(input):
             success=False,
             diff_summary=[],
             message=f"An unexpected error occurred: {e}",
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             error=str(e),
         ).model_dump(mode="json")
 
@@ -1289,7 +1392,7 @@ async def dolt_auto_commit_and_push(input):
             message=f"Auto commit and push failed: {str(e)}",
             operations_performed=["failed"],
             was_clean=False,
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             error=str(e),
         ).model_dump(mode="json")
 
@@ -1367,7 +1470,7 @@ async def dolt_merge(input):
             source_branch=input.get("source_branch", "unknown"),
             target_branch=input.get("target_branch", "unknown"),
             fast_forward=False,
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             error=f"Error during dolt_merge: {str(e)}",
         ).model_dump(mode="json")
 
@@ -1410,7 +1513,7 @@ async def dolt_compare_branches(input):
             target_branch=input.get("target_branch", "unknown"),
             has_differences=False,
             can_merge=False,
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             error=f"Error during dolt_compare_branches: {str(e)}",
         ).model_dump(mode="json")
 
@@ -1445,7 +1548,7 @@ async def dolt_approve_pull_request(input):
             success=False,
             message=f"Pull request approval failed: {str(e)}",
             pr_id=input.get("pr_id", "unknown"),
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             error=f"Error during dolt_approve_pull_request: {str(e)}",
         ).model_dump(mode="json")
 
@@ -1465,15 +1568,6 @@ async def health_check():
     }
 
 
-# initial JSON for local MCP server:
-#  "cogni-mcp": {
-#       "command": "uv --directory /Users/derek/dev/cogni/services/mcp_server run app/mcp_server.py",
-#       "env": {
-#         "CHROMA_COLLECTION_NAME": "cogni_mcp_collection"
-#       }
-#     }
-
-
 # When this file is executed directly, use the MCP CLI
 if __name__ == "__main__":
     import os
@@ -1482,6 +1576,41 @@ if __name__ == "__main__":
     # Default to stdio for Cursor, use MCP_TRANSPORT=sse for ToolHive
     transport = os.getenv("MCP_TRANSPORT", "stdio")
 
-    # For SSE/HTTP transports, simply pass the environment variables and let FastMCP handle them
-    # According to FastMCP docs, it reads from environment variables automatically
-    mcp.run(transport=transport)
+    # 🔍 ENHANCED STARTUP LOGGING for debugging deployment issues
+    print("🚀 [MCP STARTUP] Cogni MCP Server starting...")
+    print(f"🔧 [MCP STARTUP] Transport: {transport}")
+    print("🔧 [MCP STARTUP] Environment Variables:")
+
+    # Log key environment variables
+    key_env_vars = [
+        "MCP_TRANSPORT",
+        "MCP_HOST",
+        "MCP_PORT",
+        "DOLT_HOST",
+        "DOLT_PORT",
+        "DOLT_DATABASE",
+        "DOLT_BRANCH",
+        "DOLT_NAMESPACE",
+    ]
+
+    for var in key_env_vars:
+        value = os.getenv(var, "(not set)")
+        print(f"    {var} = '{value}'")
+
+    try:
+        print(f"🎯 [MCP STARTUP] Calling mcp.run(transport='{transport}')...")
+
+        # For SSE/HTTP transports, simply pass the environment variables and let FastMCP handle them
+        # According to FastMCP docs, it reads from environment variables automatically
+        mcp.run(transport=transport)
+
+        print("✅ [MCP STARTUP] Server started successfully!")
+
+    except Exception as e:
+        print(f"❌ [MCP STARTUP] Server startup failed: {e}")
+        print(f"📊 [MCP STARTUP] Exception type: {type(e).__name__}")
+        import traceback
+
+        print("📊 [MCP STARTUP] Full traceback:")
+        traceback.print_exc()
+        raise

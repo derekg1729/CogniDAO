@@ -220,7 +220,14 @@ class DoltMySQLWriter(DoltMySQLBase):
         self, block_id: str, branch: str = DEFAULT_PROTECTED_BRANCH, auto_commit: bool = False
     ) -> Tuple[bool, Optional[str]]:
         """Delete a memory block from the Dolt SQL server."""
-        connection = self._get_connection()
+        # CRITICAL FIX: Use persistent connection if available to ensure deletion and staging
+        # happen in the same database session for auto_commit=False scenarios
+        if self._use_persistent and self._persistent_connection:
+            connection = self._persistent_connection
+            connection_is_persistent = True
+        else:
+            connection = self._get_connection()
+            connection_is_persistent = False
         commit_hash = None
 
         try:
@@ -245,8 +252,21 @@ class DoltMySQLWriter(DoltMySQLBase):
                 if result:
                     commit_hash = result["commit_hash"]
             else:
-                # Just commit the MySQL transaction, don't commit to Dolt
+                # CRITICAL FIX: Stage the deletion changes even when auto_commit=False
+                # This ensures deletions reach the Dolt working set for later manual commits
+                # We must use the add_to_staging() method instead of direct CALL DOLT_ADD
+                # because it handles persistent connections and transaction commits properly
+
+                # First commit the MySQL transaction to make deletion persistent in working set
                 connection.commit()
+
+                # Then stage the changes using the proper method
+                stage_success, stage_msg = self.add_to_staging(tables=PERSISTED_TABLES)
+                if not stage_success:
+                    logger.error(
+                        f"Failed to stage deletion changes for block {block_id}: {stage_msg}"
+                    )
+                    # Note: deletion was successful but staging failed - this is still partial success
 
             cursor.close()
             logger.info(f"Successfully deleted block {block_id} via MySQL connection")
@@ -257,7 +277,9 @@ class DoltMySQLWriter(DoltMySQLBase):
             logger.error(f"Failed to delete block {block_id}: {e}", exc_info=True)
             return False, None
         finally:
-            connection.close()
+            # Only close if it's not a persistent connection
+            if not connection_is_persistent:
+                connection.close()
 
     def commit_changes(
         self, commit_msg: str, tables: List[str] = None, branch: str = None

@@ -35,19 +35,16 @@ from autogen_agentchat.teams import RoundRobinGroupChat  # noqa: E402
 from autogen_agentchat.conditions import MaxMessageTermination  # noqa: E402
 from autogen_agentchat.ui import Console  # noqa: E402
 from autogen_ext.models.openai import OpenAIChatCompletionClient  # noqa: E402
-from autogen_ext.tools.mcp import StdioServerParams, mcp_server_tools  # noqa: E402
 
-# Dolt integration for work item context
-from infra_core.memory_system.dolt_reader import DoltMySQLReader  # noqa: E402
-from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig  # noqa: E402
+# Shared tasks and new SSE pattern imports
+from utils.setup_connection_to_cogni_mcp import configure_cogni_mcp, MCPConnectionError  # noqa: E402
+from utils.cogni_memory_mcp_outro import automated_dolt_outro  # noqa: E402
 
 # Prompt template integration
-from infra_core.prompt_templates import PromptTemplateManager  # noqa: E402
 from infra_core.prompt_templates import render_education_researcher_prompt  # noqa: E402
 from infra_core.prompt_templates import render_curriculum_analyst_prompt  # noqa: E402
 from infra_core.prompt_templates import render_education_reporter_prompt  # noqa: E402
 from infra_core.prompt_templates import render_cogni_education_leader_prompt  # noqa: E402
-from infra_core.prompt_templates import render_dolt_commit_agent_prompt  # noqa: E402
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -58,150 +55,28 @@ MCP_DOLT_BRANCH = "ai-education-team"
 MCP_DOLT_NAMESPACE = "legacy"
 
 
-@task(name="read_current_work_items")
-async def read_current_work_items() -> Dict[str, Any]:
-    """Read current work items using DoltMySQLReader for agent context"""
-    logger = get_run_logger()
-
-    try:
-        # Setup Dolt connection
-        config = DoltConnectionConfig()
-        reader = DoltMySQLReader(config)
-
-        logger.info("🔍 Reading current work items from work_items_core view...")
-
-        # Read latest work items (limit 10 for context)
-        work_items = reader.read_work_items_core_view(limit=10, branch="ai-education-team")
-
-        if work_items:
-            logger.info(f"✅ Found {len(work_items)} work items for agent context")
-
-            # Create summary for agent prompts
-            summary_lines = ["## Current Work Items Context:"]
-            for item in work_items:
-                item_line = f"- {item['work_item_type'].upper()}: {item['id']} | {item['state']} | by {item['created_by']} | {item['created_at']}"
-                summary_lines.append(item_line)
-
-            work_items_summary = "\n".join(summary_lines)
-
-            return {
-                "success": True,
-                "work_items": work_items,
-                "work_items_summary": work_items_summary,
-                "count": len(work_items),
-            }
-        else:
-            logger.info("📝 No work items found in work_items_core view")
-            return {
-                "success": True,
-                "work_items": [],
-                "work_items_summary": "## Current Work Items Context:\n- No active work items found in the system.",
-                "count": 0,
-            }
-
-    except Exception as e:
-        logger.error(f"❌ Failed to read work items: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "work_items_summary": "## Current Work Items Context:\n- Error reading work items from database.",
-            "count": 0,
-        }
+# Duplicate tasks removed - now using shared_tasks.py:
+# - read_current_work_items -> read_work_items_context
+# - setup_simple_mcp_connection -> setup_cogni_mcp_connection
 
 
-@task(name="setup_simple_mcp_connection")
-async def setup_simple_mcp_connection(branch: str = None, namespace: str = None) -> Dict[str, Any]:
-    """Setup MCP connection and generate tool specifications for agents
-
-    Args:
-        branch: Dolt branch to use (defaults to MCP_DOLT_BRANCH env var or 'ai-education-team')
-        namespace: Namespace to use (defaults to MCP_DOLT_NAMESPACE env var or 'legacy')
-    """
-    logger = get_run_logger()
-
-    try:
-        # CRITICAL: Use container-aware path resolution
-        # In container: /workspace/services/mcp_server/app/mcp_server.py
-        cogni_mcp_path = Path("/workspace/services/mcp_server/app/mcp_server.py")
-
-        if not cogni_mcp_path.exists():
-            logger.error(f"❌ Cogni MCP server not found at: {cogni_mcp_path}")
-            return {"success": False, "error": "MCP server file not found"}
-
-        logger.info(f"🔧 Using MCP server at: {cogni_mcp_path}")
-
-        # StdioServerParams for Cogni MCP server - PROVEN working config
-        # Use provided parameters or fall back to environment variables or defaults
-        mcp_branch = branch or os.environ.get("MCP_DOLT_BRANCH", "ai-education-team")
-        mcp_namespace = namespace or os.environ.get("MCP_DOLT_NAMESPACE", "legacy")
-
-        logger.info(f"🎯 MCP Configuration - Branch: '{mcp_branch}', Namespace: '{mcp_namespace}'")
-
-        server_params = StdioServerParams(
-            command="python",
-            args=[str(cogni_mcp_path)],
-            env={
-                # Python path fix for container - CRITICAL
-                "PYTHONPATH": "/workspace",  # Add workspace to Python path
-                # Dolt connection config
-                "DOLT_HOST": "dolt-db",  # Container network hostname
-                "DOLT_PORT": "3306",
-                "DOLT_USER": "root",
-                "DOLT_ROOT_PASSWORD": "kXMnM6firYohXzK+2r0E0DmSjOl6g3A2SmXc6ALDOlA=",
-                "DOLT_DATABASE": "cogni-dao-memory",
-                "MYSQL_DATABASE": "cogni-dao-memory",
-                "DOLT_BRANCH": mcp_branch,  # Configurable branch
-                "DOLT_NAMESPACE": mcp_namespace,  # Configurable namespace
-                "CHROMA_PATH": "/tmp/chroma",
-                "CHROMA_COLLECTION_NAME": "cogni_mcp_collection",
-            },
-            read_timeout_seconds=30,
-        )
-
-        logger.info("🔧 Setting up Cogni MCP tools via stdio...")
-        cogni_tools = await mcp_server_tools(server_params)
-
-        logger.info(f"✅ Cogni MCP tools setup complete: {len(cogni_tools)} tools")
-        logger.info(f"🔧 Available tools: {[tool.name for tool in cogni_tools]}")
-
-        # 🔧 NEW: Generate tool specifications using template manager
-        template_manager = PromptTemplateManager()
-        tool_specs_text = template_manager.generate_tool_specs_from_mcp_tools(cogni_tools)
-
-        logger.info(f"📋 Generated tool specs: {len(cogni_tools)} tools documented")
-
-        return {
-            "success": True,
-            "tools_count": len(cogni_tools),
-            "tools": cogni_tools,
-            "tool_names": [tool.name for tool in cogni_tools],
-            "tool_specs": tool_specs_text,  # NEW: Tool specifications for agents
-        }
-
-    except Exception as e:
-        logger.error(f"❌ Failed to setup Cogni MCP tools: {e}")
-        return {"success": False, "error": str(e)}
-
-
-@task(name="run_ai_education_team_with_outro")
+@task(name="run_ai_education_team_with_outro", cache_policy=None)
 async def run_ai_education_team_with_outro(
-    mcp_setup: Dict[str, Any], work_items_context: Dict[str, Any]
+    autogen_tools: list, tool_specs_text: str, session, work_items_context: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Run 4 AI education agents to analyze knowledge graph, assess learning needs, and improve educational content - All in one simple task using proven working pattern"""
     logger = get_run_logger()
 
-    if not mcp_setup.get("success"):
-        return {"success": False, "error": "MCP setup failed"}
+    if not autogen_tools:
+        return {"success": False, "error": "No MCP tools available"}
 
     try:
         # Setup OpenAI client - Helicone observability handled automatically by sitecustomize.py
         model_client = OpenAIChatCompletionClient(model="gpt-4o")
         logger.info("✅ OpenAI client configured")
 
-        cogni_tools = mcp_setup["tools"]
-        tool_specs_text = mcp_setup.get(
-            "tool_specs", "## Available MCP Tools: (tool specs not available)"
-        )
+        cogni_tools = autogen_tools
+        tool_specs_text = tool_specs_text
 
         # Get work items context for agent prompts
         work_items_summary = work_items_context.get(
@@ -292,37 +167,14 @@ Important: Use the tool specifications provided in your system message to ensure
 
         logger.info("✅ AI Education Team analysis with Cogni leader completed successfully!")
 
-        # === OUTRO ROUTINE: Dolt Operations (Simplified) ===
-        logger.info("🔄 Starting outro routine: Systematic Dolt operations...")
-
-        # Create dedicated Dolt commit agent using the same MCP connection
-        # Note: Using the same model_client instance ensures Helicone observability for all agents
-        dolt_commit_agent = AssistantAgent(
-            name="dolt_commit_agent",
-            model_client=model_client,
-            tools=cogni_tools,
-            system_message=render_dolt_commit_agent_prompt(tool_specs_text),
-        )
-
-        # Create simple team for Dolt operations
-        dolt_team = RoundRobinGroupChat(
-            participants=[dolt_commit_agent],
-            termination_condition=MaxMessageTermination(max_messages=5),
-        )
-
-        logger.info("🚀 Starting Dolt commit operations...")
-
-        # Run Dolt operations
-        await Console(dolt_team.run_stream(task="Begin the dolt commit and push process."))
-
-        logger.info("✅ Outro routine completed successfully!")
+        logger.info("📝 Calling shared automated_dolt_outro helper…")
+        outro = await automated_dolt_outro(session, flow_context="AI-Education flow")
 
         return {
             "success": True,
             "agents_count": len(agents),
             "tools_count": len(cogni_tools),
-            "work_items_count": work_items_context.get("count", 0),
-            "outro_success": True,
+            "outro": outro,
             "timestamp": datetime.now().isoformat(),
         }
 
@@ -336,88 +188,72 @@ Important: Use the tool specifications provided in your system message to ensure
 
 @flow(name="ai_education_team_flow", log_prints=True)
 async def ai_education_team_flow() -> Dict[str, Any]:
-    """
-    AI Education Team Flow - Enhanced with Knowledge Graph Integration & Education Strategy
-
-    Uses proven working AutoGen pattern to run 4 education-focused agents + Dolt operations:
-    1. Read current work items context using DoltMySQLReader
-    2. Setup MCP connection with proven stdio transport
-    3. Run unified education team workflow that includes:
-       - **Education Researcher** reading root knowledge graph ({AI_EDUCATION_ROOT_GUID})
-       - **Curriculum Analyst** analyzing learning gaps and opportunities
-       - **Education Reporter** documenting findings and progress
-       - **Omnipresent Cogni Leader** providing education strategy insights
-       - **Integrated Dolt operations** for automatic persistence
-
-    All using the PROVEN working import pattern with education knowledge graph focus.
-    """
+    """AI-Education flow – now using SSE MCP + shared outro"""
     logger = get_run_logger()
-    logger.info("🎯 Starting AI Education Team Flow with Knowledge Graph Integration")
-    logger.info(
-        "🔧 Using PROVEN working stdio MCP transport + Education Knowledge Graph + Strategic AI"
-    )
+    logger.info("🚀 Starting AI-Education flow (SSE edition)")
 
-    # Get branch and namespace configuration for this flow run
-
-    logger.info(
-        f"🌟 FLOW CONFIGURATION: Working on Branch='{MCP_DOLT_BRANCH}', Namespace='{MCP_DOLT_NAMESPACE}'"
-    )
-    logger.info(
-        f"🔧 Environment variables: MCP_DOLT_BRANCH={os.environ.get('MCP_DOLT_BRANCH', 'NOT_SET')}, MCP_DOLT_NAMESPACE={os.environ.get('MCP_DOLT_NAMESPACE', 'NOT_SET')}"
-    )
+    # Pick branch / namespace from env *or* fallback constants
+    branch = os.getenv("MCP_DOLT_BRANCH", "ai-education-team")
+    namespace = os.getenv("MCP_DOLT_NAMESPACE", "legacy")
+    sse_url = os.getenv("COGNI_MCP_SSE_URL", "http://toolhive:24160/sse")
 
     try:
-        # Step 1: Read current work items for context
-        work_items_context = await read_current_work_items()
-
-        if work_items_context.get("success"):
-            logger.info(f"✅ Work items context loaded: {work_items_context.get('count', 0)} items")
-        else:
-            logger.warning(
-                f"⚠️ Work items context failed: {work_items_context.get('error', 'Unknown error')}"
-            )
-        # Step 2: Setup MCP connection with explicit branch and namespace
-        mcp_setup = await setup_simple_mcp_connection(
-            branch=MCP_DOLT_BRANCH, namespace=MCP_DOLT_NAMESPACE
-        )
-
-        if not mcp_setup.get("success"):
-            logger.error(f"❌ MCP setup failed: {mcp_setup.get('error')}")
-            return {"status": "failed", "error": mcp_setup.get("error")}
-
-        logger.info(f"✅ MCP setup successful: {mcp_setup['tools_count']} tools available")
-
-        # Step 3: Run AI education team with integrated outro routine
-        summary_result = await run_ai_education_team_with_outro(mcp_setup, work_items_context)
-
-        if not summary_result.get("success"):
-            logger.error(f"❌ Agent summary with outro failed: {summary_result.get('error')}")
-            return {"status": "failed", "error": summary_result.get("error")}
-
-        logger.info(
-            "🤖 Education Team and Cogni Leader have provided strategic insights and Dolt operations completed!"
-        )
-
-        # Final success
-        logger.info(
-            "🎉 FLOW SUCCESS: AI Education Team flow with Knowledge Graph integration completed!"
-        )
-        return {
-            "status": "success",
-            "tools_count": summary_result.get("tools_count", 0),
-            "agents_count": summary_result.get("agents_count", 0),
-            "work_items_count": summary_result.get("work_items_count", 0),
-            "outro_success": summary_result.get("outro_success", False),
-            "timestamp": datetime.now().isoformat(),
+        # Step 1: Skip work items reading for now (legacy pattern causing MySQL connection issues)
+        work_items_context = {
+            "success": True,
+            "work_items_summary": "Work items context skipped for SSE testing",
         }
 
+        # Step 2: Setup SSE MCP connection with branch/namespace switching
+        async with configure_cogni_mcp(sse_url=sse_url, branch=branch, namespace=namespace) as (
+            session,
+            sdk_tools,
+        ):
+            logger.info("🔗 MCP attached (%d tools) on %s/%s", len(sdk_tools), branch, namespace)
+
+            # --- build AutoGen adapters exactly like autogen_work_reader_flow ---
+            from autogen_ext.tools.mcp import SseMcpToolAdapter, SseServerParams
+
+            autogen_tools = [
+                SseMcpToolAdapter(SseServerParams(url=sse_url), t, session) for t in sdk_tools
+            ]
+
+            tool_specs_text = "\n".join(
+                [f"• {t.name}: {t.description or 'No description'}" for t in sdk_tools[:12]]
+            )
+
+            # Step 3: Run AI education team with integrated outro routine
+            summary_result = await run_ai_education_team_with_outro(
+                autogen_tools, tool_specs_text, session, work_items_context
+            )
+
+            if not summary_result.get("success"):
+                logger.error(f"❌ Agent summary with outro failed: {summary_result.get('error')}")
+                return {"status": "failed", "error": summary_result.get("error")}
+
+            logger.info(
+                "🤖 Education Team and Cogni Leader have provided strategic insights and Dolt operations completed!"
+            )
+
+            # Final success
+            logger.info(
+                "🎉 FLOW SUCCESS: AI Education Team flow with Knowledge Graph integration completed!"
+            )
+            return {
+                "status": "success",
+                "tools_count": len(sdk_tools),
+                "agents_count": summary_result.get("agents_count", 0),
+                "work_items_count": work_items_context.get("count", 0),
+                "outro": summary_result.get("outro", {}),
+                "timestamp": datetime.now().isoformat(),
+            }
+
+    except MCPConnectionError as e:
+        logger.error(f"❌ MCP connection failed: {e}")
+        return {"status": "failed", "error": f"MCP connection failed: {e}"}
     except Exception as e:
         logger.error(f"❌ Enhanced flow failed: {e}")
         return {"status": "failed", "error": str(e)}
-    finally:
-        # Ensure the MCP client is disconnected at the end of the flow
-        if "mcp_setup" in locals() and mcp_setup.get("client"):
-            await mcp_setup["client"].disconnect()
 
 
 if __name__ == "__main__":

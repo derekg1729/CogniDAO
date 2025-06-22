@@ -43,7 +43,9 @@ class GetMemoryBlockInput(BaseModel):
     )
 
     # Branch parameter for Dolt operations
-    branch: Optional[str] = Field("main", description="Dolt branch to read from (default: 'main')")
+    branch: Optional[str] = Field(
+        None, description="Dolt branch to read from (defaults to active branch)"
+    )
 
     def model_post_init(self, __context):
         """Validate that either block_ids is provided OR filtering parameters are provided."""
@@ -83,8 +85,12 @@ def get_memory_block_core(input_data: GetMemoryBlockInput, memory_bank) -> GetMe
     Returns:
         GetMemoryBlockOutput with the retrieved blocks or error information
     """
-    # Use the same branch for output as was used for the query (DRY principle)
-    current_branch = input_data.branch
+    # Use actual active branch if no branch specified, otherwise use the requested branch
+    current_branch = (
+        input_data.branch
+        if input_data.branch is not None
+        else memory_bank.dolt_writer.active_branch
+    )
 
     if input_data.block_ids:
         # Block retrieval by ID(s)

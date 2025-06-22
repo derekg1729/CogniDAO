@@ -295,6 +295,10 @@ def _apply_all_updates(
                 }
 
         # Handle traditional full field updates
+        if input_data.namespace_id is not None:
+            updated_block_data["namespace_id"] = input_data.namespace_id
+            updated_fields.append("namespace_id")
+
         if input_data.state is not None:
             updated_block_data["state"] = input_data.state
             updated_fields.append("state")

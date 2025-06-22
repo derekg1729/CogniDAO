@@ -169,10 +169,10 @@ EOF
                     prefect work-pool create --type docker cogni-pool 2>/dev/null || true
                     status "✅ Prefect work pool 'cogni-pool' configured"
                     
-                    # Deploy ritual_of_presence flow from YAML
+                    # Deploy MCP example flows from YAML
                     status "Deploying Prefect flows..."
-                    if [ -f "flows/presence/prefect.yaml" ]; then
-                        cd flows/presence
+                    if [ -f "flows/examples/prefect.yaml" ]; then
+                        cd flows/examples
                         prefect deploy --all || warning "⚠️ Prefect flow deployment failed, continuing..."
                         cd ../..  # Return to project root
                         status "✅ Prefect flows deployed"
@@ -181,18 +181,35 @@ EOF
                         status "Deploying MCP server with ToolHive..."
                         if docker ps | grep -q toolhive; then
                             docker exec toolhive thv run \
+                              --port 24160 \
+                              --target-port 24160 \
+                              --target-host 0.0.0.0 \
+                              --host 0.0.0.0 \
                               --name cogni-mcp \
                               --env DOLT_HOST=dolt-db \
                               --env DOLT_PORT=3306 \
                               --env DOLT_USER=root \
                               --env DOLT_ROOT_PASSWORD="${DOLT_ROOT_PASSWORD}" \
                               --env DOLT_DATABASE=cogni-dao-memory \
+                              --env DOLT_BRANCH=feat/dolt-mcp-tools \
+                              --env DOLT_NAMESPACE=legacy \
                               --env CHROMA_PATH=/app/chroma \
                               --env CHROMA_COLLECTION_NAME=cogni_mcp_collection \
-                              --env MCP_TRANSPORT=sse \
                               cogni-mcp:latest || warning "⚠️ MCP server deployment failed, continuing..."
                             
-                            # Wait for container to start, then connect to correct network
+                            # Deploy Git MCP server with ToolHive
+                            status "Deploying Git MCP server with ToolHive..."
+                            docker exec toolhive thv run \
+                              --port 24161 \
+                              --target-port 24161 \
+                              --target-host 0.0.0.0 \
+                              --host 0.0.0.0 \
+                              --name git-mcp \
+                              --env GIT_DEFAULT_REPO=/workspace \
+                              --env GIT_ALLOW_NETWORK=true \
+                              mcp/git:latest || warning "⚠️ Git MCP server deployment failed, continuing..."
+                            
+                            # Wait for containers to start, then test if they are running
                             sleep 3
                             if docker ps | grep -q cogni-mcp; then
                                 status "Connecting MCP container to cogni-net network..."
@@ -201,11 +218,20 @@ EOF
                             else
                                 warning "⚠️ MCP container not running after deployment"
                             fi
+
+                            
+                            if docker ps | grep -q git-mcp; then
+                                status "Connecting Git MCP container to cogni-net network..."
+                                docker network connect deploy_cogni-net git-mcp 2>/dev/null || warning "⚠️ Git MCP network connection may have failed"
+                                status "✅ Git MCP server deployed and networked"
+                            else
+                                warning "⚠️ Git MCP container not running after deployment"
+                            fi
                         else
                             warning "⚠️ ToolHive container not running - MCP server not deployed"
                         fi
                     else
-                        warning "⚠️ Prefect flow configuration not found: flows/presence/prefect.yaml"
+                        warning "⚠️ Prefect flow configuration not found: flows/examples/prefect.yaml"
                     fi
                 else
                     warning "⚠️ Prefect CLI not available in host - work pool will be auto-created by worker"
@@ -245,10 +271,10 @@ EOF
                     prefect work-pool create --type docker cogni-pool 2>/dev/null || true
                     status "✅ Prefect work pool 'cogni-pool' configured"
                     
-                    # Deploy ritual_of_presence flow from YAML
+                   # Deploy MCP example flows from YAML
                     status "Deploying Prefect flows..."
-                    if [ -f "flows/presence/prefect.yaml" ]; then
-                        cd flows/presence
+                    if [ -f "flows/examples/prefect.yaml" ]; then
+                        cd flows/examples
                         prefect deploy --all || warning "⚠️ Prefect flow deployment failed, continuing..."
                         cd ../..  # Return to project root
                         status "✅ Prefect flows deployed"
@@ -257,16 +283,33 @@ EOF
                         status "Deploying MCP server with ToolHive..."
                         if docker ps | grep -q toolhive; then
                             docker exec toolhive thv run \
+                              --port 24160 \
+                              --target-port 24160 \
+                              --target-host 0.0.0.0 \
+                              --host 0.0.0.0 \
                               --name cogni-mcp \
                               --env DOLT_HOST=dolt-db \
                               --env DOLT_PORT=3306 \
                               --env DOLT_USER=root \
                               --env DOLT_ROOT_PASSWORD="${DOLT_ROOT_PASSWORD}" \
                               --env DOLT_DATABASE=cogni-dao-memory \
+                              --env DOLT_BRANCH=feat/dolt-mcp-tools \
+                              --env DOLT_NAMESPACE=legacy \
                               --env CHROMA_PATH=/app/chroma \
                               --env CHROMA_COLLECTION_NAME=cogni_mcp_collection \
-                              --env MCP_TRANSPORT=sse \
                               cogni-mcp:latest || warning "⚠️ MCP server deployment failed, continuing..."
+                            
+                            # Deploy Git MCP server with ToolHive
+                            status "Deploying Git MCP server with ToolHive..."
+                            docker exec toolhive thv run \
+                              --port 24161 \
+                              --target-port 24161 \
+                              --target-host 0.0.0.0 \
+                              --host 0.0.0.0 \
+                              --name git-mcp \
+                              --env GIT_DEFAULT_REPO=/workspace \
+                              --env GIT_ALLOW_NETWORK=true \
+                              mcp/git:latest || warning "⚠️ Git MCP server deployment failed, continuing..."
                             
                             # Wait for container to start, then connect to correct network
                             sleep 3
@@ -277,11 +320,19 @@ EOF
                             else
                                 warning "⚠️ MCP container not running after deployment"
                             fi
+
+                            if docker ps | grep -q git-mcp; then
+                                status "Connecting Git MCP container to cogni-net network..."
+                                docker network connect deploy_cogni-net git-mcp 2>/dev/null || warning "⚠️ Git MCP network connection may have failed"
+                                status "✅ Git MCP server deployed and networked"
+                            else
+                                warning "⚠️ Git MCP container not running after deployment"
+                            fi
                         else
                             warning "⚠️ ToolHive container not running - MCP server not deployed"
                         fi
                     else
-                        warning "⚠️ Prefect flow configuration not found: flows/presence/prefect.yaml"
+                        warning "⚠️ Prefect flow configuration not found: flows/examples/prefect.yaml"
                     fi
                 else
                     warning "⚠️ Prefect CLI not available in host - work pool will be auto-created by worker"

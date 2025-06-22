@@ -728,6 +728,15 @@ def dolt_status_tool(
         error_msg = f"Exception during dolt_status: {str(e)}"
         logger.error(error_msg, exc_info=True)
 
+        # Try to get current branch even in error case
+        try:
+            branch_result = memory_bank.dolt_writer._execute_query(
+                "SELECT active_branch() as branch"
+            )
+            current_branch = branch_result[0]["branch"] if branch_result else "unknown"
+        except Exception:
+            current_branch = "unknown"
+
         return DoltStatusOutput(
             success=False,
             is_clean=False,
@@ -740,7 +749,7 @@ def dolt_status_tool(
             conflicts=[],
             message=f"Status check failed: {str(e)}",
             error=error_msg,
-            active_branch="unknown",
+            active_branch=current_branch,
         )
 
 
@@ -912,10 +921,20 @@ def dolt_list_branches_tool(
     except Exception as e:
         error_msg = f"Exception during branch listing: {str(e)}"
         logger.error(error_msg, exc_info=True)
+
+        # Try to get current branch even in error case
+        try:
+            branch_result = memory_bank.dolt_reader._execute_query(
+                "SELECT active_branch() as branch"
+            )
+            current_branch = branch_result[0]["branch"] if branch_result else "unknown"
+        except Exception:
+            current_branch = "unknown"
+
         return DoltListBranchesOutput(
             success=False,
             branches=[],
-            active_branch="unknown",
+            active_branch=current_branch,
             message=f"Failed to list branches: {str(e)}",
             error=error_msg,
         )
@@ -1156,12 +1175,21 @@ def dolt_auto_commit_and_push_tool(
         operations_performed.append("status")
 
         if not status_result.success:
+            # Try to get current branch even when status fails
+            try:
+                branch_result = memory_bank.dolt_writer._execute_query(
+                    "SELECT active_branch() as branch"
+                )
+                current_branch = branch_result[0]["branch"] if branch_result else "unknown"
+            except Exception:
+                current_branch = "unknown"
+
             return DoltAutoCommitOutput(
                 success=False,
                 message=f"Status check failed: {status_result.error}",
                 operations_performed=operations_performed,
                 was_clean=False,
-                active_branch="unknown",
+                active_branch=current_branch,
                 error=status_result.error,
             )
 
@@ -1274,12 +1302,21 @@ def dolt_auto_commit_and_push_tool(
         error_msg = f"Exception during auto commit and push: {str(e)}"
         logger.error(error_msg, exc_info=True)
 
+        # Try to get current branch even in error case
+        try:
+            branch_result = memory_bank.dolt_writer._execute_query(
+                "SELECT active_branch() as branch"
+            )
+            current_branch = branch_result[0]["branch"] if branch_result else "unknown"
+        except Exception:
+            current_branch = "unknown"
+
         return DoltAutoCommitOutput(
             success=False,
             message=f"Auto commit and push failed: {str(e)}",
             operations_performed=operations_performed,
             was_clean=False,
-            active_branch="unknown",
+            active_branch=current_branch,
             error=error_msg,
         )
 

@@ -209,3 +209,46 @@ def render_cogni_education_leader_prompt(tool_specs: str, work_items_summary: st
     return manager.render_education_agent_prompt(
         "cogni_education_leader", tool_specs, work_items_summary
     )
+
+
+# Cleanup-specific convenience functions
+def render_test_artifact_detector_prompt(tool_specs: str, work_items_summary: str) -> str:
+    """Render test artifact detector agent prompt"""
+    manager = PromptTemplateManager()
+    return manager.render_agent_prompt("test_artifact_detector", tool_specs, work_items_summary)
+
+
+def render_namespace_migrator_prompt(tool_specs: str, work_items_summary: str) -> str:
+    """Render namespace migrator agent prompt"""
+    manager = PromptTemplateManager()
+    return manager.render_agent_prompt("namespace_migrator", tool_specs, work_items_summary)
+
+
+def render_branch_merger_prompt(tool_specs: str, work_items_summary: str) -> str:
+    """Render branch merger agent prompt"""
+    manager = PromptTemplateManager()
+    return manager.render_agent_prompt("branch_merger", tool_specs, work_items_summary)
+
+
+def render_conflict_detector_prompt(tool_specs: str, work_items_summary: str) -> str:
+    """Render conflict detector agent prompt"""
+    manager = PromptTemplateManager()
+    return manager.render_agent_prompt("conflict_detector", tool_specs, work_items_summary)
+
+
+def render_dolt_outro_commit_generator_prompt(
+    branch_name: str, status_data: str, diff_data: str, flow_context: str
+) -> str:
+    """Render Dolt outro commit message generator prompt"""
+    manager = PromptTemplateManager()
+
+    # Use render_agent_prompt with the outro-specific variables
+    return manager.render_agent_prompt(
+        "dolt_outro_commit_generator",
+        tool_specs="",  # No tools needed for commit generation
+        work_items_summary="",  # Not needed for commit generation
+        branch_name=branch_name,
+        status_data=status_data,
+        diff_data=diff_data,
+        flow_context=flow_context,
+    )

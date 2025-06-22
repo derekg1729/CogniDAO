@@ -91,6 +91,10 @@ def mock_memory_bank():
         mock_reader.close_persistent_connection = mock_reader_close_persistent
         mock_writer.close_persistent_connection = mock_writer_close_persistent
 
+        # Mock _execute_query to return proper string values for branch queries
+        mock_reader._execute_query.return_value = [{"branch": "main"}]
+        mock_writer._execute_query.return_value = [{"branch": "main"}]
+
         # Create mock config
         mock_config = DoltConnectionConfig(
             host="localhost", port=3306, user="root", password="", database="test_db"

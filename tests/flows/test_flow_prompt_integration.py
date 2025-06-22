@@ -11,7 +11,7 @@ from pathlib import Path
 
 # Import the flow functions that use templates
 try:
-    from flows.presence.simple_working_flow import main as simple_flow_main  # noqa: F401
+    from flows.examples.simple_working_flow import main as simple_flow_main  # noqa: F401
     from flows.presence.ai_education_team_flow import main as education_flow_main  # noqa: F401
 
     FLOWS_AVAILABLE = True

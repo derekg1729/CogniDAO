@@ -19,23 +19,6 @@ pull:
 
 # the deployments section allows you to provide configuration for deploying flows
 deployments:
-- name: simple-working-mcp
-  version:
-  tags:
-  - cogni
-  - autogen
-  - mcp
-  - stdio
-  - simple
-  concurrency_limit:
-  description: 'Ultra-Simple Working MCP: 3 agents read and summarize active work items using proven stdio transport'
-  entrypoint: simple_working_flow.py:simple_working_mcp_flow
-  parameters: {}
-  work_pool:
-    name: cogni-pool
-    work_queue_name:
-    job_variables: {}
-  schedules: []
 
 - name: ai-education-team
   version:
@@ -58,3 +41,39 @@ deployments:
   - cron: "0 * * * *"
     timezone: "UTC"
     active: true
+
+- name: cleanup-cogni
+  version:
+  tags:
+  - cogni
+  - cleanup
+  - namespace-migration
+  - maintenance
+  - system-health
+  concurrency_limit:
+  description: 'Cleanup Cogni Flow: 2 agents identify test artifacts for deletion and migrate legacy blocks to proper namespaces for system maintenance'
+  entrypoint: cleanup_cogni_flow.py:cleanup_team_flow
+  parameters: {}
+  work_pool:
+    name: cogni-pool
+    work_queue_name:
+    job_variables: {}
+  schedules: []  # Manual trigger only for safety
+
+- name: dolt-staging
+  version:
+  tags:
+  - cogni
+  - dolt
+  - staging
+  - branch-management
+  - merge-operations
+  concurrency_limit:
+  description: 'Dolt Staging Crew: 2 agents analyze branches for conflicts and merge clean feature branches into staging for integration testing'
+  entrypoint: dolt_staging_flow.py:dolt_staging_crew_flow
+  parameters: {}
+  work_pool:
+    name: cogni-pool
+    work_queue_name:
+    job_variables: {}
+  schedules: []  # Manual trigger for controlled staging updates
