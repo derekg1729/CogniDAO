@@ -37,7 +37,7 @@ from autogen_agentchat.ui import Console  # noqa: E402
 from autogen_ext.models.openai import OpenAIChatCompletionClient  # noqa: E402
 
 # Shared tasks and new SSE pattern imports
-from utils.mcp_setup import configure_existing_mcp, MCPConnectionError  # noqa: E402
+from utils.cogni_mcp import configure_cogni_mcp, MCPConnectionError  # noqa: E402
 from utils.cogni_memory_mcp_outro import automated_dolt_outro  # noqa: E402
 
 # Prompt template integration
@@ -205,7 +205,7 @@ async def ai_education_team_flow() -> Dict[str, Any]:
         }
 
         # Step 2: Setup SSE MCP connection with branch/namespace switching
-        async with configure_existing_mcp(sse_url, branch=branch, namespace=namespace) as (
+        async with configure_cogni_mcp(sse_url=sse_url, branch=branch, namespace=namespace) as (
             session,
             sdk_tools,
         ):

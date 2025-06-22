@@ -33,16 +33,12 @@ class MCPConnectionError(Exception):
 
 
 @asynccontextmanager
-async def configure_existing_mcp(
-    sse_url: str, *, branch: str | None = None, namespace: str | None = None, timeout: int = 30
-) -> Tuple[ClientSession, List]:
+async def configure_existing_mcp(sse_url: str, timeout: int = 30) -> Tuple[ClientSession, List]:
     """
     Yield `(session, tools_list)` for the MCP server exposed by ToolHive.
 
     Args:
         sse_url: SSE URL for the MCP server (required, e.g., "http://toolhive:24160/sse")
-        branch: Optional Dolt branch to switch to after connection (e.g., "ai-education-team")
-        namespace: Optional namespace to use (note: handled via env vars at server startup)
         timeout: Connection timeout in seconds (default: 30)
 
     Yields:
@@ -93,24 +89,6 @@ async def configure_existing_mcp(
                 tools_response = await session.list_tools()
                 tools = tools_response.tools
                 logger.info(f"📊 Found {len(tools)} tools")
-
-                # 👉 optional branch / namespace switch AFTER session.init
-                if branch:
-                    import json
-
-                    logger.info("🌿 Switching Dolt branch to %s", branch)
-                    await session.call_tool(
-                        "DoltCheckout", {"input": json.dumps({"branch_name": branch})}
-                    )
-                if namespace:
-                    import json
-
-                    logger.info("📂 Switching namespace to %s", namespace)
-                    # Note: Namespace switching is handled via environment variables in the MCP server
-                    # We'll log this for now but the actual switching happens at server startup
-                    logger.info(
-                        "📋 Namespace switching noted (handled via env vars at server startup)"
-                    )
 
                 # Log first few tools for debugging
                 for i, tool in enumerate(tools[:3]):
