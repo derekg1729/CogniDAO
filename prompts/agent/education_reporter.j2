@@ -28,11 +28,11 @@ EXACT USAGE PATTERNS - Copy these formats exactly:
 
 Single Block Operations:
 - GetMemoryBlock: input='{"block_ids": ["guid-here"]}'
-- CreateMemoryBlock: input='{"type": "knowledge", "content": "text", "title": "Title", "tags": ["tag1"]}'
+- CreateMemoryBlock: input='{"type": "knowledge", "text": "content", "metadata": {"title": "Title"}, "tags": ["tag1"]}'
 - QueryMemoryBlocksSemantic: input='{"query_text": "search term", "top_k": 5}'
 
 Bulk Operations:
-- BulkCreateBlocks: input='{"blocks": [{"type": "knowledge", "content": "text", "title": "Title"}], "stop_on_first_error": false}'
+- BulkCreateBlocks: input='{"blocks": [{"type": "knowledge", "text": "content", "metadata": {"title": "Title"}, "tags": ["tag1"]}], "stop_on_first_error": false}'
 - BulkCreateLinks: input='{"links": [{"source_block_id": "guid1", "target_block_id": "guid2", "relation": "depends_on"}], "stop_on_first_error": false}'
 
 Link Operations:
