@@ -3,8 +3,7 @@
 Cleanup Cogni Flow for Prefect Container
 ========================================
 
-Cleanup-focused Prefect flow that uses our PROVEN working MCP integration.
-Based on simple_working_flow.py that achieved 21/21 tools discovery.
+Cleanup-focused Prefect flow
 
 Goal: 2 agents focused on system cleanup - identify test artifacts for deletion and migrate legacy blocks to proper namespaces.
 Enhanced with bulk operations for efficient cleanup.
@@ -36,13 +35,13 @@ from autogen_agentchat.conditions import MaxMessageTermination  # noqa: E402
 from autogen_agentchat.ui import Console  # noqa: E402
 from autogen_ext.models.openai import OpenAIChatCompletionClient  # noqa: E402
 
-# Shared tasks - import the functions we'll use
-from .shared_tasks import setup_cogni_mcp_connection, read_work_items_context  # noqa: E402
+# New SSE pattern imports
+from utils.setup_connection_to_cogni_mcp import configure_cogni_mcp, MCPConnectionError  # noqa: E402
+from utils.cogni_memory_mcp_outro import automated_dolt_outro  # noqa: E402
 
 # Prompt template integration
 from infra_core.prompt_templates import render_test_artifact_detector_prompt  # noqa: E402
 from infra_core.prompt_templates import render_namespace_migrator_prompt  # noqa: E402
-from infra_core.prompt_templates import render_dolt_commit_agent_prompt  # noqa: E402
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -52,30 +51,22 @@ MCP_DOLT_BRANCH = "feat/cleanup"
 MCP_DOLT_NAMESPACE = "legacy"
 
 
-# Duplicate tasks removed - now using shared_tasks.py:
-# - read_current_work_items -> read_work_items_context
-# - setup_simple_mcp_connection -> setup_cogni_mcp_connection
-
-
-@task(name="run_cleanup_team_with_outro")
+@task(name="run_cleanup_team_with_outro", cache_policy=None)
 async def run_cleanup_team_with_outro(
-    mcp_setup: Dict[str, Any], work_items_context: Dict[str, Any]
+    autogen_tools: list, tool_specs_text: str, session, work_items_context: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Run 2 cleanup agents to identify test artifacts and migrate legacy blocks - All in one simple task using proven working pattern"""
     logger = get_run_logger()
 
-    if not mcp_setup.get("success"):
-        return {"success": False, "error": "MCP setup failed"}
+    if not autogen_tools:
+        return {"success": False, "error": "No MCP tools available"}
 
     try:
         # Setup OpenAI client - Helicone observability handled automatically by sitecustomize.py
         model_client = OpenAIChatCompletionClient(model="gpt-4o")
         logger.info("✅ OpenAI client configured")
 
-        cogni_tools = mcp_setup["tools"]
-        tool_specs_text = mcp_setup.get(
-            "tool_specs", "## Available MCP Tools: (tool specs not available)"
-        )
+        cogni_tools = autogen_tools
 
         # Get work items context for agent prompts
         work_items_summary = work_items_context.get(
@@ -150,37 +141,14 @@ Work systematically and report your progress!"""
 
         logger.info("✅ Cleanup team analysis completed successfully!")
 
-        # === OUTRO ROUTINE: Dolt Operations (Simplified) ===
-        logger.info("🔄 Starting outro routine: Systematic Dolt operations...")
-
-        # Create dedicated Dolt commit agent using the same MCP connection
-        # Note: Using the same model_client instance ensures Helicone observability for all agents
-        dolt_commit_agent = AssistantAgent(
-            name="dolt_commit_agent",
-            model_client=model_client,
-            tools=cogni_tools,
-            system_message=render_dolt_commit_agent_prompt(tool_specs_text),
-        )
-
-        # Create simple team for Dolt operations
-        dolt_team = RoundRobinGroupChat(
-            participants=[dolt_commit_agent],
-            termination_condition=MaxMessageTermination(max_messages=5),
-        )
-
-        logger.info("🚀 Starting Dolt commit operations...")
-
-        # Run Dolt operations
-        await Console(dolt_team.run_stream(task="Begin the dolt commit and push process."))
-
-        logger.info("✅ Outro routine completed successfully!")
+        logger.info("📝 Calling shared automated_dolt_outro helper…")
+        outro = await automated_dolt_outro(session, flow_context="Cleanup flow")
 
         return {
             "success": True,
             "agents_count": len(agents),
             "tools_count": len(cogni_tools),
-            "work_items_count": work_items_context.get("count", 0),
-            "outro_success": True,
+            "outro": outro,
             "timestamp": datetime.now().isoformat(),
         }
 
@@ -189,89 +157,74 @@ Work systematically and report your progress!"""
         return {"success": False, "error": str(e)}
 
 
-# Outro routine now integrated into the main task above for simplicity
-
-
 @flow(name="cleanup_team_flow", log_prints=True)
 async def cleanup_team_flow() -> Dict[str, Any]:
-    """
-    Cleanup Team Flow - System Maintenance and Organization
-
-    Uses proven working AutoGen pattern to run 2 cleanup-focused agents + Dolt operations:
-    1. Read current work items context using DoltMySQLReader
-    2. Setup MCP connection with proven stdio transport
-    3. Run unified cleanup team workflow that includes:
-       - **Test Artifact Detector** identifying and removing test artifacts
-       - **Namespace Migrator** moving legacy blocks to proper namespaces
-       - **Integrated Dolt operations** for automatic persistence
-
-    All using the PROVEN working import pattern with system cleanup focus.
-    """
+    """Cleanup flow – now using SSE MCP + shared outro"""
     logger = get_run_logger()
-    logger.info("🎯 Starting Cleanup Team Flow for System Maintenance")
-    logger.info("🔧 Using PROVEN working stdio MCP transport + System Cleanup Operations")
+    logger.info("🚀 Starting Cleanup flow (SSE edition)")
 
-    # Get branch and namespace configuration for this flow run
-
-    logger.info(
-        f"🔧 FLOW CONFIGURATION: Working on Branch='{MCP_DOLT_BRANCH}', Namespace='{MCP_DOLT_NAMESPACE}'"
-    )
-    logger.info(
-        f"🔧 Environment variables: MCP_DOLT_BRANCH={os.environ.get('MCP_DOLT_BRANCH', 'NOT_SET')}, MCP_DOLT_NAMESPACE={os.environ.get('MCP_DOLT_NAMESPACE', 'NOT_SET')}"
-    )
+    # Pick branch / namespace from env *or* fallback constants
+    branch = os.getenv("MCP_DOLT_BRANCH", MCP_DOLT_BRANCH)
+    namespace = os.getenv("MCP_DOLT_NAMESPACE", MCP_DOLT_NAMESPACE)
+    sse_url = os.getenv("COGNI_MCP_SSE_URL", "http://toolhive:24160/sse")
 
     try:
-        # Step 1: Read current work items for context
-        work_items_context = await read_work_items_context(branch=MCP_DOLT_BRANCH)
-
-        if work_items_context.get("success"):
-            logger.info(f"✅ Work items context loaded: {work_items_context.get('count', 0)} items")
-        else:
-            logger.warning(
-                f"⚠️ Work items context failed: {work_items_context.get('error', 'Unknown error')}"
-            )
-        # Step 2: Setup MCP connection with explicit branch and namespace
-        mcp_setup = await setup_cogni_mcp_connection(
-            branch=MCP_DOLT_BRANCH, namespace=MCP_DOLT_NAMESPACE
-        )
-
-        if not mcp_setup.get("success"):
-            logger.error(f"❌ MCP setup failed: {mcp_setup.get('error')}")
-            return {"status": "failed", "error": mcp_setup.get("error")}
-
-        logger.info(f"✅ MCP setup successful: {mcp_setup['tools_count']} tools available")
-
-        # Step 3: Run cleanup team with integrated outro routine
-        summary_result = await run_cleanup_team_with_outro(mcp_setup, work_items_context)
-
-        if not summary_result.get("success"):
-            logger.error(f"❌ Agent summary with outro failed: {summary_result.get('error')}")
-            return {"status": "failed", "error": summary_result.get("error")}
-
-        logger.info(
-            "🤖 Cleanup Team and Cogni Leader have provided strategic insights and Dolt operations completed!"
-        )
-
-        # Final success
-        logger.info(
-            "🎉 FLOW SUCCESS: Cleanup Team flow with Knowledge Graph integration completed!"
-        )
-        return {
-            "status": "success",
-            "tools_count": summary_result.get("tools_count", 0),
-            "agents_count": summary_result.get("agents_count", 0),
-            "work_items_count": summary_result.get("work_items_count", 0),
-            "outro_success": summary_result.get("outro_success", False),
-            "timestamp": datetime.now().isoformat(),
+        # Step 1: Skip work items reading for now (legacy pattern causing MySQL connection issues)
+        work_items_context = {
+            "success": True,
+            "work_items_summary": "Work items context skipped for SSE testing",
         }
 
+        # Step 2: Setup SSE MCP connection with branch/namespace switching
+        async with configure_cogni_mcp(sse_url=sse_url, branch=branch, namespace=namespace) as (
+            session,
+            sdk_tools,
+        ):
+            logger.info("🔗 MCP attached (%d tools) on %s/%s", len(sdk_tools), branch, namespace)
+
+            # --- build AutoGen adapters exactly like autogen_work_reader_flow ---
+            from autogen_ext.tools.mcp import SseMcpToolAdapter, SseServerParams
+
+            autogen_tools = [
+                SseMcpToolAdapter(SseServerParams(url=sse_url), t, session) for t in sdk_tools
+            ]
+
+            tool_specs_text = "\n".join(
+                [f"• {t.name}: {t.description or 'No description'}" for t in sdk_tools[:12]]
+            )
+
+            # Step 3: Run cleanup team with integrated outro routine
+            summary_result = await run_cleanup_team_with_outro(
+                autogen_tools, tool_specs_text, session, work_items_context
+            )
+
+            if not summary_result.get("success"):
+                logger.error(f"❌ Agent summary with outro failed: {summary_result.get('error')}")
+                return {"status": "failed", "error": summary_result.get("error")}
+
+            logger.info(
+                "🤖 Cleanup Team has provided strategic insights and Dolt operations completed!"
+            )
+
+            # Final success
+            logger.info(
+                "🎉 FLOW SUCCESS: Cleanup Team flow with Knowledge Graph integration completed!"
+            )
+            return {
+                "status": "success",
+                "tools_count": len(sdk_tools),
+                "agents_count": summary_result.get("agents_count", 0),
+                "work_items_count": work_items_context.get("count", 0),
+                "outro": summary_result.get("outro", {}),
+                "timestamp": datetime.now().isoformat(),
+            }
+
+    except MCPConnectionError as e:
+        logger.error(f"❌ MCP connection failed: {e}")
+        return {"status": "failed", "error": f"MCP connection failed: {e}"}
     except Exception as e:
         logger.error(f"❌ Enhanced flow failed: {e}")
         return {"status": "failed", "error": str(e)}
-    finally:
-        # Ensure the MCP client is disconnected at the end of the flow
-        if "mcp_setup" in locals() and mcp_setup.get("client"):
-            await mcp_setup["client"].disconnect()
 
 
 if __name__ == "__main__":
