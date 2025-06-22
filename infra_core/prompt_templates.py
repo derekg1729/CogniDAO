@@ -234,3 +234,21 @@ def render_conflict_detector_prompt(tool_specs: str, work_items_summary: str) ->
     """Render conflict detector agent prompt"""
     manager = PromptTemplateManager()
     return manager.render_agent_prompt("conflict_detector", tool_specs, work_items_summary)
+
+
+def render_dolt_outro_commit_generator_prompt(
+    branch_name: str, status_data: str, diff_data: str, flow_context: str
+) -> str:
+    """Render Dolt outro commit message generator prompt"""
+    manager = PromptTemplateManager()
+
+    # Use render_agent_prompt with the outro-specific variables
+    return manager.render_agent_prompt(
+        "dolt_outro_commit_generator",
+        tool_specs="",  # No tools needed for commit generation
+        work_items_summary="",  # Not needed for commit generation
+        branch_name=branch_name,
+        status_data=status_data,
+        diff_data=diff_data,
+        flow_context=flow_context,
+    )

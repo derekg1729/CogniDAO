@@ -4,6 +4,7 @@ from typing import Dict
 
 from autogen_core.models import UserMessage
 from autogen_ext.models.openai import OpenAIChatCompletionClient
+from infra_core.prompt_templates import render_dolt_outro_commit_generator_prompt
 
 # Use standard Python logger as fallback, but prefer Prefect logger when available
 logger = logging.getLogger(__name__)
@@ -63,21 +64,17 @@ async def automated_dolt_outro(session, flow_context: str = "") -> Dict[str, str
             diff_content = "No diff available"
             log.warning("   No diff content available")
 
-        # Create prompt for GPT-4o-mini to generate commit message
-        prompt = f"""Based on the following Dolt data, write a concise commit message (≤2 sentences).
+        # Create prompt using Jinja template for better commit message generation
+        branch_name = status_data.get("active_branch", status_data.get("current_branch", "unknown"))
 
-## Branch
-`{status_data.get("current_branch", "unknown")}`
+        prompt = render_dolt_outro_commit_generator_prompt(
+            branch_name=branch_name,
+            status_data=json.dumps(status_data, indent=2),
+            diff_data=diff_content,
+            flow_context=flow_context,
+        )
 
-## Status
-{status_data}
-
-## Diff (staged)
-{diff_content}
-
-Context: {flow_context}"""
-
-        log.info("🤖 Generating AI commit message...")
+        log.info("🤖 Generating AI commit message using Jinja template...")
         log.info(f"   Prompt length: {len(prompt)} chars")
 
         # Use AutoGen OpenAI client to generate commit message
