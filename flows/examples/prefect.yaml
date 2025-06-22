@@ -94,4 +94,24 @@ deployments:
     name: cogni-pool
     work_queue_name:
     job_variables: {}
+  schedules: []
+
+- name: git-hello-world
+  version:
+  tags:
+  - cogni
+  - git
+  - mcp
+  - hello-world
+  - version-control
+  - demo
+  concurrency_limit:
+  description: 'Git Hello World: MCP-based Git operations demo connecting to Git MCP server on port 24161 for basic repository operations'
+  entrypoint: git_hello_world.py:git_hello_world_flow
+  parameters: {}
+  work_pool:
+    name: cogni-pool
+    work_queue_name:
+    job_variables:
+      GIT_MCP_SSE_URL: "http://toolhive:24161/sse"
   schedules: [] 

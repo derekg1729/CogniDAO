@@ -197,7 +197,19 @@ EOF
                               --env CHROMA_COLLECTION_NAME=cogni_mcp_collection \
                               cogni-mcp:latest || warning "⚠️ MCP server deployment failed, continuing..."
                             
-                            # Wait for container to start, then connect to correct network
+                            # Deploy Git MCP server with ToolHive
+                            status "Deploying Git MCP server with ToolHive..."
+                            docker exec toolhive thv run \
+                              --port 24161 \
+                              --target-port 24161 \
+                              --target-host 0.0.0.0 \
+                              --host 0.0.0.0 \
+                              --name git-mcp \
+                              --env GIT_DEFAULT_REPO=/workspace \
+                              --env GIT_ALLOW_NETWORK=true \
+                              mcp/git:latest || warning "⚠️ Git MCP server deployment failed, continuing..."
+                            
+                            # Wait for containers to start, then test if they are running
                             sleep 3
                             if docker ps | grep -q cogni-mcp; then
                                 status "Connecting MCP container to cogni-net network..."
@@ -205,6 +217,15 @@ EOF
                                 status "✅ MCP server deployed and networked"
                             else
                                 warning "⚠️ MCP container not running after deployment"
+                            fi
+
+                            
+                            if docker ps | grep -q git-mcp; then
+                                status "Connecting Git MCP container to cogni-net network..."
+                                docker network connect deploy_cogni-net git-mcp 2>/dev/null || warning "⚠️ Git MCP network connection may have failed"
+                                status "✅ Git MCP server deployed and networked"
+                            else
+                                warning "⚠️ Git MCP container not running after deployment"
                             fi
                         else
                             warning "⚠️ ToolHive container not running - MCP server not deployed"
@@ -278,6 +299,18 @@ EOF
                               --env CHROMA_COLLECTION_NAME=cogni_mcp_collection \
                               cogni-mcp:latest || warning "⚠️ MCP server deployment failed, continuing..."
                             
+                            # Deploy Git MCP server with ToolHive
+                            status "Deploying Git MCP server with ToolHive..."
+                            docker exec toolhive thv run \
+                              --port 24161 \
+                              --target-port 24161 \
+                              --target-host 0.0.0.0 \
+                              --host 0.0.0.0 \
+                              --name git-mcp \
+                              --env GIT_DEFAULT_REPO=/workspace \
+                              --env GIT_ALLOW_NETWORK=true \
+                              mcp/git:latest || warning "⚠️ Git MCP server deployment failed, continuing..."
+                            
                             # Wait for container to start, then connect to correct network
                             sleep 3
                             if docker ps | grep -q cogni-mcp; then
@@ -286,6 +319,14 @@ EOF
                                 status "✅ MCP server deployed and networked"
                             else
                                 warning "⚠️ MCP container not running after deployment"
+                            fi
+
+                            if docker ps | grep -q git-mcp; then
+                                status "Connecting Git MCP container to cogni-net network..."
+                                docker network connect deploy_cogni-net git-mcp 2>/dev/null || warning "⚠️ Git MCP network connection may have failed"
+                                status "✅ Git MCP server deployed and networked"
+                            else
+                                warning "⚠️ Git MCP container not running after deployment"
                             fi
                         else
                             warning "⚠️ ToolHive container not running - MCP server not deployed"
