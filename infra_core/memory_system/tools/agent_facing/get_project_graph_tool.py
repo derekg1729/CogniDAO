@@ -1,6 +1,13 @@
 """
 GetProjectGraphTool: Hierarchical project data retrieval tool.
 
+⚠️ **DEPRECATED - DO NOT USE** ⚠️
+This tool is broken and incorrectly reports zero links for projects that have many links.
+The link traversal logic is fundamentally flawed and needs a complete rewrite.
+
+TODO: Complete rewrite with proper link traversal or remove entirely
+TODO: Replace with NetworkX backend graph implementation
+
 This tool solves the multiple-query problem by fetching a project (or any block)
 with its complete linked hierarchy in one shot, returning nested JSON structure
 with children, parents, and dependency relations.
@@ -14,13 +21,12 @@ Key capabilities:
 TODO replace with NetworkX backend graph implementaion
 """
 
-from typing import Optional, List, Dict, Set
+from typing import Optional, List, Dict
 from datetime import datetime
 from pydantic import BaseModel, Field
 import logging
-from collections import defaultdict, deque
+from collections import defaultdict
 
-from ...schemas.memory_block import MemoryBlock
 from ...structured_memory_bank import StructuredMemoryBank
 from ..base.cogni_tool import CogniTool
 
@@ -96,49 +102,76 @@ def get_project_graph_core(
     input_data: GetProjectGraphInput, memory_bank: StructuredMemoryBank
 ) -> GetProjectGraphOutput:
     """
-    Retrieve a project with its complete linked hierarchy in one operation.
+    ⚠️ **DEPRECATED - BROKEN IMPLEMENTATION** ⚠️
 
-    This function uses breadth-first traversal with cycle detection to build
-    a comprehensive project graph including children, dependencies, and metadata.
+    This implementation is fundamentally flawed and incorrectly reports zero links
+    for projects that have many links. DO NOT USE.
 
-    Args:
-        input_data: Input parameters for the graph retrieval
-        memory_bank: StructuredMemoryBank instance for querying
-
-    Returns:
-        GetProjectGraphOutput containing the project graph and statistics
+    Returns an error immediately to prevent incorrect results.
     """
+    logger.error("❌ GetProjectGraph tool is deprecated and broken - refusing to execute")
+
+    return GetProjectGraphOutput(
+        success=False,
+        total_nodes=0,
+        max_depth_reached=0,
+        cycles_detected=[],
+        active_branch=memory_bank.branch,
+        message="Tool is deprecated and broken",
+        error="GetProjectGraph tool is deprecated due to broken link traversal logic. Use GetLinkedBlocks or direct link queries instead.",
+        timestamp=datetime.now(),
+    )
+
+
+# COMMENTED OUT - BROKEN IMPLEMENTATION
+"""
+def get_project_graph_core(
+    input_data: GetProjectGraphInput, memory_bank: StructuredMemoryBank
+) -> GetProjectGraphOutput:
+    \"\"\"
+    Core implementation for retrieving project graphs with hierarchical relationships.
+
+    Builds a complete project graph by traversing block relationships through
+    the block_links table, respecting depth limits and relationship filters.
+    \"\"\"
+    logger.info(
+        f"🔍 Building project graph for {input_data.root_block_id}, "
+        f"max_depth={input_data.max_depth}, "
+        f"include_deps={input_data.include_dependencies}, "
+        f"include_reverse_deps={input_data.include_reverse_dependencies}"
+    )
+
     try:
-        logger.info(f"🏗️ Building project graph for block {input_data.root_block_id}")
-
-        # Track visited nodes to prevent cycles
-        visited_nodes: Set[str] = set()
-        cycles_detected: List[str] = []
-
-        # Cache for fetched blocks to avoid duplicate queries
-        block_cache: Dict[str, MemoryBlock] = {}
-
-        # Queue for breadth-first traversal: (block_id, depth, parent_id, relationship_type)
-        traversal_queue = deque([(input_data.root_block_id, 0, None, None)])
-
-        # Build the graph structure
+        # Initialize tracking structures
         graph_nodes: Dict[str, GraphNode] = {}
+        visited: Set[str] = set()
+        cycles_detected: List[str] = []
         max_depth_reached = 0
 
-        while traversal_queue and max_depth_reached < input_data.max_depth:
+        # BFS traversal queue: (block_id, depth, parent_id, relationship_type)
+        traversal_queue: Deque[Tuple[str, int, Optional[str], Optional[str]]] = deque()
+        traversal_queue.append((input_data.root_block_id, 0, None, None))
+
+        # Block cache to avoid repeated database calls
+        block_cache: Dict[str, MemoryBlock] = {}
+
+        # BFS traversal to discover all connected blocks
+        while traversal_queue:
             current_id, depth, parent_id, rel_type = traversal_queue.popleft()
 
-            # Skip if already visited (cycle detection)
-            if current_id in visited_nodes:
-                if current_id not in cycles_detected:
-                    cycles_detected.append(current_id)
-                    logger.warning(f"Cycle detected at block {current_id}, skipping")
-                continue
-
-            visited_nodes.add(current_id)
+            # Update max depth tracking
             max_depth_reached = max(max_depth_reached, depth)
 
-            # Fetch the block if not in cache
+            # Skip if already visited (cycle detection)
+            if current_id in visited:
+                if current_id not in cycles_detected:
+                    cycles_detected.append(current_id)
+                    logger.debug(f"Cycle detected at block {current_id}, depth {depth}")
+                continue
+
+            visited.add(current_id)
+
+            # Fetch block data if not cached
             if current_id not in block_cache:
                 block_result = memory_bank.get_memory_block(current_id)
                 if not block_result:
@@ -172,40 +205,49 @@ def get_project_graph_core(
 
             # If we haven't reached max depth, find children and dependencies
             if depth < input_data.max_depth:
-                # Get all links involving this block
-                links_query = """
-                SELECT source_block_id, target_block_id, relation
-                FROM block_links 
-                WHERE (source_block_id = %s OR target_block_id = %s)
-                """
-
-                query_params = [current_id, current_id]
-
-                if input_data.relation_filters:
-                    placeholders = ", ".join(["%s"] * len(input_data.relation_filters))
-                    links_query += f" AND relation IN ({placeholders})"
-                    query_params.extend(input_data.relation_filters)
-
-                links = memory_bank.dolt_reader._execute_query(links_query, tuple(query_params))
+                # Get outgoing links using dolt_reader
+                forward_links = memory_bank.dolt_reader.read_forward_links(
+                    block_id=current_id,
+                    relation=None,  # We'll filter by relation_filters later if needed
+                    branch=memory_bank.branch,
+                )
 
                 # Process outgoing links (children and dependencies)
-                for link in links:
-                    if link["source_block_id"] == current_id:
-                        target_id = link["target_block_id"]
-                        relation = link["relation"]
+                for link in forward_links:
+                    # Apply relation filter if specified
+                    if (
+                        input_data.relation_filters
+                        and link["relation"] not in input_data.relation_filters
+                    ):
+                        continue
 
-                        # Add to traversal queue
-                        traversal_queue.append((target_id, depth + 1, current_id, relation))
+                    target_id = link["to_block_id"]
+                    relation = link["relation"]
+
+                    # Add to traversal queue
+                    traversal_queue.append((target_id, depth + 1, current_id, relation))
 
                 # Process incoming links if reverse dependencies requested
                 if input_data.include_reverse_dependencies:
-                    for link in links:
-                        if link["target_block_id"] == current_id:
-                            source_id = link["source_block_id"]
-                            relation = f"reverse_{link['relation']}"
+                    backlinks = memory_bank.dolt_reader.read_backlinks(
+                        block_id=current_id,
+                        relation=None,  # We'll filter by relation_filters later if needed
+                        branch=memory_bank.branch,
+                    )
+                    
+                    for link in backlinks:
+                        # Apply relation filter if specified
+                        if (
+                            input_data.relation_filters
+                            and link["relation"] not in input_data.relation_filters
+                        ):
+                            continue
 
-                            # Add to traversal queue
-                            traversal_queue.append((source_id, depth + 1, current_id, relation))
+                        source_id = link["from_block_id"]
+                        relation = f"reverse_{link['relation']}"
+
+                        # Add to traversal queue
+                        traversal_queue.append((source_id, depth + 1, current_id, relation))
 
         # Build the hierarchical structure
         root_node = graph_nodes.get(input_data.root_block_id)
@@ -220,53 +262,47 @@ def get_project_graph_core(
                 timestamp=datetime.now(),
             )
 
-        # CRITICAL FIX: Build proper parent-child hierarchy from traversed links
-        # Get all links between our discovered nodes for hierarchy building
+        # Build proper parent-child hierarchy from all discovered nodes
         if len(graph_nodes) > 1:
-            node_ids = list(graph_nodes.keys())
-            placeholders = ", ".join(["%s"] * len(node_ids))
-            hierarchy_query = f"""
-            SELECT source_block_id, target_block_id, relation
-            FROM block_links 
-            WHERE source_block_id IN ({placeholders}) 
-               AND target_block_id IN ({placeholders})
-            """
+            # Get all links between our discovered nodes for hierarchy building
+            for node_id in graph_nodes.keys():
+                # Get forward links for this node
+                forward_links = memory_bank.dolt_reader.read_forward_links(
+                    block_id=node_id,
+                    relation=None,
+                    branch=memory_bank.branch,
+                )
 
-            # Double the params for both IN clauses
-            hierarchy_params = node_ids + node_ids
-            hierarchy_links = memory_bank.dolt_reader._execute_query(
-                hierarchy_query, tuple(hierarchy_params)
-            )
+                # Process links between discovered nodes only
+                for link in forward_links:
+                    source_id = link["from_block_id"]
+                    target_id = link["to_block_id"]
+                    relation = link["relation"]
 
-            # Build parent-child relationships
-            parent_child_relations = ["child_of", "subtask_of", "epic_of", "part_of"]
-            dependency_relations = ["depends_on", "blocks", "requires"]
+                    source_node = graph_nodes.get(source_id)
+                    target_node = graph_nodes.get(target_id)
 
-            for link in hierarchy_links:
-                source_id = link["source_block_id"]
-                target_id = link["target_block_id"]
-                relation = link["relation"]
+                    # Only process links between nodes we've discovered
+                    if not source_node or not target_node:
+                        continue
 
-                source_node = graph_nodes.get(source_id)
-                target_node = graph_nodes.get(target_id)
+                    # Handle parent-child relationships
+                    parent_child_relations = ["child_of", "subtask_of", "epic_of", "part_of"]
+                    dependency_relations = ["depends_on", "blocks", "requires"]
 
-                if not source_node or not target_node:
-                    continue
+                    if relation in parent_child_relations:
+                        # source is child of target
+                        if source_node not in target_node.children:
+                            target_node.children.append(source_node)
 
-                # Handle parent-child relationships
-                if relation in parent_child_relations:
-                    # source is child of target
-                    if target_node not in source_node.children:
-                        target_node.children.append(source_node)
-
-                # Handle dependencies
-                elif relation in dependency_relations:
-                    # source depends on target
-                    if target_node not in source_node.dependencies:
-                        source_node.dependencies.append(target_node)
-                    if input_data.include_reverse_dependencies:
-                        if source_node not in target_node.dependents:
-                            target_node.dependents.append(source_node)
+                    # Handle dependencies
+                    elif relation in dependency_relations and input_data.include_dependencies:
+                        # source depends on target
+                        if target_node not in source_node.dependencies:
+                            source_node.dependencies.append(target_node)
+                        if input_data.include_reverse_dependencies:
+                            if source_node not in target_node.dependents:
+                                target_node.dependents.append(source_node)
 
         # Sort children by priority and depth for consistent ordering
         for node in graph_nodes.values():
@@ -313,6 +349,7 @@ def get_project_graph_core(
             error=error_msg,
             timestamp=datetime.now(),
         )
+"""
 
 
 def _generate_project_summary(root_node: GraphNode, all_nodes: Dict[str, GraphNode]) -> str:
@@ -332,7 +369,7 @@ def _generate_project_summary(root_node: GraphNode, all_nodes: Dict[str, GraphNo
 # Create the tool instance
 get_project_graph_tool = CogniTool(
     name="GetProjectGraph",
-    description="Retrieve a project with its complete linked hierarchy in one operation",
+    description="⚠️ DEPRECATED - DO NOT USE - Broken link traversal tool that reports incorrect results",
     input_model=GetProjectGraphInput,
     output_model=GetProjectGraphOutput,
     function=get_project_graph_core,

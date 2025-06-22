@@ -33,9 +33,6 @@ class InventoryBucket(BaseModel):
     last_updated: Optional[datetime] = Field(
         None, description="Most recent update timestamp in this bucket"
     )
-    sample_titles: List[str] = Field(
-        default_factory=list, description="Sample titles from this bucket (max 3)"
-    )
 
 
 class GlobalMemoryInventoryInput(BaseModel):
@@ -50,9 +47,6 @@ class GlobalMemoryInventoryInput(BaseModel):
     )
     metadata_contains_key: Optional[str] = Field(
         None, description="Only include buckets where blocks have this metadata key"
-    )
-    include_sample_titles: bool = Field(
-        True, description="Whether to include sample titles for each bucket"
     )
     max_buckets: int = Field(100, description="Maximum number of buckets to return", ge=1, le=500)
 
@@ -131,7 +125,7 @@ def global_memory_inventory_core(
         logger.info(f"Executing inventory query: {base_query}")
         logger.info(f"Query parameters: {params}")
 
-        # Use the memory bank's reader properly with the correct method
+        # Use the memory bank's reader with the correct method
         results = memory_bank.dolt_reader._execute_query(base_query, tuple(params))
 
         # Build inventory buckets
@@ -139,8 +133,7 @@ def global_memory_inventory_core(
         total_blocks = 0
         namespaces_seen = set()
 
-        # Collect all namespace+type combinations for batch sample fetching
-        bucket_specs = []
+        # Build final buckets directly from results
         for row in results:
             namespace_id = row["namespace_id"]
             block_type = row["type"]
@@ -150,52 +143,11 @@ def global_memory_inventory_core(
             namespaces_seen.add(namespace_id)
             total_blocks += count
 
-            bucket_specs.append(
-                {
-                    "namespace_id": namespace_id,
-                    "block_type": block_type,
-                    "count": count,
-                    "last_updated": last_updated,
-                }
-            )
-
-        # Batch fetch sample titles if requested
-        sample_titles_map = {}
-        if input_data.include_sample_titles and bucket_specs:
-            # Instead of complex VALUES clause, use multiple OR conditions
-            # This is simpler and avoids SQL injection issues
-
-            for spec in bucket_specs:
-                namespace_id = spec["namespace_id"]
-                block_type = spec["block_type"]
-
-                # Simple query for each namespace+type combination
-                sample_query = """
-                SELECT title 
-                FROM memory_blocks 
-                WHERE namespace_id = %s AND type = %s AND title IS NOT NULL
-                ORDER BY updated_at DESC 
-                LIMIT 3
-                """
-
-                sample_results = memory_bank.dolt_reader._execute_query(
-                    sample_query, (namespace_id, block_type)
-                )
-
-                # Store samples for this bucket
-                key = (namespace_id, block_type)
-                sample_titles_map[key] = [row["title"] for row in sample_results if row["title"]]
-
-        # Build final buckets with cached sample titles
-        for spec in bucket_specs:
-            sample_titles = sample_titles_map.get((spec["namespace_id"], spec["block_type"]), [])
-
             bucket = InventoryBucket(
-                namespace_id=spec["namespace_id"],
-                block_type=spec["block_type"],
-                count=spec["count"],
-                last_updated=spec["last_updated"],
-                sample_titles=sample_titles,
+                namespace_id=namespace_id,
+                block_type=block_type,
+                count=count,
+                last_updated=last_updated,
             )
             buckets.append(bucket)
 

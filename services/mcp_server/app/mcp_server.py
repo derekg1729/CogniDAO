@@ -139,11 +139,6 @@ from infra_core.memory_system.tools.agent_facing.global_memory_inventory_tool im
     GlobalMemoryInventoryInput,
     GlobalMemoryInventoryOutput,
 )
-from infra_core.memory_system.tools.agent_facing.get_project_graph_tool import (
-    get_project_graph_core,
-    GetProjectGraphInput,
-    GetProjectGraphOutput,
-)
 from infra_core.memory_system.tools.agent_facing.set_context_tool import (
     set_context_core,
     SetContextInput,
@@ -1583,7 +1578,6 @@ async def global_memory_inventory(input):
         updated_since: Only include buckets with updates since this timestamp
         tag_contains: Only include buckets where blocks contain this tag
         metadata_contains_key: Only include buckets where blocks have this metadata key
-        include_sample_titles: Whether to include sample titles for each bucket
         max_buckets: Maximum number of buckets to return
 
     Returns:
@@ -1614,48 +1608,49 @@ async def global_memory_inventory(input):
         ).model_dump(mode="json")
 
 
+# COMMENTED OUT - DEPRECATED BROKEN TOOL
 # Register the GetProjectGraph tool
-@mcp.tool("GetProjectGraph")
-async def get_project_graph(input):
-    """Retrieve a project with its complete linked hierarchy in one operation
-
-    Args:
-        root_block_id: ID of the root block to build graph from
-        max_depth: Maximum depth to traverse
-        include_dependencies: Whether to include dependency relationships
-        include_reverse_dependencies: Whether to include reverse dependencies
-        relation_filters: Only include specific relation types
-        summarize: Generate an LLM summary of the project graph
-        namespace_scope: Limit graph traversal to specific namespace
-
-    Returns:
-        success: Whether the graph retrieval was successful
-        root_node: Root node of the project graph
-        total_nodes: Total number of nodes in the graph
-        max_depth_reached: Maximum depth actually reached
-        cycles_detected: Block IDs where cycles were detected and broken
-        summary: LLM-generated summary of the project graph
-        active_branch: Branch used for the query
-        message: Human-readable result message
-        error: Error message if retrieval failed
-        timestamp: Timestamp of the retrieval
-    """
-    try:
-        # Parse dict input into Pydantic model
-        parsed_input = GetProjectGraphInput(**input)
-        result = get_project_graph_core(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump(mode="json")
-    except Exception as e:
-        logger.error(f"Error in GetProjectGraph MCP tool: {e}")
-        return GetProjectGraphOutput(
-            success=False,
-            total_nodes=0,
-            max_depth_reached=0,
-            cycles_detected=[],
-            active_branch=get_memory_bank().branch,
-            message="Graph retrieval failed",
-            error=f"Error during get_project_graph: {str(e)}",
-        ).model_dump(mode="json")
+# @mcp.tool("GetProjectGraph")
+# async def get_project_graph(input):
+#     """⚠️ DEPRECATED - DO NOT USE - Broken link traversal tool that reports incorrect results
+#
+#     Args:
+#         root_block_id: ID of the root block to build graph from
+#         max_depth: Maximum depth to traverse
+#         include_dependencies: Whether to include dependency relationships
+#         include_reverse_dependencies: Whether to include reverse dependencies
+#         relation_filters: Only include specific relation types
+#         summarize: Generate an LLM summary of the project graph
+#         namespace_scope: Limit graph traversal to specific namespace
+#
+#     Returns:
+#         success: Whether the graph retrieval was successful
+#         root_node: Root node of the project graph
+#         total_nodes: Total number of nodes in the graph
+#         max_depth_reached: Maximum depth actually reached
+#         cycles_detected: Block IDs where cycles were detected and broken
+#         summary: LLM-generated summary of the project graph
+#         active_branch: Branch used for the query
+#         message: Human-readable result message
+#         error: Error message if retrieval failed
+#         timestamp: Timestamp of the retrieval
+#     """
+#     try:
+#         # Parse dict input into Pydantic model
+#         parsed_input = GetProjectGraphInput(**input)
+#         result = get_project_graph_core(parsed_input, memory_bank=get_memory_bank())
+#         return result.model_dump(mode="json")
+#     except Exception as e:
+#         logger.error(f"Error in GetProjectGraph MCP tool: {e}")
+#         return GetProjectGraphOutput(
+#             success=False,
+#             total_nodes=0,
+#             max_depth_reached=0,
+#             cycles_detected=[],
+#             active_branch=get_memory_bank().branch,
+#             message="Graph retrieval failed",
+#             error=f"Error during get_project_graph: {str(e)}",
+#         ).model_dump(mode="json")
 
 
 # Register the SetContext tool
