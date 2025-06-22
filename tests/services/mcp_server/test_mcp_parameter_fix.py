@@ -40,7 +40,9 @@ class TestMCPParameterFix:
     async def test_dolt_status_with_empty_string_fails(self):
         """Test that DoltStatus fails gracefully with empty string input."""
         with patch("services.mcp_server.app.mcp_server.get_memory_bank") as mock_bank:
-            mock_bank.return_value = MagicMock()
+            mock_memory_bank = MagicMock()
+            mock_memory_bank.branch = "test-branch"  # Mock the branch property
+            mock_bank.return_value = mock_memory_bank
 
             # This should fail but handle gracefully (empty string)
             result = await dolt_status("")
@@ -115,9 +117,11 @@ class TestMCPParameterFix:
     async def test_parameter_type_validation(self):
         """Test that various parameter types are handled correctly."""
         with patch("services.mcp_server.app.mcp_server.get_memory_bank") as mock_bank:
-            mock_bank.return_value = MagicMock()
-            mock_bank.return_value.dolt_reader._execute_query.return_value = []
-            mock_bank.return_value.dolt_writer.active_branch = "main"
+            mock_memory_bank = MagicMock()
+            mock_memory_bank.branch = "test-branch"  # Mock the branch property
+            mock_memory_bank.dolt_reader._execute_query.return_value = []
+            mock_memory_bank.dolt_writer.active_branch = "test-branch"
+            mock_bank.return_value = mock_memory_bank
 
             # Test various input types that should be handled gracefully
             test_cases = [

@@ -588,7 +588,7 @@ async def query_memory_blocks_semantic(input):
             success=False,
             blocks=[],
             message=f"Semantic query failed: {str(e)}",
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             error=f"Error during query_memory_blocks_semantic: {str(e)}",
         ).model_dump(mode="json")
         return standardize_mcp_response(error_response)
@@ -840,7 +840,7 @@ async def bulk_create_blocks_mcp(input):
             successful_blocks=0,
             failed_blocks=0,
             results=[],
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             timestamp=datetime.now(),
         ).model_dump(mode="json")
         return standardize_mcp_response(error_response)
@@ -927,7 +927,7 @@ async def bulk_delete_blocks_mcp(input):
             successful_blocks=0,
             failed_blocks=0,
             results=[],
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             timestamp=datetime.now(),
         ).model_dump(mode="json")
         return standardize_mcp_response(error_response)
@@ -976,7 +976,7 @@ async def bulk_update_namespace_mcp(input):
             error_summary={"UNKNOWN_ERROR": 1},
             target_namespace_id="unknown",
             namespace_validated=False,
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             timestamp=datetime.now(),
             total_processing_time_ms=0,
         ).model_dump(mode="json")
@@ -1157,7 +1157,7 @@ async def dolt_status(input):
         logger.error(f"Error in DoltStatus MCP tool: {e}")
         error_response = DoltStatusOutput(
             success=False,
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             is_clean=False,
             total_changes=0,
             message=f"Status check failed: {str(e)}",
@@ -1250,7 +1250,7 @@ async def dolt_list_branches(input):
 
         return DoltListBranchesOutput(
             success=False,
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             message=f"Branch listing failed: {str(e)}",
             error=f"Error during dolt_list_branches: {str(e)}",
         ).model_dump(mode="json")
@@ -1281,7 +1281,7 @@ async def list_namespaces(input):
             success=False,
             namespaces=[],
             total_count=0,
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             message=f"Namespace listing failed: {str(e)}",
             error=f"Error during list_namespaces: {str(e)}",
         ).model_dump(mode="json")
@@ -1324,7 +1324,7 @@ async def create_namespace(input):
             success=False,
             namespace_id=None,
             message=f"Namespace creation failed: {str(e)}",
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             error=f"Error during create_namespace: {str(e)}",
         ).model_dump(mode="json")
         return standardize_mcp_response(error_response)
@@ -1350,7 +1350,7 @@ async def dolt_diff(input):
             success=False,
             diff_summary=[],
             message=f"An unexpected error occurred: {e}",
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             error=str(e),
         ).model_dump(mode="json")
 
@@ -1392,7 +1392,7 @@ async def dolt_auto_commit_and_push(input):
             message=f"Auto commit and push failed: {str(e)}",
             operations_performed=["failed"],
             was_clean=False,
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             error=str(e),
         ).model_dump(mode="json")
 
@@ -1470,7 +1470,7 @@ async def dolt_merge(input):
             source_branch=input.get("source_branch", "unknown"),
             target_branch=input.get("target_branch", "unknown"),
             fast_forward=False,
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             error=f"Error during dolt_merge: {str(e)}",
         ).model_dump(mode="json")
 
@@ -1513,7 +1513,7 @@ async def dolt_compare_branches(input):
             target_branch=input.get("target_branch", "unknown"),
             has_differences=False,
             can_merge=False,
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             error=f"Error during dolt_compare_branches: {str(e)}",
         ).model_dump(mode="json")
 
@@ -1548,7 +1548,7 @@ async def dolt_approve_pull_request(input):
             success=False,
             message=f"Pull request approval failed: {str(e)}",
             pr_id=input.get("pr_id", "unknown"),
-            active_branch="unknown",
+            active_branch=get_memory_bank().branch,
             error=f"Error during dolt_approve_pull_request: {str(e)}",
         ).model_dump(mode="json")
 

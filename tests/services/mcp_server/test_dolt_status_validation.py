@@ -51,7 +51,9 @@ class TestDoltStatusValidationFix:
             assert isinstance(result, dict)
             assert result["success"] is False
             assert "active_branch" in result  # This is the key fix!
-            assert result["active_branch"] == "unknown"
+            # After our bug fix, active_branch should be the actual branch, not "unknown"
+            assert result["active_branch"] != "unknown"  # Should be actual branch name
+            assert isinstance(result["active_branch"], str)  # Should be a valid string
             assert "Status check failed" in result["message"]
             assert result["error"] is not None
 
@@ -104,7 +106,7 @@ class TestDoltStatusValidationFix:
         # Create an error response (like our fixed error handler does)
         error_response = DoltStatusOutput(
             success=False,
-            active_branch="unknown",  # This is the fix!
+            active_branch="test-branch",  # After fix: uses actual branch name
             is_clean=False,
             total_changes=0,
             message="Status check failed: simulated error",
@@ -139,7 +141,9 @@ class TestDoltStatusValidationFix:
             result = await dolt_auto_commit_and_push(mock_input)
             assert isinstance(result, dict)
             assert "active_branch" in result
-            assert result["active_branch"] == "unknown"
+            # After bug fix: should be actual branch name, not "unknown"
+            assert result["active_branch"] != "unknown"
+            assert isinstance(result["active_branch"], str)
 
         # Test DoltListBranches error handler
         with patch("mcp_server.dolt_list_branches_tool") as mock_tool:
@@ -147,7 +151,9 @@ class TestDoltStatusValidationFix:
             result = await dolt_list_branches(mock_input)
             assert isinstance(result, dict)
             assert "active_branch" in result
-            assert result["active_branch"] == "unknown"
+            # After bug fix: should be actual branch name, not "unknown"
+            assert result["active_branch"] != "unknown"
+            assert isinstance(result["active_branch"], str)
 
         # Test DoltDiff error handler
         with patch("mcp_server.dolt_diff_tool") as mock_tool:
@@ -155,7 +161,9 @@ class TestDoltStatusValidationFix:
             result = await dolt_diff(mock_input)
             assert isinstance(result, dict)
             assert "active_branch" in result
-            assert result["active_branch"] == "unknown"
+            # After bug fix: should be actual branch name, not "unknown"
+            assert result["active_branch"] != "unknown"
+            assert isinstance(result["active_branch"], str)
 
 
 if __name__ == "__main__":
