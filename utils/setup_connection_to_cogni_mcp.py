@@ -9,7 +9,7 @@ Cogni-specific functionality like Dolt branch switching and namespace handling.
 This keeps the generic helper clean while providing convenience for Cogni flows.
 
 Usage:
-    from utils.cogni_mcp import configure_cogni_mcp
+    from utils.setup_connection_to_cogni_mcp import configure_cogni_mcp
 
     # Uses environment variables for defaults
     async with configure_cogni_mcp() as (session, tools):

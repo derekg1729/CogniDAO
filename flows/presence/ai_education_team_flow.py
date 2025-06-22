@@ -37,7 +37,7 @@ from autogen_agentchat.ui import Console  # noqa: E402
 from autogen_ext.models.openai import OpenAIChatCompletionClient  # noqa: E402
 
 # Shared tasks and new SSE pattern imports
-from utils.cogni_mcp import configure_cogni_mcp, MCPConnectionError  # noqa: E402
+from utils.setup_connection_to_cogni_mcp import configure_cogni_mcp, MCPConnectionError  # noqa: E402
 from utils.cogni_memory_mcp_outro import automated_dolt_outro  # noqa: E402
 
 # Prompt template integration

@@ -12,7 +12,7 @@ import os
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from utils.cogni_mcp import configure_cogni_mcp, MCPConnectionError
+from utils.setup_connection_to_cogni_mcp import configure_cogni_mcp, MCPConnectionError
 
 
 class TestConfigureCogniMcp:
@@ -24,7 +24,7 @@ class TestConfigureCogniMcp:
         mock_session = AsyncMock()
         mock_tools = [MagicMock(name="tool1"), MagicMock(name="tool2")]
 
-        with patch("utils.cogni_mcp.configure_existing_mcp") as mock_configure:
+        with patch("utils.setup_connection_to_cogni_mcp.configure_existing_mcp") as mock_configure:
             mock_configure.return_value.__aenter__.return_value = (mock_session, mock_tools)
 
             async with configure_cogni_mcp(sse_url="http://test:8080/sse") as (session, tools):
@@ -40,7 +40,7 @@ class TestConfigureCogniMcp:
         mock_session = AsyncMock()
         mock_tools = [MagicMock(name="tool1")]
 
-        with patch("utils.cogni_mcp.configure_existing_mcp") as mock_configure:
+        with patch("utils.setup_connection_to_cogni_mcp.configure_existing_mcp") as mock_configure:
             mock_configure.return_value.__aenter__.return_value = (mock_session, mock_tools)
 
             async with configure_cogni_mcp(
@@ -60,7 +60,7 @@ class TestConfigureCogniMcp:
         mock_session = AsyncMock()
         mock_tools = [MagicMock(name="tool1")]
 
-        with patch("utils.cogni_mcp.configure_existing_mcp") as mock_configure:
+        with patch("utils.setup_connection_to_cogni_mcp.configure_existing_mcp") as mock_configure:
             mock_configure.return_value.__aenter__.return_value = (mock_session, mock_tools)
 
             async with configure_cogni_mcp(
@@ -85,7 +85,7 @@ class TestConfigureCogniMcp:
         }
 
         with (
-            patch("utils.cogni_mcp.configure_existing_mcp") as mock_configure,
+            patch("utils.setup_connection_to_cogni_mcp.configure_existing_mcp") as mock_configure,
             patch.dict(os.environ, env_vars),
         ):
             mock_configure.return_value.__aenter__.return_value = (mock_session, mock_tools)
@@ -113,7 +113,7 @@ class TestConfigureCogniMcp:
         }
 
         with (
-            patch("utils.cogni_mcp.configure_existing_mcp") as mock_configure,
+            patch("utils.setup_connection_to_cogni_mcp.configure_existing_mcp") as mock_configure,
             patch.dict(os.environ, env_vars),
         ):
             mock_configure.return_value.__aenter__.return_value = (mock_session, mock_tools)
@@ -146,7 +146,7 @@ class TestConfigureCogniMcp:
         mock_tools = [MagicMock(name="tool1")]
         mock_session.call_tool.side_effect = Exception("DoltCheckout failed")
 
-        with patch("utils.cogni_mcp.configure_existing_mcp") as mock_configure:
+        with patch("utils.setup_connection_to_cogni_mcp.configure_existing_mcp") as mock_configure:
             mock_configure.return_value.__aenter__.return_value = (mock_session, mock_tools)
 
             with pytest.raises(MCPConnectionError, match="Failed to configure Cogni MCP"):
@@ -161,7 +161,7 @@ class TestConfigureCogniMcp:
         mock_session = AsyncMock()
         mock_tools = [MagicMock(name="tool1")]
 
-        with patch("utils.cogni_mcp.configure_existing_mcp") as mock_configure:
+        with patch("utils.setup_connection_to_cogni_mcp.configure_existing_mcp") as mock_configure:
             mock_configure.return_value.__aenter__.return_value = (mock_session, mock_tools)
 
             async with configure_cogni_mcp(sse_url="http://test:8080/sse", timeout=60):
