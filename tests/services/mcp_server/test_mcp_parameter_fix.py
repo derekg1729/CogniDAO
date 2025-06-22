@@ -27,9 +27,25 @@ class TestMCPParameterFix:
     async def test_dolt_status_with_empty_dict(self):
         """Test that DoltStatus works with empty dictionary input."""
         with patch("services.mcp_server.app.mcp_server.get_memory_bank") as mock_bank:
-            mock_bank.return_value = MagicMock()
-            mock_bank.return_value.dolt_reader._execute_query.return_value = []
-            mock_bank.return_value.dolt_writer.active_branch = "main"
+            mock_memory_bank = MagicMock()
+
+            # Mock the reader/writer with proper branch properties
+            mock_reader = MagicMock()
+            mock_writer = MagicMock()
+
+            # Set up proper string values for active_branch
+            mock_reader.active_branch = "main"
+            mock_writer.active_branch = "main"
+
+            # Mock _execute_query to return proper dict with string values
+            mock_reader._execute_query.return_value = [{"branch": "main"}]
+            mock_writer._execute_query.return_value = [{"branch": "main"}]
+
+            mock_memory_bank.dolt_reader = mock_reader
+            mock_memory_bank.dolt_writer = mock_writer
+            mock_memory_bank.branch = "main"
+
+            mock_bank.return_value = mock_memory_bank
 
             # This should work (empty dict)
             result = await dolt_status({})
