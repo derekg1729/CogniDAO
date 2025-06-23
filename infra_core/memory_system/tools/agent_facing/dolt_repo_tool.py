@@ -1334,9 +1334,13 @@ class DoltListPullRequestsInput(BaseModel):
     )
     limit: int = Field(
         default=50,
-        description="Maximum number of PRs to return (default: 50, max: 200)",
+        description="Maximum number of PRs to return (default: 50, max: 500)",
         ge=1,
-        le=200,
+        le=500,
+    )
+    include_description: bool = Field(
+        default=False,
+        description="Whether to include PR descriptions (default: False, saves token usage)",
     )
 
 
@@ -2008,12 +2012,18 @@ def dolt_list_pull_requests_tool(
         # Use the reader for read-only operations
         reader = memory_bank.dolt_reader
         
-        # Build the SQL query
+        # Build the SQL query with explicit column selection for security
+        base_columns = "id,title,from_branch,to_branch,status,author,created_at,updated_at,merge_commit_hash,conflicts"
+        if input_data.include_description:
+            columns = f"{base_columns},description"
+        else:
+            columns = base_columns
+            
         if input_data.status_filter == "all":
-            query = "SELECT * FROM dolt_pull_requests ORDER BY created_at DESC LIMIT ?"
+            query = f"SELECT {columns} FROM dolt_pull_requests ORDER BY created_at DESC LIMIT ?"
             params = (input_data.limit,)
         else:
-            query = "SELECT * FROM dolt_pull_requests WHERE status = ? ORDER BY created_at DESC LIMIT ?"
+            query = f"SELECT {columns} FROM dolt_pull_requests WHERE status = ? ORDER BY created_at DESC LIMIT ?"
             params = (input_data.status_filter, input_data.limit)
         
         # Execute the query
@@ -2024,24 +2034,29 @@ def dolt_list_pull_requests_tool(
             # Convert results to our model format
             pull_requests = []
             for row in pr_results:
-                # Parse datetime fields safely
+                # Parse datetime fields safely - Python 3.11+ handles 'Z' suffix natively
                 created_at = row.get("created_at")
                 if isinstance(created_at, str):
                     try:
-                        created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                        created_at = datetime.fromisoformat(created_at)
                     except (ValueError, TypeError):
-                        created_at = datetime.now()
+                        raise ValueError(f"Invalid created_at timestamp: {created_at}")
                 elif not isinstance(created_at, datetime):
-                    created_at = datetime.now()
+                    raise ValueError(f"Expected datetime or string for created_at, got {type(created_at)}")
                 
                 updated_at = row.get("updated_at")
                 if updated_at and isinstance(updated_at, str):
                     try:
-                        updated_at = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+                        updated_at = datetime.fromisoformat(updated_at)
                     except (ValueError, TypeError):
-                        updated_at = None
-                elif not isinstance(updated_at, datetime):
-                    updated_at = None
+                        raise ValueError(f"Invalid updated_at timestamp: {updated_at}")
+                elif updated_at is not None and not isinstance(updated_at, datetime):
+                    raise ValueError(f"Expected datetime, string, or None for updated_at, got {type(updated_at)}")
+                
+                # Get description only if requested to save token usage
+                description = None
+                if input_data.include_description:
+                    description = row.get("description", row.get("body"))
                 
                 pr_info = DoltPullRequestInfo(
                     id=str(row.get("id", "unknown")),
@@ -2054,7 +2069,7 @@ def dolt_list_pull_requests_tool(
                     updated_at=updated_at,
                     merge_commit_hash=row.get("merge_commit_hash"),
                     conflicts=int(row.get("conflicts", 0)),
-                    description=row.get("description", row.get("body"))
+                    description=description
                 )
                 pull_requests.append(pr_info)
             
@@ -2077,15 +2092,25 @@ def dolt_list_pull_requests_tool(
         except Exception as e:
             # Handle case where dolt_pull_requests table doesn't exist or query fails
             error_msg = f"Failed to query pull requests: {str(e)}"
-            logger.info(f"PR query failed (this may be normal if no PRs exist): {error_msg}")
+            logger.warning(f"PR query failed: {error_msg}")
+            
+            # Check if this is a table not found error
+            if "dolt_pull_requests" in str(e).lower() and ("not exist" in str(e).lower() or "doesn't exist" in str(e).lower()):
+                error_code = "TABLE_NOT_FOUND"
+                message = "dolt_pull_requests table not available"
+            else:
+                error_code = "QUERY_FAILED"
+                message = f"Failed to query pull requests: {str(e)}"
             
             return DoltListPullRequestsOutput(
-                success=True,  # Still successful, just no PRs found
-                message="No pull requests found or dolt_pull_requests table not available",
+                success=False,
+                message=message,
                 active_branch=reader.active_branch,
                 pull_requests=[],
                 total_count=0,
                 status_filter=input_data.status_filter,
+                error=error_msg,
+                error_code=error_code,
             )
     
     except Exception as e:

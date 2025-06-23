@@ -24,6 +24,8 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     DoltDiffInput,
     dolt_reset_tool,
     DoltResetInput,
+    dolt_list_pull_requests_tool,
+    DoltListPullRequestsInput,
 )
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
@@ -1052,3 +1054,198 @@ class TestDoltResetTool:
         assert "timestamp" in serialized
         assert serialized["success"] is True
         assert serialized["tables_reset"] == ["test_table"]
+
+
+class TestDoltListPullRequestsTool:
+    """Test class for dolt_list_pull_requests_tool functionality."""
+
+    def test_successful_pr_listing_with_open_filter(self, mock_memory_bank):
+        """Test successful pull request listing with open status filter."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Mock PR listing result
+        mock_pr_data = [
+            {
+                "id": "1",
+                "title": "Feature: Add new authentication",
+                "from_branch": "feature/auth",
+                "to_branch": "main",
+                "status": "open",
+                "author": "developer1",
+                "created_at": "2025-06-23T10:00:00Z",
+                "updated_at": "2025-06-23T12:00:00Z",
+                "merge_commit_hash": None,
+                "conflicts": 0,
+                "description": "Adding OAuth2 authentication support",
+            },
+            {
+                "id": "2", 
+                "title": "Bugfix: Fix memory leak in parser",
+                "source_branch": "bugfix/memory-leak",
+                "target_branch": "main",
+                "status": "open",
+                "created_by": "developer2",
+                "created_at": "2025-06-23T11:30:00Z",
+                "updated_at": None,
+                "conflicts": 1,
+                "body": "Fixes issue #123",
+            },
+        ]
+        mock_reader._execute_query.return_value = mock_pr_data
+
+        # Prepare input
+        input_data = DoltListPullRequestsInput(status_filter="open", limit=10, include_description=True)
+
+        # Execute tool
+        result = dolt_list_pull_requests_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is True
+        assert len(result.pull_requests) == 2
+        assert result.total_count == 2
+        assert result.status_filter == "open"
+        assert "Found 2 pull request(s) with status 'open'" in result.message
+        
+        # Verify first PR details
+        pr1 = result.pull_requests[0]
+        assert pr1.id == "1"
+        assert pr1.title == "Feature: Add new authentication"
+        assert pr1.source_branch == "feature/auth"
+        assert pr1.target_branch == "main"
+        assert pr1.status == "open"
+        assert pr1.author == "developer1"
+        assert pr1.conflicts == 0
+        assert pr1.description == "Adding OAuth2 authentication support"
+        
+        # Verify second PR details  
+        pr2 = result.pull_requests[1]
+        assert pr2.id == "2"
+        assert pr2.source_branch == "bugfix/memory-leak"
+        assert pr2.conflicts == 1
+        assert pr2.description == "Fixes issue #123"
+
+        # Verify SQL query was called correctly (with description included)
+        mock_reader._execute_query.assert_called_once_with(
+            "SELECT id,title,from_branch,to_branch,status,author,created_at,updated_at,merge_commit_hash,conflicts,description FROM dolt_pull_requests WHERE status = ? ORDER BY created_at DESC LIMIT ?",
+            ("open", 10)
+        )
+
+    def test_successful_pr_listing_all_statuses(self, mock_memory_bank):
+        """Test successful pull request listing with all statuses."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        mock_pr_data = [
+            {
+                "id": "3",
+                "title": "Merged feature",
+                "from_branch": "feature/complete",
+                "to_branch": "main", 
+                "status": "merged",
+                "author": "developer3",
+                "created_at": "2025-06-22T15:00:00Z",
+                "merge_commit_hash": "abc123def456",
+                "conflicts": 0,
+            }
+        ]
+        mock_reader._execute_query.return_value = mock_pr_data
+
+        input_data = DoltListPullRequestsInput(status_filter="all", limit=50)
+        result = dolt_list_pull_requests_tool(input_data, memory_bank)
+
+        assert result.success is True
+        assert len(result.pull_requests) == 1
+        assert result.status_filter == "all"
+        assert "Found 1 pull request(s)" in result.message
+        assert "with status" not in result.message  # Should not mention status for 'all'
+
+        # Verify SQL query for all statuses (without description)
+        mock_reader._execute_query.assert_called_once_with(
+            "SELECT id,title,from_branch,to_branch,status,author,created_at,updated_at,merge_commit_hash,conflicts FROM dolt_pull_requests ORDER BY created_at DESC LIMIT ?",
+            (50,)
+        )
+
+    def test_empty_pr_listing(self, mock_memory_bank):
+        """Test pull request listing with no PRs found."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+        mock_reader._execute_query.return_value = []
+
+        input_data = DoltListPullRequestsInput()
+        result = dolt_list_pull_requests_tool(input_data, memory_bank)
+
+        assert result.success is True
+        assert len(result.pull_requests) == 0
+        assert result.total_count == 0
+        assert "Found 0 pull request(s)" in result.message
+
+    def test_pr_listing_table_not_found(self, mock_memory_bank):
+        """Test pull request listing when dolt_pull_requests table doesn't exist."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+        mock_reader._execute_query.side_effect = Exception("Table 'dolt_pull_requests' doesn't exist")
+
+        input_data = DoltListPullRequestsInput()
+        result = dolt_list_pull_requests_tool(input_data, memory_bank)
+
+        assert result.success is False
+        assert len(result.pull_requests) == 0
+        assert result.total_count == 0
+        assert result.error_code == "TABLE_NOT_FOUND"
+        assert "dolt_pull_requests table not available" in result.message
+
+    def test_pr_listing_with_malformed_dates(self, mock_memory_bank):
+        """Test pull request listing with malformed date strings."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        mock_pr_data = [
+            {
+                "id": "4",
+                "title": "PR with bad dates",
+                "from_branch": "test/dates",
+                "to_branch": "main",
+                "status": "open", 
+                "author": "tester",
+                "created_at": "invalid-date-format",
+                "updated_at": "2025-13-45T99:99:99Z",  # Invalid date
+                "conflicts": 0,
+            }
+        ]
+        mock_reader._execute_query.return_value = mock_pr_data
+
+        input_data = DoltListPullRequestsInput()
+        result = dolt_list_pull_requests_tool(input_data, memory_bank)
+
+        # Should now fail with validation error for malformed dates
+        assert result.success is False
+        assert "Invalid created_at timestamp" in result.error
+
+    def test_pr_listing_with_exception(self, mock_memory_bank):
+        """Test pull request listing when an unexpected exception occurs."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+        mock_reader._execute_query.side_effect = Exception("Database connection timeout")
+
+        input_data = DoltListPullRequestsInput()
+        result = dolt_list_pull_requests_tool(input_data, memory_bank)
+
+        assert result.success is False
+        assert "Failed to query pull requests" in result.message
+        assert "Database connection timeout" in result.error
+
+    def test_pr_input_validation_limit_too_high(self):
+        """Test input validation with limit exceeding maximum."""
+        with pytest.raises(ValueError):
+            DoltListPullRequestsInput(limit=1000)  # Exceeds max of 500
+
+    def test_pr_input_validation_limit_too_low(self):
+        """Test input validation with limit below minimum.""" 
+        with pytest.raises(ValueError):
+            DoltListPullRequestsInput(limit=0)  # Below min of 1
+
+    def test_pr_input_validation_valid_limits(self):
+        """Test input validation with valid limit values."""
+        # Test boundary values
+        input_min = DoltListPullRequestsInput(limit=1)
+        input_max = DoltListPullRequestsInput(limit=500) 
+        input_default = DoltListPullRequestsInput()
+
+        assert input_min.limit == 1
+        assert input_max.limit == 500
+        assert input_default.limit == 50  # default
