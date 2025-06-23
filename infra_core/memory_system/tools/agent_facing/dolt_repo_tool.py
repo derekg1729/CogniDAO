@@ -1326,7 +1326,7 @@ def dolt_auto_commit_and_push_tool(
 
 class DoltListPullRequestsInput(BaseModel):
     """Input model for the dolt_list_pull_requests tool."""
-    
+
     status_filter: Optional[str] = Field(
         default="open",
         description="Filter PRs by status (default: 'open'). Use 'all' for all statuses.",
@@ -1346,7 +1346,7 @@ class DoltListPullRequestsInput(BaseModel):
 
 class DoltPullRequestInfo(BaseModel):
     """Information about a single Dolt pull request."""
-    
+
     id: str = Field(..., description="Pull request ID/number")
     title: str = Field(..., description="Pull request title")
     source_branch: str = Field(..., description="Source branch being merged from")
@@ -1362,8 +1362,10 @@ class DoltPullRequestInfo(BaseModel):
 
 class DoltListPullRequestsOutput(BaseDoltOutput):
     """Output model for the dolt_list_pull_requests tool."""
-    
-    pull_requests: List[DoltPullRequestInfo] = Field(default=[], description="List of pull requests")
+
+    pull_requests: List[DoltPullRequestInfo] = Field(
+        default=[], description="List of pull requests"
+    )
     total_count: int = Field(..., description="Total number of PRs matching filter")
     status_filter: str = Field(..., description="Status filter that was applied")
 
@@ -1995,42 +1997,32 @@ def dolt_list_pull_requests_tool(
 ) -> DoltListPullRequestsOutput:
     """
     List active pull requests from Dolt's pull request system tables.
-    
+
     This tool queries the dolt_pull_requests system table to retrieve PR information
     including status, branches, conflicts, and metadata.
-    
+
     Args:
         input_data: The listing parameters
         memory_bank: StructuredMemoryBank instance with Dolt reader access
-    
+
     Returns:
         DoltListPullRequestsOutput with list of pull requests
     """
     try:
         logger.info(f"Listing Dolt pull requests with filter: {input_data.status_filter}")
-        
+
         # Use the reader for read-only operations
         reader = memory_bank.dolt_reader
-        
-        # Build the SQL query with explicit column selection for security
-        base_columns = "id,title,from_branch,to_branch,status,author,created_at,updated_at,merge_commit_hash,conflicts"
-        if input_data.include_description:
-            columns = f"{base_columns},description"
-        else:
-            columns = base_columns
-            
-        if input_data.status_filter == "all":
-            query = f"SELECT {columns} FROM dolt_pull_requests ORDER BY created_at DESC LIMIT ?"
-            params = (input_data.limit,)
-        else:
-            query = f"SELECT {columns} FROM dolt_pull_requests WHERE status = ? ORDER BY created_at DESC LIMIT ?"
-            params = (input_data.status_filter, input_data.limit)
-        
-        # Execute the query
+
+        # Use the reader's list_pull_requests method - this encapsulates all SQL logic
         try:
-            pr_results = reader._execute_query(query, params)
+            pr_results = reader.list_pull_requests(
+                status_filter=input_data.status_filter,
+                limit=input_data.limit,
+                include_description=input_data.include_description,
+            )
             logger.info(f"Found {len(pr_results)} pull requests")
-            
+
             # Convert results to our model format
             pull_requests = []
             for row in pr_results:
@@ -2042,8 +2034,10 @@ def dolt_list_pull_requests_tool(
                     except (ValueError, TypeError):
                         raise ValueError(f"Invalid created_at timestamp: {created_at}")
                 elif not isinstance(created_at, datetime):
-                    raise ValueError(f"Expected datetime or string for created_at, got {type(created_at)}")
-                
+                    raise ValueError(
+                        f"Expected datetime or string for created_at, got {type(created_at)}"
+                    )
+
                 updated_at = row.get("updated_at")
                 if updated_at and isinstance(updated_at, str):
                     try:
@@ -2051,13 +2045,15 @@ def dolt_list_pull_requests_tool(
                     except (ValueError, TypeError):
                         raise ValueError(f"Invalid updated_at timestamp: {updated_at}")
                 elif updated_at is not None and not isinstance(updated_at, datetime):
-                    raise ValueError(f"Expected datetime, string, or None for updated_at, got {type(updated_at)}")
-                
+                    raise ValueError(
+                        f"Expected datetime, string, or None for updated_at, got {type(updated_at)}"
+                    )
+
                 # Get description only if requested to save token usage
                 description = None
                 if input_data.include_description:
                     description = row.get("description", row.get("body"))
-                
+
                 pr_info = DoltPullRequestInfo(
                     id=str(row.get("id", "unknown")),
                     title=row.get("title", "Untitled PR"),
@@ -2069,17 +2065,17 @@ def dolt_list_pull_requests_tool(
                     updated_at=updated_at,
                     merge_commit_hash=row.get("merge_commit_hash"),
                     conflicts=int(row.get("conflicts", 0)),
-                    description=description
+                    description=description,
                 )
                 pull_requests.append(pr_info)
-            
+
             # Build success message
             message = f"Found {len(pull_requests)} pull request(s)"
             if input_data.status_filter != "all":
                 message += f" with status '{input_data.status_filter}'"
-            
+
             logger.info(message)
-            
+
             return DoltListPullRequestsOutput(
                 success=True,
                 message=message,
@@ -2088,20 +2084,22 @@ def dolt_list_pull_requests_tool(
                 total_count=len(pull_requests),
                 status_filter=input_data.status_filter,
             )
-            
+
         except Exception as e:
             # Handle case where dolt_pull_requests table doesn't exist or query fails
             error_msg = f"Failed to query pull requests: {str(e)}"
             logger.warning(f"PR query failed: {error_msg}")
-            
+
             # Check if this is a table not found error
-            if "dolt_pull_requests" in str(e).lower() and ("not exist" in str(e).lower() or "doesn't exist" in str(e).lower()):
+            if "dolt_pull_requests" in str(e).lower() and (
+                "not exist" in str(e).lower() or "doesn't exist" in str(e).lower()
+            ):
                 error_code = "TABLE_NOT_FOUND"
                 message = "dolt_pull_requests table not available"
             else:
                 error_code = "QUERY_FAILED"
                 message = f"Failed to query pull requests: {str(e)}"
-            
+
             return DoltListPullRequestsOutput(
                 success=False,
                 message=message,
@@ -2112,11 +2110,11 @@ def dolt_list_pull_requests_tool(
                 error=error_msg,
                 error_code=error_code,
             )
-    
+
     except Exception as e:
         error_msg = f"Exception during pull request listing: {str(e)}"
         logger.error(error_msg, exc_info=True)
-        
+
         return DoltListPullRequestsOutput(
             success=False,
             message=f"Failed to list pull requests: {str(e)}",

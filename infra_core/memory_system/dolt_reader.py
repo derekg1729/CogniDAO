@@ -789,6 +789,62 @@ class DoltMySQLReader(DoltMySQLBase):
             if not connection_is_persistent:
                 connection.close()
 
+    def list_pull_requests(
+        self, status_filter: str = "open", limit: int = 50, include_description: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        List pull requests from Dolt's pull request system tables.
+
+        Args:
+            status_filter: Filter by PR status ('open', 'merged', 'closed', 'all')
+            limit: Maximum number of results to return (1-500)
+            include_description: Whether to include PR description/body in results
+
+        Returns:
+            List of dictionaries containing pull request information
+        """
+        # Use persistent connection if available, otherwise create new one
+        if self._use_persistent and self._persistent_connection:
+            connection = self._persistent_connection
+            connection_is_persistent = True
+        else:
+            connection = self._get_connection()
+            connection_is_persistent = False
+
+        try:
+            cursor = connection.cursor(dictionary=True)
+
+            # Build the SQL query with explicit column selection for security
+            base_columns = "id,title,from_branch,to_branch,status,author,created_at,updated_at,merge_commit_hash,conflicts"
+            if include_description:
+                columns = f"{base_columns},description"
+            else:
+                columns = base_columns
+
+            if status_filter == "all":
+                query = (
+                    f"SELECT {columns} FROM dolt_pull_requests ORDER BY created_at DESC LIMIT %s"
+                )
+                cursor.execute(query, (limit,))
+            else:
+                query = f"SELECT {columns} FROM dolt_pull_requests WHERE status = %s ORDER BY created_at DESC LIMIT %s"
+                cursor.execute(query, (status_filter, limit))
+
+            pr_results = cursor.fetchall()
+            cursor.close()
+
+            logger.info(
+                f"Successfully retrieved {len(pr_results)} pull requests with status filter '{status_filter}'"
+            )
+            return pr_results
+
+        except Exception as e:
+            logger.error(f"Failed to list pull requests: {e}", exc_info=True)
+            raise  # Re-raise to let the tool handle error categorization
+        finally:
+            if not connection_is_persistent:
+                connection.close()
+
 
 # Helper function from dolt_writer for safe SQL formatting
 def _escape_sql_string(value: Optional[str]) -> str:

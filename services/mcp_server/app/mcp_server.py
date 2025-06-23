@@ -103,6 +103,9 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     dolt_reset_tool,
     DoltResetInput,
     DoltResetOutput,
+    dolt_list_pull_requests_tool,
+    DoltListPullRequestsInput,
+    DoltListPullRequestsOutput,
 )
 from infra_core.memory_system.tools.agent_facing.bulk_create_blocks_tool import (
     bulk_create_blocks,
@@ -1268,6 +1271,45 @@ async def dolt_list_branches(input):
             active_branch=get_memory_bank().branch,
             message=f"Branch listing failed: {str(e)}",
             error=f"Error during dolt_list_branches: {str(e)}",
+        ).model_dump(mode="json")
+
+
+# Register the DoltListPullRequests tool
+@mcp.tool("DoltListPullRequests")
+async def dolt_list_pull_requests(input):
+    """List pull requests from Dolt's pull request system tables
+
+    Args:
+        status_filter: Filter PRs by status (default: 'open'). Use 'all' for all statuses.
+        limit: Maximum number of PRs to return (default: 50, max: 500)
+        include_description: Whether to include PR descriptions (default: False, saves token usage)
+
+    Returns:
+        success: Whether the operation succeeded
+        pull_requests: List of pull request information objects
+        total_count: Total number of PRs matching filter
+        status_filter: Status filter that was applied
+        message: Human-readable result message
+        active_branch: Current active branch
+        error: Error message if operation failed
+        timestamp: Timestamp of operation
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = DoltListPullRequestsInput(**input)
+        result = dolt_list_pull_requests_tool(parsed_input, memory_bank=get_memory_bank())
+        return result.model_dump(mode="json")
+
+    except Exception as e:
+        logger.error(f"Error in DoltListPullRequests MCP tool: {e}")
+        return DoltListPullRequestsOutput(
+            success=False,
+            active_branch=get_memory_bank().branch,
+            pull_requests=[],
+            total_count=0,
+            status_filter=input.get("status_filter", "open"),
+            message=f"Pull request listing failed: {str(e)}",
+            error=f"Error during dolt_list_pull_requests: {str(e)}",
         ).model_dump(mode="json")
 
 
