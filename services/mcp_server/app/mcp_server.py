@@ -88,18 +88,9 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     dolt_auto_commit_and_push_tool,
     DoltAutoCommitInput,
     DoltAutoCommitOutput,
-    dolt_merge_tool,
-    DoltMergeInput,
-    DoltMergeOutput,
-    dolt_compare_branches_tool,
-    DoltCompareBranchesInput,
-    DoltCompareBranchesOutput,
     dolt_reset_tool,
     DoltResetInput,
     DoltResetOutput,
-    dolt_list_pull_requests_tool,
-    DoltListPullRequestsInput,
-    DoltListPullRequestsOutput,
 )
 from infra_core.memory_system.tools.agent_facing.bulk_create_blocks_tool import (
     bulk_create_blocks,
@@ -1268,45 +1259,6 @@ async def dolt_list_branches(input):
         ).model_dump(mode="json")
 
 
-# Register the DoltListPullRequests tool
-@mcp.tool("DoltListPullRequests")
-async def dolt_list_pull_requests(input):
-    """List pull requests from Dolt's pull request system tables
-
-    Args:
-        status_filter: Filter PRs by status (default: 'open'). Use 'all' for all statuses.
-        limit: Maximum number of PRs to return (default: 50, max: 500)
-        include_description: Whether to include PR descriptions (default: False, saves token usage)
-
-    Returns:
-        success: Whether the operation succeeded
-        pull_requests: List of pull request information objects
-        total_count: Total number of PRs matching filter
-        status_filter: Status filter that was applied
-        message: Human-readable result message
-        active_branch: Current active branch
-        error: Error message if operation failed
-        timestamp: Timestamp of operation
-    """
-    try:
-        # Parse dict input into Pydantic model
-        parsed_input = DoltListPullRequestsInput(**input)
-        result = dolt_list_pull_requests_tool(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump(mode="json")
-
-    except Exception as e:
-        logger.error(f"Error in DoltListPullRequests MCP tool: {e}")
-        return DoltListPullRequestsOutput(
-            success=False,
-            active_branch=get_memory_bank().branch,
-            pull_requests=[],
-            total_count=0,
-            status_filter=input.get("status_filter", "open"),
-            message=f"Pull request listing failed: {str(e)}",
-            error=f"Error during dolt_list_pull_requests: {str(e)}",
-        ).model_dump(mode="json")
-
-
 @mcp.tool("ListNamespaces")
 async def list_namespaces(input):
     """List all available namespaces with their metadata
@@ -1445,92 +1397,6 @@ async def dolt_auto_commit_and_push(input):
             was_clean=False,
             active_branch=get_memory_bank().branch,
             error=str(e),
-        ).model_dump(mode="json")
-
-
-# Register the DoltMerge tool
-@mcp.tool("DoltMerge")
-async def dolt_merge(input):
-    """Merge one branch into another using Dolt's DOLT_MERGE procedure
-
-    Args:
-        source_branch: Source branch to merge from
-        target_branch: Target branch to merge into (default: current branch)
-        commit_message: Custom commit message for the merge
-        no_ff: Create a merge commit even for fast-forward merges (default: False)
-        squash: Squash commits from source branch (default: False)
-        author: Author attribution for the merge commit
-
-    Returns:
-        success: Whether the merge operation succeeded
-        merge_hash: Hash of the merge commit
-        message: Human-readable result message
-        source_branch: Source branch that was merged
-        target_branch: Target branch that received the merge
-        fast_forward: Whether the merge was a fast-forward
-        conflicts: Number of conflicts that need resolution
-        active_branch: Current active branch
-        error: Error message if operation failed
-        timestamp: Timestamp of operation
-    """
-    try:
-        # Parse dict input into Pydantic model
-        parsed_input = DoltMergeInput(**input)
-        result = dolt_merge_tool(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump(mode="json")
-    except Exception as e:
-        logger.error(f"Error in DoltMerge MCP tool: {e}")
-        return DoltMergeOutput(
-            success=False,
-            message=f"Merge failed: {str(e)}",
-            source_branch=input.get("source_branch", "unknown"),
-            target_branch=input.get("target_branch", "unknown"),
-            fast_forward=False,
-            active_branch=get_memory_bank().branch,
-            error=f"Error during dolt_merge: {str(e)}",
-        ).model_dump(mode="json")
-
-
-# Register the DoltCompareBranches tool
-@mcp.tool("DoltCompareBranches")
-async def dolt_compare_branches(input):
-    """Compare two branches to show differences and check merge compatibility
-
-    Args:
-        source_branch: Source branch to compare from
-        target_branch: Target branch to compare to
-        include_data: Whether to include data differences (default: True)
-        include_schema: Whether to include schema differences (default: True)
-        table_filter: Optional table name to filter comparison
-
-    Returns:
-        success: Whether the comparison succeeded
-        message: Human-readable result message
-        source_branch: Source branch
-        target_branch: Target branch
-        has_differences: Whether there are any differences
-        can_merge: Whether branches can be merged without conflicts
-        diff_summary: Summary of differences
-        active_branch: Current active branch
-        error: Error message if operation failed
-        timestamp: Timestamp of operation
-    """
-    try:
-        # Parse dict input into Pydantic model
-        parsed_input = DoltCompareBranchesInput(**input)
-        result = dolt_compare_branches_tool(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump(mode="json")
-    except Exception as e:
-        logger.error(f"Error in DoltCompareBranches MCP tool: {e}")
-        return DoltCompareBranchesOutput(
-            success=False,
-            message=f"Branch comparison failed: {str(e)}",
-            source_branch=input.get("source_branch", "unknown"),
-            target_branch=input.get("target_branch", "unknown"),
-            has_differences=False,
-            can_merge=False,
-            active_branch=get_memory_bank().branch,
-            error=f"Error during dolt_compare_branches: {str(e)}",
         ).model_dump(mode="json")
 
 
