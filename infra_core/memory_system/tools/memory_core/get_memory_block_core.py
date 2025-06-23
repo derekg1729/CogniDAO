@@ -39,7 +39,7 @@ class GetMemoryBlockInput(BaseModel):
         None, description="Optional metadata key-value pairs to filter by (exact matches)"
     )
     limit: Optional[int] = Field(
-        None, description="Maximum number of results to return", ge=1, le=100
+        None, description="Maximum number of results to return", ge=1, le=1000
     )
 
     # Branch parameter for Dolt operations

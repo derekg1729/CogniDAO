@@ -134,6 +134,21 @@ from infra_core.memory_system.tools.agent_facing.create_namespace_tool import (
     CreateNamespaceInput,
     CreateNamespaceOutput,
 )
+from infra_core.memory_system.tools.agent_facing.global_memory_inventory_tool import (
+    global_memory_inventory_core,
+    GlobalMemoryInventoryInput,
+    GlobalMemoryInventoryOutput,
+)
+from infra_core.memory_system.tools.agent_facing.set_context_tool import (
+    set_context_core,
+    SetContextInput,
+    SetContextOutput,
+)
+from infra_core.memory_system.tools.agent_facing.global_semantic_search_tool import (
+    global_semantic_search_core,
+    GlobalSemanticSearchInput,
+    GlobalSemanticSearchOutput,
+)
 
 
 # Configure logging
@@ -1550,6 +1565,178 @@ async def dolt_approve_pull_request(input):
             pr_id=input.get("pr_id", "unknown"),
             active_branch=get_memory_bank().branch,
             error=f"Error during dolt_approve_pull_request: {str(e)}",
+        ).model_dump(mode="json")
+
+
+# Register the GlobalMemoryInventory tool
+@mcp.tool("GlobalMemoryInventory")
+async def global_memory_inventory(input):
+    """Fast cross-namespace discovery of memory block inventory with aggregate statistics
+
+    Args:
+        branch_filter: Optional filter by specific branch
+        updated_since: Only include buckets with updates since this timestamp
+        tag_contains: Only include buckets where blocks contain this tag
+        metadata_contains_key: Only include buckets where blocks have this metadata key
+        max_buckets: Maximum number of buckets to return
+
+    Returns:
+        success: Whether the inventory was successful
+        buckets: Inventory buckets grouped by namespace and type
+        total_namespaces: Total number of namespaces found
+        total_blocks: Total number of blocks across all buckets
+        active_branch: Branch used for the inventory
+        message: Human-readable summary message
+        error: Error message if inventory failed
+        timestamp: Timestamp of the inventory
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = GlobalMemoryInventoryInput(**input)
+        result = global_memory_inventory_core(parsed_input, memory_bank=get_memory_bank())
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error in GlobalMemoryInventory MCP tool: {e}")
+        return GlobalMemoryInventoryOutput(
+            success=False,
+            buckets=[],
+            total_namespaces=0,
+            total_blocks=0,
+            active_branch=get_memory_bank().branch,
+            message="Inventory failed",
+            error=f"Error during global_memory_inventory: {str(e)}",
+        ).model_dump(mode="json")
+
+
+# COMMENTED OUT - DEPRECATED BROKEN TOOL
+# Register the GetProjectGraph tool
+# @mcp.tool("GetProjectGraph")
+# async def get_project_graph(input):
+#     """⚠️ DEPRECATED - DO NOT USE - Broken link traversal tool that reports incorrect results
+#
+#     Args:
+#         root_block_id: ID of the root block to build graph from
+#         max_depth: Maximum depth to traverse
+#         include_dependencies: Whether to include dependency relationships
+#         include_reverse_dependencies: Whether to include reverse dependencies
+#         relation_filters: Only include specific relation types
+#         summarize: Generate an LLM summary of the project graph
+#         namespace_scope: Limit graph traversal to specific namespace
+#
+#     Returns:
+#         success: Whether the graph retrieval was successful
+#         root_node: Root node of the project graph
+#         total_nodes: Total number of nodes in the graph
+#         max_depth_reached: Maximum depth actually reached
+#         cycles_detected: Block IDs where cycles were detected and broken
+#         summary: LLM-generated summary of the project graph
+#         active_branch: Branch used for the query
+#         message: Human-readable result message
+#         error: Error message if retrieval failed
+#         timestamp: Timestamp of the retrieval
+#     """
+#     try:
+#         # Parse dict input into Pydantic model
+#         parsed_input = GetProjectGraphInput(**input)
+#         result = get_project_graph_core(parsed_input, memory_bank=get_memory_bank())
+#         return result.model_dump(mode="json")
+#     except Exception as e:
+#         logger.error(f"Error in GetProjectGraph MCP tool: {e}")
+#         return GetProjectGraphOutput(
+#             success=False,
+#             total_nodes=0,
+#             max_depth_reached=0,
+#             cycles_detected=[],
+#             active_branch=get_memory_bank().branch,
+#             message="Graph retrieval failed",
+#             error=f"Error during get_project_graph: {str(e)}",
+#         ).model_dump(mode="json")
+
+
+# Register the SetContext tool
+@mcp.tool("SetContext")
+async def set_context(input):
+    """Set the default namespace and/or branch context for the MCP session
+
+    Args:
+        namespace_id: Namespace to set as default (None = no change)
+        branch_name: Branch to checkout and set as active (None = no change)
+        validate_namespace: Whether to validate that the namespace exists
+        validate_branch: Whether to validate that the branch exists
+
+    Returns:
+        success: Whether the context change was successful
+        previous_namespace: Previous namespace context
+        current_namespace: Current namespace context
+        previous_branch: Previous active branch
+        current_branch: Current active branch
+        namespace_changed: Whether namespace was changed
+        branch_changed: Whether branch was changed
+        message: Human-readable result message
+        error: Error message if context change failed
+        timestamp: Timestamp of the operation
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = SetContextInput(**input)
+        result = set_context_core(parsed_input, memory_bank=get_memory_bank())
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error in SetContext MCP tool: {e}")
+        return SetContextOutput(
+            success=False,
+            previous_namespace=None,
+            current_namespace=None,
+            previous_branch=None,
+            current_branch=None,
+            message="Context setting failed",
+            error=f"Error during set_context: {str(e)}",
+        ).model_dump(mode="json")
+
+
+# Register the GlobalSemanticSearch tool
+@mcp.tool("GlobalSemanticSearch")
+async def global_semantic_search(input):
+    """Semantic search across all namespaces by default, with optional namespace filtering
+
+    Args:
+        query_text: Text to search for semantically
+        type_filter: Optional filter by block type
+        namespace_filter: Optional filter by specific namespace (None = search all namespaces)
+        tag_filters: Optional list of tags to filter by
+        top_k: Maximum number of results to return
+        metadata_filters: Optional metadata key-value pairs to filter by
+        include_namespace_stats: Whether to include per-namespace result statistics
+
+    Returns:
+        success: Whether the search was successful
+        blocks: List of matching memory blocks from all namespaces
+        total_results: Total number of results returned
+        namespaces_searched: List of namespaces that contained results
+        namespace_stats: Per-namespace result statistics
+        query_text: Original query text for reference
+        active_branch: Branch used for the search
+        message: Human-readable result message
+        error: Error message if search failed
+        timestamp: Timestamp of the search
+    """
+    try:
+        # Parse dict input into Pydantic model
+        parsed_input = GlobalSemanticSearchInput(**input)
+        result = global_semantic_search_core(parsed_input, memory_bank=get_memory_bank())
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error in GlobalSemanticSearch MCP tool: {e}")
+        return GlobalSemanticSearchOutput(
+            success=False,
+            blocks=[],
+            total_results=0,
+            namespaces_searched=[],
+            namespace_stats=[],
+            query_text=input.get("query_text", ""),
+            active_branch=get_memory_bank().branch,
+            message="Search failed",
+            error=f"Error during global_semantic_search: {str(e)}",
         ).model_dump(mode="json")
 
 
