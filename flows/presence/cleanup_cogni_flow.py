@@ -53,7 +53,11 @@ MCP_DOLT_NAMESPACE = "legacy"
 
 @task(name="run_cleanup_team_with_outro", cache_policy=None)
 async def run_cleanup_team_with_outro(
-    autogen_tools: list, tool_specs_text: str, session, work_items_context: Dict[str, Any]
+    autogen_tools: list,
+    tool_specs_text: str,
+    session,
+    work_items_context: Dict[str, Any],
+    memory_overview_summary: str,
 ) -> Dict[str, Any]:
     """Run 2 cleanup agents to identify test artifacts and migrate legacy blocks - All in one simple task using proven working pattern"""
     logger = get_run_logger()
@@ -82,7 +86,7 @@ async def run_cleanup_team_with_outro(
             model_client=model_client,
             tools=cogni_tools,
             system_message=render_test_artifact_detector_prompt(
-                tool_specs_text, work_items_summary
+                tool_specs_text, work_items_summary, memory_overview_summary
             ),
         )
         agents.append(test_detector)
@@ -92,7 +96,9 @@ async def run_cleanup_team_with_outro(
             name="namespace_migrator",
             model_client=model_client,
             tools=cogni_tools,
-            system_message=render_namespace_migrator_prompt(tool_specs_text, work_items_summary),
+            system_message=render_namespace_migrator_prompt(
+                tool_specs_text, work_items_summary, memory_overview_summary
+            ),
         )
         agents.append(namespace_migrator)
 
@@ -193,9 +199,44 @@ async def cleanup_team_flow() -> Dict[str, Any]:
                 [f"• {t.name}: {t.description or 'No description'}" for t in sdk_tools[:12]]
             )
 
+            # Step 2.5: Load memory system overview via GlobalMemoryInventory MCP tool
+            logger.info("Loading memory system overview via GlobalMemoryInventory MCP tool")
+
+            try:
+                # Call GlobalMemoryInventory directly using the session - following autogen_work_reader pattern
+                memory_overview_summary = await session.call_tool(
+                    "GlobalMemoryInventory", {"input": "{}"}
+                )
+                logger.info("✅ Memory overview loaded successfully via GlobalMemoryInventory")
+
+                # Pretty-print the memory inventory for visibility
+                import json
+
+                try:
+                    # If it's a string, try to parse it as JSON for pretty printing
+                    if isinstance(memory_overview_summary, str):
+                        parsed_data = json.loads(memory_overview_summary)
+                        pretty_json = json.dumps(parsed_data, indent=2)
+                    else:
+                        # If it's already a dict/object, convert to pretty JSON
+                        pretty_json = json.dumps(memory_overview_summary, indent=2, default=str)
+
+                    logger.info("📊 Memory System Inventory:\n%s", pretty_json)
+                except (json.JSONDecodeError, TypeError):
+                    # Fallback: just log the raw data if JSON parsing fails
+                    logger.info(
+                        "📊 Memory System Inventory (raw): %s", str(memory_overview_summary)
+                    )
+
+            except Exception as e:
+                logger.warning(f"Failed to load memory overview via MCP: {e}")
+                memory_overview_summary = (
+                    "## Memory System Overview:\n- Memory inventory unavailable due to MCP error"
+                )
+
             # Step 3: Run cleanup team with integrated outro routine
             summary_result = await run_cleanup_team_with_outro(
-                autogen_tools, tool_specs_text, session, work_items_context
+                autogen_tools, tool_specs_text, session, work_items_context, memory_overview_summary
             )
 
             if not summary_result.get("success"):
