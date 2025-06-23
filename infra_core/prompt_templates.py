@@ -238,16 +238,30 @@ def render_namespace_migrator_prompt(
     )
 
 
-def render_branch_merger_prompt(tool_specs: str, work_items_summary: str) -> str:
-    """Render branch merger agent prompt"""
+def render_conflict_detector_prompt(
+    tool_specs_text: str, work_items_summary: str, branch_inventory_summary: str = ""
+) -> str:
+    """Render conflict detector agent prompt with tools, work items, and branch inventory context"""
     manager = PromptTemplateManager()
-    return manager.render_agent_prompt("branch_merger", tool_specs, work_items_summary)
+    return manager.render_agent_prompt(
+        "conflict_detector",
+        tool_specs_text,
+        work_items_summary,
+        branch_inventory_summary=branch_inventory_summary,
+    )
 
 
-def render_conflict_detector_prompt(tool_specs: str, work_items_summary: str) -> str:
-    """Render conflict detector agent prompt"""
+def render_branch_merger_prompt(
+    tool_specs_text: str, work_items_summary: str, branch_inventory_summary: str = ""
+) -> str:
+    """Render branch merger agent prompt with tools, work items, and branch inventory context"""
     manager = PromptTemplateManager()
-    return manager.render_agent_prompt("conflict_detector", tool_specs, work_items_summary)
+    return manager.render_agent_prompt(
+        "branch_merger",
+        tool_specs_text,
+        work_items_summary,
+        branch_inventory_summary=branch_inventory_summary,
+    )
 
 
 def render_dolt_outro_commit_generator_prompt(
