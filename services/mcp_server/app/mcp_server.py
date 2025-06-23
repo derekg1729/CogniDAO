@@ -88,18 +88,12 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     dolt_auto_commit_and_push_tool,
     DoltAutoCommitInput,
     DoltAutoCommitOutput,
-    dolt_create_pull_request_tool,
-    DoltCreatePullRequestInput,
-    DoltCreatePullRequestOutput,
     dolt_merge_tool,
     DoltMergeInput,
     DoltMergeOutput,
     dolt_compare_branches_tool,
     DoltCompareBranchesInput,
     DoltCompareBranchesOutput,
-    dolt_approve_pull_request_tool,
-    DoltApprovePullRequestInput,
-    DoltApprovePullRequestOutput,
     dolt_reset_tool,
     DoltResetInput,
     DoltResetOutput,
@@ -1454,41 +1448,6 @@ async def dolt_auto_commit_and_push(input):
         ).model_dump(mode="json")
 
 
-# Register the DoltCreatePullRequest tool
-@mcp.tool("DoltCreatePullRequest")
-async def dolt_create_pull_request(input):
-    """Create a pull request for merging branches in Dolt
-
-    Args:
-        source_branch: Source branch to merge from
-        target_branch: Target branch to merge into (default: 'main')
-        title: Title of the pull request
-        description: Optional description of the pull request
-        reviewers: Optional list of reviewers for the pull request
-        auto_merge: Whether to automatically merge if all checks pass (default: False)
-
-    Returns:
-        success: Whether the pull request was created successfully
-        pr_id: Unique identifier for the pull request
-        pr_url: URL to view the pull request (if applicable)
-        message: Human-readable result message
-        error: Error message if operation failed
-        timestamp: Timestamp of operation
-    """
-    try:
-        # Parse dict input into Pydantic model
-        parsed_input = DoltCreatePullRequestInput(**input)
-        result = dolt_create_pull_request_tool(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump(mode="json")
-    except Exception as e:
-        logger.error(f"Error in DoltCreatePullRequest MCP tool: {e}")
-        return DoltCreatePullRequestOutput(
-            success=False,
-            message=f"Pull request creation failed: {str(e)}",
-            error=f"Error during dolt_create_pull_request: {str(e)}",
-        ).model_dump(mode="json")
-
-
 # Register the DoltMerge tool
 @mcp.tool("DoltMerge")
 async def dolt_merge(input):
@@ -1572,41 +1531,6 @@ async def dolt_compare_branches(input):
             can_merge=False,
             active_branch=get_memory_bank().branch,
             error=f"Error during dolt_compare_branches: {str(e)}",
-        ).model_dump(mode="json")
-
-
-# Register the DoltApprovePullRequest tool
-@mcp.tool("DoltApprovePullRequest")
-async def dolt_approve_pull_request(input):
-    """Approve and merge a pull request using the DoltHub API
-
-    Args:
-        pr_id: Pull request ID to approve and merge
-        approve_message: Optional message for the approval
-
-    Returns:
-        success: Whether the pull request approval succeeded
-        pr_id: Pull request ID that was approved
-        merge_hash: Hash of the merge commit
-        operation_name: DoltHub operation name for polling
-        message: Human-readable result message
-        active_branch: Current active branch
-        error: Error message if operation failed
-        timestamp: Timestamp of operation
-    """
-    try:
-        # Parse dict input into Pydantic model
-        parsed_input = DoltApprovePullRequestInput(**input)
-        result = dolt_approve_pull_request_tool(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump(mode="json")
-    except Exception as e:
-        logger.error(f"Error in DoltApprovePullRequest MCP tool: {e}")
-        return DoltApprovePullRequestOutput(
-            success=False,
-            message=f"Pull request approval failed: {str(e)}",
-            pr_id=input.get("pr_id", "unknown"),
-            active_branch=get_memory_bank().branch,
-            error=f"Error during dolt_approve_pull_request: {str(e)}",
         ).model_dump(mode="json")
 
 

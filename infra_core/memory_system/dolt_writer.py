@@ -862,6 +862,18 @@ class DoltMySQLWriter(DoltMySQLBase):
             logger.error(error_msg, exc_info=True)
             return False, error_msg
 
+    # TODO: BROKEN - Comment out until we figure out proper remote configuration
+    # def list_pull_requests(
+    #     self,
+    #     *,
+    #     status: str = "open",
+    #     limit: int = 50,
+    #     page_token: str = None,
+    #     include_description: bool = False,
+    # ) -> Tuple[List[dict], Optional[str]]:
+    #     """BROKEN: Remote configuration not working properly"""
+    #     raise NotImplementedError("list_pull_requests method is temporarily disabled")
+
     def write_block_proof(
         self,
         block_id: str,
