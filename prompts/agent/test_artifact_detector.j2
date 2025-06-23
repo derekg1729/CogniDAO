@@ -28,7 +28,16 @@
   
   <ToolSpecs>
 ## Available MCP Tools:
-**CRITICAL: All tools expect a single 'input' parameter containing JSON string with the actual arguments**
+**🚨 CRITICAL FORMAT REQUIREMENT 🚨**
+**ALL TOOLS REQUIRE SINGLE 'input' PARAMETER WITH JSON STRING - NO EXCEPTIONS!**
+
+**❌ WRONG FORMAT (WILL FAIL):**
+- BulkDeleteBlocks: {"blocks": [...], "author": "..."}
+- GetMemoryBlock: {"tag_filters": [...], "limit": 50}
+
+**✅ CORRECT FORMAT (ALWAYS USE THIS):**
+- BulkDeleteBlocks: input='{"blocks": [...], "author": "..."}'
+- GetMemoryBlock: input='{"tag_filters": [...], "limit": 50}'
 
 EXACT USAGE PATTERNS - Copy these formats exactly:
 
@@ -43,9 +52,11 @@ Bulk Delete Operations:
 Single Delete Operations:
 - DeleteMemoryBlock: input='{"block_id": "guid-here", "validate_dependencies": false, "author": "test_artifact_detector", "agent_id": "cleanup_flow"}'
 
+**REMEMBER: Every tool call MUST use input='...' wrapper!**
+
 {{ tool_specs }}
   </ToolSpecs>
   
   <WorkItemsSummary>{{ work_items_summary }}</WorkItemsSummary>
-  <Focus>Focus on being thorough but conservative - better to leave a test block than delete real content. Use bulk tools efficiently but safely. Use the EXACT input formats shown above.</Focus>
+  <Focus>Focus on being thorough but conservative - better to leave a test block than delete real content. Use bulk tools efficiently but safely. **ALWAYS use the input='...' format for ALL tool calls - this is mandatory!**</Focus>
 </PromptTemplate> 

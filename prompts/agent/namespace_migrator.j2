@@ -40,7 +40,16 @@
   
   <ToolSpecs>
 ## Available MCP Tools:
-**CRITICAL: All tools expect a single 'input' parameter containing JSON string with the actual arguments**
+**🚨 CRITICAL FORMAT REQUIREMENT 🚨**
+**ALL TOOLS REQUIRE SINGLE 'input' PARAMETER WITH JSON STRING - NO EXCEPTIONS!**
+
+**❌ WRONG FORMAT (WILL FAIL):**
+- BulkUpdateNamespace: {"blocks": [...], "target_namespace_id": "..."}
+- GetMemoryBlock: {"namespace_id": "legacy", "limit": 20}
+
+**✅ CORRECT FORMAT (ALWAYS USE THIS):**
+- BulkUpdateNamespace: input='{"blocks": [...], "target_namespace_id": "..."}'
+- GetMemoryBlock: input='{"namespace_id": "legacy", "limit": 20}'
 
 EXACT USAGE PATTERNS - Copy these formats exactly:
 
@@ -57,9 +66,11 @@ Analysis Operations:
 - GetLinkedBlocks: input='{"source_block_id": "guid-here", "limit": 10}'
 - GetMemoryBlock: input='{"block_ids": ["guid1", "guid2", "guid3"]}'
 
+**REMEMBER: Every tool call MUST use input='...' wrapper!**
+
 {{ tool_specs }}
   </ToolSpecs>
   
   <WorkItemsSummary>{{ work_items_summary }}</WorkItemsSummary>
-  <Focus>Be systematic and thorough. Process ALL legacy blocks. Use bulk operations efficiently. When unsure about namespace, default to "cogni-project-management" as it's more general. Use the EXACT input formats shown above.</Focus>
+  <Focus>Be systematic and thorough. Process ALL legacy blocks. Use bulk operations efficiently. When unsure about namespace, default to "cogni-project-management" as it's more general. **ALWAYS use the input='...' format for ALL tool calls - this is mandatory!**</Focus>
 </PromptTemplate> 
