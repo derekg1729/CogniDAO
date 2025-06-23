@@ -8,6 +8,7 @@ committing working set changes to Dolt when auto_commit=False.
 import pytest
 from unittest.mock import MagicMock, patch
 from datetime import datetime
+import requests
 
 from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     dolt_repo_tool,
@@ -1091,15 +1092,33 @@ class TestDoltListPullRequestsTool:
                 "body": "Fixes issue #123",
             },
         ]
-        mock_reader.list_pull_requests.return_value = mock_pr_data
+        # Mock the requests.get call for DoltHub API
+        mock_response_data = {
+            "pulls": mock_pr_data,
+            "nextPageToken": None,
+        }
 
         # Prepare input
         input_data = DoltListPullRequestsInput(
-            status_filter="open", limit=10, include_description=True
+            owner="test-owner",
+            database="test-db",
+            api_token="test-token",
+            status_filter="open",
+            limit=10,
+            include_description=True,
         )
 
-        # Execute tool
-        result = dolt_list_pull_requests_tool(input_data, memory_bank)
+        # Mock requests.get
+        with patch(
+            "infra_core.memory_system.tools.agent_facing.dolt_repo_tool.requests.get"
+        ) as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = mock_response_data
+            mock_response.raise_for_status.return_value = None
+            mock_get.return_value = mock_response
+
+            # Execute tool
+            result = dolt_list_pull_requests_tool(input_data, memory_bank)
 
         # Verify results
         assert result.success is True
@@ -1126,10 +1145,13 @@ class TestDoltListPullRequestsTool:
         assert pr2.conflicts == 1
         assert pr2.description == "Fixes issue #123"
 
-        # Verify list_pull_requests was called correctly
-        mock_reader.list_pull_requests.assert_called_once_with(
-            status_filter="open", limit=10, include_description=True
-        )
+        # Verify requests.get was called correctly
+        mock_get.assert_called_once()
+        call_args = mock_get.call_args
+        assert call_args[0][0] == "https://www.dolthub.com/api/v1alpha1/test-owner/test-db/pulls"
+        assert call_args[1]["params"]["pageSize"] == 10
+        assert call_args[1]["params"]["status"] == "open"
+        assert call_args[1]["headers"]["Authorization"] == "token test-token"
 
     def test_successful_pr_listing_all_statuses(self, mock_memory_bank):
         """Test successful pull request listing with all statuses."""
@@ -1148,10 +1170,28 @@ class TestDoltListPullRequestsTool:
                 "conflicts": 0,
             }
         ]
-        mock_reader.list_pull_requests.return_value = mock_pr_data
+        mock_response_data = {
+            "pulls": mock_pr_data,
+            "nextPageToken": "next_token_123",
+        }
 
-        input_data = DoltListPullRequestsInput(status_filter="all", limit=50)
-        result = dolt_list_pull_requests_tool(input_data, memory_bank)
+        input_data = DoltListPullRequestsInput(
+            owner="test-owner",
+            database="test-db",
+            api_token="test-token",
+            status_filter="all",
+            limit=50,
+        )
+
+        with patch(
+            "infra_core.memory_system.tools.agent_facing.dolt_repo_tool.requests.get"
+        ) as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = mock_response_data
+            mock_response.raise_for_status.return_value = None
+            mock_get.return_value = mock_response
+
+            result = dolt_list_pull_requests_tool(input_data, memory_bank)
 
         assert result.success is True
         assert len(result.pull_requests) == 1
@@ -1159,39 +1199,62 @@ class TestDoltListPullRequestsTool:
         assert "Found 1 pull request(s)" in result.message
         assert "with status" not in result.message  # Should not mention status for 'all'
 
-        # Verify list_pull_requests was called correctly for all statuses
-        mock_reader.list_pull_requests.assert_called_once_with(
-            status_filter="all", limit=50, include_description=False
-        )
+        # Verify API call parameters for all statuses
+        call_args = mock_get.call_args
+        assert "status" not in call_args[1]["params"]  # Should not include status param for 'all'
 
     def test_empty_pr_listing(self, mock_memory_bank):
         """Test pull request listing with no PRs found."""
         memory_bank, mock_writer, mock_reader = mock_memory_bank
-        mock_reader.list_pull_requests.return_value = []
 
-        input_data = DoltListPullRequestsInput()
-        result = dolt_list_pull_requests_tool(input_data, memory_bank)
+        mock_response_data = {
+            "pulls": [],
+            "nextPageToken": None,
+        }
+
+        input_data = DoltListPullRequestsInput(
+            owner="test-owner", database="test-db", api_token="test-token"
+        )
+
+        with patch(
+            "infra_core.memory_system.tools.agent_facing.dolt_repo_tool.requests.get"
+        ) as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = mock_response_data
+            mock_response.raise_for_status.return_value = None
+            mock_get.return_value = mock_response
+
+            result = dolt_list_pull_requests_tool(input_data, memory_bank)
 
         assert result.success is True
         assert len(result.pull_requests) == 0
         assert result.total_count == 0
         assert "Found 0 pull request(s)" in result.message
 
-    def test_pr_listing_table_not_found(self, mock_memory_bank):
-        """Test pull request listing when dolt_pull_requests table doesn't exist."""
+    def test_pr_listing_api_not_found(self, mock_memory_bank):
+        """Test pull request listing when database is not found on DoltHub."""
         memory_bank, mock_writer, mock_reader = mock_memory_bank
-        mock_reader.list_pull_requests.side_effect = Exception(
-            "Table 'dolt_pull_requests' doesn't exist"
+
+        input_data = DoltListPullRequestsInput(
+            owner="test-owner", database="nonexistent-db", api_token="test-token"
         )
 
-        input_data = DoltListPullRequestsInput()
-        result = dolt_list_pull_requests_tool(input_data, memory_bank)
+        with patch(
+            "infra_core.memory_system.tools.agent_facing.dolt_repo_tool.requests.get"
+        ) as mock_get:
+            mock_response = MagicMock()
+            mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+                "404 Not Found"
+            )
+            mock_get.return_value = mock_response
+
+            result = dolt_list_pull_requests_tool(input_data, memory_bank)
 
         assert result.success is False
         assert len(result.pull_requests) == 0
         assert result.total_count == 0
-        assert result.error_code == "TABLE_NOT_FOUND"
-        assert "dolt_pull_requests table not available" in result.message
+        assert result.error_code == "DB_NOT_FOUND"
+        assert "not found on DoltHub" in result.message
 
     def test_pr_listing_with_malformed_dates(self, mock_memory_bank):
         """Test pull request listing with malformed date strings."""
@@ -1210,43 +1273,80 @@ class TestDoltListPullRequestsTool:
                 "conflicts": 0,
             }
         ]
-        mock_reader.list_pull_requests.return_value = mock_pr_data
+        mock_response_data = {
+            "pulls": mock_pr_data,
+            "nextPageToken": None,
+        }
 
-        input_data = DoltListPullRequestsInput()
-        result = dolt_list_pull_requests_tool(input_data, memory_bank)
+        input_data = DoltListPullRequestsInput(
+            owner="test-owner", database="test-db", api_token="test-token"
+        )
+
+        with patch(
+            "infra_core.memory_system.tools.agent_facing.dolt_repo_tool.requests.get"
+        ) as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = mock_response_data
+            mock_response.raise_for_status.return_value = None
+            mock_get.return_value = mock_response
+
+            result = dolt_list_pull_requests_tool(input_data, memory_bank)
 
         # Should now fail with validation error for malformed dates
         assert result.success is False
         assert "Invalid created_at timestamp" in result.error
 
-    def test_pr_listing_with_exception(self, mock_memory_bank):
-        """Test pull request listing when an unexpected exception occurs."""
+    def test_pr_listing_with_network_exception(self, mock_memory_bank):
+        """Test pull request listing when a network exception occurs."""
         memory_bank, mock_writer, mock_reader = mock_memory_bank
-        mock_reader.list_pull_requests.side_effect = Exception("Database connection timeout")
 
-        input_data = DoltListPullRequestsInput()
-        result = dolt_list_pull_requests_tool(input_data, memory_bank)
+        input_data = DoltListPullRequestsInput(
+            owner="test-owner", database="test-db", api_token="test-token"
+        )
+
+        with patch(
+            "infra_core.memory_system.tools.agent_facing.dolt_repo_tool.requests.get"
+        ) as mock_get:
+            mock_get.side_effect = requests.exceptions.ConnectionError("Network timeout")
+
+            result = dolt_list_pull_requests_tool(input_data, memory_bank)
 
         assert result.success is False
-        assert "Failed to query pull requests" in result.message
-        assert "Database connection timeout" in result.error
+        assert "Network error connecting to DoltHub API" in result.message
+        assert result.error_code == "NETWORK"
 
     def test_pr_input_validation_limit_too_high(self):
         """Test input validation with limit exceeding maximum."""
         with pytest.raises(ValueError):
-            DoltListPullRequestsInput(limit=1000)  # Exceeds max of 500
+            DoltListPullRequestsInput(
+                owner="test-owner",
+                database="test-db",
+                api_token="test-token",
+                limit=1000,  # Exceeds max of 500
+            )
 
     def test_pr_input_validation_limit_too_low(self):
         """Test input validation with limit below minimum."""
         with pytest.raises(ValueError):
-            DoltListPullRequestsInput(limit=0)  # Below min of 1
+            DoltListPullRequestsInput(
+                owner="test-owner",
+                database="test-db",
+                api_token="test-token",
+                limit=0,  # Below min of 1
+            )
 
     def test_pr_input_validation_valid_limits(self):
         """Test input validation with valid limit values."""
         # Test boundary values
-        input_min = DoltListPullRequestsInput(limit=1)
-        input_max = DoltListPullRequestsInput(limit=500)
-        input_default = DoltListPullRequestsInput()
+        input_min = DoltListPullRequestsInput(
+            owner="test-owner", database="test-db", api_token="test-token", limit=1
+        )
+        input_max = DoltListPullRequestsInput(
+            owner="test-owner", database="test-db", api_token="test-token", limit=500
+        )
+        input_default = DoltListPullRequestsInput(
+            owner="test-owner", database="test-db", api_token="test-token"
+        )
 
         assert input_min.limit == 1
         assert input_max.limit == 500

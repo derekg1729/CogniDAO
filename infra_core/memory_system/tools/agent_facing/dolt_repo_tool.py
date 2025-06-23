@@ -1327,6 +1327,24 @@ def dolt_auto_commit_and_push_tool(
 class DoltListPullRequestsInput(BaseModel):
     """Input model for the dolt_list_pull_requests tool."""
 
+    owner: str = Field(
+        ...,
+        description="DoltHub owner/organization name",
+        min_length=1,
+        max_length=100,
+    )
+    database: str = Field(
+        ...,
+        description="Database name on DoltHub",
+        min_length=1,
+        max_length=100,
+    )
+    api_token: str = Field(
+        ...,
+        description="DoltHub API token for authentication",
+        min_length=1,
+        max_length=200,
+    )
     status_filter: Optional[str] = Field(
         default="open",
         description="Filter PRs by status (default: 'open'). Use 'all' for all statuses.",
@@ -1337,6 +1355,11 @@ class DoltListPullRequestsInput(BaseModel):
         description="Maximum number of PRs to return (default: 50, max: 500)",
         ge=1,
         le=500,
+    )
+    page_token: Optional[str] = Field(
+        default=None,
+        description="Pagination token for retrieving next page",
+        max_length=200,
     )
     include_description: bool = Field(
         default=False,
@@ -1366,8 +1389,13 @@ class DoltListPullRequestsOutput(BaseDoltOutput):
     pull_requests: List[DoltPullRequestInfo] = Field(
         default=[], description="List of pull requests"
     )
-    total_count: int = Field(..., description="Total number of PRs matching filter")
+    total_count: int = Field(..., description="Total number of PRs returned in this page")
     status_filter: str = Field(..., description="Status filter that was applied")
+    next_page_token: Optional[str] = Field(
+        default=None, description="Token for retrieving next page (if available)"
+    )
+    owner: str = Field(..., description="DoltHub owner/organization name")
+    database: str = Field(..., description="Database name on DoltHub")
 
 
 # --- NEW PULL REQUEST TOOLS ---
@@ -1996,41 +2024,71 @@ def dolt_list_pull_requests_tool(
     input_data: DoltListPullRequestsInput, memory_bank: StructuredMemoryBank
 ) -> DoltListPullRequestsOutput:
     """
-    List active pull requests from Dolt's pull request system tables.
+    List active pull requests from DoltHub REST API.
 
-    This tool queries the dolt_pull_requests system table to retrieve PR information
+    This tool queries the DoltHub API to retrieve PR information
     including status, branches, conflicts, and metadata.
 
     Args:
-        input_data: The listing parameters
-        memory_bank: StructuredMemoryBank instance with Dolt reader access
+        input_data: The listing parameters including DoltHub credentials
+        memory_bank: StructuredMemoryBank instance (used for active_branch only)
 
     Returns:
         DoltListPullRequestsOutput with list of pull requests
     """
     try:
-        logger.info(f"Listing Dolt pull requests with filter: {input_data.status_filter}")
+        logger.info(
+            f"Listing DoltHub pull requests for {input_data.owner}/{input_data.database} with filter: {input_data.status_filter}"
+        )
 
-        # Use the reader for read-only operations
-        reader = memory_bank.dolt_reader
-
-        # Use the reader's list_pull_requests method - this encapsulates all SQL logic
+        # Make direct HTTP API call to DoltHub
         try:
-            pr_results = reader.list_pull_requests(
-                status_filter=input_data.status_filter,
-                limit=input_data.limit,
-                include_description=input_data.include_description,
-            )
-            logger.info(f"Found {len(pr_results)} pull requests")
+            # Build DoltHub API URL
+            url = f"https://www.dolthub.com/api/v1alpha1/{input_data.owner}/{input_data.database}/pulls"
+
+            # Prepare request parameters
+            params = {
+                "pageSize": min(input_data.limit, 500)  # Cap at API limit
+            }
+
+            # Add status filter (API expects specific status values)
+            if input_data.status_filter != "all":
+                params["status"] = input_data.status_filter
+
+            # Add pagination token if provided
+            if input_data.page_token:
+                params["pageToken"] = input_data.page_token
+
+            # Prepare headers with authentication
+            headers = {
+                "Authorization": f"token {input_data.api_token}",
+                "Accept": "application/json",
+            }
+
+            logger.info(f"Fetching pull requests from DoltHub API: {url}")
+            logger.debug(f"Request params: {params}")
+
+            # Make API request
+            response = requests.get(url, params=params, headers=headers, timeout=30)
+            response.raise_for_status()
+
+            data = response.json()
+
+            # Extract pull requests and pagination info
+            pr_results = data.get("pulls", [])
+            next_page_token = data.get("nextPageToken")
+
+            logger.info(f"Found {len(pr_results)} pull requests from DoltHub API")
 
             # Convert results to our model format
             pull_requests = []
             for row in pr_results:
-                # Parse datetime fields safely - Python 3.11+ handles 'Z' suffix natively
+                # Parse datetime fields safely - DoltHub API returns ISO format
                 created_at = row.get("created_at")
                 if isinstance(created_at, str):
                     try:
-                        created_at = datetime.fromisoformat(created_at)
+                        # Handle both 'Z' suffix and timezone formats
+                        created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
                     except (ValueError, TypeError):
                         raise ValueError(f"Invalid created_at timestamp: {created_at}")
                 elif not isinstance(created_at, datetime):
@@ -2041,7 +2099,7 @@ def dolt_list_pull_requests_tool(
                 updated_at = row.get("updated_at")
                 if updated_at and isinstance(updated_at, str):
                     try:
-                        updated_at = datetime.fromisoformat(updated_at)
+                        updated_at = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
                     except (ValueError, TypeError):
                         raise ValueError(f"Invalid updated_at timestamp: {updated_at}")
                 elif updated_at is not None and not isinstance(updated_at, datetime):
@@ -2073,40 +2131,51 @@ def dolt_list_pull_requests_tool(
             message = f"Found {len(pull_requests)} pull request(s)"
             if input_data.status_filter != "all":
                 message += f" with status '{input_data.status_filter}'"
+            message += f" from DoltHub {input_data.owner}/{input_data.database}"
 
             logger.info(message)
 
             return DoltListPullRequestsOutput(
                 success=True,
                 message=message,
-                active_branch=reader.active_branch,
+                active_branch=getattr(memory_bank.dolt_reader, "active_branch", "unknown"),
                 pull_requests=pull_requests,
                 total_count=len(pull_requests),
                 status_filter=input_data.status_filter,
+                next_page_token=next_page_token,
+                owner=input_data.owner,
+                database=input_data.database,
             )
 
-        except Exception as e:
-            # Handle case where dolt_pull_requests table doesn't exist or query fails
-            error_msg = f"Failed to query pull requests: {str(e)}"
-            logger.warning(f"PR query failed: {error_msg}")
+        except requests.exceptions.RequestException as e:
+            # Handle DoltHub API errors
+            error_msg = f"Failed to fetch pull requests from DoltHub API: {str(e)}"
+            logger.warning(f"DoltHub API failed: {error_msg}")
 
-            # Check if this is a table not found error
-            if "dolt_pull_requests" in str(e).lower() and (
-                "not exist" in str(e).lower() or "doesn't exist" in str(e).lower()
-            ):
-                error_code = "TABLE_NOT_FOUND"
-                message = "dolt_pull_requests table not available"
+            # Categorize different types of errors
+            error_code = "API_ERROR"
+            if "401" in str(e) or "Unauthorized" in str(e):
+                error_code = "UNAUTHENTICATED"
+                message = "Invalid DoltHub API token or insufficient permissions"
+            elif "404" in str(e) or "Not Found" in str(e):
+                error_code = "DB_NOT_FOUND"
+                message = f"Database {input_data.owner}/{input_data.database} not found on DoltHub"
+            elif "timeout" in str(e).lower() or "connection" in str(e).lower():
+                error_code = "NETWORK"
+                message = "Network error connecting to DoltHub API"
             else:
-                error_code = "QUERY_FAILED"
-                message = f"Failed to query pull requests: {str(e)}"
+                message = f"DoltHub API error: {str(e)}"
 
             return DoltListPullRequestsOutput(
                 success=False,
                 message=message,
-                active_branch=reader.active_branch,
+                active_branch=getattr(memory_bank.dolt_reader, "active_branch", "unknown"),
                 pull_requests=[],
                 total_count=0,
                 status_filter=input_data.status_filter,
+                next_page_token=None,
+                owner=input_data.owner,
+                database=input_data.database,
                 error=error_msg,
                 error_code=error_code,
             )
@@ -2122,5 +2191,8 @@ def dolt_list_pull_requests_tool(
             pull_requests=[],
             total_count=0,
             status_filter=input_data.status_filter,
+            next_page_token=None,
+            owner=input_data.owner,
+            database=input_data.database,
             error=error_msg,
         )
