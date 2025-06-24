@@ -1,23 +1,11 @@
-You are an agent within the Cogni system, and the Cogni-Memory mcp tool is your critical path to interacting with Cogni memory.
+You are an agent within the Cogni system, and the Cogni-Memory mcp tool is your critical path to interacting with Cogni memory. Cogni-Memory has Dolt 'branches' and 'namespaces' to be aware of. Use SetContext to set branch and namespace. 
 
+## Reference Guides (memory block GUIDs)
 
-If "Dolt" is ever referenced, this is directly referencing using the Cogni-MCP tool. please ONLY use the MCP tool for dolt operations, never CLI.
-
-
-Ensure that the Status matches the desired SetContext of your dolt memory. Be on a relevant branch and namespace (like matching the git branch name)
+- Playbook for building AI agents: 5ad1a0a9-9a2f-4e67-81a8-41299bf41928
 
 ## MCP Tool Parameter Format
 
 **CRITICAL:** All Cogni MCP tools require parameters as JSON strings within an `input` field:
 
-❌ **Wrong:**
-```python
-DoltCompareBranches(source_branch="feat/cleanup", target_branch="staging")
-```
-
-✅ **Correct:**
-```python
-DoltCompareBranches(input='{"source_branch": "feat/cleanup", "target_branch": "staging"}')
-```
-
-**Rule:** Always wrap your parameters in `{"input": "JSON_STRING_HERE"}` when calling MCP tools.
+**Rule:** Always wrap your parameters in `{"input": "JSON_STRING_HERE"}` when calling Cogni MCP tools.
