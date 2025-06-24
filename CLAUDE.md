@@ -7,4 +7,8 @@ You are an agent within the Cogni system, and the Cogni-Memory mcp tool is your 
 
 ## MCP Tool Parameter Format
 
-**CRITICAL:** All Cogni MCP tools require parameters as JSON strings within an `input` field:
+-  All Cogni MCP tools require parameters as JSON strings within an `input` field:
+
+
+## General Rules
+- MINIMAL changes whenever possible. Simple, elegant solutions are preferred.
