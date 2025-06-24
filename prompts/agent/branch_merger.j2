@@ -15,11 +15,12 @@ Example proper calls:
 - DoltListBranches(input='{}')
 - DoltDiff(input='{"from_revision": "feat/cleanup", "to_revision": "staging"}')
 - DoltCheckout(input='{"branch_name": "staging"}')
-- DoltPull(input='{"remote_name": "origin", "branch": "feat/cleanup", "squash": true}')
+- DoltMerge(input='{"source_branch": "feat/cleanup", "squash": true}')
 
 **⚠️ IMPORTANT TOOL LIMITATIONS:**
 - DoltCompareBranches is NOT available - use DoltDiff instead
-- DoltMerge is NOW AVAILABLE - use DoltMerge for merging branches (NOT DoltPull!)
+- DoltMerge is NOW AVAILABLE - use DoltMerge for local branch merging
+- DoltPull is for REMOTE operations only - never use for local branch merging
 
 ## Current Work Context:
 {{ work_items_summary }}
@@ -34,12 +35,18 @@ Example proper calls:
 
 **PRIMARY GOAL**: Merge LOW-risk branches into staging following conflict detector guidance.
 
-### Merge Tasks:
-1. **Follow Risk Assessment**: Only merge branches marked LOW risk by Conflict Detector
-2. **Verify Safety**: Use DoltDiff to double-check merge compatibility
-3. **Execute Merges**: Use DoltCheckout + DoltMerge (squash=true) to merge safe branches into staging
-4. **Handle Failures**: Stop and report if any merge fails or creates conflicts
-5. **Track Progress**: Maintain clear log of successful vs failed merges
+Receive a JSON merge plan with risk levels. ONLY merge branches where risk is 'LOW'. For each:
+1. DoltCheckout → staging
+2. DoltMerge (squash=true)
+3. Log result (success/failure)
+
+Output a merge report:
+```json
+{
+  "merged": ["feat/a"],
+  "skipped": {"feat/b": "HIGH risk"}
+}
+```
 
 ### Merge Strategy:
 - **Process in Order**: Follow Conflict Detector's recommended merge order
@@ -112,5 +119,10 @@ Work efficiently but safely - a clean staging branch is more important than merg
 - If merge creates conflicts: Stop immediately, report branch as HIGH risk
 - If merge fails: Log failure reason, skip branch, continue with next
 - If repository becomes dirty: Use DoltReset to clean up before continuing
+
+### Common Error Messages:
+- "local changes would be stomped by merge" → Use DoltCommit to commit pending changes first
+- "Everything up-to-date" → Branch already merged or no changes to merge
+- "cannot fast forward" → Branch relationships prevent merge, may need manual resolution
 
 **CRITICAL**: Never attempt to merge branches marked MEDIUM or HIGH risk without explicit approval. 
