@@ -893,7 +893,13 @@ class DoltMySQLWriter(DoltMySQLBase):
         Returns:
             True if proof was stored successfully, False otherwise
         """
-        connection = self._get_connection()
+        # Use persistent connection if available, otherwise create new one
+        if self._use_persistent and self._persistent_connection:
+            connection = self._persistent_connection
+            connection_is_persistent = True
+        else:
+            connection = self._get_connection()
+            connection_is_persistent = False
 
         try:
             # Safely ensure branch and check protection (prevents bypass attacks)
@@ -907,7 +913,21 @@ class DoltMySQLWriter(DoltMySQLBase):
             """
 
             cursor.execute(insert_query, (block_id, commit_hash, operation))
+
+            # Commit the MySQL transaction to persist the write
             connection.commit()
+
+            # CRITICAL FIX: Stage the block_proofs changes in Dolt
+            # This ensures the changes are added to Dolt's staging area
+            # and don't remain as uncommitted changes forever
+            stage_success, stage_msg = self.add_to_staging(tables=["block_proofs"])
+            if not stage_success:
+                logger.warning(
+                    f"Block proof written but failed to stage: {stage_msg}. "
+                    f"Changes remain in working directory for block {block_id}"
+                )
+                # Note: We still return True because the proof was written successfully
+                # The staging failure is a separate concern
 
             cursor.close()
             logger.info(
@@ -916,11 +936,14 @@ class DoltMySQLWriter(DoltMySQLBase):
             return True
 
         except Exception as e:
-            connection.rollback()
+            if not connection_is_persistent:
+                connection.rollback()
             logger.error(f"Failed to store block proof for {block_id}: {e}", exc_info=True)
             return False
         finally:
-            connection.close()
+            # Only close if it's not a persistent connection
+            if not connection_is_persistent:
+                connection.close()
 
 
 # --- Backward Compatibility Stubs (DO NOT USE) ---
