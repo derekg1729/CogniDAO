@@ -494,6 +494,51 @@ class DoltAutoCommitOutput(BaseDoltOutput):
     timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of operation")
 
 
+class DoltMergeInput(BaseModel):
+    """Input model for the dolt_merge tool."""
+
+    source_branch: str = Field(
+        ...,
+        description="Name of the branch to merge into the current branch",
+        min_length=1,
+        max_length=100,
+    )
+    squash: bool = Field(
+        default=False,
+        description="Whether to squash all commits from source branch into single commit (default: False)",
+    )
+    no_ff: bool = Field(
+        default=False,
+        description="Create a merge commit even for fast-forward merges (default: False)",
+    )
+    commit_message: Optional[str] = Field(
+        default=None,
+        description="Custom commit message for the merge (optional)",
+        max_length=500,
+    )
+
+    @validator("source_branch")
+    def validate_source_branch(cls, v):
+        return validate_branch_name(v)
+
+
+class DoltMergeOutput(BaseDoltOutput):
+    """Output model for the dolt_merge tool."""
+
+    source_branch: str = Field(..., description="Name of the branch that was merged")
+    target_branch: str = Field(..., description="Name of the branch that was merged into")
+    squash: bool = Field(..., description="Whether squash merge was used")
+    no_ff: bool = Field(..., description="Whether no-fast-forward was used")
+    fast_forward: bool = Field(..., description="Whether the merge was a fast-forward")
+    conflicts: int = Field(default=0, description="Number of conflicts encountered")
+    merge_hash: Optional[str] = Field(
+        default=None, description="Hash of the merge commit if successful"
+    )
+    commit_message: Optional[str] = Field(
+        default=None, description="Custom commit message that was used"
+    )
+
+
 def dolt_repo_tool(
     input_data: DoltCommitInput, memory_bank: StructuredMemoryBank
 ) -> DoltCommitOutput:
@@ -1395,3 +1440,93 @@ class DoltListPullRequestsOutput(BaseDoltOutput):
     )
     owner: str = Field(..., description="DoltHub owner/organization name")
     database: str = Field(..., description="Database name on DoltHub")
+
+
+@dolt_tool("MERGE")
+def dolt_merge_tool(
+    input_data: DoltMergeInput, memory_bank: StructuredMemoryBank
+) -> DoltMergeOutput:
+    """
+    Merge a branch into the current branch using the memory bank's writer.
+
+    Args:
+        input_data: The merge parameters
+        memory_bank: StructuredMemoryBank instance with Dolt writer access
+
+    Returns:
+        DoltMergeOutput with success status and merge details
+    """
+    try:
+        logger.info(f"Merging branch '{input_data.source_branch}' with parameters: {input_data}")
+
+        # Get current branch for target_branch field
+        current_branch = memory_bank.dolt_writer.active_branch
+
+        # Execute the merge using the memory bank's writer
+        success, message = memory_bank.dolt_writer.merge_branch(
+            source_branch=input_data.source_branch,
+            squash=input_data.squash,
+            no_ff=input_data.no_ff,
+            commit_message=input_data.commit_message,
+        )
+
+        if success:
+            logger.info(f"Merge operation succeeded: {message}")
+
+            # Parse merge result information from message
+            fast_forward = "(fast-forward)" in message
+            conflicts = 0  # If successful, no conflicts
+            merge_hash = None  # Would need to extract from Dolt result if available
+
+            return DoltMergeOutput(
+                success=True,
+                message=message,
+                source_branch=input_data.source_branch,
+                target_branch=current_branch,
+                squash=input_data.squash,
+                no_ff=input_data.no_ff,
+                fast_forward=fast_forward,
+                conflicts=conflicts,
+                merge_hash=merge_hash,
+                commit_message=input_data.commit_message,
+                active_branch=memory_bank.dolt_writer.active_branch,
+            )
+        else:
+            logger.error(f"Merge operation failed: {message}")
+
+            # Parse conflict information from error message
+            conflicts = 1 if "conflicts" in message.lower() else 0
+
+            return DoltMergeOutput(
+                success=False,
+                message="Merge operation failed",
+                source_branch=input_data.source_branch,
+                target_branch=current_branch,
+                squash=input_data.squash,
+                no_ff=input_data.no_ff,
+                fast_forward=False,
+                conflicts=conflicts,
+                merge_hash=None,
+                commit_message=input_data.commit_message,
+                active_branch=memory_bank.dolt_writer.active_branch,
+                error=message,
+            )
+
+    except Exception as e:
+        error_msg = f"Exception during dolt_merge: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+
+        return DoltMergeOutput(
+            success=False,
+            message=f"Merge failed: {str(e)}",
+            source_branch=input_data.source_branch,
+            target_branch=memory_bank.dolt_writer.active_branch,
+            squash=input_data.squash,
+            no_ff=input_data.no_ff,
+            fast_forward=False,
+            conflicts=0,
+            merge_hash=None,
+            commit_message=input_data.commit_message,
+            active_branch=memory_bank.dolt_writer.active_branch,
+            error=error_msg,
+        )

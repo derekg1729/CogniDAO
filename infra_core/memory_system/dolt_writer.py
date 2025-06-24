@@ -945,6 +945,118 @@ class DoltMySQLWriter(DoltMySQLBase):
             if not connection_is_persistent:
                 connection.close()
 
+    def merge_branch(
+        self,
+        source_branch: str,
+        squash: bool = False,
+        no_ff: bool = False,
+        commit_message: str = None,
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Merge a branch into the current branch using Dolt's DOLT_MERGE function.
+
+        Args:
+            source_branch: Name of the branch to merge into the current branch
+            squash: Whether to squash all commits from source branch into single commit (default: False)
+            no_ff: Create a merge commit even for fast-forward merges (default: False)
+            commit_message: Custom commit message for the merge (optional)
+
+        Returns:
+            Tuple of (success: bool, message: Optional[str])
+        """
+        # Use persistent connection if available, otherwise create new one
+        if self._use_persistent and self._persistent_connection:
+            connection = self._persistent_connection
+            connection_is_persistent = True
+        else:
+            connection = self._get_connection()
+            connection_is_persistent = False
+
+        try:
+            cursor = connection.cursor(dictionary=True)
+
+            # Build merge command arguments list
+            merge_args = []
+
+            # Add flags first
+            if squash:
+                merge_args.append("--squash")
+            if no_ff:
+                merge_args.append("--no-ff")
+            if commit_message:
+                merge_args.extend(["-m", commit_message])
+
+            # Add source branch
+            merge_args.append(source_branch)
+
+            logger.info(
+                f"Merging branch '{source_branch}' into current branch "
+                f"(squash={squash}, no_ff={no_ff}, commit_message={commit_message})"
+            )
+
+            # Execute the merge using DOLT_MERGE function
+            # DOLT_MERGE supports various argument combinations
+            if len(merge_args) == 1:  # Just source branch
+                cursor.execute("CALL DOLT_MERGE(%s)", (merge_args[0],))
+            elif len(merge_args) == 2:  # One flag + source branch
+                cursor.execute("CALL DOLT_MERGE(%s, %s)", (merge_args[0], merge_args[1]))
+            elif len(merge_args) == 3:  # Two flags + source branch OR flag + message flag + branch
+                cursor.execute(
+                    "CALL DOLT_MERGE(%s, %s, %s)", (merge_args[0], merge_args[1], merge_args[2])
+                )
+            elif len(merge_args) == 4:  # Multiple flags + source branch
+                cursor.execute(
+                    "CALL DOLT_MERGE(%s, %s, %s, %s)",
+                    (merge_args[0], merge_args[1], merge_args[2], merge_args[3]),
+                )
+            elif len(merge_args) == 5:  # All flags + message + source branch
+                cursor.execute(
+                    "CALL DOLT_MERGE(%s, %s, %s, %s, %s)",
+                    (merge_args[0], merge_args[1], merge_args[2], merge_args[3], merge_args[4]),
+                )
+
+            result = cursor.fetchall()
+
+            # Check if merge was successful by examining the result
+            # DOLT_MERGE returns hash, fast_forward, conflicts, message columns
+            success = True
+            message = f"Successfully merged branch '{source_branch}'"
+
+            if result:
+                logger.info(f"DOLT_MERGE result: {result}")
+                # Extract useful information from result
+                for row in result:
+                    if isinstance(row, dict):
+                        if "conflicts" in row and row["conflicts"] and row["conflicts"] > 0:
+                            success = False
+                            message = f"Merge completed with {row['conflicts']} conflicts that need resolution"
+                        elif "message" in row and row["message"]:
+                            # Use Dolt's own message if available
+                            message = f"Merge result: {row['message']}"
+                        elif "fast_forward" in row:
+                            if row["fast_forward"]:
+                                message += " (fast-forward)"
+                            else:
+                                message += " (merge commit created)"
+
+            cursor.close()
+
+            if success:
+                logger.info(message)
+            else:
+                logger.warning(message)
+
+            return success, message
+
+        except Exception as e:
+            error_msg = f"Failed to merge branch '{source_branch}': {e}"
+            logger.error(error_msg, exc_info=True)
+            return False, error_msg
+        finally:
+            # Only close if it's not a persistent connection
+            if not connection_is_persistent:
+                connection.close()
+
 
 # --- Backward Compatibility Stubs (DO NOT USE) ---
 

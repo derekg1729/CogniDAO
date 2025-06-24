@@ -91,6 +91,9 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     dolt_reset_tool,
     DoltResetInput,
     DoltResetOutput,
+    dolt_merge_tool,
+    DoltMergeInput,
+    DoltMergeOutput,
 )
 from infra_core.memory_system.tools.agent_facing.bulk_create_blocks_tool import (
     bulk_create_blocks,
@@ -1585,6 +1588,52 @@ async def health_check():
         "link_manager_status": "initialized" if link_manager_ok else "not_initialized",
         "timestamp": datetime.now().isoformat(),
     }
+
+
+# Register the DoltMerge tool
+@mcp.tool("DoltMerge")
+async def dolt_merge(input):
+    """Merge a branch into the current branch using Dolt.
+
+    Args:
+        source_branch: Name of the branch to merge into the current branch
+        squash: Whether to squash all commits from source branch into single commit (default: False)
+        no_ff: Create a merge commit even for fast-forward merges (default: False)
+        commit_message: Custom commit message for the merge (optional)
+
+    Returns:
+        success: Whether the merge operation succeeded
+        source_branch: Name of the branch that was merged
+        target_branch: Name of the branch that was merged into
+        squash: Whether squash merge was used
+        no_ff: Whether no-fast-forward was used
+        fast_forward: Whether the merge was a fast-forward
+        conflicts: Number of conflicts encountered
+        merge_hash: Hash of the merge commit if successful
+        message: Human-readable result message
+        error: Error message if operation failed
+        timestamp: Timestamp of operation
+    """
+    try:
+        parsed_input = DoltMergeInput(**input)
+        result = dolt_merge_tool(parsed_input, memory_bank=get_memory_bank())
+        return result.model_dump(mode="json")
+    except Exception as e:
+        logger.error(f"Error in DoltMerge MCP tool: {e}")
+        return DoltMergeOutput(
+            success=False,
+            message=f"Merge failed: {str(e)}",
+            source_branch=input.get("source_branch", "unknown"),
+            target_branch=get_memory_bank().branch,
+            squash=input.get("squash", False),
+            no_ff=input.get("no_ff", False),
+            fast_forward=False,
+            conflicts=0,
+            merge_hash=None,
+            commit_message=input.get("commit_message"),
+            active_branch=get_memory_bank().branch,
+            error=f"Error during dolt_merge: {str(e)}",
+        ).model_dump(mode="json")
 
 
 # When this file is executed directly, use the MCP CLI
