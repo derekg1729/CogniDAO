@@ -24,6 +24,8 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     DoltDiffInput,
     dolt_reset_tool,
     DoltResetInput,
+    dolt_merge_tool,
+    DoltMergeInput,
 )
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
@@ -1052,3 +1054,396 @@ class TestDoltResetTool:
         assert "timestamp" in serialized
         assert serialized["success"] is True
         assert serialized["tables_reset"] == ["test_table"]
+
+
+class TestDoltMergeTool:
+    """Test class for dolt_merge_tool functionality."""
+
+    def test_successful_regular_merge(self, mock_memory_bank):
+        """Test successful regular merge operation."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Mock successful merge
+        mock_writer.merge_branch.return_value = (True, "merge successful")
+
+        # Prepare input for regular merge
+        input_data = DoltMergeInput(
+            source_branch="feature/test-branch",
+            commit_message="Merge feature/test-branch into main",
+        )
+
+        # Execute tool
+        result = dolt_merge_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is True
+        assert result.source_branch == "feature/test-branch"
+        assert result.target_branch == "main"  # Should use current branch
+        assert result.squash is False
+        assert result.no_ff is False
+        assert result.fast_forward is False  # Default when not specified
+        assert result.conflicts == 0
+        assert result.merge_hash is None  # Tool doesn't extract hash from Dolt result
+        assert "merge successful" in result.message
+        assert result.error is None
+        assert isinstance(result.timestamp, datetime)
+
+        # Verify mock calls
+        mock_writer.merge_branch.assert_called_once_with(
+            source_branch="feature/test-branch",
+            squash=False,
+            no_ff=False,
+            commit_message="Merge feature/test-branch into main",
+        )
+
+    def test_successful_squash_merge(self, mock_memory_bank):
+        """Test successful squash merge operation."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Mock successful squash merge
+        mock_writer.merge_branch.return_value = (True, "merge successful")
+
+        # Prepare input for squash merge
+        input_data = DoltMergeInput(
+            source_branch="feature/cleanup",
+            squash=True,
+            commit_message="Squash merge feature/cleanup",
+        )
+
+        # Execute tool
+        result = dolt_merge_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is True
+        assert result.source_branch == "feature/cleanup"
+        assert result.squash is True
+        assert result.no_ff is False
+        assert result.merge_hash is None
+        assert "merge successful" in result.message
+
+        # Verify mock calls
+        mock_writer.merge_branch.assert_called_once_with(
+            source_branch="feature/cleanup",
+            squash=True,
+            no_ff=False,
+            commit_message="Squash merge feature/cleanup",
+        )
+
+    def test_successful_no_ff_merge(self, mock_memory_bank):
+        """Test successful no-fast-forward merge operation."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Mock successful no-ff merge
+        mock_writer.merge_branch.return_value = (True, "merge successful")
+
+        # Prepare input for no-ff merge
+        input_data = DoltMergeInput(
+            source_branch="feature/important",
+            no_ff=True,
+            commit_message="No-FF merge feature/important",
+        )
+
+        # Execute tool
+        result = dolt_merge_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is True
+        assert result.source_branch == "feature/important"
+        assert result.squash is False
+        assert result.no_ff is True
+        assert result.merge_hash is None
+
+        # Verify mock calls
+        mock_writer.merge_branch.assert_called_once_with(
+            source_branch="feature/important",
+            squash=False,
+            no_ff=True,
+            commit_message="No-FF merge feature/important",
+        )
+
+    def test_successful_squash_and_no_ff_merge(self, mock_memory_bank):
+        """Test successful merge with both squash and no-ff flags."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Mock successful merge with both flags
+        mock_writer.merge_branch.return_value = (True, "merge successful")
+
+        # Prepare input with both squash and no_ff
+        input_data = DoltMergeInput(
+            source_branch="feature/complex",
+            squash=True,
+            no_ff=True,
+            commit_message="Complex merge with squash and no-ff",
+        )
+
+        # Execute tool
+        result = dolt_merge_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is True
+        assert result.squash is True
+        assert result.no_ff is True
+        assert result.merge_hash is None
+
+        # Verify mock calls
+        mock_writer.merge_branch.assert_called_once_with(
+            source_branch="feature/complex",
+            squash=True,
+            no_ff=True,
+            commit_message="Complex merge with squash and no-ff",
+        )
+
+    def test_merge_with_default_commit_message(self, mock_memory_bank):
+        """Test merge operation with auto-generated commit message."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Mock successful merge
+        mock_writer.merge_branch.return_value = (True, "merge successful")
+
+        # Prepare input without commit message
+        input_data = DoltMergeInput(source_branch="feature/auto-message")
+
+        # Execute tool
+        result = dolt_merge_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is True
+
+        # Verify mock calls - should pass None for commit_message when not provided
+        mock_writer.merge_branch.assert_called_once_with(
+            source_branch="feature/auto-message",
+            squash=False,
+            no_ff=False,
+            commit_message=None,
+        )
+
+    def test_failed_merge_with_conflicts(self, mock_memory_bank):
+        """Test failed merge operation due to conflicts."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Mock failed merge with conflict error
+        conflict_error = "error: local changes would be stomped by merge:\n\tblock_proofs\n Please commit your changes before you merge."
+        mock_writer.merge_branch.return_value = (False, conflict_error)
+
+        # Prepare input
+        input_data = DoltMergeInput(
+            source_branch="feature/conflicting", commit_message="This merge will conflict"
+        )
+
+        # Execute tool
+        result = dolt_merge_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is False
+        assert result.source_branch == "feature/conflicting"
+        assert result.merge_hash is None
+        assert result.conflicts == 0  # Tool doesn't parse conflict count
+        assert "Merge operation failed" in result.message
+        assert conflict_error in result.error
+        assert result.error_code is None
+
+    def test_failed_merge_branch_not_found(self, mock_memory_bank):
+        """Test failed merge operation when source branch doesn't exist."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Mock failed merge with branch not found error
+        branch_error = "Branch 'nonexistent-branch' not found"
+        mock_writer.merge_branch.return_value = (False, branch_error)
+
+        # Prepare input with non-existent branch
+        input_data = DoltMergeInput(
+            source_branch="nonexistent-branch", commit_message="This branch doesn't exist"
+        )
+
+        # Execute tool
+        result = dolt_merge_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is False
+        assert result.source_branch == "nonexistent-branch"
+        assert result.merge_hash is None
+        assert "Merge operation failed" in result.message
+        assert branch_error in result.error
+
+    def test_merge_with_exception(self, mock_memory_bank):
+        """Test merge operation when an exception occurs."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Mock exception during merge
+        mock_writer.merge_branch.side_effect = Exception("Database connection failed")
+
+        # Prepare input
+        input_data = DoltMergeInput(
+            source_branch="feature/exception-test", commit_message="This will cause an exception"
+        )
+
+        # Execute tool
+        result = dolt_merge_tool(input_data, memory_bank)
+
+        # Verify results
+        assert result.success is False
+        assert result.source_branch == "feature/exception-test"
+        assert result.merge_hash is None
+        assert "Merge failed: Database connection failed" in result.message
+        assert "Exception during dolt_merge" in result.error
+
+    def test_input_validation_empty_source_branch(self):
+        """Test input validation with empty source branch name."""
+        with pytest.raises(ValueError):
+            DoltMergeInput(source_branch="")
+
+    def test_input_validation_long_source_branch(self):
+        """Test input validation with overly long source branch name."""
+        long_branch = "x" * 101  # Exceeds max_length of 100
+        with pytest.raises(ValueError):
+            DoltMergeInput(source_branch=long_branch)
+
+    def test_input_validation_long_commit_message(self):
+        """Test input validation with overly long commit message."""
+        long_message = "x" * 501  # Exceeds max_length of 500
+        with pytest.raises(ValueError):
+            DoltMergeInput(source_branch="valid-branch", commit_message=long_message)
+
+    def test_input_validation_valid_max_lengths(self):
+        """Test input validation with maximum allowed lengths."""
+        # Test maximum valid lengths
+        max_branch = "x" * 100
+        max_message = "x" * 500
+
+        # Should not raise an exception
+        input_data = DoltMergeInput(
+            source_branch=max_branch, commit_message=max_message, squash=True, no_ff=True
+        )
+
+        assert input_data.source_branch == max_branch
+        assert input_data.commit_message == max_message
+        assert input_data.squash is True
+        assert input_data.no_ff is True
+
+    def test_input_validation_boolean_defaults(self):
+        """Test that boolean flags have correct default values."""
+        input_data = DoltMergeInput(source_branch="test-branch")
+
+        assert input_data.squash is False
+        assert input_data.no_ff is False
+
+    def test_output_model_serialization(self, mock_memory_bank):
+        """Test that DoltMergeOutput can be properly serialized."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Mock successful merge
+        mock_writer.merge_branch.return_value = (True, "merge successful")
+
+        # Prepare input
+        input_data = DoltMergeInput(
+            source_branch="feature/serialization-test",
+            squash=True,
+            no_ff=False,
+            commit_message="Serialization test merge",
+        )
+
+        # Execute tool
+        result = dolt_merge_tool(input_data, memory_bank)
+
+        # Test serialization
+        serialized = result.model_dump(mode="json")
+
+        # Verify all fields are present and properly typed
+        assert isinstance(serialized["success"], bool)
+        assert isinstance(serialized["source_branch"], str)
+        assert isinstance(serialized["target_branch"], str)
+        assert isinstance(serialized["squash"], bool)
+        assert isinstance(serialized["no_ff"], bool)
+        assert isinstance(serialized["fast_forward"], bool)
+        assert isinstance(serialized["conflicts"], int)
+        assert serialized["merge_hash"] is None  # Current implementation always returns None
+        assert isinstance(serialized["message"], str)
+        assert serialized["error"] is None
+        assert isinstance(serialized["timestamp"], str)  # datetime becomes string in JSON
+
+        # Verify specific values
+        assert serialized["success"] is True
+        assert serialized["source_branch"] == "feature/serialization-test"
+        assert serialized["squash"] is True
+        assert serialized["no_ff"] is False
+        assert serialized["merge_hash"] is None
+
+    def test_merge_preserves_target_branch_context(self, mock_memory_bank):
+        """Test that merge operation preserves the current target branch context."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Set up memory bank to be on staging branch
+        memory_bank.dolt_writer._current_branch = "staging"
+        memory_bank.dolt_reader._current_branch = "staging"
+        memory_bank.dolt_writer.active_branch = "staging"
+        memory_bank.dolt_reader.active_branch = "staging"
+
+        # Mock successful merge
+        mock_writer.merge_branch.return_value = (True, "merge successful")
+
+        # Prepare input
+        input_data = DoltMergeInput(
+            source_branch="feature/staging-test", commit_message="Merge into staging branch"
+        )
+
+        # Execute tool
+        result = dolt_merge_tool(input_data, memory_bank)
+
+        # Verify results - should show staging as target branch
+        assert result.success is True
+        assert result.source_branch == "feature/staging-test"
+        assert result.target_branch == "staging"
+
+    def test_merge_error_handling_comprehensive(self, mock_memory_bank):
+        """Test comprehensive error handling scenarios."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Test various error scenarios
+        error_scenarios = [
+            ("Already up to date", "Already up to date"),
+            ("cannot fast forward", "cannot fast forward"),
+            ("Merge conflict in file.txt", "Merge conflict in file.txt"),
+            ("Permission denied", "Permission denied"),
+        ]
+
+        for error_message, expected_error in error_scenarios:
+            # Reset mock for each scenario
+            mock_writer.reset_mock()
+            mock_writer.merge_branch.return_value = (False, error_message)
+
+            # Prepare input
+            input_data = DoltMergeInput(
+                source_branch=f"feature/test-{error_message.replace(' ', '-').lower()}",
+                commit_message=f"Test merge with error: {error_message}",
+            )
+
+            # Execute tool
+            result = dolt_merge_tool(input_data, memory_bank)
+
+            # Verify error handling
+            assert result.success is False
+            assert result.merge_hash is None
+            assert "Merge operation failed" in result.message
+            assert expected_error in result.error
+
+    def test_merge_with_writer_active_branch_property(self, mock_memory_bank):
+        """Test that merge correctly uses writer's active_branch property."""
+        memory_bank, mock_writer, mock_reader = mock_memory_bank
+
+        # Set different branch on writer
+        mock_writer.active_branch = "feature-branch"
+
+        # Mock successful merge
+        mock_writer.merge_branch.return_value = (True, "merge successful")
+
+        # Prepare input
+        input_data = DoltMergeInput(
+            source_branch="hotfix/urgent-fix", commit_message="Merge urgent hotfix"
+        )
+
+        # Execute tool
+        result = dolt_merge_tool(input_data, memory_bank)
+
+        # Verify results use the writer's active branch
+        assert result.success is True
+        assert result.target_branch == "feature-branch"

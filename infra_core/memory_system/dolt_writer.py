@@ -964,17 +964,10 @@ class DoltMySQLWriter(DoltMySQLBase):
         Returns:
             Tuple of (success: bool, message: Optional[str])
         """
-        # Use persistent connection if available, otherwise create new one
-        if self._use_persistent and self._persistent_connection:
-            connection = self._persistent_connection
-            connection_is_persistent = True
-        else:
-            connection = self._get_connection()
-            connection_is_persistent = False
+        if not source_branch or not source_branch.strip():
+            raise ValueError("Source branch name cannot be empty")
 
         try:
-            cursor = connection.cursor(dictionary=True)
-
             # Build merge command arguments list
             merge_args = []
 
@@ -994,28 +987,20 @@ class DoltMySQLWriter(DoltMySQLBase):
                 f"(squash={squash}, no_ff={no_ff}, commit_message={commit_message})"
             )
 
-            # Execute the merge using DOLT_MERGE function
+            # Execute the merge using DOLT_MERGE function via _execute_query
             # DOLT_MERGE supports various argument combinations
             if len(merge_args) == 1:  # Just source branch
-                cursor.execute("CALL DOLT_MERGE(%s)", (merge_args[0],))
+                result = self._execute_query("CALL DOLT_MERGE(%s)", (merge_args[0],))
             elif len(merge_args) == 2:  # One flag + source branch
-                cursor.execute("CALL DOLT_MERGE(%s, %s)", (merge_args[0], merge_args[1]))
+                result = self._execute_query("CALL DOLT_MERGE(%s, %s)", tuple(merge_args))
             elif len(merge_args) == 3:  # Two flags + source branch OR flag + message flag + branch
-                cursor.execute(
-                    "CALL DOLT_MERGE(%s, %s, %s)", (merge_args[0], merge_args[1], merge_args[2])
-                )
+                result = self._execute_query("CALL DOLT_MERGE(%s, %s, %s)", tuple(merge_args))
             elif len(merge_args) == 4:  # Multiple flags + source branch
-                cursor.execute(
-                    "CALL DOLT_MERGE(%s, %s, %s, %s)",
-                    (merge_args[0], merge_args[1], merge_args[2], merge_args[3]),
-                )
+                result = self._execute_query("CALL DOLT_MERGE(%s, %s, %s, %s)", tuple(merge_args))
             elif len(merge_args) == 5:  # All flags + message + source branch
-                cursor.execute(
-                    "CALL DOLT_MERGE(%s, %s, %s, %s, %s)",
-                    (merge_args[0], merge_args[1], merge_args[2], merge_args[3], merge_args[4]),
+                result = self._execute_query(
+                    "CALL DOLT_MERGE(%s, %s, %s, %s, %s)", tuple(merge_args)
                 )
-
-            result = cursor.fetchall()
 
             # Check if merge was successful by examining the result
             # DOLT_MERGE returns hash, fast_forward, conflicts, message columns
@@ -1039,8 +1024,6 @@ class DoltMySQLWriter(DoltMySQLBase):
                             else:
                                 message += " (merge commit created)"
 
-            cursor.close()
-
             if success:
                 logger.info(message)
             else:
@@ -1052,10 +1035,6 @@ class DoltMySQLWriter(DoltMySQLBase):
             error_msg = f"Failed to merge branch '{source_branch}': {e}"
             logger.error(error_msg, exc_info=True)
             return False, error_msg
-        finally:
-            # Only close if it's not a persistent connection
-            if not connection_is_persistent:
-                connection.close()
 
 
 # --- Backward Compatibility Stubs (DO NOT USE) ---
