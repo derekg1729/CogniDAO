@@ -198,7 +198,7 @@ async def playwright_control_flow() -> Dict[str, Any]:
         sse_url = os.getenv("PLAYWRIGHT_MCP_SSE_URL", "http://toolhive:24162/sse")
         navigation_objective = os.getenv(
             "NAVIGATION_OBJECTIVE",
-            "Navigate to example.com, interact with any forms or buttons, and extract key page information",
+            "Test the CogniDAO application starting from the home page at http://host.docker.internal:3000, verify core functionality including memory blocks display, chat interface, navigation, and explore page functionality",
         )
 
         logger.info(f"🔗 Playwright MCP SSE URL: {sse_url}")
