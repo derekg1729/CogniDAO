@@ -42,7 +42,7 @@ MCP_DOLT_NAMESPACE = "cogni-project-management"
 MAX_BATCH_SIZE = 10  # Maximum branches per batch to prevent context overflow
 
 
-async def filter_staging_candidates(session, branch_inventory_summary: str) -> List[Dict[str, Any]]:
+async def filter_staging_candidates(session, branch_inventory_summary) -> List[Dict[str, Any]]:
     """Deterministic pre-filtering to reduce 60+ branches to prioritized candidates"""
     logger = get_run_logger()
 
@@ -58,9 +58,13 @@ async def filter_staging_candidates(session, branch_inventory_summary: str) -> L
             logger.info(f"✅ Using {len(candidates)} fallback candidates for testing")
             return candidates
 
-        # Parse branch inventory
+        # Handle branch inventory (now expects parsed JSON object)
         if isinstance(branch_inventory_summary, str):
-            branch_data = json.loads(branch_inventory_summary)
+            try:
+                branch_data = json.loads(branch_inventory_summary)
+            except json.JSONDecodeError as e:
+                logger.error(f"❌ Branch filtering failed: Invalid JSON from MCP server: {e}")
+                return []
         else:
             branch_data = branch_inventory_summary
 
@@ -305,11 +309,12 @@ async def dolt_staging_crew_flow() -> Dict[str, Any]:
                     branch_inventory_summary = str(branch_inventory_result)
                     logger.warning("Unexpected MCP response format, using string representation")
 
-                # Pretty-print the branch inventory for visibility (only if it's valid JSON)
+                # Parse and pretty-print the branch inventory for visibility
+                branch_inventory_data = None
                 try:
                     if not branch_inventory_summary.startswith("Branch inventory unavailable"):
-                        parsed_data = json.loads(branch_inventory_summary)
-                        pretty_json = json.dumps(parsed_data, indent=2)
+                        branch_inventory_data = json.loads(branch_inventory_summary)
+                        pretty_json = json.dumps(branch_inventory_data, indent=2)
                         logger.info("📊 Branch Inventory:\n%s", pretty_json)
                     else:
                         logger.info("📊 Branch Inventory: %s", branch_inventory_summary)
@@ -322,14 +327,18 @@ async def dolt_staging_crew_flow() -> Dict[str, Any]:
                 branch_inventory_summary = (
                     "## Branch Inventory:\n- Branch inventory timed out - using fallback filtering"
                 )
+                branch_inventory_data = None
             except Exception as e:
                 logger.warning(f"Failed to load branch inventory via MCP: {e}")
                 branch_inventory_summary = (
                     "## Branch Inventory:\n- Branch inventory unavailable due to MCP error"
                 )
+                branch_inventory_data = None
 
             # Step 3: Filter branches deterministically
-            candidates = await filter_staging_candidates(session, branch_inventory_summary)
+            # Use parsed data if available, otherwise pass string for fallback parsing
+            filter_input = branch_inventory_data if branch_inventory_data is not None else branch_inventory_summary
+            candidates = await filter_staging_candidates(session, filter_input)
 
             if not candidates:
                 logger.info("ℹ️ No suitable branch candidates found for staging")
