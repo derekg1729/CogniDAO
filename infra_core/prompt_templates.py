@@ -280,3 +280,20 @@ def render_dolt_outro_commit_generator_prompt(
         diff_data=diff_data,
         flow_context=flow_context,
     )
+
+
+# Playwright-specific convenience functions
+def render_playwright_navigator_prompt(tool_specs: str, task_context: str = "") -> str:
+    """Render playwright navigator agent prompt"""
+    manager = PromptTemplateManager()
+    return manager.render_agent_prompt(
+        "playwright_navigator", tool_specs, "", task_context=task_context
+    )
+
+
+def render_playwright_observer_prompt(tool_specs: str, task_context: str = "") -> str:
+    """Render playwright observer agent prompt"""
+    manager = PromptTemplateManager()
+    return manager.render_agent_prompt(
+        "playwright_observer", tool_specs, "", task_context=task_context
+    )

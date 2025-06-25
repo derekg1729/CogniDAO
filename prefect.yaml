@@ -33,3 +33,21 @@ deployments:
     work_queue_name: null
     job_variables: {}
   schedules: []
+
+- name: playwright-control-flow
+  version: null
+  tags: []
+  concurrency_limit: null
+  description: |-
+    Playwright Control Flow - Two-Person AutoGen Navigation Team
+    
+    Modern Control Flow architecture with Navigator and Observer agents
+    for collaborative web automation via Playwright MCP integration.
+
+  entrypoint: flows/examples/playwright_control_flow.py:playwright_control_flow
+  parameters: {}
+  work_pool:
+    name: cogni-pool
+    work_queue_name: null
+    job_variables: {}
+  schedules: []
