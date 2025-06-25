@@ -34,18 +34,36 @@ deployments:
     job_variables: {}
   schedules: []
 
-- name: playwright-control-flow
+- name: playwright-control-flow-local
   version: null
   tags: []
   concurrency_limit: null
   description: |-
-    Playwright Control Flow - Two-Person AutoGen Navigation Team
+    Playwright Control Flow - Two-Person AutoGen Navigation Team (Local Docker)
     
-    Modern Control Flow architecture with Navigator and Observer agents
-    for collaborative web automation via Playwright MCP integration.
+    Target: http://host.docker.internal:3000 (local Docker development)
 
   entrypoint: flows/examples/playwright_control_flow.py:playwright_control_flow
-  parameters: {}
+  parameters:
+    target_url: "http://host.docker.internal:3000"
+  work_pool:
+    name: cogni-pool
+    work_queue_name: null
+    job_variables: {}
+  schedules: []
+
+- name: playwright-control-flow-prod
+  version: null
+  tags: []
+  concurrency_limit: null
+  description: |-
+    Playwright Control Flow - Two-Person AutoGen Navigation Team (Production)
+    
+    Target: https://www.cognidao.org (production CogniDAO site)
+
+  entrypoint: flows/examples/playwright_control_flow.py:playwright_control_flow
+  parameters:
+    target_url: "https://www.cognidao.org"
   work_pool:
     name: cogni-pool
     work_queue_name: null

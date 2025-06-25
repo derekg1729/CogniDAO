@@ -54,7 +54,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 async def create_playwright_navigation_team(
-    autogen_tools: List[Any], tool_specs: str, task_context: str
+    autogen_tools: List[Any], tool_specs: str, task_context: str, target_url: str
 ) -> Dict[str, Any]:
     """Create specialized two-person team for playwright navigation"""
     logger = get_run_logger()
@@ -72,7 +72,7 @@ async def create_playwright_navigation_team(
             name="playwright_navigator",
             model_client=model_client,
             tools=autogen_tools,
-            system_message=render_playwright_navigator_prompt(tool_specs, task_context),
+            system_message=render_playwright_navigator_prompt(tool_specs, task_context, target_url),
         )
         agents.append(navigator)
 
@@ -81,7 +81,7 @@ async def create_playwright_navigation_team(
             name="playwright_observer",
             model_client=model_client,
             tools=autogen_tools,  # Both agents have access to tools
-            system_message=render_playwright_observer_prompt(tool_specs, task_context),
+            system_message=render_playwright_observer_prompt(tool_specs, task_context, target_url),
         )
         agents.append(observer)
 
@@ -176,7 +176,9 @@ Begin mission execution!"""
 
 
 @flow(name="playwright_control_flow", log_prints=True)
-async def playwright_control_flow() -> Dict[str, Any]:
+async def playwright_control_flow(
+    target_url: str = "http://host.docker.internal:3000",
+) -> Dict[str, Any]:
     """
     Playwright Control Flow Agent System
 
@@ -186,9 +188,11 @@ async def playwright_control_flow() -> Dict[str, Any]:
     - XML Jinja template-based agent system messages
     - Collaborative workflow beyond legacy "1flow, 1agent" format
 
+    Parameters:
+    - target_url: The target URL to test (default: http://host.docker.internal:3000)
+
     Environment Variables:
     - PLAYWRIGHT_MCP_SSE_URL: SSE URL for Playwright MCP server
-    - NAVIGATION_OBJECTIVE: The web navigation task to accomplish
     """
     logger = get_run_logger()
     logger.info("🚀 Starting Playwright Control Flow Agent System")
@@ -196,12 +200,10 @@ async def playwright_control_flow() -> Dict[str, Any]:
     try:
         # Configuration
         sse_url = os.getenv("PLAYWRIGHT_MCP_SSE_URL", "http://toolhive:24162/sse")
-        navigation_objective = os.getenv(
-            "NAVIGATION_OBJECTIVE",
-            "Test the CogniDAO application starting from the home page at http://host.docker.internal:3000, verify core functionality including memory blocks display, chat interface, navigation, and explore page functionality",
-        )
+        navigation_objective = f"Test the CogniDAO application starting from the home page at {target_url}, verify core functionality including memory blocks display, chat interface, navigation, and explore page functionality"
 
         logger.info(f"🔗 Playwright MCP SSE URL: {sse_url}")
+        logger.info(f"🎯 Target URL: {target_url}")
         logger.info(f"🎯 Navigation Objective: {navigation_objective}")
 
         # Step 1: Setup SSE MCP connection for Playwright
@@ -229,13 +231,13 @@ Tools Available ({len(sdk_tools)} total):
 
             # Step 3: Create Control Flow navigation team
             task_context = f"""Task Context: Web Navigation Mission
-Target URL: To be determined by navigation objective
+Target URL: {target_url}
 Tools: {len(autogen_tools)} Playwright MCP tools available
 Objective: {navigation_objective}
 """
 
             team_result = await create_playwright_navigation_team(
-                autogen_tools, tool_specs, task_context
+                autogen_tools, tool_specs, task_context, target_url
             )
 
             if not team_result.get("success"):
@@ -275,6 +277,7 @@ Objective: {navigation_objective}
                     "tools_available": len(sdk_tools),
                     "agents_created": team_result.get("agents_count", 0),
                     "mission_success": mission_result.get("success", False),
+                    "target_url": target_url,
                     "objective": navigation_objective,
                 },
             }

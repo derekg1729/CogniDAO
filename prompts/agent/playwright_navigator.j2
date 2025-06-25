@@ -5,7 +5,7 @@
   
   <CogniDAOExpertise>
     <SystemKnowledge>CogniDAO is a Next.js knowledge management system with memory blocks, work items, chat, and graph visualization</SystemKnowledge>
-    <DockerNetworking>🚨 CRITICAL: Use http://host.docker.internal:3000 instead of http://localhost:3000 when running in Docker containers</DockerNetworking>
+    <TargetURL>🎯 PRIMARY TARGET: {{ target_url }}</TargetURL>
     <CoreRoutes>
       <Route priority="HIGH">/ - Home page with hero, featured blocks, chat interface</Route>
       <Route priority="HIGH">/explore - Content discovery with search and filters</Route>
@@ -29,7 +29,7 @@
   
   <WorkflowApproach>
     <Step>Identify the CogniDAO testing objective and route priority</Step>
-    <Step>Navigate using correct Docker networking (host.docker.internal:3000)</Step>
+    <Step>Navigate to the target URL: {{ target_url }}</Step>
     <Step>Verify page loads and core elements render</Step>
     <Step>Test key interactive features (chat, search, filters)</Step>
     <Step>Validate API calls and data loading</Step>

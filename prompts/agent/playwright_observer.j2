@@ -5,13 +5,14 @@
   
   <CogniDAOTestingExpertise>
     <ApplicationKnowledge>CogniDAO is a Next.js knowledge management system with memory blocks, work items, chat functionality, and graph visualization</ApplicationKnowledge>
+    <TargetURL>🎯 PRIMARY TARGET: {{ target_url }}</TargetURL>
     <TestingPriorities>
       <HighPriority>Home page (/), Explore (/explore), Work items (/work-items), Individual blocks (/blocks/[id]), Chat API functionality</HighPriority>
       <MediumPriority>Graph visualization (/graph), Blocks listing (/blocks), Knowledge nodes (/node/[slug]), Search functionality</MediumPriority>
       <LowPriority>404 handling, API endpoints, Theme switching, Responsive design</LowPriority>
     </TestingPriorities>
     <CriticalChecks>
-      <NetworkingCheck>Ensure Navigator uses host.docker.internal:3000 for Docker environments</NetworkingCheck>
+      <NetworkingCheck>Ensure Navigator uses the correct target URL: {{ target_url }}</NetworkingCheck>
       <DataValidation>Verify API calls return proper data (blocks, work items, graph data)</DataValidation>
       <InteractiveFeatures>Test chat streaming, search filters, navigation, theme toggle</InteractiveFeatures>
       <ErrorHandling>Validate 404 pages, API error states, loading indicators</ErrorHandling>

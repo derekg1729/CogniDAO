@@ -1,3 +1,5 @@
+## NOTE: this template is currently not directly referenced.
+
 # CogniDAO Playwright Testing Routes & Pages
 
 ## Overview
@@ -6,7 +8,7 @@ CogniDAO is a knowledge management system built with Next.js featuring memory bl
 ## Core User Pages
 
 ### 🏠 Home Page (`/`)
-**URL:** `http://localhost:3000/` (Docker: `http://host.docker.internal:3000/`)
+**URL:**  {{ target_url }} )
 
 **Key Elements to Test:**
 - CogniDAO logo and branding
@@ -24,7 +26,7 @@ CogniDAO is a knowledge management system built with Next.js featuring memory bl
 - Test responsive design on different screen sizes
 
 ### 🔍 Explore Page (`/explore`)
-**URL:** `http://localhost:3000/explore` (Docker: `http://host.docker.internal:3000/explore`)
+**URL:**  {{ target_url }})
 
 **Key Elements to Test:**
 - Search input field with search icon
@@ -45,7 +47,7 @@ CogniDAO is a knowledge management system built with Next.js featuring memory bl
 ### 📋 Blocks Pages
 
 #### Blocks List (`/blocks`)
-**URL:** `http://localhost:3000/blocks` (Docker: `http://host.docker.internal:3000/blocks`)
+**URL:** `{{ target_url }}/blocks`
 
 **Test Scenarios:**
 - Grid layout of all memory blocks
@@ -54,8 +56,8 @@ CogniDAO is a knowledge management system built with Next.js featuring memory bl
 - Click through to individual blocks
 
 #### Individual Block (`/blocks/[id]`)
-**URL:** `http://localhost:3000/blocks/{blockId}` (Docker: `http://host.docker.internal:3000/blocks/{blockId}`)
-**Example:** `http://localhost:3000/blocks/123?branch=main` (Docker: `http://host.docker.internal:3000/blocks/123?branch=main`)
+**URL:** `{{ target_url }}/blocks/{blockId}`
+**Example:** `{{ target_url }}/blocks/123?branch=main`
 
 **Key Elements to Test:**
 - Back button navigation
@@ -71,7 +73,7 @@ CogniDAO is a knowledge management system built with Next.js featuring memory bl
 - Test with different branch parameters
 
 ### 🕸️ Graph Page (`/graph`)
-**URL:** `http://localhost:3000/graph` (Docker: `http://host.docker.internal:3000/graph`)
+**URL:** `{{ target_url }}/graph`
 
 **Key Elements to Test:**
 - Interactive graph visualization
@@ -90,7 +92,7 @@ CogniDAO is a knowledge management system built with Next.js featuring memory bl
 - Test performance with large datasets
 
 ### 💼 Work Items Page (`/work-items`)
-**URL:** `http://localhost:3000/work-items` (Docker: `http://host.docker.internal:3000/work-items`)
+**URL:** `{{ target_url }}/work-items`
 
 **Key Elements to Test:**
 - Work items table/grid
@@ -111,8 +113,8 @@ CogniDAO is a knowledge management system built with Next.js featuring memory bl
 - Navigate between related work items
 
 ### 🧠 Knowledge Node Page (`/node/[slug]`)
-**URL:** `http://localhost:3000/node/{slug}` (Docker: `http://host.docker.internal:3000/node/{slug}`)
-**Example:** `http://localhost:3000/node/ai-fundamentals` (Docker: `http://host.docker.internal:3000/node/ai-fundamentals`)
+**URL:** `{{ target_url }}/node/{slug}`
+**Example:** `{{ target_url }}/node/ai-fundamentals`
 
 **Key Elements to Test:**
 - Dynamic slug-based routing
@@ -213,8 +215,8 @@ POST /api/v1/refresh
 ## Important Testing Notes
 
 ### Environment Setup
-- **Dev Server:** Typically runs on `http://localhost:3000`
-- **🚨 CRITICAL - Docker Networking:** When running Playwright from Docker containers (e.g., via MCP), use `http://host.docker.internal:3000` instead of `http://localhost:3000`
+- **Dev Server:** Typically runs on `{{ target_url }}`
+- **🚨 CRITICAL - Docker Networking:** When running Playwright from Docker containers (e.g., via MCP), use `{{ target_url }}` instead of `{{ target_url }}`
 - **Backend API:** Configured via `FASTAPI_URL` environment variable  
 - **Default namespace:** `ai-education`
 
@@ -268,12 +270,8 @@ await page.waitForResponse('**/api/v1/blocks**');
 
 **🚨 DOCKER NETWORKING SOLUTION**: When running Playwright from Docker containers (such as MCP tools), you MUST use `host.docker.internal:3000` instead of `localhost:3000` for all navigation. This is the most common blocker that will prevent all testing from working.
 
-```javascript
-// ❌ WRONG - Will fail in Docker
-await page.goto('http://localhost:3000');
-
 // ✅ CORRECT - Works in Docker  
-await page.goto('http://host.docker.internal:3000');
+await page.goto('{{ target_url }}');
 ```
 
 ### Test Status JSON Report
@@ -291,7 +289,7 @@ await page.goto('http://host.docker.internal:3000');
   "pages_tested": [
     {
       "route": "/",
-      "url_docker": "http://host.docker.internal:3000/",
+      "url_docker": "{{ target_url }}/",
       "status": "✅ WORKING",
       "priority": "HIGH",
       "features_verified": [
@@ -309,7 +307,7 @@ await page.goto('http://host.docker.internal:3000');
     },
     {
       "route": "/explore", 
-      "url_docker": "http://host.docker.internal:3000/explore",
+      "url_docker": "{{ target_url }}/explore",
       "status": "✅ WORKING",
       "priority": "HIGH",
       "features_verified": [
@@ -324,7 +322,7 @@ await page.goto('http://host.docker.internal:3000');
     },
     {
       "route": "/blocks",
-      "url_docker": "http://host.docker.internal:3000/blocks", 
+      "url_docker": "{{ target_url }}/blocks", 
       "status": "✅ WORKING",
       "priority": "MEDIUM",
       "features_verified": [
@@ -338,7 +336,7 @@ await page.goto('http://host.docker.internal:3000');
     },
     {
       "route": "/work-items",
-      "url_docker": "http://host.docker.internal:3000/work-items",
+      "url_docker": "{{ target_url }}/work-items",
       "status": "✅ WORKING", 
       "priority": "HIGH",
       "features_verified": [
@@ -352,7 +350,7 @@ await page.goto('http://host.docker.internal:3000');
     },
     {
       "route": "/graph",
-      "url_docker": "http://host.docker.internal:3000/graph",
+      "url_docker": "{{ target_url }}/graph",
       "status": "✅ WORKING",
       "priority": "MEDIUM", 
       "features_verified": [
@@ -367,7 +365,7 @@ await page.goto('http://host.docker.internal:3000');
     },
     {
       "route": "/blocks/[id]",
-      "url_docker": "http://host.docker.internal:3000/blocks/test-123", 
+      "url_docker": "{{ target_url }}/blocks/test-123", 
       "status": "⚠️ PARTIAL",
       "priority": "MEDIUM",
       "features_verified": [
@@ -384,7 +382,7 @@ await page.goto('http://host.docker.internal:3000');
     },
     {
       "route": "/not-found", 
-      "url_docker": "http://host.docker.internal:3000/invalid-route",
+      "url_docker": "{{ target_url }}/invalid-route",
       "status": "✅ WORKING",
       "priority": "LOW",
       "features_verified": [
@@ -397,7 +395,7 @@ await page.goto('http://host.docker.internal:3000');
     },
     {
       "route": "/api/v1/blocks",
-      "url_docker": "http://host.docker.internal:3000/api/v1/blocks",
+      "url_docker": "{{ target_url }}/api/v1/blocks",
       "status": "✅ WORKING",
       "priority": "HIGH",
       "features_verified": [

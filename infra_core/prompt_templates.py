@@ -283,17 +283,21 @@ def render_dolt_outro_commit_generator_prompt(
 
 
 # Playwright-specific convenience functions
-def render_playwright_navigator_prompt(tool_specs: str, task_context: str = "") -> str:
+def render_playwright_navigator_prompt(
+    tool_specs: str, task_context: str = "", target_url: str = "http://host.docker.internal:3000"
+) -> str:
     """Render playwright navigator agent prompt"""
     manager = PromptTemplateManager()
     return manager.render_agent_prompt(
-        "playwright_navigator", tool_specs, "", task_context=task_context
+        "playwright_navigator", tool_specs, "", task_context=task_context, target_url=target_url
     )
 
 
-def render_playwright_observer_prompt(tool_specs: str, task_context: str = "") -> str:
+def render_playwright_observer_prompt(
+    tool_specs: str, task_context: str = "", target_url: str = "http://host.docker.internal:3000"
+) -> str:
     """Render playwright observer agent prompt"""
     manager = PromptTemplateManager()
     return manager.render_agent_prompt(
-        "playwright_observer", tool_specs, "", task_context=task_context
+        "playwright_observer", tool_specs, "", task_context=task_context, target_url=target_url
     )
