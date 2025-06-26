@@ -301,3 +301,15 @@ def render_playwright_observer_prompt(
     return manager.render_agent_prompt(
         "playwright_observer", tool_specs, "", task_context=task_context, target_url=target_url
     )
+
+
+def render_image_creator_prompt(tool_specs: str, task_context: str = "") -> str:
+    """Render image creator agent prompt"""
+    manager = PromptTemplateManager()
+    return manager.render_agent_prompt("image_creator", tool_specs, "", task_context=task_context)
+
+
+def render_image_refiner_prompt(tool_specs: str, task_context: str = "") -> str:
+    """Render image refiner agent prompt"""
+    manager = PromptTemplateManager()
+    return manager.render_agent_prompt("image_refiner", tool_specs, "", task_context=task_context)
