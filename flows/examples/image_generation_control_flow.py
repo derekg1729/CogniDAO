@@ -2,13 +2,13 @@
 Image Generation Control Flow - Cogni-Image-Generators
 
 A sophisticated two-agent AutoGen Control Flow system for collaborative image generation
-using Luma and Veo2 MCP tools. Features Image Creator and Image Refiner agents working
+using Luma MCP tools. Features Image Creator and Image Refiner agents working
 together to produce exceptional visual content.
 
 Architecture:
 - Image Creator Agent: Initial generation, prompt engineering, tool selection
 - Image Refiner Agent: Enhancement, modification, iterative improvement
-- MCP Integration: Luma and Veo2 image generation tools via SSE transport
+- MCP Integration: Luma image generation tools via SSE transport
 - Control Flow: Structured collaboration with clear handoffs
 
 Example Usage:
@@ -126,32 +126,35 @@ async def run_image_generation_mission(
 
         logger.info(f"🚀 Starting image generation mission with {len(agents)} agents")
 
-        # Define image generation mission brief
-        mission_brief = f"""Control Flow Image Generation Mission Brief:
+        # Define CogniDAO collaborative prompt development mission brief
+        mission_brief = f"""CogniDAO Collaborative Prompt Development Mission Brief:
 
-**Creative Brief**: {creative_brief}
+**Mission**: Create one perfect image through collaborative prompt development
 
 **Team Roles**:
-- **Image Creator**: Analyze creative brief, craft optimized prompts, select tools, generate initial images
-- **Image Refiner**: Evaluate results, identify enhancement opportunities, apply refinements, iterate for quality
+- **Image Creator**: Propose initial CogniDAO sci-fi nature prompt concepts, handle technical execution
+- **Image Refiner**: Enhance thematic depth and conceptual resonance, optimize language precision
 
 **Mission Context**:
 {task_context}
 
 **Collaboration Protocol**:
-1. Image Creator analyzes the creative brief and develops generation strategy
-2. Image Creator executes initial image generation with optimal prompts and tools
-3. Image Refiner evaluates the results and provides detailed enhancement plan
-4. Image Refiner applies targeted refinements and improvements
-5. Both agents collaborate iteratively until exceptional results are achieved
+1. Image Creator proposes initial 1-2 sentence prompt blending CogniDAO themes with sci-fi nature
+2. Image Refiner analyzes thematic depth and suggests specific enhancements
+3. Both agents collaborate to refine language, concepts, and visual specificity
+4. Finalize perfect 1-2 sentence prompt capturing CogniDAO consciousness + nature fusion
+5. Image Creator generates single high-quality image with optimized parameters
+6. Mission complete - no refinements needed with collaborative prompt perfection
 
 **Success Criteria**:
-- Generate high-quality images that capture the creative vision
-- Apply effective enhancements and refinements
-- Demonstrate clear two-agent collaboration workflow
-- Provide comprehensive documentation of the generation process
+- Develop powerful 1-2 sentence prompt with deep CogniDAO thematic resonance
+- Demonstrate effective prompt collaboration workflow
+- Generate single exceptional image that captures collective intelligence + nature themes
+- Complete mission with one perfect generation (no iterations needed)
 
-Begin image generation mission!"""
+**CogniDAO Focus**: Collective intelligence, consciousness networks, nature-technology fusion, emergent awareness
+
+Begin collaborative prompt development mission!"""
 
         # Run the collaborative image generation mission
         await Console(team.run_stream(task=mission_brief))
@@ -179,14 +182,14 @@ Begin image generation mission!"""
 
 @flow(name="image_generation_control_flow", log_prints=True)
 async def image_generation_control_flow(
-    creative_brief: str = "A majestic dragon soaring through a mystical forest at sunset, digital art style with vibrant colors and ethereal lighting",
+    creative_brief: str = "CogniDAO collective intelligence emerging through a crystalline forest where neural networks branch like living trees, consciousness flowing through data streams in ethereal light",
 ) -> Dict[str, Any]:
     """
     Image Generation Control Flow Agent System
 
     Demonstrates modern Control Flow architecture with:
     - Two-agent specialized team (Image Creator + Image Refiner)
-    - Luma/Veo2 MCP integration via SSE transport
+    - Luma/MCP integration via SSE transport
     - XML Jinja template-based agent system messages
     - Collaborative workflow beyond legacy "1flow, 1agent" format
 
@@ -195,18 +198,15 @@ async def image_generation_control_flow(
 
     Environment Variables:
     - LUMA_MCP_SSE_URL: SSE URL for Luma MCP server
-    - VEO2_MCP_SSE_URL: SSE URL for Veo2 MCP server
     """
     logger = get_run_logger()
     logger.info("🚀 Starting Image Generation Control Flow Agent System")
 
     try:
         # Configuration
-        luma_sse_url = os.getenv("LUMA_MCP_SSE_URL", "http://localhost:58897/sse")
-        veo2_sse_url = os.getenv("VEO2_MCP_SSE_URL", "http://localhost:8932/sse")
+        luma_sse_url = os.getenv("LUMA_MCP_SSE_URL", "http://localhost:52711/sse")
 
         logger.info(f"🔗 Luma MCP SSE URL: {luma_sse_url}")
-        logger.info(f"🔗 Veo2 MCP SSE URL: {veo2_sse_url}")
         logger.info(f"🎯 Creative Brief: {creative_brief}")
 
         # Step 1: Setup SSE MCP connection for Luma image generation
@@ -289,7 +289,7 @@ if __name__ == "__main__":
     print("🎨 Running Image Generation Control Flow directly...")
 
     # Set test creative brief
-    test_brief = "A serene Japanese garden at dawn with cherry blossoms, koi pond reflections, and soft morning mist, photorealistic style"
+    test_brief = "CogniDAO neural swarm consciousness manifesting as bioluminescent coral networks in a quantum ocean, where digital minds merge with living ecosystems"
 
     result = asyncio.run(image_generation_control_flow(test_brief))
 
