@@ -18,217 +18,163 @@ Example Usage:
 import asyncio
 import logging
 import os
-from typing import Dict, Any, List
+import sys
+from pathlib import Path
+from typing import Any, Dict, List
 
-# Prefect imports
-from prefect import flow, get_run_logger
+from prefect import flow
+from prefect.logging import get_run_logger
 
-# AutoGen imports
-from autogen_core import AgentId, AgentProxy
-from autogen_core.models import OpenAIModelClient
-from autogen_ext.tools.mcp import SseMcpToolAdapter, SseServerParams
+# AutoGen MCP Integration
+from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.teams import RoundRobinGroupChat
+from autogen_agentchat.conditions import MaxMessageTermination
+from autogen_agentchat.ui import Console
+from autogen_ext.models.openai import OpenAIChatCompletionClient
 
-# Control Flow imports
-from autogen_ext.application import SingleThreadedAgentRuntime
-from autogen_ext.application.proxyagent import ProxyAgent
+# Import path handling for shared components
+current_dir = Path(__file__).parent
+workspace_root = current_dir.parent.parent
+if str(workspace_root) not in sys.path:
+    sys.path.insert(0, str(workspace_root))
 
-# Cogni imports
-from utils.mcp_setup import configure_existing_mcp
-from infra_core.prompt_templates import render_image_creator_prompt, render_image_refiner_prompt
+# Shared MCP helper
+from utils.mcp_setup import configure_existing_mcp, MCPConnectionError  # noqa: E402
+
+# AutoGen MCP tool adapters
+from autogen_ext.tools.mcp import SseMcpToolAdapter, SseServerParams  # noqa: E402
+
+# Image generation prompt templates
+from infra_core.prompt_templates import (  # noqa: E402
+    render_image_creator_prompt,
+    render_image_refiner_prompt,
+)
 
 # Configure logging
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 async def create_image_generation_team(
-    autogen_tools: List, tool_specs: str, task_context: str, creative_brief: str
+    autogen_tools: List[Any], tool_specs: str, task_context: str, creative_brief: str
 ) -> Dict[str, Any]:
-    """
-    Create and run Image Generation team using Control Flow architecture
-
-    Args:
-        autogen_tools: List of AutoGen MCP tool adapters
-        tool_specs: Formatted tool specifications string
-        task_context: Context information for the task
-        creative_brief: Creative description for image generation
-
-    Returns:
-        Team execution results with generated images and refinements
-    """
-    logger.info("🎨 Creating Image Generation Control Flow team...")
-
-    # Setup OpenAI client
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    if not openai_api_key:
-        raise ValueError("OPENAI_API_KEY environment variable is required")
-
-    model_client = OpenAIModelClient(
-        model="gpt-4o-mini",
-        api_key=openai_api_key,
-    )
-
-    # Create runtime and agents
-    runtime = SingleThreadedAgentRuntime()
-
-    # Image Creator Agent - Initial generation specialist
-    image_creator_prompt = render_image_creator_prompt(
-        tool_specs=tool_specs, task_context=task_context
-    )
-
-    image_creator_agent = ProxyAgent(
-        AgentId("image_creator", "image_gen_team"),
-        runtime,
-        name="ImageCreator",
-        model_client=model_client,
-        tools=autogen_tools,
-        system_message=image_creator_prompt,
-        max_consecutive_auto_replies=3,
-    )
-
-    # Image Refiner Agent - Enhancement specialist
-    image_refiner_prompt = render_image_refiner_prompt(
-        tool_specs=tool_specs, task_context=task_context
-    )
-
-    image_refiner_agent = ProxyAgent(
-        AgentId("image_refiner", "image_gen_team"),
-        runtime,
-        name="ImageRefiner",
-        model_client=model_client,
-        tools=autogen_tools,
-        system_message=image_refiner_prompt,
-        max_consecutive_auto_replies=3,
-    )
-
-    logger.info("✅ Image Generation team created successfully")
-    logger.info(f"   🎨 Image Creator: {len(autogen_tools)} tools available")
-    logger.info(f"   ✨ Image Refiner: {len(autogen_tools)} tools available")
+    """Create specialized two-agent team for image generation"""
+    logger = get_run_logger()
 
     try:
-        # Start runtime
-        runtime.start()
-        logger.info("🚀 Control Flow runtime started")
+        # Setup OpenAI client
+        model_client = OpenAIChatCompletionClient(model="gpt-4o-mini")
+        logger.info("✅ OpenAI client configured for Control Flow agents")
 
-        # Execute Image Generation workflow
-        workflow_result = await execute_image_generation_workflow(
-            image_creator_agent, image_refiner_agent, creative_brief
+        # Create specialized agents
+        agents = []
+
+        # Agent 1: Image Creator - The initial generation specialist
+        image_creator = AssistantAgent(
+            name="image_creator",
+            model_client=model_client,
+            tools=autogen_tools,
+            system_message=render_image_creator_prompt(tool_specs, task_context),
         )
+        agents.append(image_creator)
+
+        # Agent 2: Image Refiner - The enhancement and refinement specialist
+        image_refiner = AssistantAgent(
+            name="image_refiner",
+            model_client=model_client,
+            tools=autogen_tools,
+            system_message=render_image_refiner_prompt(tool_specs, task_context),
+        )
+        agents.append(image_refiner)
+
+        logger.info(f"🤖 Created Control Flow team: {len(agents)} agents")
+        for agent in agents:
+            logger.info(f"   👤 {agent.name}")
 
         return {
             "success": True,
-            "team_type": "image_generation_control_flow",
-            "agents_created": 2,
-            "tools_available": len(autogen_tools),
-            "workflow_result": workflow_result,
-            "creative_brief": creative_brief,
+            "agents_count": len(agents),
+            "agents": agents,  # For internal flow use
+            "agent_names": [agent.name for agent in agents],
+            "architecture": "control_flow_two_agent_team",
         }
 
     except Exception as e:
-        logger.error(f"❌ Image Generation team execution failed: {e}")
+        logger.error(f"❌ Control Flow team creation failed: {e}")
         return {
             "success": False,
             "error": str(e),
-            "team_type": "image_generation_control_flow",
+            "agents_count": 0,
+            "agents": [],
+            "agent_names": [],
         }
-    finally:
-        # Cleanup
-        runtime.stop()
-        logger.info("🛑 Control Flow runtime stopped")
 
 
-async def execute_image_generation_workflow(
-    image_creator_agent: AgentProxy, image_refiner_agent: AgentProxy, creative_brief: str
+async def run_image_generation_mission(
+    agents: List[Any], task_context: str, creative_brief: str
 ) -> Dict[str, Any]:
-    """
-    Execute the collaborative image generation workflow
+    """Run collaborative image generation mission with Creator and Refiner"""
+    logger = get_run_logger()
 
-    Args:
-        image_creator_agent: Image Creator agent proxy
-        image_refiner_agent: Image Refiner agent proxy
-        creative_brief: Creative description for generation
+    if not agents:
+        return {"success": False, "error": "No agents provided for image generation mission"}
 
-    Returns:
-        Workflow execution results
-    """
-    logger.info("🎯 Starting Image Generation workflow...")
+    try:
+        # Create Control Flow team for collaborative image generation
+        team = RoundRobinGroupChat(
+            participants=agents, termination_condition=MaxMessageTermination(max_messages=12)
+        )
 
-    # Phase 1: Initial Image Creation
-    logger.info("📝 Phase 1: Initial Image Creation")
+        logger.info(f"🚀 Starting image generation mission with {len(agents)} agents")
 
-    creation_message = f"""Creative Brief: {creative_brief}
+        # Define image generation mission brief
+        mission_brief = f"""Control Flow Image Generation Mission Brief:
 
-Your mission:
-1. Analyze the creative brief for artistic intent and technical requirements
-2. Craft an optimized prompt with appropriate artistic language
-3. Select the best tool and parameters for this specific request
-4. Generate the initial image(s)
-5. Evaluate results and provide detailed feedback for the Image Refiner Agent
+**Creative Brief**: {creative_brief}
 
-Focus on creating a strong foundation that captures the creative vision while providing clear direction for refinement."""
+**Team Roles**:
+- **Image Creator**: Analyze creative brief, craft optimized prompts, select tools, generate initial images
+- **Image Refiner**: Evaluate results, identify enhancement opportunities, apply refinements, iterate for quality
 
-    creation_response = await image_creator_agent.on_messages(
-        [{"role": "user", "content": creation_message}]
-    )
+**Mission Context**:
+{task_context}
 
-    logger.info("✅ Phase 1 completed - Initial image creation")
+**Collaboration Protocol**:
+1. Image Creator analyzes the creative brief and develops generation strategy
+2. Image Creator executes initial image generation with optimal prompts and tools
+3. Image Refiner evaluates the results and provides detailed enhancement plan
+4. Image Refiner applies targeted refinements and improvements
+5. Both agents collaborate iteratively until exceptional results are achieved
 
-    # Phase 2: Image Analysis and Refinement Planning
-    logger.info("🔍 Phase 2: Image Analysis and Refinement Planning")
+**Success Criteria**:
+- Generate high-quality images that capture the creative vision
+- Apply effective enhancements and refinements
+- Demonstrate clear two-agent collaboration workflow
+- Provide comprehensive documentation of the generation process
 
-    refinement_planning_message = f"""Initial Creation Results:
-{creation_response[-1]["content"] if creation_response else "No creation response available"}
+Begin image generation mission!"""
 
-Your mission:
-1. Analyze the initial image(s) for quality, composition, and artistic merit
-2. Identify specific enhancement opportunities
-3. Develop a refinement strategy that will elevate the visual impact
-4. Select optimal tools and parameters for targeted improvements
-5. Provide a clear plan for iterative enhancement
+        # Run the collaborative image generation mission
+        await Console(team.run_stream(task=mission_brief))
 
-Focus on building upon the Image Creator's foundation to achieve exceptional results."""
+        logger.info("✅ Image generation mission completed successfully")
 
-    refinement_plan_response = await image_refiner_agent.on_messages(
-        [{"role": "user", "content": refinement_planning_message}]
-    )
+        return {
+            "success": True,
+            "agents_used": len(agents),
+            "mission_type": "control_flow_image_generation",
+            "creative_brief": creative_brief,
+            "architecture": "two_agent_collaborative_team",
+            "message": "Control Flow image generation mission completed successfully",
+        }
 
-    logger.info("✅ Phase 2 completed - Refinement planning")
-
-    # Phase 3: Collaborative Enhancement
-    logger.info("🎨 Phase 3: Collaborative Enhancement Execution")
-
-    enhancement_message = f"""Refinement Plan:
-{refinement_plan_response[-1]["content"] if refinement_plan_response else "No refinement plan available"}
-
-Execute your refinement strategy:
-1. Apply the planned enhancements using optimal tools and parameters
-2. Monitor results and adjust approach as needed
-3. Perform additional iterations if beneficial
-4. Document the refinement process and final results
-5. Provide recommendations for future similar projects
-
-Deliver exceptional visual content that exceeds the original creative brief."""
-
-    enhancement_response = await image_refiner_agent.on_messages(
-        [{"role": "user", "content": enhancement_message}]
-    )
-
-    logger.info("✅ Phase 3 completed - Collaborative enhancement")
-
-    # Compile workflow results
-    workflow_summary = {
-        "phase_1_creation": creation_response[-1]["content"] if creation_response else None,
-        "phase_2_planning": refinement_plan_response[-1]["content"]
-        if refinement_plan_response
-        else None,
-        "phase_3_enhancement": enhancement_response[-1]["content"]
-        if enhancement_response
-        else None,
-        "total_phases": 3,
-        "workflow_status": "completed",
-    }
-
-    logger.info("🎉 Image Generation workflow completed successfully!")
-    return workflow_summary
+    except Exception as e:
+        logger.error(f"❌ Image generation mission failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "agents_used": len(agents) if agents else 0,
+            "mission_type": "control_flow_image_generation",
+        }
 
 
 @flow(name="image_generation_control_flow", log_prints=True)
@@ -236,29 +182,34 @@ async def image_generation_control_flow(
     creative_brief: str = "A majestic dragon soaring through a mystical forest at sunset, digital art style with vibrant colors and ethereal lighting",
 ) -> Dict[str, Any]:
     """
-    Main Prefect flow for Image Generation Control Flow system
+    Image Generation Control Flow Agent System
 
-    Args:
-        creative_brief: Creative description for image generation
+    Demonstrates modern Control Flow architecture with:
+    - Two-agent specialized team (Image Creator + Image Refiner)
+    - Luma/Veo2 MCP integration via SSE transport
+    - XML Jinja template-based agent system messages
+    - Collaborative workflow beyond legacy "1flow, 1agent" format
 
-    Returns:
-        Flow execution results
+    Parameters:
+    - creative_brief: The creative description for image generation
+
+    Environment Variables:
+    - LUMA_MCP_SSE_URL: SSE URL for Luma MCP server
+    - VEO2_MCP_SSE_URL: SSE URL for Veo2 MCP server
     """
     logger = get_run_logger()
-    logger.info("🎨 Starting Image Generation Control Flow")
-    logger.info(f"🎯 Creative Brief: {creative_brief}")
+    logger.info("🚀 Starting Image Generation Control Flow Agent System")
 
     try:
         # Configuration
-        # Note: Update these URLs based on your MCP server deployment
-        luma_sse_url = os.getenv("LUMA_MCP_SSE_URL", "http://localhost:8931/sse")
+        luma_sse_url = os.getenv("LUMA_MCP_SSE_URL", "http://localhost:58897/sse")
         veo2_sse_url = os.getenv("VEO2_MCP_SSE_URL", "http://localhost:8932/sse")
 
         logger.info(f"🔗 Luma MCP SSE URL: {luma_sse_url}")
         logger.info(f"🔗 Veo2 MCP SSE URL: {veo2_sse_url}")
+        logger.info(f"🎯 Creative Brief: {creative_brief}")
 
-        # Step 1: Setup SSE MCP connections for image generation
-        # For now, let's start with Luma MCP connection
+        # Step 1: Setup SSE MCP connection for Luma image generation
         async with configure_existing_mcp(luma_sse_url) as (session, sdk_tools):
             logger.info(f"📡 Luma MCP connection established: {len(sdk_tools)} tools")
 
@@ -292,18 +243,38 @@ Creative Brief: {creative_brief}
                 autogen_tools, tool_specs, task_context, creative_brief
             )
 
+            if not team_result.get("success"):
+                return {
+                    "success": False,
+                    "error": f"Team creation failed: {team_result.get('error')}",
+                    "flow_type": "image_generation_control_flow",
+                }
+
+            # Step 4: Execute the collaborative image generation mission
+            mission_result = await run_image_generation_mission(
+                team_result["agents"], task_context, creative_brief
+            )
+
             logger.info("🎉 Image Generation Control Flow completed!")
 
             return {
-                "success": team_result.get("success", False),
+                "success": mission_result.get("success", False),
                 "flow_type": "image_generation_control_flow",
                 "luma_tools_count": len(sdk_tools),
                 "autogen_adapters": len(autogen_tools),
                 "creative_brief": creative_brief,
                 "team_result": team_result,
+                "mission_result": mission_result,
                 "architecture": "control_flow_two_agent_collaboration",
             }
 
+    except MCPConnectionError as e:
+        logger.error(f"❌ MCP connection failed: {e}")
+        return {
+            "success": False,
+            "error": f"MCP connection failed: {e}",
+            "flow_type": "image_generation_control_flow",
+        }
     except Exception as e:
         logger.error(f"❌ Image Generation Control Flow failed: {e}")
         return {
