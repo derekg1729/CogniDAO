@@ -121,7 +121,7 @@ async def run_image_generation_mission(
     try:
         # Create Control Flow team for collaborative image generation
         team = RoundRobinGroupChat(
-            participants=agents, termination_condition=MaxMessageTermination(max_messages=12)
+            participants=agents, termination_condition=MaxMessageTermination(max_messages=5)
         )
 
         logger.info(f"🚀 Starting image generation mission with {len(agents)} agents")
@@ -182,7 +182,7 @@ Begin collaborative prompt development mission!"""
 
 @flow(name="image_generation_control_flow", log_prints=True)
 async def image_generation_control_flow(
-    creative_brief: str = "CogniDAO collective intelligence emerging through a crystalline forest where neural networks branch like living trees, consciousness flowing through data streams in ethereal light",
+    creative_brief: str = "Design image generation prompts for cybernetic animals in a futuristic habitat.",
 ) -> Dict[str, Any]:
     """
     Image Generation Control Flow Agent System
@@ -204,7 +204,7 @@ async def image_generation_control_flow(
 
     try:
         # Configuration
-        luma_sse_url = os.getenv("LUMA_MCP_SSE_URL", "http://localhost:52711/sse")
+        luma_sse_url = os.getenv("LUMA_MCP_SSE_URL", "http://toolhive:33807/sse")
 
         logger.info(f"🔗 Luma MCP SSE URL: {luma_sse_url}")
         logger.info(f"🎯 Creative Brief: {creative_brief}")
@@ -235,8 +235,7 @@ Tools Available ({len(sdk_tools)} total):
             # Step 3: Create Control Flow image generation team
             task_context = f"""Task Context: Creative Image Generation Mission
 Tools: {len(autogen_tools)} Luma image generation MCP tools available
-Objective: Transform creative brief into exceptional visual content through collaborative generation and refinement
-Creative Brief: {creative_brief}
+Objective: {creative_brief}
 """
 
             team_result = await create_image_generation_team(
