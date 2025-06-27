@@ -114,4 +114,22 @@ deployments:
     work_queue_name:
     job_variables:
       GIT_MCP_SSE_URL: "http://toolhive:24161/sse"
+  schedules: []
+
+- name: image-generation-v1
+  version:
+  tags:
+  - cogni
+  - image-generation
+  - control-flow
+  - autogen
+  - luma
+  - collaborative-ai
+  - creative
+  concurrency_limit:
+  description: 'Image Generation Control Flow: Two-agent AutoGen Control Flow system for collaborative image generation using Luma and Veo2 MCP tools'
+  entrypoint: image_generation_control_flow.py:image_generation_control_flow
+  work_pool:
+    name: cogni-pool
+    work_queue_name:
   schedules: [] 

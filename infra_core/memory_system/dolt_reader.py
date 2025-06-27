@@ -74,7 +74,7 @@ class DoltMySQLReader(DoltMySQLBase):
                 database=self.config.database,
                 charset="utf8mb4",
                 autocommit=True,  # Optimized for read operations
-                connection_timeout=10,
+                connection_timeout=60,
                 use_unicode=True,
                 raise_on_warnings=True,
             )

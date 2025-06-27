@@ -358,3 +358,208 @@ class TestDoltWriter:
         """INTEGRATION TEST - Schema mismatch test requiring real database."""
         # This integration test is skipped - use unit test above for error handling
         pass
+
+
+class TestDoltWriterMergeBranch:
+    """Unit tests for the merge_branch method of DoltMySQLWriter."""
+
+    @patch("infra_core.memory_system.dolt_writer.DoltMySQLWriter._execute_query")
+    def test_merge_branch_basic_success(self, mock_execute):
+        """Test successful basic merge operation."""
+        from infra_core.memory_system.dolt_writer import DoltMySQLWriter
+        from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+
+        # Mock successful merge result
+        mock_execute.return_value = [{"merge_result": "merge successful"}]
+
+        # Create writer instance with proper config
+        config = DoltConnectionConfig()
+        writer = DoltMySQLWriter(config)
+
+        # Execute merge
+        success, message = writer.merge_branch("feature/test-branch")
+
+        # Verify results
+        assert success is True
+        assert "Successfully merged branch 'feature/test-branch'" in message
+
+        # Verify SQL call
+        mock_execute.assert_called_once_with("CALL DOLT_MERGE(%s)", ("feature/test-branch",))
+
+    @patch("infra_core.memory_system.dolt_writer.DoltMySQLWriter._execute_query")
+    def test_merge_branch_with_squash(self, mock_execute):
+        """Test merge operation with squash flag."""
+        from infra_core.memory_system.dolt_writer import DoltMySQLWriter
+        from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+
+        # Mock successful squash merge result
+        mock_execute.return_value = [{"merge_result": "merge successful"}]
+
+        # Create writer instance with proper config
+        config = DoltConnectionConfig()
+        writer = DoltMySQLWriter(config)
+
+        # Execute squash merge
+        success, message = writer.merge_branch("feature/squash-test", squash=True)
+
+        # Verify results
+        assert success is True
+        assert "Successfully merged branch 'feature/squash-test'" in message
+
+        # Verify SQL call with squash flag
+        mock_execute.assert_called_once_with(
+            "CALL DOLT_MERGE(%s, %s)", ("--squash", "feature/squash-test")
+        )
+
+    @patch("infra_core.memory_system.dolt_writer.DoltMySQLWriter._execute_query")
+    def test_merge_branch_with_no_ff(self, mock_execute):
+        """Test merge operation with no-fast-forward flag."""
+        from infra_core.memory_system.dolt_writer import DoltMySQLWriter
+        from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+
+        # Mock successful no-ff merge result
+        mock_execute.return_value = [{"merge_result": "merge successful"}]
+
+        # Create writer instance with proper config
+        config = DoltConnectionConfig()
+        writer = DoltMySQLWriter(config)
+
+        # Execute no-ff merge
+        success, message = writer.merge_branch("feature/no-ff-test", no_ff=True)
+
+        # Verify results
+        assert success is True
+        assert "Successfully merged branch 'feature/no-ff-test'" in message
+
+        # Verify SQL call with no-ff flag
+        mock_execute.assert_called_once_with(
+            "CALL DOLT_MERGE(%s, %s)", ("--no-ff", "feature/no-ff-test")
+        )
+
+    @patch("infra_core.memory_system.dolt_writer.DoltMySQLWriter._execute_query")
+    def test_merge_branch_with_commit_message(self, mock_execute):
+        """Test merge operation with custom commit message."""
+        from infra_core.memory_system.dolt_writer import DoltMySQLWriter
+        from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+
+        # Mock successful merge result
+        mock_execute.return_value = [{"merge_result": "merge successful"}]
+
+        # Create writer instance with proper config
+        config = DoltConnectionConfig()
+        writer = DoltMySQLWriter(config)
+
+        # Execute merge with custom message
+        success, message = writer.merge_branch(
+            "feature/custom-msg", commit_message="Custom merge commit message"
+        )
+
+        # Verify results
+        assert success is True
+        assert "Successfully merged branch 'feature/custom-msg'" in message
+
+        # Verify SQL call with commit message
+        mock_execute.assert_called_once_with(
+            "CALL DOLT_MERGE(%s, %s, %s)",
+            ("-m", "Custom merge commit message", "feature/custom-msg"),
+        )
+
+    @patch("infra_core.memory_system.dolt_writer.DoltMySQLWriter._execute_query")
+    def test_merge_branch_with_all_flags(self, mock_execute):
+        """Test merge operation with all flags and custom message."""
+        from infra_core.memory_system.dolt_writer import DoltMySQLWriter
+        from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+
+        # Mock successful merge result
+        mock_execute.return_value = [{"merge_result": "merge successful"}]
+
+        # Create writer instance with proper config
+        config = DoltConnectionConfig()
+        writer = DoltMySQLWriter(config)
+
+        # Execute merge with all options
+        success, message = writer.merge_branch(
+            "feature/all-flags", squash=True, no_ff=True, commit_message="Complete merge test"
+        )
+
+        # Verify results
+        assert success is True
+        assert "Successfully merged branch 'feature/all-flags'" in message
+
+        # Verify SQL call with all flags
+        mock_execute.assert_called_once_with(
+            "CALL DOLT_MERGE(%s, %s, %s, %s, %s)",
+            ("--squash", "--no-ff", "-m", "Complete merge test", "feature/all-flags"),
+        )
+
+    @patch("infra_core.memory_system.dolt_writer.DoltMySQLWriter._execute_query")
+    def test_merge_branch_conflict_error(self, mock_execute):
+        """Test merge operation that encounters conflicts."""
+        from infra_core.memory_system.dolt_writer import DoltMySQLWriter
+        from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+
+        # Mock conflict error
+        conflict_error = MySQLError(
+            "error: local changes would be stomped by merge:\\n\\tblock_proofs\\n Please commit your changes before you merge."
+        )
+        mock_execute.side_effect = conflict_error
+
+        # Create writer instance with proper config
+        config = DoltConnectionConfig()
+        writer = DoltMySQLWriter(config)
+
+        # Execute merge that will fail
+        success, message = writer.merge_branch("feature/conflict-branch")
+
+        # Verify results
+        assert success is False
+        assert "local changes would be stomped by merge" in message
+        assert "block_proofs" in message
+
+        # Verify SQL call was attempted
+        mock_execute.assert_called_once_with("CALL DOLT_MERGE(%s)", ("feature/conflict-branch",))
+
+    @patch("infra_core.memory_system.dolt_writer.DoltMySQLWriter._execute_query")
+    def test_merge_branch_nonexistent_branch_error(self, mock_execute):
+        """Test merge operation with non-existent branch."""
+        from infra_core.memory_system.dolt_writer import DoltMySQLWriter
+        from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+
+        # Mock branch not found error
+        branch_error = MySQLError("Branch 'nonexistent-branch' not found")
+        mock_execute.side_effect = branch_error
+
+        # Create writer instance with proper config
+        config = DoltConnectionConfig()
+        writer = DoltMySQLWriter(config)
+
+        # Execute merge that will fail
+        success, message = writer.merge_branch("nonexistent-branch")
+
+        # Verify results
+        assert success is False
+        assert "Branch 'nonexistent-branch' not found" in message
+
+        # Verify SQL call was attempted
+        mock_execute.assert_called_once_with("CALL DOLT_MERGE(%s)", ("nonexistent-branch",))
+
+    def test_merge_branch_parameter_validation(self):
+        """Test merge_branch parameter validation."""
+        from infra_core.memory_system.dolt_writer import DoltMySQLWriter
+        from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
+
+        # Create writer instance with proper config
+        config = DoltConnectionConfig()
+        writer = DoltMySQLWriter(config)
+
+        # Test empty source branch
+        with pytest.raises(ValueError, match="Source branch name cannot be empty"):
+            writer.merge_branch("")
+
+        # Test None source branch
+        with pytest.raises(ValueError, match="Source branch name cannot be empty"):
+            writer.merge_branch(None)
+
+        # Test whitespace-only source branch
+        with pytest.raises(ValueError, match="Source branch name cannot be empty"):
+            writer.merge_branch("   ")

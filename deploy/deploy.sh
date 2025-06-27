@@ -178,7 +178,7 @@ EOF
                         status "✅ Prefect flows deployed"
                         
                         # Deploy MCP server with ToolHive
-                        status "Deploying MCP server with ToolHive..."
+                        status "Deploying Cogni MCP server with ToolHive..."
                         if docker ps | grep -q toolhive; then
                             docker exec toolhive thv run \
                               --port 24160 \
@@ -209,6 +209,16 @@ EOF
                               --env GIT_ALLOW_NETWORK=true \
                               mcp/git:latest || warning "⚠️ Git MCP server deployment failed, continuing..."
                             
+
+                            # Deploy Git MCP server with ToolHive
+                            status "Deploying Playwright MCP server with ToolHive..."
+                            docker exec toolhive thv run \
+                              --port 24162 \
+                              --target-port 24162 \
+                              --target-host 0.0.0.0 \
+                              --host 0.0.0.0 \
+                              mcp/playwright:latest || warning "⚠️ Playwright MCP server deployment failed, continuing..."
+                            
                             # Wait for containers to start, then test if they are running
                             sleep 3
                             if docker ps | grep -q cogni-mcp; then
@@ -226,6 +236,14 @@ EOF
                                 status "✅ Git MCP server deployed and networked"
                             else
                                 warning "⚠️ Git MCP container not running after deployment"
+                            fi
+
+                            if docker ps | grep -q playwright; then
+                                status "Connecting Playwright MCP container to cogni-net network..."
+                                docker network connect deploy_cogni-net playwright 2>/dev/null || warning "⚠️ Git MCP network connection may have failed"
+                                status "✅ playwright MCP server deployed and networked"
+                            else
+                                warning "⚠️ playwright MCP container not running after deployment"
                             fi
                         else
                             warning "⚠️ ToolHive container not running - MCP server not deployed"
@@ -321,12 +339,39 @@ EOF
                                 warning "⚠️ MCP container not running after deployment"
                             fi
 
+                            # Deploy Git MCP server with ToolHive
+                            status "Deploying Playwright MCP server with ToolHive..."
+                            docker exec toolhive thv run \
+                              --port 24162 \
+                              --target-port 24162 \
+                              --target-host 0.0.0.0 \
+                              --host 0.0.0.0 \
+                              mcp/playwright:latest || warning "⚠️ Playwright MCP server deployment failed, continuing..."
+                            
+                            # Wait for containers to start, then test if they are running
+                            sleep 3
+                            if docker ps | grep -q cogni-mcp; then
+                                status "Connecting MCP container to cogni-net network..."
+                                docker network connect deploy_cogni-net cogni-mcp 2>/dev/null || warning "⚠️ Network connection may have failed"
+                                status "✅ MCP server deployed and networked"
+                            else
+                                warning "⚠️ MCP container not running after deployment"
+                            fi
+
                             if docker ps | grep -q git-mcp; then
                                 status "Connecting Git MCP container to cogni-net network..."
                                 docker network connect deploy_cogni-net git-mcp 2>/dev/null || warning "⚠️ Git MCP network connection may have failed"
                                 status "✅ Git MCP server deployed and networked"
                             else
                                 warning "⚠️ Git MCP container not running after deployment"
+                            fi
+
+                            if docker ps | grep -q playwright; then
+                                status "Connecting Playwright MCP container to cogni-net network..."
+                                docker network connect deploy_cogni-net playwright 2>/dev/null || warning "⚠️ Git MCP network connection may have failed"
+                                status "✅ playwright MCP server deployed and networked"
+                            else
+                                warning "⚠️ playwright MCP container not running after deployment"
                             fi
                         else
                             warning "⚠️ ToolHive container not running - MCP server not deployed"

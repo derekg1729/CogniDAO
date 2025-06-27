@@ -1,0 +1,71 @@
+# Welcome to your prefect.yaml file! You can use this file for storing and managing
+# configuration for deploying your flows. We recommend committing this file to source
+# control along with your flow code.
+
+# Generic metadata about this project
+name: cogni
+prefect-version: 3.4.4
+
+# build section allows you to manage and build docker images
+build: null
+
+# push section allows you to manage if and how this project is uploaded to remote locations
+push: null
+
+# pull section allows you to provide instructions for cloning this project in remote locations
+pull:
+- prefect.deployments.steps.set_working_directory:
+    directory: /workspace
+
+# the deployments section allows you to provide configuration for deploying flows
+deployments:
+- name: dolt-staging-crew
+  version: null
+  tags: []
+  concurrency_limit: null
+  description: |-
+    Dolt Staging Flow - Deterministic Filtering + Batched Processing
+
+  entrypoint: flows/presence/dolt_staging_flow.py:dolt_staging_crew_flow
+  parameters: {}
+  work_pool:
+    name: cogni-pool
+    work_queue_name: null
+    job_variables: {}
+  schedules: []
+
+- name: playwright-control-flow-local
+  version: null
+  tags: []
+  concurrency_limit: null
+  description: |-
+    Playwright Control Flow - Two-Person AutoGen Navigation Team (Local Docker)
+    
+    Target: http://host.docker.internal:3000 (local Docker development)
+
+  entrypoint: flows/examples/playwright_control_flow.py:playwright_control_flow
+  parameters:
+    target_url: "http://host.docker.internal:3000"
+  work_pool:
+    name: cogni-pool
+    work_queue_name: null
+    job_variables: {}
+  schedules: []
+
+- name: playwright-control-flow-prod
+  version: null
+  tags: []
+  concurrency_limit: null
+  description: |-
+    Playwright Control Flow - Two-Person AutoGen Navigation Team (Production)
+    
+    Target: https://www.cognidao.org (production CogniDAO site)
+
+  entrypoint: flows/examples/playwright_control_flow.py:playwright_control_flow
+  parameters:
+    target_url: "https://www.cognidao.org"
+  work_pool:
+    name: cogni-pool
+    work_queue_name: null
+    job_variables: {}
+  schedules: []

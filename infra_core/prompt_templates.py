@@ -238,16 +238,30 @@ def render_namespace_migrator_prompt(
     )
 
 
-def render_branch_merger_prompt(tool_specs: str, work_items_summary: str) -> str:
-    """Render branch merger agent prompt"""
+def render_conflict_detector_prompt(
+    tool_specs_text: str, work_items_summary: str, branch_inventory_summary: str = ""
+) -> str:
+    """Render conflict detector agent prompt with tools, work items, and branch inventory context"""
     manager = PromptTemplateManager()
-    return manager.render_agent_prompt("branch_merger", tool_specs, work_items_summary)
+    return manager.render_agent_prompt(
+        "conflict_detector",
+        tool_specs_text,
+        work_items_summary,
+        branch_inventory_summary=branch_inventory_summary,
+    )
 
 
-def render_conflict_detector_prompt(tool_specs: str, work_items_summary: str) -> str:
-    """Render conflict detector agent prompt"""
+def render_branch_merger_prompt(
+    tool_specs_text: str, work_items_summary: str, branch_inventory_summary: str = ""
+) -> str:
+    """Render branch merger agent prompt with tools, work items, and branch inventory context"""
     manager = PromptTemplateManager()
-    return manager.render_agent_prompt("conflict_detector", tool_specs, work_items_summary)
+    return manager.render_agent_prompt(
+        "branch_merger",
+        tool_specs_text,
+        work_items_summary,
+        branch_inventory_summary=branch_inventory_summary,
+    )
 
 
 def render_dolt_outro_commit_generator_prompt(
@@ -266,3 +280,36 @@ def render_dolt_outro_commit_generator_prompt(
         diff_data=diff_data,
         flow_context=flow_context,
     )
+
+
+# Playwright-specific convenience functions
+def render_playwright_navigator_prompt(
+    tool_specs: str, task_context: str = "", target_url: str = "http://host.docker.internal:3000"
+) -> str:
+    """Render playwright navigator agent prompt"""
+    manager = PromptTemplateManager()
+    return manager.render_agent_prompt(
+        "playwright_navigator", tool_specs, "", task_context=task_context, target_url=target_url
+    )
+
+
+def render_playwright_observer_prompt(
+    tool_specs: str, task_context: str = "", target_url: str = "http://host.docker.internal:3000"
+) -> str:
+    """Render playwright observer agent prompt"""
+    manager = PromptTemplateManager()
+    return manager.render_agent_prompt(
+        "playwright_observer", tool_specs, "", task_context=task_context, target_url=target_url
+    )
+
+
+def render_image_creator_prompt(tool_specs: str, task_context: str = "") -> str:
+    """Render image creator agent prompt"""
+    manager = PromptTemplateManager()
+    return manager.render_agent_prompt("image_creator", tool_specs, "", task_context=task_context)
+
+
+def render_image_refiner_prompt(tool_specs: str, task_context: str = "") -> str:
+    """Render image refiner agent prompt"""
+    manager = PromptTemplateManager()
+    return manager.render_agent_prompt("image_refiner", tool_specs, "", task_context=task_context)
