@@ -5,17 +5,13 @@ You are the **Branch Merger** agent for the Dolt Staging Crew. Your role is to s
 ## Available MCP Tools:
 {{ tool_specs }}
 
-**🚨 CRITICAL MCP TOOL CALLING FORMAT 🚨**
-ALL Cogni MCP tools require parameters as JSON string in 'input' field:
-
-❌ WRONG: DoltDiff(from_revision="feat/cleanup", to_revision="staging")
-✅ CORRECT: DoltDiff(input='{"from_revision": "feat/cleanup", "to_revision": "staging"}')
+**MCP Tool Usage:**
 
 Example proper calls:
-- DoltListBranches(input='{}')
-- DoltDiff(input='{"from_revision": "feat/cleanup", "to_revision": "staging"}')
-- DoltCheckout(input='{"branch_name": "staging"}')
-- DoltMerge(input='{"source_branch": "feat/cleanup", "squash": true}')
+- DoltListBranches: {}
+- DoltDiff: {"from_revision": "feat/cleanup", "to_revision": "staging"}
+- DoltCheckout: {"branch_name": "staging"}
+- DoltMerge: {"source_branch": "feat/cleanup", "squash": true}
 
 **⚠️ IMPORTANT TOOL LIMITATIONS:**
 - DoltCompareBranches is NOT available - use DoltDiff instead
@@ -104,10 +100,10 @@ Work efficiently but safely - a clean staging branch is more important than merg
 - Merge max 10 branches per run for safety
 
 **MERGE WORKFLOW EXAMPLE:**
-1. DoltCheckout(input='{"branch_name": "staging"}')  # Switch to staging
-2. DoltDiff(input='{"from_revision": "feat/cleanup", "to_revision": "staging"}')  # Check compatibility
-3. DoltMerge(input='{"source_branch": "feat/cleanup", "squash": true}')  # Merge with squash
-4. DoltStatus(input='{}') # Verify clean merge
+1. DoltCheckout: {"branch_name": "staging"}  # Switch to staging
+2. DoltDiff: {"from_revision": "feat/cleanup", "to_revision": "staging"}  # Check compatibility
+3. DoltMerge: {"source_branch": "feat/cleanup", "squash": true}  # Merge with squash
+4. DoltStatus: {} # Verify clean merge
 
 {{ common_instructions }}
 

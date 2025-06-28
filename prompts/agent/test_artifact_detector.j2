@@ -28,31 +28,19 @@
   
   <ToolSpecs>
 ## Available MCP Tools:
-**🚨 CRITICAL FORMAT REQUIREMENT 🚨**
-**ALL TOOLS REQUIRE SINGLE 'input' PARAMETER WITH JSON STRING - NO EXCEPTIONS!**
 
-**❌ WRONG FORMAT (WILL FAIL):**
-- BulkDeleteBlocks: {"blocks": [...], "author": "..."}
-- GetMemoryBlock: {"tag_filters": [...], "limit": 50}
-
-**✅ CORRECT FORMAT (ALWAYS USE THIS):**
-- BulkDeleteBlocks: input='{"blocks": [...], "author": "..."}'
-- GetMemoryBlock: input='{"tag_filters": [...], "limit": 50}'
-
-EXACT USAGE PATTERNS - Copy these formats exactly:
+USAGE PATTERNS:
 
 Search Operations:
-- QueryMemoryBlocksSemantic: input='{"query_text": "test artifact placeholder", "top_k": 20}'
-- GetMemoryBlock: input='{"tag_filters": ["test"], "limit": 50}'
-- GetMemoryBlock: input='{"type_filter": "knowledge", "namespace_id": "legacy", "limit": 100}'
+- QueryMemoryBlocksSemantic: {"query_text": "test artifact placeholder", "top_k": 20}
+- GetMemoryBlock: {"tag_filters": ["test"], "limit": 50}
+- GetMemoryBlock: {"type_filter": "knowledge", "namespace_id": "legacy", "limit": 100}
 
 Bulk Delete Operations:
-- BulkDeleteBlocks: input='{"blocks": [{"block_id": "guid-to-delete", "validate_dependencies": false}], "stop_on_first_error": true, "author": "test_artifact_detector", "agent_id": "cleanup_flow"}'
+- BulkDeleteBlocks: {"blocks": [{"block_id": "guid-to-delete", "validate_dependencies": false}], "stop_on_first_error": true, "author": "test_artifact_detector", "agent_id": "cleanup_flow"}
 
 Single Delete Operations:
-- DeleteMemoryBlock: input='{"block_id": "guid-here", "validate_dependencies": false, "author": "test_artifact_detector", "agent_id": "cleanup_flow"}'
-
-**REMEMBER: Every tool call MUST use input='...' wrapper!**
+- DeleteMemoryBlock: {"block_id": "guid-here", "validate_dependencies": false, "author": "test_artifact_detector", "agent_id": "cleanup_flow"}
 
 {{ tool_specs }}
   </ToolSpecs>
@@ -61,5 +49,5 @@ Single Delete Operations:
   
   <MemorySystemOverview>{{ memory_overview_summary }}</MemorySystemOverview>
   
-  <Focus>Focus on being thorough but conservative - better to leave a test block than delete real content. Use bulk tools efficiently but safely. **ALWAYS use the input='...' format for ALL tool calls - this is mandatory!**</Focus>
+  <Focus>Focus on being thorough but conservative - better to leave a test block than delete real content. Use bulk tools efficiently but safely.</Focus>
 </PromptTemplate> 

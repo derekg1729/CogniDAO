@@ -1,11 +1,10 @@
 {# Shared macro for MCP tool specifications #}
 {% macro tool_specs(tools) -%}
 ## Available MCP Tools:
-**CRITICAL: All tools expect a single 'input' parameter containing JSON string with the actual arguments**
 
-Example usage pattern:
-- GetActiveWorkItems: input='{"limit": 10}' 
-- CreateWorkItem: input='{"type": "task", "title": "My Task", "description": "..."}'
+Example usage:
+- GetActiveWorkItems: {"limit": 10}
+- CreateWorkItem: {"type": "task", "title": "My Task", "description": "..."}
 
 Tools:
 {%- for tool in tools[:12] %}
