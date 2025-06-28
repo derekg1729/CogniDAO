@@ -71,23 +71,16 @@ def create_mcp_wrapper_from_cogni_tool(
     param_annotations = {}
 
     for field_name, field_info in input_fields.items():
-        # Get the field type
-        field_type = field_info.annotation
-
-        # Check if field has a default value
-        if field_info.default is not None and field_info.default != ...:
-            # Field has a default value
-            param_defaults[field_name] = field_info.default
-            params.append(f"{field_name}=None")
-        elif hasattr(field_info, "default_factory") and field_info.default_factory is not None:
-            # Field has a default factory
-            param_defaults[field_name] = field_info.default_factory()
-            params.append(f"{field_name}=None")
-        else:
+        # Check if field is required (Pydantic uses ... for required fields)
+        if field_info.default == ...:
             # Required field (no default)
             params.append(field_name)
+        else:
+            # Optional field (has some default value, including None)
+            param_defaults[field_name] = field_info.default
+            params.append(f"{field_name}=None")
 
-        param_annotations[field_name] = field_type
+        param_annotations[field_name] = field_info.annotation
 
     # Create the dynamic wrapper function
     async def mcp_wrapper(**kwargs) -> Dict[str, Any]:
@@ -233,18 +226,14 @@ def auto_register_cogni_tools_to_mcp(
         param_defaults = {}
 
         for field_name, field_info in input_fields.items():
-            # Check if field has a default value
-            if field_info.default is not None and field_info.default != ...:
-                # Field has a default value
-                param_defaults[field_name] = field_info.default
-                param_list.append(f"{field_name}=None")
-            elif hasattr(field_info, "default_factory") and field_info.default_factory is not None:
-                # Field has a default factory
-                param_defaults[field_name] = field_info.default_factory()
-                param_list.append(f"{field_name}=None")
-            else:
+            # Check if field is required (Pydantic uses ... for required fields)
+            if field_info.default == ...:
                 # Required field (no default)
                 param_list.append(field_name)
+            else:
+                # Optional field (has some default value, including None)
+                param_defaults[field_name] = field_info.default
+                param_list.append(f"{field_name}=None")
 
         # Create the function signature string
         params_str = ", ".join(param_list)
