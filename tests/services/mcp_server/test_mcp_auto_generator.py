@@ -190,12 +190,14 @@ class TestAutoRegisterCogniToolsToMCP:
             # Create proper mock tools with correct structure
             mock_tool1 = Mock()
             mock_tool1.name = "Tool1"
+            mock_tool1.description = "Mock tool 1 for testing"
             mock_tool1.memory_linked = True
             mock_tool1.input_model = MockInputModel
             mock_tool1._function = mock_function
 
             mock_tool2 = Mock()
             mock_tool2.name = "Tool2"
+            mock_tool2.description = "Mock tool 2 for testing"
             mock_tool2.memory_linked = False
             mock_tool2.input_model = MockInputModel
             mock_tool2._function = mock_function
@@ -220,6 +222,7 @@ class TestAutoRegisterCogniToolsToMCP:
             # Create one good tool to verify the happy path
             good_tool = Mock()
             good_tool.name = "GoodTool"
+            good_tool.description = "Good mock tool for testing"
             good_tool.memory_linked = True
             good_tool.input_model = MockInputModel
             good_tool._function = mock_function
