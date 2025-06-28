@@ -15,7 +15,6 @@ from services.mcp_server.app.mcp_server import (
     dolt_status,
     dolt_list_branches,
     get_active_work_items,
-    query_memory_blocks_semantic,
     health_check,
 )
 
@@ -93,17 +92,9 @@ class TestMCPParameterFix:
             assert result is not None
             assert isinstance(result, dict)
 
-    @pytest.mark.asyncio
-    async def test_query_memory_blocks_semantic_with_required_param(self):
-        """Test that QueryMemoryBlocksSemantic works with required query_text parameter."""
-        with patch("services.mcp_server.app.mcp_server.get_memory_bank") as mock_bank:
-            mock_bank.return_value = MagicMock()
-            mock_bank.return_value.dolt_reader._execute_query.return_value = []
-
-            # This should work (dict with required param)
-            result = await query_memory_blocks_semantic({"query_text": "test query"})
-            assert result is not None
-            assert isinstance(result, dict)
+    # NOTE: query_memory_blocks_semantic was converted to auto-generated GlobalSemanticSearch
+    # tool in Phase 2A. The auto-generated tool uses individual parameters (query_text="test")
+    # instead of wrapped input objects ({"query_text": "test"}).
 
     @pytest.mark.asyncio
     async def test_health_check_no_params(self):

@@ -16,7 +16,7 @@ sys.path.insert(
     0, str(Path(__file__).parent.parent.parent.parent / "services" / "mcp_server" / "app")
 )
 
-from mcp_server import dolt_status, bulk_create_blocks_mcp, dolt_list_branches
+from mcp_server import dolt_status, dolt_list_branches
 
 
 class TestActiveBranchFixSimple:
@@ -46,23 +46,9 @@ class TestActiveBranchFixSimple:
                 assert result["active_branch"] == test_branch
                 assert result["active_branch"] != "unknown"
 
-    @pytest.mark.asyncio
-    async def test_bulk_create_blocks_error_reports_actual_branch(self):
-        """Test BulkCreateBlocks error handler reports actual branch instead of 'unknown'"""
-        test_branch = "feature/bulk-operations"
-
-        with patch("mcp_server.get_memory_bank") as mock_get_bank:
-            mock_get_bank.return_value = self.create_mock_memory_bank(test_branch)
-
-            with patch("mcp_server.bulk_create_blocks") as mock_tool:
-                mock_tool.side_effect = Exception("Simulated validation error")
-
-                result = await bulk_create_blocks_mcp({})
-
-                assert isinstance(result, dict)
-                assert result["success"] is False
-                assert result["active_branch"] == test_branch
-                assert result["active_branch"] != "unknown"
+    # NOTE: bulk_create_blocks_mcp was converted to auto-generated BulkCreateBlocks tool
+    # in Phase 2A. The auto-generated tool uses individual parameters instead of
+    # wrapped input objects, making the original test obsolete.
 
     @pytest.mark.asyncio
     async def test_dolt_list_branches_error_reports_actual_branch(self):
