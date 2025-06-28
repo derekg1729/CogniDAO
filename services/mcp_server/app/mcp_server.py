@@ -377,29 +377,32 @@ def get_current_namespace_context() -> str:
     return current_ns
 
 
-def inject_current_namespace(input_data: dict) -> dict:
+def inject_current_namespace(input_data) -> dict:
     """
     Inject the current namespace into tool input if not already specified.
 
     This ensures all MCP tools use the same namespace context unless explicitly overridden.
 
     Args:
-        input_data: Input dictionary for MCP tool
+        input_data: Input data for MCP tool (dict, JSON string, or other)
 
     Returns:
         Input dictionary with namespace_id set to current namespace if not present
     """
-    if "namespace_id" not in input_data or input_data["namespace_id"] is None:
+    # EMERGENCY FIX: Normalize input to handle double-serialization
+    normalized_input = _normalize_mcp_input(input_data)
+
+    if "namespace_id" not in normalized_input or normalized_input["namespace_id"] is None:
         current_ns = _current_namespace or get_current_namespace()
-        input_data["namespace_id"] = current_ns
+        normalized_input["namespace_id"] = current_ns
         logger.info(
             f"🔧 [NAMESPACE] Injected current namespace: '{current_ns}' (no namespace specified in request)"
         )
     else:
         logger.info(
-            f"🎯 [NAMESPACE] Using explicit namespace from request: '{input_data['namespace_id']}'"
+            f"🎯 [NAMESPACE] Using explicit namespace from request: '{normalized_input['namespace_id']}'"
         )
-    return input_data
+    return normalized_input
 
 
 def standardize_mcp_response(response_data):
@@ -421,6 +424,41 @@ def standardize_mcp_response(response_data):
     return response_data
 
 
+def _normalize_mcp_input(input_data):
+    """
+    EMERGENCY FIX: Normalize MCP tool input to handle double-serialization.
+
+    Autogen sometimes double-serializes: dict -> JSON string -> escaped string.
+    This function detects and fixes that pattern.
+
+    Args:
+        input_data: Could be dict, JSON string, or escaped JSON string
+
+    Returns:
+        dict: Properly parsed input parameters
+
+    Raises:
+        ValueError: If input cannot be normalized to a valid dict
+    """
+    # Already a dict - pass through
+    if isinstance(input_data, dict):
+        return input_data
+
+    # String input - try to parse as JSON
+    if isinstance(input_data, str):
+        try:
+            import json
+
+            parsed = json.loads(input_data)
+            # Recursive call to handle nested encoding
+            return _normalize_mcp_input(parsed)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON input: {input_data[:100]}... Error: {e}")
+
+    # Other types (int, list, etc.) are invalid
+    raise ValueError(f"MCP input must be dict or JSON string, got {type(input_data)}: {input_data}")
+
+
 # Create a FastMCP server instance with a specific name
 mcp = FastMCP("cogni-memory")
 
@@ -439,8 +477,11 @@ async def create_work_item(input):
         acceptance_criteria: List of acceptance criteria for the work item
     """
     try:
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
         # Parse dict input into Pydantic model (let model default handle namespace)
-        parsed_input = CreateWorkItemInput(**input)
+        parsed_input = CreateWorkItemInput(**normalized_input)
         result = create_work_item_tool(parsed_input, memory_bank=get_memory_bank())
         return standardize_mcp_response(result)
     except Exception as e:
@@ -507,8 +548,11 @@ async def get_memory_links(input):
     Output always contains 'links' array (0 to N links).
     """
     try:
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
         # Parse dict input into Pydantic model
-        input_data = GetMemoryLinksInput(**input)
+        input_data = GetMemoryLinksInput(**normalized_input)
 
         # Execute the tool function
         result = get_memory_links_tool(
@@ -542,8 +586,11 @@ async def get_active_work_items(input):
     Output contains 'work_items' array sorted by priority (P0 first) then creation date.
     """
     try:
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
         # Parse dict input into Pydantic model
-        input_data = GetActiveWorkItemsInput(**input)
+        input_data = GetActiveWorkItemsInput(**normalized_input)
 
         # Execute the tool function
         result = get_active_work_items_tool(
@@ -614,8 +661,11 @@ async def get_linked_blocks(input):
     Output contains 'linked_blocks' array with full block details and relationship context.
     """
     try:
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
         # Parse dict input into Pydantic model
-        input_data = GetLinkedBlocksInput(**input)
+        input_data = GetLinkedBlocksInput(**normalized_input)
 
         # Execute the tool function
         result = get_linked_blocks_tool(
@@ -629,9 +679,7 @@ async def get_linked_blocks(input):
         logger.error(f"Error in GetLinkedBlocks MCP tool: {e}")
         error_response = GetLinkedBlocksOutput(
             success=False,
-            source_block_id=input.get("source_block_id", "unknown"),
             linked_blocks=[],
-            total_count=0,
             error=f"Error retrieving linked blocks: {str(e)}",
             timestamp=datetime.now(),
         ).model_dump(mode="json")
@@ -659,8 +707,11 @@ async def update_memory_block(input):
         change_note: Note explaining the update
     """
     try:
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
         # Parse dict input into Pydantic model
-        parsed_input = UpdateMemoryBlockToolInput(**input)
+        parsed_input = UpdateMemoryBlockToolInput(**normalized_input)
         result = update_memory_block_tool(parsed_input, memory_bank=get_memory_bank())
         return standardize_mcp_response(result)
     except Exception as e:
@@ -682,8 +733,11 @@ async def delete_memory_block(input):
         change_note: Optional note explaining the reason for deletion
     """
     try:
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
         # Parse dict input into Pydantic model
-        parsed_input = DeleteMemoryBlockToolInput(**input)
+        parsed_input = DeleteMemoryBlockToolInput(**normalized_input)
         result = delete_memory_block_tool(parsed_input, memory_bank=get_memory_bank())
         return standardize_mcp_response(result)
     except Exception as e:
@@ -721,8 +775,11 @@ async def update_work_item(input):
         change_note: Note explaining the update
     """
     try:
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
         # Parse dict input into Pydantic model
-        parsed_input = UpdateWorkItemInput(**input)
+        parsed_input = UpdateWorkItemInput(**normalized_input)
         result = update_work_item_tool(parsed_input, memory_bank=get_memory_bank())
         return standardize_mcp_response(result)
     except Exception as e:
@@ -745,8 +802,11 @@ async def create_block_link(input):
         metadata: Additional metadata about the link (optional)
     """
     try:
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
         # Parse dict input into Pydantic model
-        parsed_input = CreateBlockLinkAgentInput(**input)
+        parsed_input = CreateBlockLinkAgentInput(**normalized_input)
 
         # Call the agent-facing tool function
         result = await create_block_link_agent(
@@ -833,8 +893,11 @@ async def bulk_create_blocks_mcp(input):
         timestamp: When the bulk operation completed
     """
     try:
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
         # Parse dict input into Pydantic model
-        parsed_input = BulkCreateBlocksInput(**input)
+        parsed_input = BulkCreateBlocksInput(**normalized_input)
         result = bulk_create_blocks(parsed_input, memory_bank=get_memory_bank())
         return standardize_mcp_response(result.model_dump(mode="json"))
     except Exception as e:
@@ -875,8 +938,11 @@ async def bulk_create_links_mcp(input):
         timestamp: When the bulk operation completed
     """
     try:
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
         # Parse dict input into Pydantic model
-        parsed_input = BulkCreateLinksInput(**input)
+        parsed_input = BulkCreateLinksInput(**normalized_input)
         result = bulk_create_links(parsed_input, memory_bank=get_memory_bank())
         return standardize_mcp_response(result.model_dump(mode="json"))
     except Exception as e:
@@ -890,7 +956,7 @@ async def bulk_create_links_mcp(input):
             skipped_specs=0,
             total_actual_links=0,
             results=[],
-            active_branch=None,
+            active_branch=get_memory_bank().branch,
             timestamp=datetime.now(),
         ).model_dump(mode="json")
         return standardize_mcp_response(error_response)
@@ -920,8 +986,11 @@ async def bulk_delete_blocks_mcp(input):
         timestamp: When the bulk operation completed
     """
     try:
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
         # Parse dict input into Pydantic model
-        parsed_input = BulkDeleteBlocksInput(**input)
+        parsed_input = BulkDeleteBlocksInput(**normalized_input)
         result = bulk_delete_blocks(parsed_input, memory_bank=get_memory_bank())
         return standardize_mcp_response(result.model_dump(mode="json"))
     except Exception as e:
@@ -965,8 +1034,11 @@ async def bulk_update_namespace_mcp(input):
         timestamp: When the bulk operation completed
     """
     try:
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
         # Parse dict input into Pydantic model
-        parsed_input = BulkUpdateNamespaceInput(**input)
+        parsed_input = BulkUpdateNamespaceInput(**normalized_input)
         result = bulk_update_namespace(parsed_input, memory_bank=get_memory_bank())
         return standardize_mcp_response(result.model_dump(mode="json"))
     except Exception as e:
@@ -1008,8 +1080,11 @@ async def dolt_commit(input):
         timestamp: Timestamp of operation
     """
     try:
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
         # Parse dict input into Pydantic model
-        parsed_input = DoltCommitInput(**input)
+        parsed_input = DoltCommitInput(**normalized_input)
         result = dolt_repo_tool(parsed_input, memory_bank=get_memory_bank())
         return result.model_dump(mode="json")
     except Exception as e:
@@ -1037,7 +1112,10 @@ async def dolt_checkout(input):
         timestamp: Timestamp of operation
     """
     try:
-        parsed_input = DoltCheckoutInput(**input)
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
+        parsed_input = DoltCheckoutInput(**normalized_input)
         result = dolt_checkout_tool(parsed_input, memory_bank=get_memory_bank())
         return result.model_dump(mode="json")
     except Exception as e:
@@ -1064,7 +1142,10 @@ async def dolt_add(input):
         timestamp: Timestamp of operation
     """
     try:
-        parsed_input = DoltAddInput(**input)
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
+        parsed_input = DoltAddInput(**normalized_input)
         result = dolt_add_tool(parsed_input, memory_bank=get_memory_bank())
         return result.model_dump(mode="json")
     except Exception as e:
@@ -1119,8 +1200,11 @@ async def dolt_push(input):
         JSON string with push results including success status and message
     """
     try:
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
         # Create input object
-        input_data = DoltPushInput(**input)
+        input_data = DoltPushInput(**normalized_input)
 
         # Execute the push operation
         result = dolt_push_tool(input_data, get_memory_bank())
@@ -1154,22 +1238,42 @@ async def dolt_status(input):
     logger.info("DoltStatus MCP tool called")
 
     try:
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
         # Parse dict input into Pydantic model
-        parsed_input = DoltStatusInput(**input)
-        result = dolt_status_tool(parsed_input, memory_bank=get_memory_bank())
-        return standardize_mcp_response(result.model_dump(mode="json"))
+        parsed_input = DoltStatusInput(**normalized_input)
+
+        # Execute the status operation
+        result = dolt_status_tool(parsed_input, get_memory_bank())
+
+        logger.info(f"DoltStatus result: {result}")
+
+        # Return JSON representation
+        return result.model_dump(mode="json")
 
     except Exception as e:
-        logger.error(f"Error in DoltStatus MCP tool: {e}")
-        error_response = DoltStatusOutput(
+        logger.error(f"Error in DoltStatus tool: {e}", exc_info=True)
+
+        # Return structured error using the output model
+        error_output = DoltStatusOutput(
             success=False,
-            active_branch=get_memory_bank().branch,
-            is_clean=False,
+            current_branch="unknown",
+            is_clean=True,
+            staged_tables=[],
+            unstaged_tables=[],
+            untracked_tables=[],
             total_changes=0,
-            message=f"Status check failed: {str(e)}",
-            error=str(e),
-        ).model_dump(mode="json")
-        return standardize_mcp_response(error_response)
+            ahead=0,
+            behind=0,
+            conflicts=[],
+            message="Status check failed",
+            active_branch="unknown",
+            error=f"Error during dolt_status: {str(e)}",
+            timestamp=datetime.now(),
+        )
+
+        return error_output.model_dump(mode="json")
 
 
 # Register the DoltPull tool
@@ -1443,51 +1547,6 @@ async def global_memory_inventory(input):
         ).model_dump(mode="json")
 
 
-# COMMENTED OUT - DEPRECATED BROKEN TOOL
-# Register the GetProjectGraph tool
-# @mcp.tool("GetProjectGraph")
-# async def get_project_graph(input):
-#     """⚠️ DEPRECATED - DO NOT USE - Broken link traversal tool that reports incorrect results
-#
-#     Args:
-#         root_block_id: ID of the root block to build graph from
-#         max_depth: Maximum depth to traverse
-#         include_dependencies: Whether to include dependency relationships
-#         include_reverse_dependencies: Whether to include reverse dependencies
-#         relation_filters: Only include specific relation types
-#         summarize: Generate an LLM summary of the project graph
-#         namespace_scope: Limit graph traversal to specific namespace
-#
-#     Returns:
-#         success: Whether the graph retrieval was successful
-#         root_node: Root node of the project graph
-#         total_nodes: Total number of nodes in the graph
-#         max_depth_reached: Maximum depth actually reached
-#         cycles_detected: Block IDs where cycles were detected and broken
-#         summary: LLM-generated summary of the project graph
-#         active_branch: Branch used for the query
-#         message: Human-readable result message
-#         error: Error message if retrieval failed
-#         timestamp: Timestamp of the retrieval
-#     """
-#     try:
-#         # Parse dict input into Pydantic model
-#         parsed_input = GetProjectGraphInput(**input)
-#         result = get_project_graph_core(parsed_input, memory_bank=get_memory_bank())
-#         return result.model_dump(mode="json")
-#     except Exception as e:
-#         logger.error(f"Error in GetProjectGraph MCP tool: {e}")
-#         return GetProjectGraphOutput(
-#             success=False,
-#             total_nodes=0,
-#             max_depth_reached=0,
-#             cycles_detected=[],
-#             active_branch=get_memory_bank().branch,
-#             message="Graph retrieval failed",
-#             error=f"Error during get_project_graph: {str(e)}",
-#         ).model_dump(mode="json")
-
-
 # Register the SetContext tool
 @mcp.tool("SetContext")
 async def set_context(input):
@@ -1512,8 +1571,11 @@ async def set_context(input):
         timestamp: Timestamp of the operation
     """
     try:
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
         # Parse dict input into Pydantic model
-        parsed_input = SetContextInput(**input)
+        parsed_input = SetContextInput(**normalized_input)
         result = set_context_core(parsed_input, memory_bank=get_memory_bank())
         return result.model_dump(mode="json")
     except Exception as e:
@@ -1556,8 +1618,11 @@ async def global_semantic_search(input):
         timestamp: Timestamp of the search
     """
     try:
+        # EMERGENCY FIX: Normalize input to handle double-serialization
+        normalized_input = _normalize_mcp_input(input)
+
         # Parse dict input into Pydantic model
-        parsed_input = GlobalSemanticSearchInput(**input)
+        parsed_input = GlobalSemanticSearchInput(**normalized_input)
         result = global_semantic_search_core(parsed_input, memory_bank=get_memory_bank())
         return result.model_dump(mode="json")
     except Exception as e:
@@ -1568,7 +1633,7 @@ async def global_semantic_search(input):
             total_results=0,
             namespaces_searched=[],
             namespace_stats=[],
-            query_text=input.get("query_text", ""),
+            query_text=normalized_input.get("query_text", ""),
             active_branch=get_memory_bank().branch,
             message="Search failed",
             error=f"Error during global_semantic_search: {str(e)}",
