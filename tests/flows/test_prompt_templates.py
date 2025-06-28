@@ -109,7 +109,8 @@ class TestPromptTemplateManager:
         result = prompt_template_manager.generate_tool_specs_from_mcp_tools(mock_tools_list)
 
         assert "## Available MCP Tools:" in result
-        assert "CRITICAL: All tools expect a single 'input' parameter" in result
+        assert "Args:" in result  # Shows individual parameter details
+        assert "(required)" in result or "(optional)" in result  # Shows parameter types
         assert "Tool0: Description for tool 0" in result
         assert "Tool1: Description for tool 1" in result
         # Should limit to first 12 tools, but we only have 5
@@ -162,7 +163,8 @@ class TestPromptTemplateManager:
         result = prompt_template_manager.generate_tool_specs_from_mcp_tools([])
 
         assert "## Available MCP Tools:" in result
-        assert "CRITICAL: All tools expect a single 'input' parameter" in result
+        assert "Example usage:" in result  # Should show example usage even with no tools
+        assert "Tools:" in result  # Should show Tools section even when empty
         # Should have basic structure even with no tools
 
 
