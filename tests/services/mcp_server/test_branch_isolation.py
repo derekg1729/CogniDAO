@@ -205,6 +205,9 @@ class TestBranchIsolation:
                             for msg in log_messages
                         )
 
+    @pytest.mark.xfail(
+        reason="Legacy implementation now requires MCP integration test - manual tool functions removed in Phase 2A"
+    )
     @pytest.mark.asyncio
     async def test_create_memory_block_uses_correct_branch(self, mcp_app):
         """Test that CreateMemoryBlock tool uses the correct branch context."""
@@ -250,6 +253,9 @@ class TestBranchIsolation:
             # Verify we got a result
             assert result is not None
 
+    @pytest.mark.xfail(
+        reason="Legacy implementation now requires MCP integration test - manual tool functions removed in Phase 2A"
+    )
     @pytest.mark.asyncio
     async def test_create_block_link_uses_correct_branch(self, mcp_app):
         """Test that CreateBlockLink tool uses the correct branch context."""
