@@ -510,7 +510,9 @@ async def get_active_work_items(input):
         input_with_namespace = inject_current_namespace(input)
 
         parsed_input = GetActiveWorkItemsInput(**input_with_namespace)
-        result = get_active_work_items_tool(parsed_input, memory_bank=get_memory_bank())
+        result = get_active_work_items_tool(
+            memory_bank=get_memory_bank(), **parsed_input.model_dump()
+        )
         return result.model_dump()
 
     except Exception as e:
@@ -542,7 +544,13 @@ async def get_linked_blocks(input):
         input_with_namespace = inject_current_namespace(input)
 
         parsed_input = GetLinkedBlocksInput(**input_with_namespace)
-        result = get_linked_blocks_tool(parsed_input, memory_bank=get_memory_bank())
+        result = get_linked_blocks_tool(
+            source_block_id=parsed_input.source_block_id,
+            relation_filter=parsed_input.relation_filter,
+            direction_filter=parsed_input.direction_filter,
+            limit=parsed_input.limit,
+            memory_bank=get_memory_bank(),
+        )
         return result.model_dump()
 
     except Exception as e:
