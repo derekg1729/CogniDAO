@@ -222,14 +222,58 @@ def auto_register_cogni_tools_to_mcp(
     registration_results = {}
     cogni_tools = get_all_cogni_tools()
 
-    def create_tool_registration(tool_wrapper, tool_name):
-        """Factory function to properly capture tool wrapper in closure."""
+    def create_tool_registration(tool_wrapper, cogni_tool):
+        """Factory function to create tool with proper individual parameters."""
 
-        async def auto_generated_tool(**kwargs):
-            """Auto-generated MCP tool with individual parameters."""
-            return await tool_wrapper(**kwargs)
+        # Get the input model fields
+        input_fields = cogni_tool.input_model.model_fields
 
-        auto_generated_tool.__name__ = f"auto_{tool_name.lower().replace(' ', '_')}"
+        # Build the parameter list for the dynamic function
+        param_list = []
+        param_defaults = {}
+
+        for field_name, field_info in input_fields.items():
+            # Check if field has a default value
+            if field_info.default is not None and field_info.default != ...:
+                # Field has a default value
+                param_defaults[field_name] = field_info.default
+                param_list.append(f"{field_name}=None")
+            elif hasattr(field_info, "default_factory") and field_info.default_factory is not None:
+                # Field has a default factory
+                param_defaults[field_name] = field_info.default_factory()
+                param_list.append(f"{field_name}=None")
+            else:
+                # Required field (no default)
+                param_list.append(field_name)
+
+        # Create the function signature string
+        params_str = ", ".join(param_list)
+
+        # Create the dynamic function using exec (FastMCP needs actual parameters, not **kwargs)
+        func_code = f"""
+async def auto_generated_tool({params_str}):
+    '''Auto-generated MCP tool for {cogni_tool.name} with individual parameters.'''
+    # Collect all parameters into kwargs dict
+    kwargs = {{}}
+    import inspect
+    frame = inspect.currentframe()
+    args = frame.f_locals
+    for param_name in {list(input_fields.keys())}:
+        if param_name in args and args[param_name] is not None:
+            kwargs[param_name] = args[param_name]
+    
+    # Call the tool wrapper with reconstructed kwargs
+    return await tool_wrapper(**kwargs)
+"""
+
+        # Execute the dynamic function creation
+        namespace = {"tool_wrapper": tool_wrapper}
+        exec(func_code, namespace)
+        auto_generated_tool = namespace["auto_generated_tool"]
+
+        # Set proper function name for debugging
+        auto_generated_tool.__name__ = f"auto_{cogni_tool.name.lower().replace(' ', '_')}"
+
         return auto_generated_tool
 
     for cogni_tool in cogni_tools:
@@ -244,11 +288,11 @@ def auto_register_cogni_tools_to_mcp(
             if cogni_tool.memory_linked:
                 tool_description += "\n\nMemory-linked tool with namespace support."
 
-            # Create tool registration with proper closure
-            tool_func = create_tool_registration(mcp_wrapper, cogni_tool.name)
+            # Create tool registration with proper individual parameters (not **kwargs)
+            tool_func = create_tool_registration(mcp_wrapper, cogni_tool)
 
             # Register with FastMCP using the CogniTool's name and description
-            # This bypasses @mcp_autofix and creates individual parameters
+            # This creates individual parameters that FastMCP can understand
             mcp_app.tool(cogni_tool.name, description=tool_description)(tool_func)
 
             registration_results[cogni_tool.name] = "SUCCESS"
@@ -265,7 +309,7 @@ def auto_register_cogni_tools_to_mcp(
     logger.info(
         f"Auto-registration complete: {success_count}/{total_count} tools registered successfully"
     )
-    logger.info("All auto-generated tools now accept individual parameters (not wrapped input)")
+    logger.info("All auto-generated tools now accept individual parameters (not **kwargs)")
 
     return registration_results
 
