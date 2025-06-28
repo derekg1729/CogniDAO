@@ -131,6 +131,21 @@ from infra_core.memory_system.tools.agent_facing.global_semantic_search_tool imp
     GlobalSemanticSearchOutput,
 )
 
+# Import auto-generation system for Phase 2 architecture
+try:
+    # Try relative import first (when run as module)
+    from .mcp_auto_generator import auto_register_cogni_tools_to_mcp, get_auto_generation_stats
+except ImportError:
+    # Fall back to direct import (when run as script)
+    import sys
+    from pathlib import Path
+
+    # Add the app directory to Python path for direct script execution
+    app_dir = Path(__file__).parent
+    if str(app_dir) not in sys.path:
+        sys.path.insert(0, str(app_dir))
+
+    from mcp_auto_generator import auto_register_cogni_tools_to_mcp, get_auto_generation_stats
 
 # Configure logging
 logging.basicConfig(
@@ -499,6 +514,40 @@ def _normalize_mcp_input(input_data, max_depth=3):
 
 # Create a FastMCP server instance with a specific name
 mcp = FastMCP("cogni-memory")
+
+# Phase 2: Auto-register all CogniTools as MCP tools
+logger.info("🤖 [PHASE 2] Starting auto-registration of CogniTools...")
+try:
+    registration_results = auto_register_cogni_tools_to_mcp(mcp, get_memory_bank)
+
+    # Log registration results
+    success_count = sum(1 for status in registration_results.values() if status == "SUCCESS")
+    total_count = len(registration_results)
+
+    logger.info(
+        f"🤖 [PHASE 2] Auto-registration complete: {success_count}/{total_count} tools registered"
+    )
+
+    # Log any failures
+    failures = {
+        name: status for name, status in registration_results.items() if status != "SUCCESS"
+    }
+    if failures:
+        logger.warning(f"🤖 [PHASE 2] Registration failures: {failures}")
+
+    # Log statistics
+    stats = get_auto_generation_stats()
+    logger.info(
+        f"🤖 [PHASE 2] Maintenance reduction: {stats['maintenance_reduction_percent']}% ({stats['lines_saved']} lines saved)"
+    )
+
+except Exception as e:
+    logger.error(f"🤖 [PHASE 2] Auto-registration failed: {e}")
+    # Continue with manual tools as fallback
+    logger.info("🤖 [PHASE 2] Continuing with manual tool registrations as fallback")
+
+
+# Manual tool registrations (Phase 0/1 - will be removed in Phase 2B)
 
 
 # Register the CreateWorkItem tool
