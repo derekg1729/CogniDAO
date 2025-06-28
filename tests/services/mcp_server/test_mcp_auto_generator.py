@@ -90,9 +90,8 @@ class TestCreateMCPWrapperFromCogniTool:
         """Test successful wrapper creation and execution."""
         wrapper = create_mcp_wrapper_from_cogni_tool(mock_cogni_tool, mock_memory_bank_getter)
 
-        # Test the wrapper function
-        input_data = {"test_field": "hello", "namespace_id": "test-ns"}
-        result = await wrapper(input_data)
+        # Test the wrapper function with individual parameters
+        result = await wrapper(test_field="hello", namespace_id="test-ns")
 
         assert result["success"] is True
         assert "hello" in result["result"]
@@ -103,8 +102,8 @@ class TestCreateMCPWrapperFromCogniTool:
         """Test wrapper handles memory-linked tools correctly."""
         wrapper = create_mcp_wrapper_from_cogni_tool(mock_cogni_tool, mock_memory_bank_getter)
 
-        input_data = {"test_field": "memory_test"}
-        result = await wrapper(input_data)
+        # Test with individual parameters
+        result = await wrapper(test_field="memory_test")
 
         # Should inject namespace and call with memory bank
         assert result["success"] is True
@@ -128,8 +127,8 @@ class TestCreateMCPWrapperFromCogniTool:
 
         wrapper = create_mcp_wrapper_from_cogni_tool(non_memory_tool, mock_memory_bank_getter)
 
-        input_data = {"test_field": "non_memory_test"}
-        result = await wrapper(input_data)
+        # Test with individual parameters
+        result = await wrapper(test_field="non_memory_test")
 
         assert result["success"] is True
         assert "Non-memory: non_memory_test" in result["result"]
@@ -152,8 +151,8 @@ class TestCreateMCPWrapperFromCogniTool:
 
         wrapper = create_mcp_wrapper_from_cogni_tool(failing_tool, mock_memory_bank_getter)
 
-        input_data = {"test_field": "will_fail"}
-        result = await wrapper(input_data)
+        # Test with individual parameters
+        result = await wrapper(test_field="will_fail")
 
         assert result["success"] is False
         assert "Failed to execute FailingTool" in result["error"]
@@ -165,9 +164,8 @@ class TestCreateMCPWrapperFromCogniTool:
         """Test wrapper handles input validation errors."""
         wrapper = create_mcp_wrapper_from_cogni_tool(mock_cogni_tool, mock_memory_bank_getter)
 
-        # Missing required field
-        invalid_input = {"namespace_id": "test"}  # Missing test_field
-        result = await wrapper(invalid_input)
+        # Missing required field - call without test_field parameter
+        result = await wrapper(namespace_id="test")  # Missing test_field
 
         assert result["success"] is False
         assert "Failed to execute TestTool" in result["error"]
@@ -348,11 +346,12 @@ class TestErrorEdgeCases:
 
         wrapper = create_mcp_wrapper_from_cogni_tool(mock_cogni_tool, null_memory_bank_getter)
 
-        input_data = {"test_field": "test"}
-        result = await wrapper(input_data)
+        # Test with individual parameters
+        result = await wrapper(test_field="test")
 
-        # Should still work, just pass None as memory_bank
+        # Should still work even with None memory bank
         assert result["success"] is True
+        assert "test" in result["result"]
 
     @pytest.mark.asyncio
     async def test_wrapper_serialization_edge_cases(self, mock_memory_bank_getter):
@@ -373,8 +372,8 @@ class TestErrorEdgeCases:
 
         wrapper = create_mcp_wrapper_from_cogni_tool(dict_tool, mock_memory_bank_getter)
 
-        input_data = {"test_field": "test"}
-        result = await wrapper(input_data)
+        # Test with individual parameters
+        result = await wrapper(test_field="test")
 
         assert result["success"] is True
         assert result["data"] == "dict_result"

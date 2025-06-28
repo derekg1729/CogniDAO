@@ -11,10 +11,6 @@ from mcp.server.fastmcp import FastMCP
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
 from infra_core.memory_system.sql_link_manager import SQLLinkManager
-from infra_core.memory_system.tools.agent_facing.get_memory_block_tool import (
-    get_memory_block_tool,
-    GetMemoryBlockInput,
-)
 from infra_core.memory_system.tools.agent_facing.get_active_work_items_tool import (
     get_active_work_items_tool,
     GetActiveWorkItemsInput,
@@ -46,10 +42,6 @@ from infra_core.memory_system.tools.agent_facing.get_linked_blocks_tool import (
 from infra_core.memory_system.tools.agent_facing.delete_memory_block_tool import (
     delete_memory_block_tool,
     DeleteMemoryBlockToolInput,
-)
-from infra_core.memory_system.tools.memory_core.query_memory_blocks_tool import (
-    query_memory_blocks_core,
-    QueryMemoryBlocksInput,
 )
 from infra_core.memory_system.tools.memory_core.create_memory_block_tool import (
     create_memory_block as create_memory_block_core,
@@ -582,51 +574,53 @@ async def create_work_item(input):
             "timestamp": datetime.now(),
         }
 
+    # Register the GetMemoryBlock tool
+    # DISABLED: Now auto-generated with individual parameters in Phase 2
+    # @mcp.tool("GetMemoryBlock")
+    # @mcp_autofix
+    # async def get_memory_block(input):
 
-# Register the GetMemoryBlock tool
-@mcp.tool("GetMemoryBlock")
-@mcp_autofix
-async def get_memory_block(input):
-    """Get memory blocks by ID(s) or filter by type/tags/metadata
 
-    Block Retrieval by ID(s):
-        block_ids: List of IDs of the memory blocks to retrieve (even single ID as list)
-
-    Filtered Block Retrieval (specify at least one):
-        type_filter: Filter by block type (knowledge, task, project, doc, interaction, bug, epic)
-        namespace_id: Optional filter by namespace ID for multi-tenant operations (defaults to current namespace)
-        tag_filters: List of tags to filter by (all must match)
-        metadata_filters: Metadata key-value pairs to filter by (exact matches)
-        limit: Maximum number of results to return (1-100)
-
-    Output always contains 'blocks' array (0 to N blocks), even for single ID lookup.
-    Cannot specify both block_ids and filtering parameters.
-    """
-    logger.info("GetMemoryBlock MCP tool called")
-
-    try:
-        # Inject namespace if not provided (input already normalized by decorator)
-        input_with_namespace = inject_current_namespace(input)
-
-        # Parse dict input into Pydantic model
-        input_data = GetMemoryBlockInput(**input_with_namespace)
-
-        # Execute the tool function
-        result = get_memory_block_tool(
-            memory_bank=get_memory_bank(), **input_data.model_dump(exclude_none=True)
-        )
-
-        # Return the complete result
-        return result.model_dump()
-
-    except Exception as e:
-        logger.error(f"Error in get_memory_block: {str(e)}")
-        return {
-            "success": False,
-            "error": f"Failed to retrieve memory blocks: {str(e)}",
-            "blocks": [],
-            "timestamp": datetime.now(),
-        }
+#     """Get memory blocks by ID(s) or filter by type/tags/metadata
+#
+#     Block Retrieval by ID(s):
+#         block_ids: List of IDs of the memory blocks to retrieve (even single ID as list)
+#
+#     Filtered Block Retrieval (specify at least one):
+#         type_filter: Filter by block type (knowledge, task, project, doc, interaction, bug, epic)
+#         namespace_id: Optional filter by namespace ID for multi-tenant operations (defaults to current namespace)
+#         tag_filters: List of tags to filter by (all must match)
+#         metadata_filters: Metadata key-value pairs to filter by (exact matches)
+#         limit: Maximum number of results to return (1-100)
+#
+#     Output always contains 'blocks' array (0 to N blocks), even for single ID lookup.
+#     Cannot specify both block_ids and filtering parameters.
+#     """
+#     logger.info("GetMemoryBlock MCP tool called")
+#
+#     try:
+#         # Inject namespace if not provided (input already normalized by decorator)
+#         input_with_namespace = inject_current_namespace(input)
+#
+#         # Parse dict input into Pydantic model
+#         input_data = GetMemoryBlockInput(**input_with_namespace)
+#
+#         # Execute the tool function
+#         result = get_memory_block_tool(
+#             memory_bank=get_memory_bank(), **input_data.model_dump(exclude_none=True)
+#         )
+#
+#         # Return the complete result
+#         return result.model_dump()
+#
+#     except Exception as e:
+#         logger.error(f"Error in get_memory_block: {str(e)}")
+#         return {
+#             "success": False,
+#             "error": f"Failed to retrieve memory blocks: {str(e)}",
+#             "blocks": [],
+#             "timestamp": datetime.now(),
+#         }
 
 
 # Register the GetMemoryLinks tool
@@ -688,42 +682,44 @@ async def get_active_work_items(input):
             "timestamp": datetime.now(),
         }
 
+        # Register the QueryMemoryBlocksSemantic tool
+        # DISABLED: Now auto-generated with individual parameters in Phase 2
+        # @mcp.tool("QueryMemoryBlocksSemantic")
+        # @mcp_autofix
+        # async def query_memory_blocks_semantic(input):
+        #     """Query memory blocks using semantic search with chroma vector database
+        #
+        #     Semantic Search with Filters:
+        #         query_text: Text to search for semantically (required)
+        #         type_filter: Optional filter by block type (knowledge, task, project, doc, interaction, bug, epic)
+        #         namespace_id: Optional filter by namespace ID for multi-tenant operations (defaults to current namespace)
+        #         tag_filters: Optional list of tags to filter by (all must match)
+        #         metadata_filters: Optional metadata key-value pairs to filter by (exact matches)
+        #         top_k: Maximum number of results to return (1-20, default: 5)
+        #
+        #     Output contains 'blocks' array of semantically relevant memory blocks.
+        #     """
+        #     logger.info("QueryMemoryBlocksSemantic MCP tool called")
+        #
+        #     try:
+        #         # Inject namespace if not provided (input already normalized by decorator)
+        #         input_with_namespace = inject_current_namespace(input)
+        #
+        #         # Parse dict input into Pydantic model
 
-# Register the QueryMemoryBlocksSemantic tool
-@mcp.tool("QueryMemoryBlocksSemantic")
-@mcp_autofix
-async def query_memory_blocks_semantic(input):
-    """Query memory blocks using semantic search with chroma vector database
 
-    Semantic Search with Filters:
-        query_text: Text to search for semantically (required)
-        type_filter: Optional filter by block type (knowledge, task, project, doc, interaction, bug, epic)
-        namespace_id: Optional filter by namespace ID for multi-tenant operations (defaults to current namespace)
-        tag_filters: Optional list of tags to filter by (all must match)
-        metadata_filters: Optional metadata key-value pairs to filter by (exact matches)
-        top_k: Maximum number of results to return (1-20, default: 5)
-
-    Output contains 'blocks' array of semantically relevant memory blocks.
-    """
-    logger.info("QueryMemoryBlocksSemantic MCP tool called")
-
-    try:
-        # Inject namespace if not provided (input already normalized by decorator)
-        input_with_namespace = inject_current_namespace(input)
-
-        # Parse dict input into Pydantic model
-        parsed_input = QueryMemoryBlocksInput(**input_with_namespace)
-        result = query_memory_blocks_core(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump()
-
-    except Exception as e:
-        logger.error(f"Error in query_memory_blocks_semantic: {str(e)}")
-        return {
-            "success": False,
-            "error": f"Failed to search memory blocks: {str(e)}",
-            "blocks": [],
-            "timestamp": datetime.now(),
-        }
+#         parsed_input = QueryMemoryBlocksInput(**input_with_namespace)
+#         result = query_memory_blocks_core(parsed_input, memory_bank=get_memory_bank())
+#         return result.model_dump()
+#
+#     except Exception as e:
+#         logger.error(f"Error in query_memory_blocks_semantic: {str(e)}")
+#         return {
+#             "success": False,
+#             "error": f"Failed to search memory blocks: {str(e)}",
+#             "blocks": [],
+#             "timestamp": datetime.now(),
+#         }
 
 
 # Register the GetLinkedBlocks tool

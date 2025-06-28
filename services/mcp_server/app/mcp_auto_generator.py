@@ -15,7 +15,6 @@ Key Benefits:
 import logging
 from typing import Dict, Any, Callable, Awaitable
 from datetime import datetime
-from functools import wraps
 
 from mcp.server.fastmcp import FastMCP
 from infra_core.memory_system.tools.base.cogni_tool import CogniTool
@@ -47,23 +46,51 @@ logger = logging.getLogger(__name__)
 
 def create_mcp_wrapper_from_cogni_tool(
     cogni_tool: CogniTool, memory_bank_getter: Callable[[], StructuredMemoryBank]
-) -> Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]:
+) -> Callable[..., Awaitable[Dict[str, Any]]]:
     """
     Create an MCP-compatible async wrapper function from a CogniTool instance.
 
     This function generates the wrapper that would normally be written manually,
-    leveraging the CogniTool's to_mcp_route() method for schema and execution.
+    leveraging the CogniTool's input model to create individual parameters
+    instead of a wrapped input_data object.
 
     Args:
         cogni_tool: The CogniTool instance to wrap
         memory_bank_getter: Function to get the memory bank instance
 
     Returns:
-        Async function compatible with FastMCP @mcp.tool() decorator
+        Async function compatible with FastMCP @mcp.tool() decorator with individual parameters
     """
 
-    @wraps(cogni_tool._function)
-    async def mcp_wrapper(input_data: Dict[str, Any]) -> Dict[str, Any]:
+    # Extract field information from the input model
+    input_fields = cogni_tool.input_model.model_fields
+
+    # Build parameter list for dynamic function signature
+    params = []
+    param_defaults = {}
+    param_annotations = {}
+
+    for field_name, field_info in input_fields.items():
+        # Get the field type
+        field_type = field_info.annotation
+
+        # Check if field has a default value
+        if field_info.default is not None and field_info.default != ...:
+            # Field has a default value
+            param_defaults[field_name] = field_info.default
+            params.append(f"{field_name}=None")
+        elif hasattr(field_info, "default_factory") and field_info.default_factory is not None:
+            # Field has a default factory
+            param_defaults[field_name] = field_info.default_factory()
+            params.append(f"{field_name}=None")
+        else:
+            # Required field (no default)
+            params.append(field_name)
+
+        param_annotations[field_name] = field_type
+
+    # Create the dynamic wrapper function
+    async def mcp_wrapper(**kwargs) -> Dict[str, Any]:
         """
         Auto-generated MCP wrapper for {tool_name}.
 
@@ -71,16 +98,32 @@ def create_mcp_wrapper_from_cogni_tool(
         Memory-linked: {cogni_tool.memory_linked}
 
         This wrapper:
-        1. Normalizes input (handles double-serialization)
-        2. Injects namespace context if needed
-        3. Validates input using CogniTool's input_model
-        4. Calls CogniTool's function with memory_bank
-        5. Returns serialized result
+        1. Accepts individual parameters instead of wrapped input_data
+        2. Reconstructs input_data from individual parameters
+        3. Injects namespace context if needed
+        4. Validates input using CogniTool's input_model
+        5. Calls CogniTool's function with memory_bank
+        6. Returns serialized result
         """
-        logger.debug(f"Auto-generated MCP wrapper called for {cogni_tool.name}")
+        logger.debug(
+            f"Auto-generated MCP wrapper called for {cogni_tool.name} with kwargs: {kwargs}"
+        )
 
         try:
-            # Input is already normalized by @mcp_autofix decorator
+            # Reconstruct input_data from individual parameters
+            input_data = {}
+
+            # Add provided parameters
+            for field_name, value in kwargs.items():
+                if value is not None:  # Only include non-None values
+                    input_data[field_name] = value
+
+            # Add default values for missing optional parameters
+            for field_name, default_value in param_defaults.items():
+                if field_name not in input_data and default_value is not None:
+                    input_data[field_name] = default_value
+
+            logger.debug(f"Reconstructed input_data: {input_data}")
 
             # Inject namespace if tool is memory-linked
             if cogni_tool.memory_linked:
@@ -92,11 +135,14 @@ def create_mcp_wrapper_from_cogni_tool(
             validated_input = cogni_tool.input_model(**input_with_namespace)
 
             # Get memory bank for memory-linked tools
-            memory_bank = memory_bank_getter() if cogni_tool.memory_linked else None
+            if cogni_tool.memory_linked:
+                actual_memory_bank = memory_bank_getter()
+            else:
+                actual_memory_bank = None
 
             # Call the CogniTool's function
             if cogni_tool.memory_linked:
-                result = cogni_tool._function(validated_input, memory_bank)
+                result = cogni_tool._function(validated_input, actual_memory_bank)
             else:
                 result = cogni_tool._function(validated_input)
 
@@ -121,8 +167,8 @@ def create_mcp_wrapper_from_cogni_tool(
             # Add memory-specific context if available
             try:
                 if cogni_tool.memory_linked:
-                    memory_bank = memory_bank_getter()
-                    error_response["current_branch"] = memory_bank.branch
+                    actual_memory_bank = memory_bank_getter()
+                    error_response["current_branch"] = actual_memory_bank.branch
             except Exception:
                 pass
 
@@ -131,7 +177,7 @@ def create_mcp_wrapper_from_cogni_tool(
     # Update wrapper metadata
     mcp_wrapper.__name__ = f"{cogni_tool.name.lower().replace(' ', '_')}_mcp_wrapper"
 
-    # Set custom docstring if the original one was copied
+    # Set custom docstring
     docstring_template = """
     Auto-generated MCP wrapper for {tool_name}.
     
@@ -139,11 +185,12 @@ def create_mcp_wrapper_from_cogni_tool(
     Memory-linked: {memory_linked}
     
     This wrapper:
-    1. Normalizes input (handles double-serialization)
-    2. Injects namespace context if needed
-    3. Validates input using CogniTool's input_model
-    4. Calls CogniTool's function with memory_bank
-    5. Returns serialized result
+    1. Accepts individual parameters instead of wrapped input_data
+    2. Reconstructs input_data from individual parameters  
+    3. Injects namespace context if needed
+    4. Validates input using CogniTool's input_model
+    5. Calls CogniTool's function with memory_bank
+    6. Returns serialized result
     """
     mcp_wrapper.__doc__ = docstring_template.format(
         tool_name=cogni_tool.name,
@@ -175,21 +222,37 @@ def auto_register_cogni_tools_to_mcp(
     registration_results = {}
     cogni_tools = get_all_cogni_tools()
 
+    def create_tool_registration(tool_wrapper, tool_name):
+        """Factory function to properly capture tool wrapper in closure."""
+
+        async def auto_generated_tool(**kwargs):
+            """Auto-generated MCP tool with individual parameters."""
+            return await tool_wrapper(**kwargs)
+
+        auto_generated_tool.__name__ = f"auto_{tool_name.lower().replace(' ', '_')}"
+        return auto_generated_tool
+
     for cogni_tool in cogni_tools:
         try:
             logger.debug(f"Auto-registering {cogni_tool.name}...")
 
-            # Create the MCP wrapper
+            # Create the MCP wrapper that accepts **kwargs
             mcp_wrapper = create_mcp_wrapper_from_cogni_tool(cogni_tool, memory_bank_getter)
 
-            # Apply the @mcp_autofix decorator
-            mcp_wrapper_with_autofix = mcp_autofix(mcp_wrapper)
+            # Create the tool description from CogniTool
+            tool_description = cogni_tool.description
+            if cogni_tool.memory_linked:
+                tool_description += "\n\nMemory-linked tool with namespace support."
 
-            # Register with FastMCP using the CogniTool's name
-            mcp_app.tool(cogni_tool.name)(mcp_wrapper_with_autofix)
+            # Create tool registration with proper closure
+            tool_func = create_tool_registration(mcp_wrapper, cogni_tool.name)
+
+            # Register with FastMCP using the CogniTool's name and description
+            # This bypasses @mcp_autofix and creates individual parameters
+            mcp_app.tool(cogni_tool.name, description=tool_description)(tool_func)
 
             registration_results[cogni_tool.name] = "SUCCESS"
-            logger.debug(f"Successfully registered {cogni_tool.name}")
+            logger.debug(f"Successfully registered {cogni_tool.name} with individual parameters")
 
         except Exception as e:
             error_msg = f"Failed to register {cogni_tool.name}: {str(e)}"
@@ -202,6 +265,7 @@ def auto_register_cogni_tools_to_mcp(
     logger.info(
         f"Auto-registration complete: {success_count}/{total_count} tools registered successfully"
     )
+    logger.info("All auto-generated tools now accept individual parameters (not wrapped input)")
 
     return registration_results
 
