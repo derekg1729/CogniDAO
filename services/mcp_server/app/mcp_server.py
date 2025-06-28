@@ -1091,7 +1091,7 @@ async def dolt_auto_commit_and_push(input):
 
 
 # Register a health check tool
-@mcp.tool("HealthCheck")
+# @mcp.tool("HealthCheck")    # AUTO-GENERATED (commented out)
 async def health_check():
     """Check if the memory bank is initialized"""
     memory_bank_ok = get_memory_bank() is not None

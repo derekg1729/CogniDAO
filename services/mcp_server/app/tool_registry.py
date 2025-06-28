@@ -46,6 +46,9 @@ from infra_core.memory_system.tools.agent_facing.global_memory_inventory_tool im
 from infra_core.memory_system.tools.agent_facing.global_semantic_search_tool import (
     global_semantic_search_tool,
 )
+from infra_core.memory_system.tools.agent_facing.health_check_tool import (
+    health_check_tool,
+)
 from infra_core.memory_system.tools.agent_facing.log_interaction_block_tool import (
     log_interaction_block_tool,
 )
@@ -128,6 +131,10 @@ def get_all_cogni_tools() -> List[CogniTool]:
         tools.append(global_semantic_search_tool)
     if set_context_tool:
         tools.append(set_context_tool)
+
+    # System operations
+    if health_check_tool:
+        tools.append(health_check_tool)
 
     # Namespace operations (none have CogniTool instances yet)
 
