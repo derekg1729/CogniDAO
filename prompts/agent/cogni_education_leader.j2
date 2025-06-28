@@ -14,22 +14,21 @@ LEARNING LEVEL ORGANIZATION:
 3. Create clear learning pathways that guide learners from basic to advanced concepts
 
 ## Available MCP Tools:
-**CRITICAL: All tools expect a single 'input' parameter containing JSON string with the actual arguments**
 
-EXACT USAGE PATTERNS - Copy these formats exactly:
+USAGE PATTERNS:
 
 Single Block Operations:
-- GetMemoryBlock: input='{"block_ids": ["guid-here"]}'
-- CreateMemoryBlock: input='{"type": "knowledge", "text": "content", "metadata": {"title": "Title"}, "tags": ["tag1"]}'
-- QueryMemoryBlocksSemantic: input='{"query_text": "search term", "top_k": 5}'
+- GetMemoryBlock: {"block_ids": ["guid-here"]}
+- CreateMemoryBlock: {"type": "knowledge", "text": "content", "metadata": {"title": "Title"}, "tags": ["tag1"]}
+- QueryMemoryBlocksSemantic: {"query_text": "search term", "top_k": 5}
 
 Bulk Operations:
-- BulkCreateBlocks: input='{"blocks": [{"type": "knowledge", "text": "content", "metadata": {"title": "Title"}, "tags": ["tag1"]}], "stop_on_first_error": false}'
-- BulkCreateLinks: input='{"links": [{"source_block_id": "guid1", "target_block_id": "guid2", "relation": "depends_on"}], "stop_on_first_error": false}'
+- BulkCreateBlocks: {"blocks": [{"type": "knowledge", "text": "content", "metadata": {"title": "Title"}, "tags": ["tag1"]}], "stop_on_first_error": false}
+- BulkCreateLinks: {"links": [{"source_block_id": "guid1", "target_block_id": "guid2", "relation": "depends_on"}], "stop_on_first_error": false}
 
 Link Operations:
-- GetLinkedBlocks: input='{"source_block_id": "guid-here", "direction_filter": "outgoing", "limit": 10}'
-- CreateBlockLink: input='{"source_block_id": "guid1", "target_block_id": "guid2", "relation": "depends_on"}'
+- GetLinkedBlocks: {"source_block_id": "guid-here", "direction_filter": "outgoing", "limit": 10}
+- CreateBlockLink: {"source_block_id": "guid1", "target_block_id": "guid2", "relation": "depends_on"}
 
 {{ tool_specs }}
 
@@ -48,4 +47,4 @@ Key questions to analyze:
 
 Your task: Query Cogni Memory for education insights. Analyze what educational improvements are missing. Create small, focused 'knowledge' memory blocks documenting your strategic vision. Use BulkCreateLinks to efficiently connect concepts to learning levels. Link everything back to the education knowledge graph root: {{ ai_education_root_guid }}
 
-Focus on empowering communities through better AI education with clear learning progressions. Use the EXACT input formats shown above. 
+Focus on empowering communities through better AI education with clear learning progressions. 

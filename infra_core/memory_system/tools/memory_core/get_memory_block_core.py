@@ -149,7 +149,7 @@ def get_memory_block_core(input_data: GetMemoryBlockInput, memory_bank) -> GetMe
 
         try:
             # Get all blocks from the specified branch (following blocks_router.py pattern)
-            all_blocks = memory_bank.get_all_memory_blocks(branch=input_data.branch)
+            all_blocks = memory_bank.get_all_memory_blocks(branch=current_branch)
 
             # Apply type filter if specified (following blocks_router.py pattern)
             if input_data.type_filter:

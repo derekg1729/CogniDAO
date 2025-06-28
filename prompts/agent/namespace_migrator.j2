@@ -40,33 +40,21 @@
   
   <ToolSpecs>
 ## Available MCP Tools:
-**🚨 CRITICAL FORMAT REQUIREMENT 🚨**
-**ALL TOOLS REQUIRE SINGLE 'input' PARAMETER WITH JSON STRING - NO EXCEPTIONS!**
 
-**❌ WRONG FORMAT (WILL FAIL):**
-- BulkUpdateNamespace: {"blocks": [...], "target_namespace_id": "..."}
-- GetMemoryBlock: {"namespace_id": "legacy", "limit": 20}
-
-**✅ CORRECT FORMAT (ALWAYS USE THIS):**
-- BulkUpdateNamespace: input='{"blocks": [...], "target_namespace_id": "..."}'
-- GetMemoryBlock: input='{"namespace_id": "legacy", "limit": 20}'
-
-EXACT USAGE PATTERNS - Copy these formats exactly:
+USAGE PATTERNS:
 
 Discovery Operations:
-- GetMemoryBlock: input='{"namespace_id": "legacy", "limit": 20}'
-- QueryMemoryBlocksSemantic: input='{"query_text": "AI education machine learning", "namespace_filter": "legacy", "top_k": 50}'
-- GlobalMemoryInventory: input='{"branch_filter": "feat/cleanup", "max_buckets": 10}'
+- GetMemoryBlock: {"namespace_id": "legacy", "limit": 20}
+- QueryMemoryBlocksSemantic: {"query_text": "AI education machine learning", "namespace_filter": "legacy", "top_k": 50}
+- GlobalMemoryInventory: {"branch_filter": "feat/cleanup", "max_buckets": 10}
 
 Migration Operations:
-- BulkUpdateNamespace: input='{"blocks": [{"block_id": "guid1"}, {"block_id": "guid2"}], "target_namespace_id": "ai-education", "stop_on_first_error": true, "author": "namespace_migrator", "agent_id": "cleanup_flow"}'
-- SetContext: input='{"namespace_id": "ai-education", "validate_namespace": true}'
+- BulkUpdateNamespace: {"blocks": [{"block_id": "guid1"}, {"block_id": "guid2"}], "target_namespace_id": "ai-education", "stop_on_first_error": true, "author": "namespace_migrator", "agent_id": "cleanup_flow"}
+- SetContext: {"namespace_id": "ai-education", "validate_namespace": true}
 
 Analysis Operations:
-- GetLinkedBlocks: input='{"source_block_id": "guid-here", "limit": 10}'
-- GetMemoryBlock: input='{"block_ids": ["guid1", "guid2", "guid3"]}'
-
-**REMEMBER: Every tool call MUST use input='...' wrapper!**
+- GetLinkedBlocks: {"source_block_id": "guid-here", "limit": 10}
+- GetMemoryBlock: {"block_ids": ["guid1", "guid2", "guid3"]}
 
 {{ tool_specs }}
   </ToolSpecs>
@@ -75,5 +63,5 @@ Analysis Operations:
   
   <MemorySystemOverview>{{ memory_overview_summary }}</MemorySystemOverview>
   
-  <Focus>Be systematic and thorough. Process ALL legacy blocks. Use bulk operations efficiently. When unsure about namespace, default to "cogni-project-management" as it's more general. **ALWAYS use the input='...' format for ALL tool calls - this is mandatory!**</Focus>
+  <Focus>Be systematic and thorough. Process ALL legacy blocks. Use bulk operations efficiently. When unsure about namespace, default to "cogni-project-management" as it's more general.</Focus>
 </PromptTemplate> 

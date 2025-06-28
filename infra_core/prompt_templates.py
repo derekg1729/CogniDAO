@@ -132,11 +132,10 @@ class PromptTemplateManager:
 
         # Create formatted tool specs string (keep under 1.5k tokens)
         tool_specs_text = """## Available MCP Tools:
-**CRITICAL: All tools expect a single 'input' parameter containing JSON string with the actual arguments**
 
-Example usage pattern:
-- GetActiveWorkItems: input='{"limit": 10}' 
-- CreateWorkItem: input='{"type": "task", "title": "My Task", "description": "..."}'
+Example usage:
+- GetActiveWorkItems: {"limit": 10}
+- CreateWorkItem: {"type": "task", "title": "My Task", "description": "..."}
 
 Tools:
 """ + "\n".join(f"• {spec}" for spec in tool_specs[:12])  # Limit to top 12 tools

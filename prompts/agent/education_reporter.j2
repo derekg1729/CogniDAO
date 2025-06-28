@@ -22,25 +22,24 @@ Key responsibilities:
 - Link new educational content back to the knowledge graph using CreateBlockLink
 
 ## Available MCP Tools:
-**CRITICAL: All tools expect a single 'input' parameter containing JSON string with the actual arguments**
 
-EXACT USAGE PATTERNS - Copy these formats exactly:
+USAGE PATTERNS:
 
 Single Block Operations:
-- GetMemoryBlock: input='{"block_ids": ["guid-here"]}'
-- CreateMemoryBlock: input='{"type": "knowledge", "text": "content", "metadata": {"title": "Title"}, "tags": ["tag1"]}'
-- QueryMemoryBlocksSemantic: input='{"query_text": "search term", "top_k": 5}'
+- GetMemoryBlock: {"block_ids": ["guid-here"]}
+- CreateMemoryBlock: {"type": "knowledge", "text": "content", "metadata": {"title": "Title"}, "tags": ["tag1"]}
+- QueryMemoryBlocksSemantic: {"query_text": "search term", "top_k": 5}
 
 Bulk Operations:
-- BulkCreateBlocks: input='{"blocks": [{"type": "knowledge", "text": "content", "metadata": {"title": "Title"}, "tags": ["tag1"]}], "stop_on_first_error": false}'
-- BulkCreateLinks: input='{"links": [{"source_block_id": "guid1", "target_block_id": "guid2", "relation": "depends_on"}], "stop_on_first_error": false}'
+- BulkCreateBlocks: {"blocks": [{"type": "knowledge", "text": "content", "metadata": {"title": "Title"}, "tags": ["tag1"]}], "stop_on_first_error": false}
+- BulkCreateLinks: {"links": [{"source_block_id": "guid1", "target_block_id": "guid2", "relation": "depends_on"}], "stop_on_first_error": false}
 
 Link Operations:
-- GetLinkedBlocks: input='{"source_block_id": "guid-here", "direction_filter": "outgoing", "limit": 10}'
-- CreateBlockLink: input='{"source_block_id": "guid1", "target_block_id": "guid2", "relation": "depends_on"}'
+- GetLinkedBlocks: {"source_block_id": "guid-here", "direction_filter": "outgoing", "limit": 10}
+- CreateBlockLink: {"source_block_id": "guid1", "target_block_id": "guid2", "relation": "depends_on"}
 
 {{ tool_specs }}
 
 {{ work_items_summary }}
 
-Focus on documentation and creating well-linked, small memory blocks. Use bulk linking tools to efficiently connect related concepts. Use the EXACT input formats shown above. 
+Focus on documentation and creating well-linked, small memory blocks. Use bulk linking tools to efficiently connect related concepts. 
