@@ -338,8 +338,8 @@ def inject_current_namespace(input_data):
         if isinstance(normalized_input, dict):
             result = dict(normalized_input)  # Shallow copy
 
-            if "namespace_id" not in result:
-                current_ns = get_current_namespace()
+            if "namespace_id" not in result or result["namespace_id"] is None:
+                current_ns = get_current_namespace_context()
                 if current_ns:
                     result["namespace_id"] = current_ns
 
@@ -815,7 +815,7 @@ async def dolt_status(input):
         parsed_input = DoltStatusInput(**normalized_input)
 
         # Execute the status operation
-        result = dolt_status_tool(parsed_input, get_memory_bank())
+        result = dolt_status_tool(parsed_input, memory_bank=get_memory_bank())
 
         logger.info(f"DoltStatus result: {result}")
 
