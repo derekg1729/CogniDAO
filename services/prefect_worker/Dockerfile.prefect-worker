@@ -4,10 +4,11 @@ FROM prefecthq/prefect:3-python3.12
 # Set working directory
 WORKDIR /workspace
 
-# Copy requirements.txt and install dependencies
-COPY requirements.txt .
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+# Copy workspace files and install dependencies via UV
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+COPY pyproject.toml uv.lock* ./
+COPY services/prefect_worker/pyproject.toml ./services/prefect_worker/
+RUN uv sync --frozen --no-install-project --no-dev
 
 # Copy sitecustomize.py for universal Helicone integration
 # Uses environment variable proxy approach for automatic OpenAI SDK routing

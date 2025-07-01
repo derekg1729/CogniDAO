@@ -27,9 +27,9 @@ COPY ./infra_core/ /app/infra_core/
 COPY ./services/web_api/ /app/services/web_api/
 COPY ./services/__init__.py /app/services/__init__.py
 
-# Install the project itself
+# Install the project dependencies (skip workspace root)
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+    uv sync --frozen --no-dev --no-install-project
 
 # Production stage - minimal runtime image
 FROM base AS runtime

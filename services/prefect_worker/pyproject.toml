@@ -1,0 +1,63 @@
+[project]
+name = "cogni-prefect-worker" 
+version = "0.1.0"
+description = "Prefect worker for Cogni workflow orchestration"
+requires-python = ">=3.11"
+dependencies = [
+    # Workflow orchestration core
+    "prefect>=3.0.0,<4.0.0",
+    
+    # LangGraph and checkpointing  
+    "langgraph>=0.2.79",
+    "langgraph-checkpoint-redis>=0.0.1,<1.0.0",
+    "redis>=5.0.0,<6.0.0",
+    
+    # AI framework integrations
+    "crewai>=0.121.1",
+    "pyautogen>=0.9",
+    "autogen-agentchat>=0.6.1", 
+    "autogen-ext[mcp]>=0.6.1",
+    
+    # LangChain MCP integration
+    "langchain-mcp-adapters>=0.1.0",
+    "langchain-core>=0.3.0,<0.4.0",
+    "langchain-openai>=0.2.0,<0.3.0",
+    "langchain-community>=0.3.26",
+    
+    # OpenAI and core AI deps
+    "openai>=1.0.0,<1.80.0",
+    
+    # Social media and external integrations
+    "tweepy>=4.16.0",
+    "pygithub>=2.1.1",
+    
+    # Shared utilities
+    "tqdm>=4.65.0",
+    "jsonpatch>=1.33",
+    "unidiff>=0.7.0", 
+    "jinja2>=3.0.0",
+    "aiofiles>=24.1.0",
+    "python-multipart>=0.0.20",
+    "python-frontmatter>=1.1.0",
+    "websockets>=11.0.0",
+    
+    # Memory and data dependencies
+    "doltpy",
+    "chromadb>=1.0.0",
+    "pydantic>=2.8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "pytest", 
+    "pytest-asyncio",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100 

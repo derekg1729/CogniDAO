@@ -2,6 +2,9 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.wheel]
+packages = ["infra_core", "cogni_adapters", "legacy_logseq", "utils"]
+
 [project]
 name = "cogni"
 version = "0.1.0"
@@ -10,62 +13,29 @@ authors = [
     { name = "CogniDAO" }
 ]
 dependencies = [
-    "crewai>=0.121.1",
-    "llama-index>=0.10,<=0.12.32",
-    "doltpy",
-    "rpds-py",
-    "prefect>=3.0.0,<4.0.0", # Used extensively in flows and workers
-    # LangGraph and MCP Integration (Phase 1: Basic LangGraph) - Using available versions
-    "langgraph>=0.2.79", # Latest stable LangGraph 0.3.x
-    "langchain-mcp-adapters>=0.1.0", # Latest 0.1.x version
-    "langchain-core>=0.3.0,<0.4.0", # Latest 0.3.x version
-    "langchain-openai>=0.2.0,<0.3.0", # Latest 0.2.x version
-    "openai>=1.0.0,<1.80.0", # Compatible with crewai requirements
-    "langgraph-checkpoint-redis>=0.0.1,<1.0.0", # Use available version range
-    "redis>=5.0.0,<6.0.0", # Latest 5.x version
-    "tweepy>=4.16.0",
-    "pygithub>=2.1.1",
-    "python-dotenv>=1.1.0",
-    "langchain-community>=0.3.26",
-    "chromadb>=1.0.0",
-    "sentence-transformers>=2.2.2",
-    "pytest>=7.0.0",
-    "pytest-mock>=3.10.0",
-    "pytest-asyncio>=1.0.0",
-    "ruff>=0.3.3",
-    "pre-commit>=4.2.0",
-    "tqdm>=4.65.0",
-    "jsonpatch>=1.33",
-    "unidiff>=0.7.0",
-    "jinja2>=3.0.0",
-    "fastapi>=0.110.0",
-    "uvicorn>=0.27.0",
-    "gunicorn>=21.2.0",
-    "pyautogen>=0.9",
-    "autogen-core>=0.6.2",
-    "mysql-connector-python>=8.0.21",
-    "llama-index-vector-stores-chroma>=0.4.1",
-    "llama-index-embeddings-huggingface>=0.5.4",
-    "llama-index-readers-file>=0.4.8",
-    "fastmcp>=2.9.2",
-    "mcp>=1.9.4",
-    "autogen-agentchat>=0.6.1",
-    "autogen-ext[mcp]>=0.6.1",
-    "python-frontmatter>=1.1.0",
-    "aiofiles>=24.1.0",
-    "python-multipart>=0.0.20",
-    "pydantic>=2.8.0",
-    "pytest-cov>=4.0.0",
-    "websockets>=11.0.0",
+    # Truly shared dependencies across all services
+    "doltpy",  # Database access shared by multiple services
+    "rpds-py", # Immutable data structures
+    "pydantic>=2.8.0",  # Data validation used everywhere
+    
+    # Core infrastructure shared by services  
+    "mysql-connector-python>=8.0.21",  # Database connectivity
+    "sentence-transformers>=2.2.2",  # Embeddings used by multiple services
 ]
 requires-python = ">=3.11"
 
 [project.optional-dependencies]
-autogen = ["autogen-core"]
 playwright = ["playwright>=1.49.0", "pytest-playwright"]
-
-[tool.hatch.build.targets.wheel]
-packages = ["infra_core", "cogni_adapters", "legacy_logseq", "schemas"]
+dev = [
+    # Development and testing dependencies only
+    "pytest>=7.0.0",
+    "pytest-mock>=3.10.0", 
+    "pytest-asyncio>=1.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.3.3",
+    "pre-commit>=4.2.0",
+    "respx>=0.22.0",  # HTTP mocking for HTTPX (used in test fixtures)
+]
 
 [tool.ruff]
 line-length = 100
@@ -78,19 +48,9 @@ ignore = ["E501"]          # Ignore line length for now
 [tool.uv.workspace]
 members = [
     "services/mcp_server",
-    "services/web_api",
+    "services/web_api", 
+    "services/prefect_worker",
 ]
 
 [tool.uv.sources]
 cogni = { workspace = true }
-
-[dependency-groups]
-dev = [
-    "cogni",
-    "pytest>=7.0.0",
-    "pytest-asyncio",
-    "pytest-mock>=3.10.0",
-    "respx>=0.20.0",  # For HTTP mocking in tests  
-    "httpx>=0.25.0",  # HTTP client used by respx and tests
-    "ruff",
-]
