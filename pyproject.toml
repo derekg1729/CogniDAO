@@ -77,8 +77,8 @@ ignore = ["E501"]          # Ignore line length for now
 
 [tool.uv.workspace]
 members = [
-    "graphs/playwright_basic",
     "services/mcp_server",
+    "services/web_api",
 ]
 
 [tool.uv.sources]

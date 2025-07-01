@@ -10,7 +10,7 @@ resolution-markers = [
 [manifest]
 members = [
     "cogni",
-    "cogni-playwright-basic",
+    "cogni-web-api",
     "mcp-server",
 ]
 
@@ -792,44 +792,62 @@ dev = [
 ]
 
 [[package]]
-name = "cogni-playwright-basic"
+name = "cogni-web-api"
 version = "0.1.0"
-source = { editable = "graphs/playwright_basic" }
+source = { editable = "services/web_api" }
 dependencies = [
-    { name = "cogni" },
+    { name = "chromadb" },
+    { name = "doltpy" },
+    { name = "fastapi" },
+    { name = "gunicorn" },
+    { name = "httpx" },
+    { name = "langchain-community" },
     { name = "langchain-core" },
-    { name = "langchain-mcp-adapters" },
     { name = "langchain-openai" },
-    { name = "langgraph" },
-    { name = "langgraph-checkpoint-redis" },
-    { name = "openai" },
-    { name = "playwright" },
-    { name = "redis" },
+    { name = "llama-index-core" },
+    { name = "llama-index-embeddings-huggingface" },
+    { name = "llama-index-embeddings-openai" },
+    { name = "llama-index-llms-openai" },
+    { name = "llama-index-vector-stores-chroma" },
+    { name = "onnxruntime" },
+    { name = "pydantic" },
+    { name = "python-dotenv" },
+    { name = "python-frontmatter" },
+    { name = "tqdm" },
+    { name = "uvicorn" },
 ]
 
 [package.optional-dependencies]
 dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
-    { name = "pytest-playwright" },
     { name = "ruff" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "cogni", editable = "." },
-    { name = "langchain-core", specifier = ">=0.3.0,<0.4.0" },
-    { name = "langchain-mcp-adapters", specifier = ">=0.1.0,<0.2.0" },
-    { name = "langchain-openai", specifier = ">=0.2.0,<0.3.0" },
-    { name = "langgraph", specifier = ">=0.3.0,<0.4.0" },
-    { name = "langgraph-checkpoint-redis", specifier = ">=0.0.1,<1.0.0" },
-    { name = "openai", specifier = ">=1.68.2,<1.76.0" },
-    { name = "playwright", specifier = ">=1.49.0" },
+    { name = "chromadb" },
+    { name = "doltpy" },
+    { name = "fastapi", specifier = ">=0.110.0" },
+    { name = "gunicorn", specifier = ">=21.2.0" },
+    { name = "httpx", specifier = ">=0.24.0" },
+    { name = "langchain-community" },
+    { name = "langchain-core" },
+    { name = "langchain-openai" },
+    { name = "llama-index-core" },
+    { name = "llama-index-embeddings-huggingface" },
+    { name = "llama-index-embeddings-openai" },
+    { name = "llama-index-llms-openai" },
+    { name = "llama-index-vector-stores-chroma" },
+    { name = "onnxruntime" },
+    { name = "pydantic", specifier = ">=2.8.0" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest-asyncio", marker = "extra == 'dev'" },
-    { name = "pytest-playwright", marker = "extra == 'dev'" },
-    { name = "redis", specifier = ">=5.0.0,<6.0.0" },
+    { name = "python-dotenv" },
+    { name = "python-frontmatter" },
     { name = "ruff", marker = "extra == 'dev'" },
+    { name = "tqdm" },
+    { name = "uvicorn", specifier = ">=0.27.0" },
 ]
 provides-extras = ["dev"]
 

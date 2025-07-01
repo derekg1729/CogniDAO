@@ -1,29 +1,52 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS base
 
-WORKDIR /app
+FROM base AS builder
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-# Install required system dependencies for building packages and curl for healthcheck
+# Install build dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc g++ libaio-dev curl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file from its new location into /app/
-COPY services/web_api/requirements.api.txt ./requirements.api.txt
-RUN pip install --upgrade pip && \
-    pip install -r requirements.api.txt
+# Set UV environment variables for optimal Docker builds
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
-# Copy only the infra_core components that web API actually uses
-COPY ./infra_core/memory_system/ /app/infra_core/memory_system/
-COPY ./infra_core/constants.py /app/infra_core/constants.py
+WORKDIR /app
 
-# Copy only the web_api service directory (not the entire services directory)
+# Copy workspace files for UV workspace support
+COPY pyproject.toml uv.lock* ./
+COPY services/web_api/pyproject.toml ./services/web_api/
+
+# Install dependencies first (better caching)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project --no-dev --no-install-workspace
+
+# Copy application code
+COPY ./infra_core/ /app/infra_core/
 COPY ./services/web_api/ /app/services/web_api/
 COPY ./services/__init__.py /app/services/__init__.py
+
+# Install the project itself
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
+
+# Production stage - minimal runtime image
+FROM base AS runtime
+
+# Copy the virtual environment from builder
+COPY --from=builder /app/.venv /app/.venv
+
+# Copy application code
+COPY --from=builder /app/infra_core /app/infra_core
+COPY --from=builder /app/services /app/services
+
+# Add venv to path and set working directory
+ENV PATH="/app/.venv/bin:$PATH"
+WORKDIR /app
 
 # Expose port
 EXPOSE 8000
 
-# Run the application using Uvicorn, referencing the app via its full module path
-# This ensures that relative imports within services.web_api.main work correctly.
+# Run the application using Uvicorn
 CMD ["uvicorn", "services.web_api.main:app", "--host", "0.0.0.0", "--port", "8000"] 
