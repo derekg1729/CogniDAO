@@ -13,7 +13,13 @@ dependencies = [
     "crewai>=0.121.1",
     "llama-index>=0.10,<=0.12.32",
     "doltpy",
-    "rpds-py"
+    "rpds-py",
+    # LangGraph and MCP Integration (Phase 1: Basic LangGraph)
+    "langgraph>=0.3.0,<0.6.0",  # Latest stable LangGraph with MCP support
+    "langchain-mcp-adapters>=0.1.0,<0.2.0",  # Official MCP adapters for LangChain
+    "langchain-core>=0.3.0",  # Core LangChain functionality
+    "langchain-openai>=0.2.0",  # OpenAI integration
+    "openai>=1.0.0,<1.80.0",  # OpenAI client
 ]
 requires-python = ">=3.9"
 

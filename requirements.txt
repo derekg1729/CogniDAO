@@ -11,6 +11,10 @@ langchain-core
 langchain-community
 langchain-openai
 
+# LangGraph and MCP Adapters for Phase 1: Basic LangGraph
+langgraph>=0.2.79  # Latest stable version with MCP support
+langchain-mcp-adapters>=0.1.0  # Official MCP adapters for LangChain
+
 # ChromaDB and Embeddings
 chromadb>=1.0.0
 sentence-transformers>=2.2.2
