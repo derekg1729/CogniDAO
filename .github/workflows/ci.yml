@@ -1,0 +1,161 @@
+name: LangGraph CI - Compile and Diff Guard
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+jobs:
+  langgraph-compile-and-diff:
+    runs-on: ubuntu-latest
+    
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for diff comparison
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install UV
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras
+
+    - name: Set up environment variables
+      run: |
+        echo "REDIS_URL=redis://localhost:6379/0" >> $GITHUB_ENV
+        echo "OPENAI_API_KEY=sk-fake-key-for-compilation" >> $GITHUB_ENV
+        echo "MCP_PLAYWRIGHT_URL=http://localhost:58462/sse#playwright" >> $GITHUB_ENV
+
+    - name: Compile LangGraph graphs
+      run: |
+        mkdir -p artifacts/compiled
+        
+        # Compile each graph and save artifacts
+        for graph_dir in graphs/*/; do
+          if [ -f "$graph_dir/langgraph.json" ]; then
+            graph_name=$(basename "$graph_dir")
+            echo "Compiling graph: $graph_name"
+            
+            cd "$graph_dir"
+            
+            # Try to compile the graph - capture output and errors
+            if python -c "
+            import sys
+            sys.path.append('../../')
+            from graph import compile_graph
+            try:
+                compiled = compile_graph()
+                print(f'✅ Graph {graph_name} compiled successfully')
+                # Save graph schema/structure to artifact file
+                with open('../../artifacts/compiled/${graph_name}_structure.txt', 'w') as f:
+                    f.write(str(compiled.get_graph().nodes))
+                    f.write('\n---EDGES---\n')
+                    f.write(str(compiled.get_graph().edges))
+            except Exception as e:
+                print(f'❌ Graph ${graph_name} compilation failed: {e}')
+                sys.exit(1)
+            "; then
+              echo "Graph $graph_name compiled successfully"
+            else
+              echo "Graph $graph_name compilation failed"
+              exit 1
+            fi
+            
+            cd ../..
+          fi
+        done
+
+    - name: Check for schema breaking changes
+      if: github.event_name == 'pull_request'
+      run: |
+        # Download artifacts from main branch for comparison
+        git checkout origin/main -- artifacts/compiled/ || echo "No existing artifacts on main"
+        
+        # Compare compiled artifacts
+        if [ -d "artifacts/compiled" ]; then
+          echo "Checking for breaking changes in graph schemas..."
+          
+          for current_artifact in artifacts/compiled/*_structure.txt; do
+            if [ -f "$current_artifact" ]; then
+              artifact_name=$(basename "$current_artifact")
+              
+              # Save current version
+              cp "$current_artifact" "${current_artifact}.new"
+              
+              # Restore main version temporarily
+              git checkout HEAD~1 -- "$current_artifact" 2>/dev/null || echo "No previous version of $artifact_name"
+              
+              if [ -f "$current_artifact" ]; then
+                echo "Comparing $artifact_name..."
+                if ! diff -u "$current_artifact" "${current_artifact}.new"; then
+                  echo "⚠️  Schema changes detected in $artifact_name"
+                  echo "Please review the changes carefully for breaking changes."
+                else
+                  echo "✅ No schema changes in $artifact_name"
+                fi
+              else
+                echo "🆕 New graph artifact: $artifact_name"
+              fi
+              
+              # Restore new version
+              mv "${current_artifact}.new" "$current_artifact"
+            fi
+          done
+        else
+          echo "No compiled artifacts to compare"
+        fi
+
+    - name: Upload compilation artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: langgraph-compiled-artifacts
+        path: artifacts/compiled/
+
+    - name: Lint and format check
+      run: |
+        uv run ruff check graphs/
+        uv run ruff format --check graphs/
+
+    - name: Run graph tests
+      run: |
+        # Run any tests specific to graphs
+        if [ -d "tests/graphs" ]; then
+          uv run pytest tests/graphs/ -v
+        fi
+        
+        # Test basic import and compilation of each graph
+        for graph_dir in graphs/*/; do
+          if [ -f "$graph_dir/graph.py" ]; then
+            graph_name=$(basename "$graph_dir")
+            echo "Testing import of graph: $graph_name"
+            cd "$graph_dir"
+            python -c "
+            import sys
+            sys.path.append('../../')
+            from graph import create_stategraph, compile_graph
+            print('✅ Graph imports and compiles successfully')
+            "
+            cd ../..
+          fi
+        done 
