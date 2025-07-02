@@ -27,7 +27,7 @@ requires-python = ">=3.11"
 [project.optional-dependencies]
 playwright = ["playwright>=1.49.0", "pytest-playwright"]
 dev = [
-    # Development and testing dependencies only
+    # Essential development and testing dependencies only
     "pytest>=7.0.0",
     "pytest-mock>=3.10.0", 
     "pytest-asyncio>=1.0.0",
@@ -35,6 +35,11 @@ dev = [
     "ruff>=0.3.3",
     "pre-commit>=4.2.0",
     "respx>=0.22.0",  # HTTP mocking for HTTPX (used in test fixtures)
+    
+    # Essential dependencies for basic development workflow
+    # (Full dependencies available through service-specific installs)
+    "fastapi",  # Basic web framework for dev
+    "requests",  # HTTP client for dev/testing
 ]
 
 [tool.ruff]

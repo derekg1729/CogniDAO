@@ -16,7 +16,8 @@ This guide explains how to deploy the Cogni API backend with HTTPS support using
 ├── .env                    # Environment variables
 ├── Dockerfile              # Docker configuration
 ├── .dockerignore           # Files to exclude from Docker
-├── requirements.txt        # Python dependencies
+├── pyproject.toml          # Python dependencies (UV workspace)
+├── uv.lock                 # Dependency lockfile
 ├── run_cogni_api.py        # API entry point
 ├── legacy_logseq/             # Core API code
 │   ├── __init__.py
@@ -48,7 +49,7 @@ The API will be available at http://localhost:8000 with auto-reload enabled.
    ssh user@your-server-ip "mkdir -p ~/cogni-backend"
    
    # Copy files (from project root)
-   scp -r Dockerfile .dockerignore requirements.txt run_cogni_api.py .env legacy_logseq/ deploy/ user@your-server-ip:~/cogni-backend/
+   scp -r Dockerfile .dockerignore pyproject.toml uv.lock run_cogni_api.py .env legacy_logseq/ deploy/ user@your-server-ip:~/cogni-backend/
    ```
 
 3. SSH into your server:

@@ -53,7 +53,7 @@ This project uses a schema-first approach for API development:
 3. TypeScript and Python code is generated from the JSON Schemas
 
 **Requirements:**
-- Python dependencies (in requirements.txt)
+- Python dependencies (managed by UV workspace in pyproject.toml)
 - Node.js with npm (for TypeScript code generation)
 
 To install the TypeScript code generator:

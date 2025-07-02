@@ -643,11 +643,13 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
+    { name = "fastapi" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "pytest-mock" },
+    { name = "requests" },
     { name = "respx" },
     { name = "ruff" },
 ]
@@ -659,6 +661,7 @@ playwright = [
 [package.metadata]
 requires-dist = [
     { name = "doltpy" },
+    { name = "fastapi", marker = "extra == 'dev'" },
     { name = "mysql-connector-python", specifier = ">=8.0.21" },
     { name = "playwright", marker = "extra == 'playwright'", specifier = ">=1.49.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.2.0" },
@@ -668,6 +671,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.10.0" },
     { name = "pytest-playwright", marker = "extra == 'playwright'" },
+    { name = "requests", marker = "extra == 'dev'" },
     { name = "respx", marker = "extra == 'dev'", specifier = ">=0.22.0" },
     { name = "rpds-py" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.3.3" },
