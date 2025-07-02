@@ -6,8 +6,6 @@ This file is kept for reference only and may be removed in future versions.
 LangChain BaseMemory adapter for the Cogni StructuredMemoryBank.
 """
 
-import sys
-from pathlib import Path
 from typing import Dict, Any, List
 import logging
 from datetime import datetime
@@ -21,12 +19,7 @@ from infra_core.memory_system.schemas.memory_block import MemoryBlock
 from .tools.agent_facing.log_interaction_block_tool import log_interaction_block_tool
 from .schemas.metadata.log import LogMetadata
 
-# --- Path Setup --- START - Ensure project root is in path for imports
-script_dir = Path(__file__).parent
-project_root_dir = script_dir.parent.parent.parent
-if str(project_root_dir) not in sys.path:
-    sys.path.insert(0, str(project_root_dir))
-# --- Path Setup --- END
+# Path hacks removed - using proper package imports
 
 logger = logging.getLogger(__name__)
 

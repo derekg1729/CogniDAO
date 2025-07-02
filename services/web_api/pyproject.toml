@@ -4,32 +4,23 @@ version = "0.1.0"
 description = "REST API for Cogni memory system"
 requires-python = ">=3.11"
 dependencies = [
+    # Core library
+    "cogni-infra-core>=0.1.0",
+    
     # API Core Dependencies
     "fastapi>=0.110.0",
     "uvicorn>=0.27.0", 
     "gunicorn>=21.2.0",
     "python-dotenv",
-    "pydantic>=2.8.0",
     "httpx>=0.24.0",
     
-    # Langchain related for API functionality
-    "langchain-core",
-    "langchain-community", 
-    "langchain-openai",
-    
-    # Memory component dependencies
-    "chromadb",
+    # API-specific extensions
+    "langchain-openai",  # OpenAI integration for API
+    "llama-index-embeddings-openai",  # OpenAI embeddings for API
+    "llama-index-llms-openai",        # OpenAI LLMs for API
     "tqdm",
     "python-frontmatter",
     "onnxruntime",
-    
-    # Dolt memory system dependencies
-    "doltpy",
-    "llama-index-core",
-    "llama-index-embeddings-huggingface",
-    "llama-index-vector-stores-chroma",
-    "llama-index-embeddings-openai",
-    "llama-index-llms-openai",
 ]
 
 [project.optional-dependencies]
