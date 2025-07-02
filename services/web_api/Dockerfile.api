@@ -20,21 +20,22 @@ COPY services/web_api/pyproject.toml ./services/web_api/
 
 # Install dependencies first (better caching)
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --no-dev --no-install-workspace
+    uv sync --frozen --no-dev
 
 # Copy application code
 COPY ./infra_core/ /app/infra_core/
 COPY ./services/web_api/ /app/services/web_api/
 COPY ./services/__init__.py /app/services/__init__.py
 
-# Install the project dependencies (skip workspace root)
+# Install the web_api service and its dependencies (like uvicorn)
+WORKDIR /app/services/web_api
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+    uv sync --frozen --no-dev
 
 # Production stage - minimal runtime image
 FROM base AS runtime
 
-# Copy the virtual environment from builder
+# Copy the virtual environment from builder (contains all executables)
 COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
@@ -48,5 +49,5 @@ WORKDIR /app
 # Expose port
 EXPOSE 8000
 
-# Run the application using Uvicorn
+# Run the application directly (uvicorn is in .venv/bin via PATH)
 CMD ["uvicorn", "services.web_api.main:app", "--host", "0.0.0.0", "--port", "8000"] 
