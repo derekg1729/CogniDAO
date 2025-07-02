@@ -50,8 +50,11 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "ruff",
+]
+test = [
     "pytest", 
     "pytest-asyncio",
+    "pytest-mock",
 ]
 
 [build-system]

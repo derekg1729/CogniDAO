@@ -716,9 +716,12 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
+    { name = "ruff" },
+]
+test = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
-    { name = "ruff" },
+    { name = "pytest-mock" },
 ]
 
 [package.metadata]
@@ -742,8 +745,9 @@ requires-dist = [
     { name = "pyautogen", specifier = ">=0.9" },
     { name = "pydantic", specifier = ">=2.8.0" },
     { name = "pygithub", specifier = ">=2.1.1" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'" },
+    { name = "pytest", marker = "extra == 'test'" },
+    { name = "pytest-asyncio", marker = "extra == 'test'" },
+    { name = "pytest-mock", marker = "extra == 'test'" },
     { name = "python-frontmatter", specifier = ">=1.1.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "redis", specifier = ">=5.0.0,<6.0.0" },
@@ -753,7 +757,7 @@ requires-dist = [
     { name = "unidiff", specifier = ">=0.7.0" },
     { name = "websockets", specifier = ">=11.0.0" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["dev", "test"]
 
 [[package]]
 name = "cogni-web-api"
@@ -783,9 +787,12 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
+    { name = "ruff" },
+]
+test = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
-    { name = "ruff" },
+    { name = "pytest-mock" },
 ]
 
 [package.metadata]
@@ -805,15 +812,16 @@ requires-dist = [
     { name = "llama-index-vector-stores-chroma" },
     { name = "onnxruntime" },
     { name = "pydantic", specifier = ">=2.8.0" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'" },
+    { name = "pytest", marker = "extra == 'test'" },
+    { name = "pytest-asyncio", marker = "extra == 'test'" },
+    { name = "pytest-mock", marker = "extra == 'test'" },
     { name = "python-dotenv" },
     { name = "python-frontmatter" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "tqdm" },
     { name = "uvicorn", specifier = ">=0.27.0" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["dev", "test"]
 
 [[package]]
 name = "colorama"
@@ -2339,8 +2347,12 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
-    { name = "pytest" },
     { name = "ruff" },
+]
+test = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-mock" },
 ]
 
 [package.metadata]
@@ -2355,12 +2367,14 @@ requires-dist = [
     { name = "mysql-connector-python" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
-    { name = "pytest", marker = "extra == 'dev'" },
+    { name = "pytest", marker = "extra == 'test'" },
+    { name = "pytest-asyncio", marker = "extra == 'test'" },
+    { name = "pytest-mock", marker = "extra == 'test'" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "sentence-transformers" },
     { name = "uv" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["dev", "test"]
 
 [[package]]
 name = "mdurl"

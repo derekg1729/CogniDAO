@@ -27,10 +27,10 @@ To run the tests:
 pip install -r legacy_logseq/memory/tests/requirements-test.txt
 
 # Run all tests from project root
-python test.py
+tox -e integration
 
 # Run only memory tests from project root
-python test.py legacy_logseq/memory/tests
+uv run pytest tests_integration/legacy/memory/
 
 # Run all tests directly with pytest
 pytest
@@ -42,7 +42,7 @@ pytest --cov=legacy_logseq.memory
 python test.py legacy_logseq/memory/tests/test_parser.py
 
 # Run a specific test
-python test.py legacy_logseq/memory/tests/test_parser.py::TestLogseqParser::test_extract_blocks_with_tags
+uv run pytest tests_integration/legacy/memory/test_parser.py::TestLogseqParser::test_extract_blocks_with_tags
 ```
 
 ## Test Fixtures
