@@ -636,6 +636,7 @@ source = { editable = "." }
 dependencies = [
     { name = "doltpy" },
     { name = "mysql-connector-python" },
+    { name = "prefect" },
     { name = "pydantic" },
     { name = "rpds-py" },
     { name = "sentence-transformers" },
@@ -665,6 +666,7 @@ requires-dist = [
     { name = "mysql-connector-python", specifier = ">=8.0.21" },
     { name = "playwright", marker = "extra == 'playwright'", specifier = ">=1.49.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.2.0" },
+    { name = "prefect", specifier = ">=3.0.0,<4.0.0" },
     { name = "pydantic", specifier = ">=2.8.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.0.0" },

@@ -21,6 +21,7 @@ dependencies = [
     # Core infrastructure shared by services  
     "mysql-connector-python>=8.0.21",  # Database connectivity
     "sentence-transformers>=2.2.2",  # Embeddings used by multiple services
+    "prefect>=3.0.0,<4.0.0",  # Workflow orchestration for deployment scripts
 ]
 requires-python = ">=3.11"
 
