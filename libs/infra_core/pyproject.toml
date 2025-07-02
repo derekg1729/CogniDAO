@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     # Database and storage
     "chromadb>=1.0.0",
+    "protobuf<3.21",  # ChromaDB compatibility constraint
     "mysql-connector-python>=8.0.21",
     "doltpy",
     
@@ -31,6 +32,7 @@ test = [
     "pytest>=7.0.0",
     "pytest-asyncio>=1.0.0", 
     "pytest-mock>=3.10.0",
+    "unidiff>=0.5.0",
 ]
 
 [build-system]
