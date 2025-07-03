@@ -580,7 +580,15 @@ async def create_block_link(input):
     try:
         # Input already normalized by decorator
         parsed_input = CreateBlockLinkAgentInput(**input)
-        result = create_block_link_agent(parsed_input, memory_bank=get_memory_bank())
+        result = await create_block_link_agent(
+            source_block_id=parsed_input.source_block_id,
+            target_block_id=parsed_input.target_block_id,
+            relation=parsed_input.relation,
+            bidirectional=parsed_input.bidirectional,
+            priority=parsed_input.priority,
+            metadata=parsed_input.metadata,
+            memory_bank=get_memory_bank(),
+        )
         return result.model_dump()
 
     except Exception as e:
