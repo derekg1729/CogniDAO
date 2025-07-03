@@ -6,16 +6,18 @@ WORKDIR /workspace
 
 # Copy workspace files and install dependencies via UV with cache mount
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
-COPY services/prefect_worker/pyproject.toml ./pyproject.toml
+COPY pyproject.toml ./pyproject.toml
 COPY uv.lock ./uv.lock
+COPY libs/ ./libs/
+COPY services/prefect_worker/pyproject.toml ./services/prefect_worker/pyproject.toml
 
 # Install dependencies with BuildKit cache mount
 RUN --mount=type=cache,target=/root/.cache \
-    uv pip compile pyproject.toml | uv pip install --system -r -
+    uv pip compile services/prefect_worker/pyproject.toml | uv pip install --system -r -
 
-# Copy sitecustomize.py using dynamic Python path detection
+# Copy sitecustomize.py using dynamic Python path detection (AFTER dependency installation)
 COPY sitecustomize.py ./sitecustomize.py
-RUN python - <<'PY'
+RUN HELICONE_DEBUG=false python - <<'PY'
 import sysconfig, shutil, pathlib
 target_path = pathlib.Path(sysconfig.get_path('purelib')) / 'sitecustomize.py'
 shutil.copy('sitecustomize.py', target_path)
