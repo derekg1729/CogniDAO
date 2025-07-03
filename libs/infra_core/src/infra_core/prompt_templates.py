@@ -16,8 +16,9 @@ class PromptTemplateManager:
     def __init__(self, templates_dir: Optional[str] = None):
         """Initialize template manager with templates directory"""
         if templates_dir is None:
-            # Default to prompts directory relative to project root
-            current_dir = Path(__file__).parent.parent
+            # Default to prompts directory in workspace root
+            # Navigate from libs/infra_core/src/infra_core to workspace root
+            current_dir = Path(__file__).parent.parent.parent.parent.parent
             templates_dir = current_dir / "prompts"
         else:
             templates_dir = Path(templates_dir)
