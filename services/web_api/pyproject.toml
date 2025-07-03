@@ -1,0 +1,48 @@
+[project]
+name = "cogni-web-api"
+version = "0.1.0"
+description = "REST API for Cogni memory system"
+requires-python = ">=3.11"
+dependencies = [
+    # Core library
+    "cogni-infra-core>=0.1.0",
+    
+    # API Core Dependencies
+    "fastapi>=0.110.0",
+    "uvicorn>=0.27.0", 
+    "gunicorn>=21.2.0",
+    "python-dotenv",
+    "httpx>=0.24.0",
+    
+    # API-specific extensions
+    "langchain-openai",  # OpenAI integration for API
+    "llama-index-embeddings-openai",  # OpenAI embeddings for API
+    "llama-index-llms-openai",        # OpenAI LLMs for API
+    "tqdm",
+    "python-frontmatter",
+    "onnxruntime",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+]
+test = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-mock",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cogni_web_api"]
+
+[tool.uv.sources]
+cogni-infra-core = { workspace = true }
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100 

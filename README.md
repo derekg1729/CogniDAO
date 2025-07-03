@@ -44,6 +44,24 @@ Run the setup script to install dependencies and configure pre-commit hooks:
 ./scripts/setup_dev_environment.sh
 ```
 
+### Dependencies & Testing
+
+To sync dependencies:
+```bash
+uv sync --extra dev
+```
+
+To run tests:
+```bash
+# Run all test suites
+tox
+
+# Run specific service tests
+tox run -e infra_core
+tox run -e mcp_server  
+tox run -e web_api
+```
+
 ### Schema Infrastructure
 
 This project uses a schema-first approach for API development:
@@ -53,7 +71,7 @@ This project uses a schema-first approach for API development:
 3. TypeScript and Python code is generated from the JSON Schemas
 
 **Requirements:**
-- Python dependencies (in requirements.txt)
+- Python dependencies (managed by UV workspace in pyproject.toml)
 - Node.js with npm (for TypeScript code generation)
 
 To install the TypeScript code generator:

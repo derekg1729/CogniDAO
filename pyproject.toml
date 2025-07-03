@@ -2,6 +2,9 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.wheel]
+packages = ["cogni_adapters", "legacy_logseq", "utils"]
+
 [project]
 name = "cogni"
 version = "0.1.0"
@@ -10,18 +13,69 @@ authors = [
     { name = "CogniDAO" }
 ]
 dependencies = [
-    "crewai>=0.121.1",
-    "llama-index>=0.10,<=0.12.32",
-    "doltpy",
-    "rpds-py"
+    # Truly shared dependencies across all services
+    "doltpy", # Database access shared by multiple services
+    "rpds-py", # Immutable data structures
+    "pydantic>=2.8.0", # Data validation used everywhere
+    # Core infrastructure shared by services
+    "mysql-connector-python>=8.0.21", # Database connectivity
+    "sentence-transformers>=2.2.2", # Embeddings used by multiple services
+    "prefect>=3.0.0,<4.0.0", # Workflow orchestration for deployment scripts
+    "cogni-infra-core",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 
 [project.optional-dependencies]
-autogen = ["autogen-core"]
-
-[tool.hatch.build.targets.wheel]
-packages = ["infra_core", "cogni_adapters", "legacy_logseq", "schemas"]
+playwright = ["playwright>=1.49.0", "pytest-playwright"]
+integration = [
+    # OpenAI integration (used by model handlers and gitcogni)
+    "openai>=1.0.0",
+    "langchain-openai",
+    "llama-index-embeddings-openai",
+    "llama-index-llms-openai",
+    
+    # GitHub integration (for git_cogni agent)
+    "PyGithub>=1.0.0",
+    
+    # CrewAI integration (for adapter tests)
+    "crewai>=0.1.0",
+    
+    # Social media integration (for broadcast flows)
+    "tweepy>=4.0.0",
+    
+    # Document processing (used by memory tests)
+    "python-frontmatter",
+    
+    # Multi-agent frameworks (for autogen workflows)
+    "autogen-core",
+    
+    # MCP (Model Context Protocol) for cogni tools
+    "mcp",
+    
+    # API testing and integration
+    "fastapi",
+    "httpx>=0.24.0",
+    "uvicorn>=0.27.0",
+    
+    # Additional integration test utilities
+    "tqdm",
+    "onnxruntime",
+]
+dev = [
+    # Essential development and testing dependencies only
+    "pytest>=7.0.0",
+    "pytest-mock>=3.10.0", 
+    "pytest-asyncio>=1.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.3.3",
+    "pre-commit>=4.2.0",
+    "respx>=0.22.0",  # HTTP mocking for HTTPX (used in test fixtures)
+    
+    # Essential dependencies for basic development workflow
+    # (Full dependencies available through service-specific installs)
+    "fastapi",  # Basic web framework for dev
+    "requests",  # HTTP client for dev/testing
+]
 
 [tool.ruff]
 line-length = 100
@@ -33,13 +87,12 @@ ignore = ["E501"]          # Ignore line length for now
 
 [tool.uv.workspace]
 members = [
+    "libs/*",
     "services/mcp_server",
+    "services/web_api", 
+    "services/prefect_worker",
 ]
 
 [tool.uv.sources]
 cogni = { workspace = true }
-
-[dependency-groups]
-dev = [
-    "cogni",
-]
+cogni-infra-core = { workspace = true }

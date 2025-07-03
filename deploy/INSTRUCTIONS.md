@@ -5,7 +5,8 @@
 1. Make sure you have all required files:
    ```
    .env                   # Contains API keys (COGNI_API_KEY, etc.)
-   requirements.txt       # Python dependencies
+   pyproject.toml         # Python dependencies (UV workspace)
+   uv.lock                # Dependency lockfile
    legacy_logseq/            # API code
    run_cogni_api.py       # Local development runner
    ```
@@ -31,7 +32,8 @@
    ├── .env               # Environment variables
    ├── Dockerfile         # Docker configuration
    ├── .dockerignore      # Files to exclude from Docker
-   ├── requirements.txt   # Python dependencies
+   ├── pyproject.toml     # Python dependencies (UV workspace)
+   ├── uv.lock            # Dependency lockfile
    ├── run_cogni_api.py   # API entry point
    ├── legacy_logseq/        # Core API code
    └── deploy/            # Deployment files
@@ -46,7 +48,7 @@
    ssh user@your-server-ip "mkdir -p ~/cogni-backend"
    
    # Copy all necessary files
-   scp -r Dockerfile .dockerignore requirements.txt run_cogni_api.py .env legacy_logseq/ deploy/ user@your-server-ip:~/cogni-backend/
+   scp -r Dockerfile .dockerignore pyproject.toml uv.lock run_cogni_api.py .env legacy_logseq/ deploy/ user@your-server-ip:~/cogni-backend/
    
    # SSH to server
    ssh user@your-server-ip

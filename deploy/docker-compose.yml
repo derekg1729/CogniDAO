@@ -33,6 +33,25 @@ services:
     networks:
       - cogni-net
 
+  # Redis Service for LangGraph Checkpointing
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - cogni-net
+
   # Web API Service  
   api:
     image: ${API_IMAGE:-cogni-api-local}
@@ -142,14 +161,13 @@ services:
       - "24161:24161"  # Expose MCP server port for git-mcp
     restart: unless-stopped
 
-
-
 volumes:
   caddy_data:
   caddy_config:
   dolt_data:
   prefect_data:
   mcp_chroma:
+  redis_data:
 
 networks:
   cogni-net:

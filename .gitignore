@@ -6,6 +6,9 @@ __pycache__/
 # Virtual environment
 /env/
 
+# Tox test environments
+.tox/
+
 # Distribution / packaging
 *.egg-info/
 dist/
@@ -64,3 +67,5 @@ storage/
 
 # No More tracking Dolt in Git!
 data/blocks/memory_dolt/.dolt/
+
+libs/infra_core/src/data/

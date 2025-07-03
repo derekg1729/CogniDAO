@@ -6,24 +6,20 @@ requires-python = ">=3.10"
 license = { text = "Private" }
 dependencies = [
     "cogni",
+    "cogni-infra-core>=0.1.0",
     "mcp",
     "uv",
-    "pydantic",
     "pydantic-settings",
-    "doltpy",
-    "mysql-connector-python",
-    # Only install the specific llama-index components we need (avoid main llama-index package that pulls in OpenAI)
-    "llama-index-core==0.12.32",
-    "chromadb>=1.0.8",
-    "llama-index-vector-stores-chroma==0.4.1",
-    "llama-index-embeddings-huggingface==0.5.4",
-    "sentence-transformers",
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff",
+]
+test = [
     "pytest",
+    "pytest-asyncio", 
+    "pytest-mock",
 ]
 
 [build-system]
@@ -32,6 +28,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
+
+[tool.uv.sources]
+cogni-infra-core = { workspace = true }
 
 [tool.ruff]
 target-version = "py310"

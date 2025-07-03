@@ -14,13 +14,13 @@ The tests are organized as follows:
 You can run all agent tests from the project root with:
 
 ```bash
-./test.py tests/agents/
+tox -e integration
 ```
 
 To run a specific test file:
 
 ```bash
-./test.py tests/agents/test_base_agent.py
+uv run pytest tests_integration/agents/test_base_agent.py
 ```
 
 ## Test Approach

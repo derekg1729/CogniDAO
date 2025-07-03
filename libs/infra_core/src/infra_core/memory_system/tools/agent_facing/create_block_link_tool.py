@@ -12,6 +12,7 @@ from datetime import datetime
 
 import logging
 
+from ..base.cogni_tool import CogniTool
 from infra_core.memory_system.tools.memory_core.create_block_link_tool import (
     create_block_link,
     CreateBlockLinkInput,
@@ -132,45 +133,27 @@ class CreateBlockLinkAgentOutput(BaseModel):
     )
 
 
-async def create_block_link_agent(
-    source_block_id: str,
-    target_block_id: str,
-    relation: str,
-    bidirectional: bool = False,
-    priority: int = 0,
-    metadata: Optional[Dict[str, Any]] = None,
-    memory_bank=None,
+def create_block_link_agent(
+    input_data: CreateBlockLinkAgentInput, memory_bank
 ) -> CreateBlockLinkAgentOutput:
     """
     Agent-facing tool to create a link between two memory blocks.
 
     Args:
-        source_block_id: UUID of the source block
-        target_block_id: UUID of the target block
-        relation: Relationship type (can be canonical, human-readable, or alias)
-        bidirectional: Whether to create the inverse link automatically
-        priority: Link priority (higher = more important)
-        metadata: Additional link metadata
+        input_data: Input data containing link creation parameters
         memory_bank: Memory system interface
 
     Returns:
         CreateBlockLinkAgentOutput with human-friendly results
     """
     logger.info(
-        f"Agent creating link: {source_block_id} -> {target_block_id} "
-        f"with relation '{relation}' (bidirectional={bidirectional})"
+        f"Agent creating link: {input_data.source_block_id} -> {input_data.target_block_id} "
+        f"with relation '{input_data.relation}' (bidirectional={input_data.bidirectional})"
     )
 
     try:
-        # Create agent-friendly input model for validation
-        agent_input = CreateBlockLinkAgentInput(
-            source_block_id=source_block_id,
-            target_block_id=target_block_id,
-            relation=relation,
-            bidirectional=bidirectional,
-            priority=priority,
-            metadata=metadata,
-        )
+        # Use the input data directly (already validated by auto-generator)
+        agent_input = input_data
 
         # Create core input model
         core_input = CreateBlockLinkInput(
@@ -193,9 +176,9 @@ async def create_block_link_agent(
             simplified_links = []
             for link in result.links:
                 # Default values if we can't determine them
-                from_id = source_block_id
-                to_id = target_block_id
-                rel = relation
+                from_id = input_data.source_block_id
+                to_id = input_data.target_block_id
+                rel = input_data.relation
                 created_at = datetime.now()
 
                 # Try to extract values from the link
@@ -220,10 +203,10 @@ async def create_block_link_agent(
                 if not hasattr(link, "_from_id"):
                     # If link.to_id matches the target_block_id, then from_id is source_block_id
                     # Otherwise, it's the inverse link from target_block_id to source_block_id
-                    if str(to_id) == target_block_id:
-                        from_id = source_block_id
+                    if str(to_id) == input_data.target_block_id:
+                        from_id = input_data.source_block_id
                     else:
-                        from_id = target_block_id
+                        from_id = input_data.target_block_id
 
                 # Create the link dict
                 link_dict = {
@@ -289,3 +272,14 @@ async def create_block_link_agent(
             message="An unexpected error occurred",
             error_details=str(e),
         )
+
+
+# Create the tool instance
+create_block_link_tool = CogniTool(
+    name="CreateBlockLink",
+    description="Create a link between memory blocks, enabling task dependencies, parent-child relationships, and other connections",
+    input_model=CreateBlockLinkAgentInput,
+    output_model=CreateBlockLinkAgentOutput,
+    function=create_block_link_agent,
+    memory_linked=True,
+)

@@ -21,6 +21,9 @@ from infra_core.memory_system.tools.agent_facing.bulk_create_links_tool import (
 from infra_core.memory_system.tools.agent_facing.bulk_delete_blocks_tool import (
     bulk_delete_blocks_tool,
 )
+from infra_core.memory_system.tools.agent_facing.create_block_link_tool import (
+    create_block_link_tool,
+)
 from infra_core.memory_system.tools.agent_facing.create_doc_memory_block_tool import (
     create_doc_memory_block_tool,
 )
@@ -69,7 +72,6 @@ from infra_core.memory_system.tools.agent_facing.update_work_item_tool import up
 # Note: Several tools exist as functions but not as CogniTool instances yet:
 # - get_active_work_items_tool (function exists, no CogniTool instance)
 # - get_linked_blocks_tool (function exists, no CogniTool instance)
-# - create_block_link_tool (function exists, no CogniTool instance)
 # - create_namespace_tool (function exists, no CogniTool instance)
 # - list_namespaces_tool (function exists, no CogniTool instance)
 
@@ -113,7 +115,9 @@ def get_all_cogni_tools() -> List[CogniTool]:
     # Link operations
     if get_memory_links_tool_instance:
         tools.append(get_memory_links_tool_instance)
-    # Note: get_linked_blocks and create_block_link don't have CogniTool instances yet
+    if create_block_link_tool:
+        tools.append(create_block_link_tool)
+    # Note: get_linked_blocks doesn't have CogniTool instance yet
 
     # Bulk operations
     if bulk_create_blocks_tool:
