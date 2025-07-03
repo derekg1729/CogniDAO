@@ -19,6 +19,7 @@ from infra_core.memory_system.tools.memory_core.create_block_link_tool import (
 )
 from infra_core.memory_system.tools.agent_facing.create_block_link_tool import (
     create_block_link_agent,
+    CreateBlockLinkAgentInput,
 )
 from infra_core.memory_system.tools.helpers.block_validation import clear_block_cache
 
@@ -279,8 +280,7 @@ class TestCreateBlockLinkAgentTool:
         clear_block_cache()
         yield
 
-    @pytest.mark.asyncio
-    async def test_agent_create_link_success(self, memory_bank, sample_block_ids):
+    def test_agent_create_link_success(self, memory_bank, sample_block_ids):
         """Test successful link creation through agent-facing tool."""
         # Setup
         source_id = sample_block_ids["block1"]
@@ -291,42 +291,34 @@ class TestCreateBlockLinkAgentTool:
         mock_link = create_mock_block_link(source_id, target_id, relation)
         memory_bank.link_manager.create_link.return_value = mock_link
 
-        # Skip validation concerns and mock the core tool directly
+        # Mock the core tool directly
         with patch(
-            "infra_core.memory_system.tools.agent_facing.create_block_link_tool.CreateBlockLinkAgentInput",
-            autospec=True,
-        ) as mock_input_model:
-            mock_input_model.return_value.source_block_id = source_id
-            mock_input_model.return_value.target_block_id = target_id
-            mock_input_model.return_value.relation = relation
-            mock_input_model.return_value.bidirectional = False
-            mock_input_model.return_value.priority = 0
-            mock_input_model.return_value.metadata = None
+            "infra_core.memory_system.tools.memory_core.create_block_link_tool.create_block_link"
+        ) as mock_core_tool:
+            mock_core_tool.return_value = CreateBlockLinkOutput(
+                success=True,
+                links=[mock_link],
+                timestamp=datetime.now(),
+            )
 
-            with patch(
-                "infra_core.memory_system.tools.memory_core.create_block_link_tool.create_block_link"
-            ) as mock_core_tool:
-                mock_core_tool.return_value = CreateBlockLinkOutput(
-                    success=True,
-                    links=[mock_link],
-                    timestamp=datetime.now(),
-                )
+            # Execute with new signature
+            input_data = CreateBlockLinkAgentInput(
+                source_block_id=source_id,
+                target_block_id=target_id,
+                relation=relation,
+                bidirectional=False,
+                priority=0,
+                metadata=None,
+            )
+            result = create_block_link_agent(input_data, memory_bank)
 
-                # Execute
-                result = await create_block_link_agent(
-                    source_block_id=source_id,
-                    target_block_id=target_id,
-                    relation=relation,
-                    memory_bank=memory_bank,
-                )
-
-                # Assert
-                assert result.success is True
-                assert "Successfully created link" in result.message
-                assert len(result.created_links) == 1
-                assert result.created_links[0]["to_id"] == target_id
-                assert result.created_links[0]["relation"] == "depends on"
-                assert result.error_details is None
+            # Assert
+            assert result.success is True
+            assert "Successfully created link" in result.message
+            assert len(result.created_links) == 1
+            assert result.created_links[0]["to_id"] == target_id
+            assert result.created_links[0]["relation"] == "depends on"
+            assert result.error_details is None
 
     @pytest.mark.asyncio
     async def test_agent_create_link_with_alias(self, memory_bank, sample_block_ids):
@@ -377,86 +369,70 @@ class TestCreateBlockLinkAgentTool:
         result_original = get_relation_inverse(inverse_relation)
         assert result_original == relation
 
-    @pytest.mark.asyncio
-    async def test_agent_invalid_uuid(self, memory_bank):
+    def test_agent_invalid_uuid(self, memory_bank):
         """Test handling of invalid UUID in agent tool."""
         # Setup - use an invalid UUID
         source_id = "not-a-uuid"
         target_id = str(uuid.uuid4())
         relation = "depends_on"
 
-        # Execute
-        result = await create_block_link_agent(
-            source_block_id=source_id,
-            target_block_id=target_id,
-            relation=relation,
-            memory_bank=memory_bank,
-        )
+        # Execute with new signature - should raise ValidationError due to Pydantic validation
+        with pytest.raises(ValidationError) as validation_error:
+            CreateBlockLinkAgentInput(
+                source_block_id=source_id,
+                target_block_id=target_id,
+                relation=relation,
+            )
 
-        # Assert
-        assert result.success is False
-        assert "Invalid parameters" in result.message
-        assert "Invalid UUID format" in result.error_details
+        # Assert - ValidationError should mention UUID format
+        assert "Invalid UUID format" in str(validation_error.value)
 
         # Verify LinkManager was NOT called
         memory_bank.link_manager.create_link.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_agent_invalid_relation(self, memory_bank, sample_block_ids):
+    def test_agent_invalid_relation(self, memory_bank, sample_block_ids):
         """Test handling of invalid relation in agent tool."""
         # Setup
         source_id = sample_block_ids["block1"]
         target_id = sample_block_ids["block2"]
         invalid_relation = "not_a_valid_relation"
 
-        # Execute
-        result = await create_block_link_agent(
-            source_block_id=source_id,
-            target_block_id=target_id,
-            relation=invalid_relation,
-            memory_bank=memory_bank,
-        )
+        # Execute with new signature - should raise ValidationError due to Pydantic validation
+        with pytest.raises(ValidationError) as validation_error:
+            CreateBlockLinkAgentInput(
+                source_block_id=source_id,
+                target_block_id=target_id,
+                relation=invalid_relation,
+            )
 
-        # Assert
-        assert result.success is False
-        assert "Invalid parameters" in result.message
-        assert "Invalid relation type" in result.error_details
+        # Assert - ValidationError should mention invalid relation type
+        assert "Invalid relation type" in str(validation_error.value)
 
         # Verify LinkManager was NOT called
         memory_bank.link_manager.create_link.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_agent_invalid_bidirectional(self, memory_bank, sample_block_ids):
+    def test_agent_invalid_bidirectional(self, memory_bank, sample_block_ids):
         """Test handling of bidirectional flag with relation that has no inverse."""
         # Setup a relation that has no inverse
         source_id = sample_block_ids["block1"]
         target_id = sample_block_ids["block2"]
         relation_with_no_inverse = "custom_relation"  # Assuming this has no inverse defined
 
-        # Fake validation errors to test the right branch
-        with patch(
-            "infra_core.memory_system.tools.agent_facing.create_block_link_tool.CreateBlockLinkAgentInput"
-        ) as mock_input_model:
-            validation_error = ValueError("No inverse relation defined")
-            mock_input_model.side_effect = validation_error
-
-            # Execute
-            result = await create_block_link_agent(
+        # Execute with new signature - should raise ValidationError due to invalid relation
+        with pytest.raises(ValidationError) as validation_error:
+            CreateBlockLinkAgentInput(
                 source_block_id=source_id,
                 target_block_id=target_id,
                 relation=relation_with_no_inverse,
                 bidirectional=True,
-                memory_bank=memory_bank,
             )
 
-            # Assert
-            assert result.success is False
-            assert "Invalid parameters" in result.message
-            assert "No inverse relation defined" in result.error_details
+        # Assert - ValidationError should mention invalid relation type (fails before bidirectional check)
+        assert "Invalid relation type" in str(validation_error.value)
 
-            # Verify LinkManager was NOT called
-            memory_bank.link_manager.create_link.assert_not_called()
-            memory_bank.link_manager.bulk_upsert.assert_not_called()
+        # Verify LinkManager was NOT called
+        memory_bank.link_manager.create_link.assert_not_called()
+        memory_bank.link_manager.bulk_upsert.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_agent_friendly_error_messages(self, memory_bank, sample_block_ids):

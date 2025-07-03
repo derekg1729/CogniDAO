@@ -16,10 +16,6 @@ from infra_core.memory_system.tools.agent_facing.get_active_work_items_tool impo
     GetActiveWorkItemsInput,
 )
 from infra_core.memory_system.pm_executable_links import ExecutableLinkManager
-from infra_core.memory_system.tools.agent_facing.create_block_link_tool import (
-    create_block_link_agent,
-    CreateBlockLinkAgentInput,
-)
 from infra_core.memory_system.tools.agent_facing.get_linked_blocks_tool import (
     get_linked_blocks_tool,
     GetLinkedBlocksInput,
@@ -563,41 +559,7 @@ async def get_linked_blocks(input):
         }
 
 
-# Register the CreateBlockLink tool
-@mcp.tool("CreateBlockLink")
-@mcp_autofix
-async def create_block_link(input):
-    """Create a link between memory blocks, enabling task dependencies, parent-child relationships, and other connections
-
-    Args:
-        source_block_id: ID of the source block (the 'from' block)
-        target_block_id: ID of the target block (the 'to' block)
-        relation: Type of relationship between blocks (e.g., 'depends_on', 'is_blocked_by', 'child_of')
-        bidirectional: Whether to create the inverse relationship automatically (default: False)
-        priority: Priority of the link (higher numbers = more important, default: 0)
-        metadata: Additional metadata about the link (optional)
-    """
-    try:
-        # Input already normalized by decorator
-        parsed_input = CreateBlockLinkAgentInput(**input)
-        result = await create_block_link_agent(
-            source_block_id=parsed_input.source_block_id,
-            target_block_id=parsed_input.target_block_id,
-            relation=parsed_input.relation,
-            bidirectional=parsed_input.bidirectional,
-            priority=parsed_input.priority,
-            metadata=parsed_input.metadata,
-            memory_bank=get_memory_bank(),
-        )
-        return result.model_dump()
-
-    except Exception as e:
-        logger.error(f"Error creating block link: {str(e)}")
-        return {
-            "success": False,
-            "error": f"Failed to create block link: {str(e)}",
-            "timestamp": datetime.now(),
-        }
+# NOTE: CreateBlockLink now has CogniTool instance - using auto-generated version
 
 
 # Register the BulkUpdateNamespace tool
