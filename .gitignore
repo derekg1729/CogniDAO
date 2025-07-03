@@ -67,3 +67,5 @@ storage/
 
 # No More tracking Dolt in Git!
 data/blocks/memory_dolt/.dolt/
+
+libs/infra_core/src/data/
