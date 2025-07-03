@@ -1,4 +1,4 @@
-FROM python:3.11-slim AS base
+FROM python:3.12-slim AS base
 
 FROM base AS builder
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
@@ -17,13 +17,13 @@ WORKDIR /app
 # Copy workspace files for UV workspace support
 COPY pyproject.toml uv.lock* ./
 COPY services/web_api/pyproject.toml ./services/web_api/
+COPY ./libs/infra_core/ /app/libs/infra_core/
 
 # Install dependencies first (better caching)
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
-# Copy application code
-COPY ./libs/infra_core/ /app/libs/infra_core/
+# Copy remaining application code
 COPY ./services/web_api/ /app/services/web_api/
 COPY ./services/__init__.py /app/services/__init__.py
 

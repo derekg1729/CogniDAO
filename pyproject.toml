@@ -14,14 +14,14 @@ authors = [
 ]
 dependencies = [
     # Truly shared dependencies across all services
-    "doltpy",  # Database access shared by multiple services
+    "doltpy", # Database access shared by multiple services
     "rpds-py", # Immutable data structures
-    "pydantic>=2.8.0",  # Data validation used everywhere
-    
-    # Core infrastructure shared by services  
-    "mysql-connector-python>=8.0.21",  # Database connectivity
-    "sentence-transformers>=2.2.2",  # Embeddings used by multiple services
-    "prefect>=3.0.0,<4.0.0",  # Workflow orchestration for deployment scripts
+    "pydantic>=2.8.0", # Data validation used everywhere
+    # Core infrastructure shared by services
+    "mysql-connector-python>=8.0.21", # Database connectivity
+    "sentence-transformers>=2.2.2", # Embeddings used by multiple services
+    "prefect>=3.0.0,<4.0.0", # Workflow orchestration for deployment scripts
+    "cogni-infra-core",
 ]
 requires-python = ">=3.11"
 

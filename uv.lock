@@ -632,6 +632,7 @@ name = "cogni"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "cogni-infra-core" },
     { name = "doltpy" },
     { name = "mysql-connector-python" },
     { name = "prefect" },
@@ -659,6 +660,7 @@ playwright = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cogni-infra-core", editable = "libs/infra_core" },
     { name = "doltpy" },
     { name = "fastapi", marker = "extra == 'dev'" },
     { name = "mysql-connector-python", specifier = ">=8.0.21" },
@@ -734,6 +736,7 @@ dependencies = [
     { name = "autogen-agentchat" },
     { name = "autogen-ext", extra = ["mcp"] },
     { name = "chromadb" },
+    { name = "cogni-infra-core" },
     { name = "crewai" },
     { name = "doltpy" },
     { name = "jinja2" },
@@ -774,6 +777,7 @@ requires-dist = [
     { name = "autogen-agentchat", specifier = ">=0.6.1" },
     { name = "autogen-ext", extras = ["mcp"], specifier = ">=0.6.1" },
     { name = "chromadb", specifier = ">=1.0.0" },
+    { name = "cogni-infra-core", editable = "libs/infra_core" },
     { name = "crewai", specifier = ">=0.121.1" },
     { name = "doltpy" },
     { name = "jinja2", specifier = ">=3.0.0" },
