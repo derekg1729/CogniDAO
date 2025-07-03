@@ -70,6 +70,8 @@ dev = [
     "ruff>=0.3.3",
     "pre-commit>=4.2.0",
     "respx>=0.22.0",  # HTTP mocking for HTTPX (used in test fixtures)
+    "tox",  # Multi-environment testing tool
+    "tox-uv>=0.4",  # UV plugin for tox (required by tox.ini)
     
     # Essential dependencies for basic development workflow
     # (Full dependencies available through service-specific installs)
