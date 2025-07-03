@@ -27,6 +27,40 @@ requires-python = ">=3.11"
 
 [project.optional-dependencies]
 playwright = ["playwright>=1.49.0", "pytest-playwright"]
+integration = [
+    # OpenAI integration (used by model handlers and gitcogni)
+    "openai>=1.0.0",
+    "langchain-openai",
+    "llama-index-embeddings-openai",
+    "llama-index-llms-openai",
+    
+    # GitHub integration (for git_cogni agent)
+    "PyGithub>=1.0.0",
+    
+    # CrewAI integration (for adapter tests)
+    "crewai>=0.1.0",
+    
+    # Social media integration (for broadcast flows)
+    "tweepy>=4.0.0",
+    
+    # Document processing (used by memory tests)
+    "python-frontmatter",
+    
+    # Multi-agent frameworks (for autogen workflows)
+    "autogen-core",
+    
+    # MCP (Model Context Protocol) for cogni tools
+    "mcp",
+    
+    # API testing and integration
+    "fastapi",
+    "httpx>=0.24.0",
+    "uvicorn>=0.27.0",
+    
+    # Additional integration test utilities
+    "tqdm",
+    "onnxruntime",
+]
 dev = [
     # Essential development and testing dependencies only
     "pytest>=7.0.0",

@@ -413,21 +413,18 @@ class GitCogniAgent(CogniAgent):
         branch_info = pr_data["branch_info"]
 
         # Log the PR data for debugging
-        self.logger.info(
-            f"REVIEW DATA: {
-                json.dumps(
-                    {
-                        'pr_owner': pr_info['owner'],
-                        'pr_repo': pr_info['repo'],
-                        'pr_number': pr_info['number'],
-                        'commit_count': len(commits),
-                        'source_branch': branch_info['source_branch'],
-                        'target_branch': branch_info['target_branch'],
-                    },
-                    indent=2,
-                )
-            }"
+        review_data = json.dumps(
+            {
+                "pr_owner": pr_info["owner"],
+                "pr_repo": pr_info["repo"],
+                "pr_number": pr_info["number"],
+                "commit_count": len(commits),
+                "source_branch": branch_info["source_branch"],
+                "target_branch": branch_info["target_branch"],
+            },
+            indent=2,
         )
+        self.logger.info(f"REVIEW DATA: {review_data}")
 
         # Create output structure
         review_results = {
@@ -462,18 +459,15 @@ class GitCogniAgent(CogniAgent):
             )
 
             # Log file count and diff size for monitoring
-            self.logger.info(
-                f"COMMIT STATS: {
-                    json.dumps(
-                        {
-                            'commit_sha': commit['short_sha'],
-                            'files_count': commit['files_count'],
-                            'diff_length': commit['diff_length'],
-                        },
-                        indent=2,
-                    )
-                }"
+            commit_stats_data = json.dumps(
+                {
+                    "commit_sha": commit["short_sha"],
+                    "files_count": commit["files_count"],
+                    "diff_length": commit["diff_length"],
+                },
+                indent=2,
             )
+            self.logger.info(f"COMMIT STATS: {commit_stats_data}")
 
             # Limit patch sizes to avoid token limits
             limited_files = []
@@ -551,20 +545,17 @@ class GitCogniAgent(CogniAgent):
         )
 
         # Log the size of the reviews for debugging token limits
-        self.logger.info(
-            f"VERDICT INPUT STATS: {
-                json.dumps(
-                    {
-                        'review_count': len(review_results['commit_reviews']),
-                        'combined_reviews_length': len(all_reviews),
-                        'average_review_length': int(
-                            len(all_reviews) / max(1, len(review_results['commit_reviews']))
-                        ),
-                    },
-                    indent=2,
-                )
-            }"
+        verdict_stats = json.dumps(
+            {
+                "review_count": len(review_results["commit_reviews"]),
+                "combined_reviews_length": len(all_reviews),
+                "average_review_length": int(
+                    len(all_reviews) / max(1, len(review_results["commit_reviews"]))
+                ),
+            },
+            indent=2,
         )
+        self.logger.info(f"VERDICT INPUT STATS: {verdict_stats}")
 
         # Monitor combined reviews size
         self.monitor_token_usage("combined_reviews", all_reviews)
