@@ -23,7 +23,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
 # Copy application code
-COPY ./infra_core/ /app/infra_core/
+COPY ./libs/infra_core/ /app/libs/infra_core/
 COPY ./services/web_api/ /app/services/web_api/
 COPY ./services/__init__.py /app/services/__init__.py
 
@@ -39,7 +39,7 @@ FROM base AS runtime
 COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
-COPY --from=builder /app/infra_core /app/infra_core
+COPY --from=builder /app/libs/infra_core /app/libs/infra_core
 COPY --from=builder /app/services /app/services
 
 # Add venv to path and set working directory
