@@ -21,8 +21,6 @@ dependencies = [
     "langchain-openai>=0.2.0,<0.3.0",
     "openai>=1.68.2,<1.76.0",
     "redis>=5.0.0,<6.0.0",
-    # Playwright and browser automation
-    "playwright>=1.49.0",
     "langgraph-cli[inmem]>=0.3.3",
 ]
 requires-python = ">=3.11"
