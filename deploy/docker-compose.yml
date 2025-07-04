@@ -165,13 +165,11 @@ services:
   # LangGraph Playwright Basic Service
   langgraph-playwright:
     image: ${LANGGRAPH_PLAYWRIGHT_IMAGE:-cogni-langgraph-playwright-local}
-    build:
-      context: ../graphs/playwright_basic
-      dockerfile: Dockerfile
     env_file: ./.env
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URI=redis://redis:6379
+      - DATABASE_URI=sqlite:///tmp/langgraph.db
       - PLAYWRIGHT_MCP_URL=http://toolhive:58462/sse#playwright
       - PREFECT_API_URL=http://prefect-server:4200/api
     ports:

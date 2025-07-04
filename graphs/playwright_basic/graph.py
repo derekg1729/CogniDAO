@@ -265,9 +265,6 @@ async def run_example():
             logger.info(f"Node '{node_name}' output: {node_output}")
 
 
-# Create the compiled graph instance for LangGraph CLI
-compiled_graph = compile_graph()
-
 if __name__ == "__main__":
     # Run example for testing
     asyncio.run(run_example())

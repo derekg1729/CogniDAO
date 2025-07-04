@@ -788,7 +788,6 @@ name = "cogni-playwright-basic"
 version = "0.1.0"
 source = { editable = "graphs/playwright_basic" }
 dependencies = [
-    { name = "cogni" },
     { name = "langchain-core" },
     { name = "langchain-mcp-adapters" },
     { name = "langchain-openai" },
@@ -816,7 +815,6 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cogni", editable = "." },
     { name = "langchain-core", specifier = ">=0.3.0,<0.4.0" },
     { name = "langchain-mcp-adapters", specifier = ">=0.1.0,<0.2.0" },
     { name = "langchain-openai", specifier = ">=0.2.0,<0.3.0" },

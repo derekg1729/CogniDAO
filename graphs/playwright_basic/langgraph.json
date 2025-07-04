@@ -9,14 +9,15 @@
         "langchain-core>=0.3.0",
         "langchain-openai>=0.2.0",
         "openai>=1.0.0",
-        "redis>=5.0.0"
+        "redis>=5.0.0",
+        "playwright>=1.49.0"
     ],
     "env": [
         "OPENAI_API_KEY",
         "REDIS_URL"
     ],
     "graphs": {
-        "playwright_basic": "./graph.py:compiled_graph"
+        "playwright_basic": "./graph.py:compile_graph"
     },
     "python_version": "3.11"
 }
