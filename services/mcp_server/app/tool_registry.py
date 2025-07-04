@@ -73,6 +73,17 @@ from infra_core.memory_system.tools.agent_facing.update_task_status_tool import 
 )
 from infra_core.memory_system.tools.agent_facing.update_work_item_tool import update_work_item_tool
 
+# Namespace operations
+from infra_core.memory_system.tools.agent_facing.bulk_update_namespace_tool import (
+    bulk_update_namespace_tool_instance,
+)
+from infra_core.memory_system.tools.agent_facing.create_namespace_tool import (
+    create_namespace_tool_instance,
+)
+from infra_core.memory_system.tools.agent_facing.dolt_namespace_tool import (
+    list_namespaces_tool_instance,
+)
+
 # Note: bulk_update_namespace_tool is also a function, not a CogniTool instance
 
 # Note: Several tools exist as functions but not as CogniTool instances yet:
@@ -148,7 +159,13 @@ def get_all_cogni_tools() -> List[CogniTool]:
     if health_check_tool:
         tools.append(health_check_tool)
 
-    # Namespace operations (none have CogniTool instances yet)
+    # Namespace operations
+    if bulk_update_namespace_tool_instance:
+        tools.append(bulk_update_namespace_tool_instance)
+    if create_namespace_tool_instance:
+        tools.append(create_namespace_tool_instance)
+    if list_namespaces_tool_instance:
+        tools.append(list_namespaces_tool_instance)
 
     # Interaction logging
     if log_interaction_block_tool:

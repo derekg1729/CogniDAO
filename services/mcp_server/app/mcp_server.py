@@ -48,20 +48,7 @@ from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     DoltMergeInput,
     DoltMergeOutput,
 )
-from infra_core.memory_system.tools.agent_facing.bulk_update_namespace_tool import (
-    bulk_update_namespace,
-    BulkUpdateNamespaceInput,
-)
-from infra_core.memory_system.tools.agent_facing.dolt_namespace_tool import (
-    list_namespaces_tool,
-    ListNamespacesInput,
-    ListNamespacesOutput,
-)
-from infra_core.memory_system.tools.agent_facing.create_namespace_tool import (
-    create_namespace_tool,
-    CreateNamespaceInput,
-    CreateNamespaceOutput,
-)
+# Namespace tools now auto-generated
 
 # Import auto-generation system for Phase 2 architecture
 try:
@@ -491,45 +478,7 @@ except Exception as e:
 # NOTE: CreateBlockLink now has CogniTool instance - using auto-generated version
 
 
-# Register the BulkUpdateNamespace tool
-@mcp.tool("BulkUpdateNamespace")
-@mcp_autofix
-async def bulk_update_namespace_mcp(input):
-    """Update namespace of multiple memory blocks in a single operation with independent success tracking
-
-    Args:
-        blocks: List of block specifications to update (1-500 blocks)
-        target_namespace_id: Target namespace ID to move all blocks to
-        stop_on_first_error: If True, stop processing on first error. If False, continue and report all results.
-        author: Author of the namespace updates
-        agent_id: Agent identifier for tracking
-        session_id: Session ID for grouping updates
-
-    Returns:
-        success: Whether ALL blocks were updated successfully (failed_count == 0)
-        partial_success: Whether at least one block was updated successfully
-        total_blocks: Total number of blocks attempted
-        successful_blocks: Number of blocks updated successfully
-        failed_blocks: Number of blocks that failed to update
-        results: Individual results for each block
-        target_namespace_id: Target namespace that was attempted
-        namespace_validated: Whether the target namespace was validated to exist
-        active_branch: Current active branch
-        timestamp: When the bulk operation completed
-    """
-    try:
-        # Input already normalized by decorator
-        parsed_input = BulkUpdateNamespaceInput(**input)
-        result = bulk_update_namespace(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump()
-
-    except Exception as e:
-        logger.error(f"Error in bulk update namespace: {str(e)}")
-        return {
-            "success": False,
-            "error": f"Failed to bulk update namespace: {str(e)}",
-            "timestamp": datetime.now(),
-        }
+# BulkUpdateNamespace tool now auto-generated
 
 
 # Register the DoltCommit tool
@@ -852,80 +801,10 @@ async def dolt_list_branches(input):
         ).model_dump(mode="json")
 
 
-@mcp.tool("ListNamespaces")
-@mcp_autofix
-async def list_namespaces(input):
-    """List all available namespaces with their metadata
-
-    Returns:
-        success: Whether the operation succeeded
-        namespaces: List of namespace information objects
-        total_count: Total number of namespaces
-        message: Human-readable result message
-        active_branch: Current active branch
-        error: Error message if operation failed
-        timestamp: Timestamp of operation
-    """
-    try:
-        # Parse dict input into Pydantic model
-        parsed_input = ListNamespacesInput(**input)
-        result = list_namespaces_tool(parsed_input, memory_bank=get_memory_bank())
-        return standardize_mcp_response(result.model_dump(mode="json"))
-
-    except Exception as e:
-        logger.error(f"Error in ListNamespaces MCP tool: {e}")
-        error_response = ListNamespacesOutput(
-            success=False,
-            namespaces=[],
-            total_count=0,
-            active_branch=get_memory_bank().branch,
-            message=f"Namespace listing failed: {str(e)}",
-            error=f"Error during list_namespaces: {str(e)}",
-        ).model_dump(mode="json")
-        return standardize_mcp_response(error_response)
+# ListNamespaces tool now auto-generated
 
 
-# Register the CreateNamespace tool
-@mcp.tool("CreateNamespace")
-@mcp_autofix
-async def create_namespace(input):
-    """Create a new namespace in the database
-
-    Args:
-        id: Unique namespace identifier (e.g., 'cogni-project-management')
-        name: Human-readable namespace name (e.g., 'Cogni Project Management')
-        slug: URL-safe namespace identifier (defaults to id if not provided)
-        owner_id: ID of the namespace owner (defaults to 'system')
-        description: Optional description of the namespace
-        is_active: Whether the namespace is active (defaults to True)
-
-    Note: This creates a new namespace but does not change the current namespace context.
-    Use DOLT_NAMESPACE environment variable to set the active namespace for all operations.
-
-    Returns:
-        success: Whether the operation succeeded
-        namespace_id: ID of the created namespace
-        message: Human-readable result message
-        active_branch: Current active branch
-        error: Error message if operation failed
-        timestamp: Timestamp of operation
-    """
-    try:
-        # Parse dict input into Pydantic model
-        parsed_input = CreateNamespaceInput(**input)
-        result = create_namespace_tool(parsed_input, memory_bank=get_memory_bank())
-        return standardize_mcp_response(result.model_dump(mode="json"))
-
-    except Exception as e:
-        logger.error(f"Error in CreateNamespace MCP tool: {e}")
-        error_response = CreateNamespaceOutput(
-            success=False,
-            namespace_id=None,
-            message=f"Namespace creation failed: {str(e)}",
-            active_branch=get_memory_bank().branch,
-            error=f"Error during create_namespace: {str(e)}",
-        ).model_dump(mode="json")
-        return standardize_mcp_response(error_response)
+# CreateNamespace tool now auto-generated
 
 
 # Register the DoltDiff tool
