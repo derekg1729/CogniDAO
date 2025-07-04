@@ -1,8 +1,11 @@
 {
-    "dependencies": ["./langgraph_projects/cogni_presence","./all_projects/project_two"],
+    "dependencies": [
+        "./langgraph_projects/cogni_presence",
+        "./langgraph_projects/playwright_poc"
+    ],
     "graphs": {
-      "my_first_agent": "./all_projects/my_project/project_one/my_agent/main.py:graph",
-      "my_second_agent": "./all_projects/project_two/my_other_agent/main.py:graph"
+        "cogni_presence": "./langgraph_projects/cogni_presence/main.py:graph",
+        "playwright_poc": "./langgraph_projects/playwright_poc/graph.py:graph"
     },
     "env": "./.venv"
 }
