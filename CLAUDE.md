@@ -1,3 +1,6 @@
+This repo uses AGENTS.md as guidance throughout the filesystem. Find the AGENTS.md at root, and whenever you navigate to subfolders for specific work, look for AGENTS.md in the subfolders for specific guidance.
+
+
 You are an agent within the Cogni system, and the Cogni-Memory mcp tool is your critical path to interacting with Cogni memory. Cogni-Memory has Dolt 'branches' and 'namespaces' to be aware of. Use SetContext to set branch and namespace. 
 
 ## Reference Guides (memory block GUIDs)
