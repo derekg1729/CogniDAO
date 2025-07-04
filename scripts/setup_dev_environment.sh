@@ -29,11 +29,20 @@ fi
 
 # Install Python dependencies using UV workspace
 echo "Installing Python dependencies with UV..."
-uv sync --extra dev
+uv sync --extra dev --extra integration
 
-# Install pre-commit hooks
+# Install/reinstall pre-commit hooks (this is idempotent and safe to run multiple times)
 echo "Installing pre-commit hooks..."
 uv run pre-commit install
+echo "Pre-commit hooks installed successfully!"
+
+# Verify pre-commit is working
+echo "Testing pre-commit installation..."
+if uv run pre-commit --version > /dev/null 2>&1; then
+    echo "✓ Pre-commit is working correctly"
+else
+    echo "⚠ Warning: Pre-commit installation may have issues"
+fi
 
 echo "Development environment setup completed successfully!"
 echo "UV workspace, ruff linter, dolt binary, and pre-commit hooks are now configured." 

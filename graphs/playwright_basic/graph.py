@@ -109,6 +109,12 @@ async def agent_node(state: PlaywrightState) -> PlaywrightState:
         }
 
     # Get the latest human message
+    if not state["messages"]:
+        return {
+            **state,
+            "messages": [AIMessage(content="No messages to process.")],
+        }
+    
     last_message = state["messages"][-1]
     if not isinstance(last_message, HumanMessage):
         return state

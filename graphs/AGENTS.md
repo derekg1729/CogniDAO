@@ -1,12 +1,28 @@
 # LangGraph Agents Guide
 
-Our first langgraph example:
+## Local Development
+
+```bash
+# Start local MCP server (in separate terminal)
+thv run playwright
+thv list
+
+# Run LangGraph dev server (connects to local MCP). Current MCP port, discovered via ToolHive "thv list"
+PLAYWRIGHT_MCP_URL=<thv mcp url> uv run langgraph dev --port 8002
+```
+
+**Test URLs:**
+- Studio UI: https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:8002
+- API Docs: http://127.0.0.1:8002/docs
 
 ## Build & Deploy
+
+After successful local validation, deploy to our docker network. Example:
 ```bash
 # Build LangGraph container
 uv run langgraph build --tag cogni-langgraph-playwright-local
 
+# update docker-compose.yml with new image tag, if necessary
 # Deploy all services  
 ./deploy/deploy.sh local
 

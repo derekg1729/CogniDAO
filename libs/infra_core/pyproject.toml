@@ -24,6 +24,9 @@ dependencies = [
     
     # Templating and utilities
     "jinja2>=3.0.0",
+    
+    # Protobuf version constraint to resolve ChromaDB/OpenTelemetry conflicts
+    "protobuf>=4.21.0",
 ]
 
 [project.optional-dependencies]
