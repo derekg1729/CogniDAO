@@ -84,6 +84,23 @@ from infra_core.memory_system.tools.agent_facing.dolt_namespace_tool import (
     list_namespaces_tool_instance,
 )
 
+# Core Dolt Tools - Batch 2 (6 tools)
+from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
+    dolt_commit_tool_instance,
+    dolt_add_tool_instance,
+    dolt_status_tool_instance,
+    dolt_checkout_tool_instance,
+    dolt_reset_tool_instance,
+    dolt_push_tool_instance,
+    # Advanced Dolt Tools - Batch 3 (6 tools)
+    dolt_pull_tool_instance,
+    dolt_branch_tool_instance,
+    dolt_list_branches_tool_instance,
+    dolt_diff_tool_instance,
+    dolt_auto_commit_and_push_tool_instance,
+    dolt_merge_tool_instance,
+)
+
 # Note: bulk_update_namespace_tool is also a function, not a CogniTool instance
 
 # Note: Several tools exist as functions but not as CogniTool instances yet:
@@ -166,6 +183,34 @@ def get_all_cogni_tools() -> List[CogniTool]:
         tools.append(create_namespace_tool_instance)
     if list_namespaces_tool_instance:
         tools.append(list_namespaces_tool_instance)
+
+    # Core Dolt Tools - Batch 2 (6 tools)
+    if dolt_commit_tool_instance:
+        tools.append(dolt_commit_tool_instance)
+    if dolt_add_tool_instance:
+        tools.append(dolt_add_tool_instance)
+    if dolt_status_tool_instance:
+        tools.append(dolt_status_tool_instance)
+    if dolt_checkout_tool_instance:
+        tools.append(dolt_checkout_tool_instance)
+    if dolt_reset_tool_instance:
+        tools.append(dolt_reset_tool_instance)
+    if dolt_push_tool_instance:
+        tools.append(dolt_push_tool_instance)
+
+    # Advanced Dolt Tools - Batch 3 (6 tools)
+    if dolt_pull_tool_instance:
+        tools.append(dolt_pull_tool_instance)
+    if dolt_branch_tool_instance:
+        tools.append(dolt_branch_tool_instance)
+    if dolt_list_branches_tool_instance:
+        tools.append(dolt_list_branches_tool_instance)
+    if dolt_diff_tool_instance:
+        tools.append(dolt_diff_tool_instance)
+    if dolt_auto_commit_and_push_tool_instance:
+        tools.append(dolt_auto_commit_and_push_tool_instance)
+    if dolt_merge_tool_instance:
+        tools.append(dolt_merge_tool_instance)
 
     # Interaction logging
     if log_interaction_block_tool:

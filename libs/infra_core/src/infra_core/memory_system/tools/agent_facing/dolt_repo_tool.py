@@ -17,6 +17,7 @@ from functools import wraps
 from pydantic import BaseModel, Field, validator
 
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
+from infra_core.memory_system.tools.base.cogni_tool import CogniTool
 
 logger = logging.getLogger(__name__)
 
@@ -1530,3 +1531,137 @@ def dolt_merge_tool(
             active_branch=memory_bank.dolt_writer.active_branch,
             error=error_msg,
         )
+
+
+# === COGNI TOOL INSTANCES FOR BATCH 2 - CORE DOLT TOOLS ===
+
+# Core Dolt Tools - Batch 2 (6 tools) for MCP Auto-Generation
+# These CogniTool instances enable proper parameter schema visibility
+# instead of the generic {"type": "object", "properties": {}} pattern
+
+# 1. DoltCommit Tool
+dolt_commit_tool_instance = CogniTool(
+    name="DoltCommit",
+    description="Commit working changes to Dolt using the memory bank's writer",
+    input_model=DoltCommitInput,
+    output_model=DoltCommitOutput,
+    function=dolt_repo_tool,
+    memory_linked=True,
+)
+
+# 2. DoltAdd Tool
+dolt_add_tool_instance = CogniTool(
+    name="DoltAdd",
+    description="Stage working changes in Dolt for the current session",
+    input_model=DoltAddInput,
+    output_model=DoltAddOutput,
+    function=dolt_add_tool,
+    memory_linked=True,
+)
+
+# 3. DoltStatus Tool
+dolt_status_tool_instance = CogniTool(
+    name="DoltStatus",
+    description="Get repository status using Dolt system tables",
+    input_model=DoltStatusInput,
+    output_model=DoltStatusOutput,
+    function=dolt_status_tool,
+    memory_linked=True,
+)
+
+# 4. DoltCheckout Tool
+dolt_checkout_tool_instance = CogniTool(
+    name="DoltCheckout",
+    description="Checkout a Dolt branch, making it active for the current session",
+    input_model=DoltCheckoutInput,
+    output_model=DoltCheckoutOutput,
+    function=dolt_checkout_tool,
+    memory_linked=True,
+)
+
+# 5. DoltReset Tool
+dolt_reset_tool_instance = CogniTool(
+    name="DoltReset",
+    description="Reset working changes in Dolt for the current session",
+    input_model=DoltResetInput,
+    output_model=DoltResetOutput,
+    function=dolt_reset_tool,
+    memory_linked=True,
+)
+
+# 6. DoltPush Tool
+dolt_push_tool_instance = CogniTool(
+    name="DoltPush",
+    description="Push changes to a remote repository using Dolt",
+    input_model=DoltPushInput,
+    output_model=DoltPushOutput,
+    function=dolt_push_tool,
+    memory_linked=True,
+)
+
+
+# === COGNI TOOL INSTANCES FOR BATCH 3 - ADVANCED DOLT TOOLS ===
+
+# Advanced Dolt Tools - Batch 3 (6 tools) for MCP Auto-Generation
+# These CogniTool instances enable proper parameter schema visibility
+# instead of the generic {"type": "object", "properties": {}} pattern
+
+# 1. DoltPull Tool
+dolt_pull_tool_instance = CogniTool(
+    name="DoltPull",
+    description="Pull changes from a remote repository using Dolt",
+    input_model=DoltPullInput,
+    output_model=DoltPullOutput,
+    function=dolt_pull_tool,
+    memory_linked=True,
+)
+
+# 2. DoltBranch Tool
+dolt_branch_tool_instance = CogniTool(
+    name="DoltBranch",
+    description="Create a new branch using Dolt",
+    input_model=DoltBranchInput,
+    output_model=DoltBranchOutput,
+    function=dolt_branch_tool,
+    memory_linked=True,
+)
+
+# 3. DoltListBranches Tool
+dolt_list_branches_tool_instance = CogniTool(
+    name="DoltListBranches",
+    description="List all Dolt branches with their information",
+    input_model=DoltListBranchesInput,
+    output_model=DoltListBranchesOutput,
+    function=dolt_list_branches_tool,
+    memory_linked=True,
+)
+
+# 4. DoltDiff Tool
+dolt_diff_tool_instance = CogniTool(
+    name="DoltDiff",
+    description="Get a summary of differences between two revisions in Dolt",
+    input_model=DoltDiffInput,
+    output_model=DoltDiffOutput,
+    function=dolt_diff_tool,
+    memory_linked=True,
+)
+
+# 5. DoltAutoCommitAndPush Tool
+dolt_auto_commit_and_push_tool_instance = CogniTool(
+    name="DoltAutoCommitAndPush",
+    description="Automatically handle the complete Dolt workflow: Status -> Add -> Commit -> Push",
+    input_model=DoltAutoCommitInput,
+    output_model=DoltAutoCommitOutput,
+    function=dolt_auto_commit_and_push_tool,
+    memory_linked=True,
+)
+
+# 6. DoltMerge Tool
+dolt_merge_tool_instance = CogniTool(
+    name="DoltMerge",
+    description="Merge a branch into the current branch using Dolt",
+    input_model=DoltMergeInput,
+    output_model=DoltMergeOutput,
+    function=dolt_merge_tool,
+    memory_linked=True,
+)

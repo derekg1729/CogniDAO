@@ -15,38 +15,8 @@ from infra_core.memory_system.sql_link_manager import SQLLinkManager
 # get_active_work_items_tool now auto-generated
 from infra_core.memory_system.pm_executable_links import ExecutableLinkManager
 from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
-    dolt_repo_tool,
-    DoltCommitInput,
-    DoltCommitOutput,
-    dolt_push_tool,
-    DoltPushInput,
-    dolt_status_tool,
-    DoltStatusInput,
-    DoltStatusOutput,
     dolt_pull_tool,
     DoltPullInput,
-    dolt_branch_tool,
-    DoltBranchInput,
-    dolt_list_branches_tool,
-    DoltListBranchesInput,
-    dolt_add_tool,
-    DoltAddInput,
-    DoltAddOutput,
-    dolt_checkout_tool,
-    DoltCheckoutInput,
-    DoltCheckoutOutput,
-    dolt_diff_tool,
-    DoltDiffInput,
-    DoltDiffOutput,
-    dolt_auto_commit_and_push_tool,
-    DoltAutoCommitInput,
-    DoltAutoCommitOutput,
-    dolt_reset_tool,
-    DoltResetInput,
-    DoltResetOutput,
-    dolt_merge_tool,
-    DoltMergeInput,
-    DoltMergeOutput,
 )
 # Namespace tools now auto-generated
 
@@ -481,233 +451,242 @@ except Exception as e:
 # BulkUpdateNamespace tool now auto-generated
 
 
+# === BATCH 2 - CORE DOLT TOOLS NOW AUTO-GENERATED ===
+# The following 6 Core Dolt Tools have been converted to auto-generated CogniTool instances
+# for proper parameter schema visibility. Manual registrations commented out.
+
+# DoltCommit tool now auto-generated from CogniTool instance
 # Register the DoltCommit tool
-@mcp.tool("DoltCommit")
-@mcp_autofix
-async def dolt_commit(input):
-    """Commit working changes to Dolt using the memory bank's writer
+# @mcp.tool("DoltCommit")
+# @mcp_autofix
+# async def dolt_commit(input):
+#     """Commit working changes to Dolt using the memory bank's writer
 
-    Args:
-        commit_message: Commit message for the Dolt changes (required, 1-500 chars)
-        tables: Optional list of specific tables to add/commit. If not provided, all standard tables will be committed
-        author: Optional author attribution for the commit (max 100 chars)
+#     Args:
+#         commit_message: Commit message for the Dolt changes (required, 1-500 chars)
+#         tables: Optional list of specific tables to add/commit. If not provided, all standard tables will be committed
+#         author: Optional author attribution for the commit (max 100 chars)
 
-    Returns:
-        success: Whether the commit operation succeeded
-        commit_hash: The Dolt commit hash if successful
-        message: Human-readable result message
-        tables_committed: List of tables that were committed
-        error: Error message if operation failed
-        timestamp: Timestamp of operation
-    """
-    try:
-        # EMERGENCY FIX: Normalize input to handle double-serialization
-        normalized_input = _normalize_mcp_input(input)
+#     Returns:
+#         success: Whether the commit operation succeeded
+#         commit_hash: The Dolt commit hash if successful
+#         message: Human-readable result message
+#         tables_committed: List of tables that were committed
+#         error: Error message if operation failed
+#         timestamp: Timestamp of operation
+#     """
+#     try:
+#         # EMERGENCY FIX: Normalize input to handle double-serialization
+#         normalized_input = _normalize_mcp_input(input)
 
-        # Parse dict input into Pydantic model
-        parsed_input = DoltCommitInput(**normalized_input)
-        result = dolt_repo_tool(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump(mode="json")
-    except Exception as e:
-        logger.error(f"Error in DoltCommit MCP tool: {e}")
-        return DoltCommitOutput(
-            success=False,
-            message=f"Commit failed: {str(e)}",
-            error=f"Error during dolt_commit: {str(e)}",
-        ).model_dump(mode="json")
+#         # Parse dict input into Pydantic model
+#         parsed_input = DoltCommitInput(**normalized_input)
+#         result = dolt_repo_tool(parsed_input, memory_bank=get_memory_bank())
+#         return result.model_dump(mode="json")
+#     except Exception as e:
+#         logger.error(f"Error in DoltCommit MCP tool: {e}")
+#         return DoltCommitOutput(
+#             success=False,
+#             message=f"Commit failed: {str(e)}",
+#             error=f"Error during dolt_commit: {str(e)}",
+#         ).model_dump(mode="json")
 
 
+# DoltCheckout tool now auto-generated from CogniTool instance
 # Register the DoltCheckout tool
-@mcp.tool("DoltCheckout")
-@mcp_autofix
-async def dolt_checkout(input):
-    """Checkout a Dolt branch, making it active for the current session.
+# @mcp.tool("DoltCheckout")
+# @mcp_autofix
+# async def dolt_checkout(input):
+#     """Checkout a Dolt branch, making it active for the current session.
 
-    Args:
-        branch_name: Name of the branch to checkout.
-        force: Whether to force checkout, discarding uncommitted changes.
+#     Args:
+#         branch_name: Name of the branch to checkout.
+#         force: Whether to force checkout, discarding uncommitted changes.
 
-    Returns:
-        success: Whether the checkout operation succeeded
-        message: Human-readable result message
-        error: Error message if operation failed
-        timestamp: Timestamp of operation
-    """
-    try:
-        # EMERGENCY FIX: Normalize input to handle double-serialization
-        normalized_input = _normalize_mcp_input(input)
+#     Returns:
+#         success: Whether the checkout operation succeeded
+#         message: Human-readable result message
+#         error: Error message if operation failed
+#         timestamp: Timestamp of operation
+#     """
+#     try:
+#         # EMERGENCY FIX: Normalize input to handle double-serialization
+#         normalized_input = _normalize_mcp_input(input)
 
-        parsed_input = DoltCheckoutInput(**normalized_input)
-        result = dolt_checkout_tool(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump(mode="json")
-    except Exception as e:
-        logger.error(f"Error in DoltCheckout MCP tool: {e}")
-        return DoltCheckoutOutput(
-            success=False,
-            message=f"Checkout failed: {str(e)}",
-            error=f"Error during dolt_checkout: {str(e)}",
-        ).model_dump(mode="json")
+#         parsed_input = DoltCheckoutInput(**normalized_input)
+#         result = dolt_checkout_tool(parsed_input, memory_bank=get_memory_bank())
+#         return result.model_dump(mode="json")
+#     except Exception as e:
+#         logger.error(f"Error in DoltCheckout MCP tool: {e}")
+#         return DoltCheckoutOutput(
+#             success=False,
+#             message=f"Checkout failed: {str(e)}",
+#             error=f"Error during dolt_checkout: {str(e)}",
+#         ).model_dump(mode="json")
 
 
+# DoltAdd tool now auto-generated from CogniTool instance
 # Register the DoltAdd tool
-@mcp.tool("DoltAdd")
-@mcp_autofix
-async def dolt_add(input):
-    """Stage working changes in Dolt for the current session.
+# @mcp.tool("DoltAdd")
+# @mcp_autofix
+# async def dolt_add(input):
+#     """Stage working changes in Dolt for the current session.
 
-    Args:
-        tables: Optional list of specific tables to add. If not provided, all changes will be staged.
+#     Args:
+#         tables: Optional list of specific tables to add. If not provided, all changes will be staged.
 
-    Returns:
-        success: Whether the add operation succeeded
-        message: Human-readable result message
-        error: Error message if operation failed
-        timestamp: Timestamp of operation
-    """
-    try:
-        # EMERGENCY FIX: Normalize input to handle double-serialization
-        normalized_input = _normalize_mcp_input(input)
+#     Returns:
+#         success: Whether the add operation succeeded
+#         message: Human-readable result message
+#         error: Error message if operation failed
+#         timestamp: Timestamp of operation
+#     """
+#     try:
+#         # EMERGENCY FIX: Normalize input to handle double-serialization
+#         normalized_input = _normalize_mcp_input(input)
 
-        parsed_input = DoltAddInput(**normalized_input)
-        result = dolt_add_tool(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump(mode="json")
-    except Exception as e:
-        logger.error(f"Error in DoltAdd MCP tool: {e}")
-        return DoltAddOutput(
-            success=False,
-            message=f"Add failed: {str(e)}",
-            error=f"Error during dolt_add: {str(e)}",
-        ).model_dump(mode="json")
+#         parsed_input = DoltAddInput(**normalized_input)
+#         result = dolt_add_tool(parsed_input, memory_bank=get_memory_bank())
+#         return result.model_dump(mode="json")
+#     except Exception as e:
+#         logger.error(f"Error in DoltAdd MCP tool: {e}")
+#         return DoltAddOutput(
+#             success=False,
+#             message=f"Add failed: {str(e)}",
+#             error=f"Error during dolt_add: {str(e)}",
+#         ).model_dump(mode="json")
 
 
+# DoltReset tool now auto-generated from CogniTool instance
 # Register the DoltReset tool
-@mcp.tool("DoltReset")
-@mcp_autofix
-async def dolt_reset(input):
-    """Reset working changes in Dolt for the current session.
+# @mcp.tool("DoltReset")
+# @mcp_autofix
+# async def dolt_reset(input):
+#     """Reset working changes in Dolt for the current session.
 
-    Args:
-        tables: Optional list of specific tables to reset. If not provided, all working changes will be discarded.
-        hard: Whether to perform a hard reset, discarding all changes (default: True)
+#     Args:
+#         tables: Optional list of specific tables to reset. If not provided, all working changes will be discarded.
+#         hard: Whether to perform a hard reset, discarding all changes (default: True)
 
-    Returns:
-        success: Whether the reset operation succeeded
-        message: Human-readable result message
-        tables_reset: List of tables that were reset (if specific tables were targeted)
-        error: Error message if operation failed
-        timestamp: Timestamp of operation
-    """
-    try:
-        parsed_input = DoltResetInput(**input)
-        result = dolt_reset_tool(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump(mode="json")
-    except Exception as e:
-        logger.error(f"Error in DoltReset MCP tool: {e}")
-        return DoltResetOutput(
-            success=False,
-            message=f"Reset failed: {str(e)}",
-            error=f"Error during dolt_reset: {str(e)}",
-        ).model_dump(mode="json")
+#     Returns:
+#         success: Whether the reset operation succeeded
+#         message: Human-readable result message
+#         tables_reset: List of tables that were reset (if specific tables were targeted)
+#         error: Error message if operation failed
+#         timestamp: Timestamp of operation
+#     """
+#     try:
+#         parsed_input = DoltResetInput(**input)
+#         result = dolt_reset_tool(parsed_input, memory_bank=get_memory_bank())
+#         return result.model_dump(mode="json")
+#     except Exception as e:
+#         logger.error(f"Error in DoltReset MCP tool: {e}")
+#         return DoltResetOutput(
+#             success=False,
+#             message=f"Reset failed: {str(e)}",
+#             error=f"Error during dolt_reset: {str(e)}",
+#         ).model_dump(mode="json")
 
 
 # Register the DoltPush tool
-@mcp.tool("DoltPush")
-@mcp_autofix
-async def dolt_push(input):
-    """Push changes to a remote repository using Dolt.
+# @mcp.tool("DoltPush")
+# @mcp_autofix
+# async def dolt_push(input):
+#     """Push changes to a remote repository using Dolt.
 
-    Args:
-        remote_name: Name of the remote to push to (default: 'origin')
-        branch: Branch to push (default: 'main')
-        force: Whether to force push, overriding safety checks
+#     Args:
+#         remote_name: Name of the remote to push to (default: 'origin')
+#         branch: Branch to push (default: 'main')
+#         force: Whether to force push, overriding safety checks
 
-    Returns:
-        JSON string with push results including success status and message
-    """
-    try:
-        # EMERGENCY FIX: Normalize input to handle double-serialization
-        normalized_input = _normalize_mcp_input(input)
+#     Returns:
+#         JSON string with push results including success status and message
+#     """
+#     try:
+#         # EMERGENCY FIX: Normalize input to handle double-serialization
+#         normalized_input = _normalize_mcp_input(input)
 
-        # Create input object
-        input_data = DoltPushInput(**normalized_input)
+#         # Create input object
+#         input_data = DoltPushInput(**normalized_input)
 
-        # Execute the push operation
-        result = dolt_push_tool(input_data, get_memory_bank())
+#         # Execute the push operation
+#         result = dolt_push_tool(input_data, get_memory_bank())
 
-        # Return JSON representation
-        return result.model_dump_json(indent=2)
+#         # Return JSON representation
+#         return result.model_dump_json(indent=2)
 
-    except Exception as e:
-        logger.error(f"Error in DoltPush tool: {e}", exc_info=True)
-        return json.dumps({"success": False, "error": str(e)}, indent=2)
+#     except Exception as e:
+#         logger.error(f"Error in DoltPush tool: {e}", exc_info=True)
+#         return json.dumps({"success": False, "error": str(e)}, indent=2)
 
 
 # Register the DoltStatus tool
-@mcp.tool("DoltStatus")
-@mcp_autofix
-async def dolt_status(input):
-    """Get repository status using Dolt system tables
+# @mcp.tool("DoltStatus")
+# @mcp_autofix
+# async def dolt_status(input):
+#     """Get repository status using Dolt system tables
 
-    Returns:
-        current_branch: Current active branch
-        is_clean: True if working tree is clean
-        staged_tables: Tables with staged changes
-        unstaged_tables: Tables with unstaged changes
-        untracked_tables: New untracked tables
-        total_changes: Total number of changes
-        ahead: Commits ahead of remote
-        behind: Commits behind remote
-        conflicts: Tables with conflicts
-        message: Human-readable status summary
-        timestamp: Timestamp of operation
-    """
-    logger.info("DoltStatus MCP tool called")
+#     Returns:
+#         current_branch: Current active branch
+#         is_clean: True if working tree is clean
+#         staged_tables: Tables with staged changes
+#         unstaged_tables: Tables with unstaged changes
+#         untracked_tables: New untracked tables
+#         total_changes: Total number of changes
+#         ahead: Commits ahead of remote
+#         behind: Commits behind remote
+#         conflicts: Tables with conflicts
+#         message: Human-readable status summary
+#         timestamp: Timestamp of operation
+#     """
+#     logger.info("DoltStatus MCP tool called")
 
-    try:
-        # EMERGENCY FIX: Normalize input to handle double-serialization
-        normalized_input = _normalize_mcp_input(input)
+#     try:
+#         # EMERGENCY FIX: Normalize input to handle double-serialization
+#         normalized_input = _normalize_mcp_input(input)
 
-        # Parse dict input into Pydantic model
-        parsed_input = DoltStatusInput(**normalized_input)
+#         # Parse dict input into Pydantic model
+#         parsed_input = DoltStatusInput(**normalized_input)
 
-        # Execute the status operation
-        result = dolt_status_tool(parsed_input, memory_bank=get_memory_bank())
+#         # Execute the status operation
+#         result = dolt_status_tool(parsed_input, memory_bank=get_memory_bank())
 
-        logger.info(f"DoltStatus result: {result}")
+#         logger.info(f"DoltStatus result: {result}")
 
-        # Return JSON representation
-        return result.model_dump(mode="json")
+#         # Return JSON representation
+#         return result.model_dump(mode="json")
 
-    except Exception as e:
-        logger.error(f"Error in DoltStatus tool: {e}", exc_info=True)
+#     except Exception as e:
+#         logger.error(f"Error in DoltStatus tool: {e}", exc_info=True)
 
-        # Try to get current branch even in error case (like dolt_list_branches does)
-        try:
-            current_branch = get_memory_bank().branch
-        except Exception:
-            current_branch = "unknown"
+#         # Try to get current branch even in error case (like dolt_list_branches does)
+#         try:
+#             current_branch = get_memory_bank().branch
+#         except Exception:
+#             current_branch = "unknown"
 
-        # Return structured error using the output model
-        error_output = DoltStatusOutput(
-            success=False,
-            current_branch=current_branch,
-            is_clean=True,
-            staged_tables=[],
-            unstaged_tables=[],
-            untracked_tables=[],
-            total_changes=0,
-            ahead=0,
-            behind=0,
-            conflicts=[],
-            message="Status check failed",
-            active_branch=current_branch,
-            error=f"Error during dolt_status: {str(e)}",
-            timestamp=datetime.now(),
-        )
+#         # Return structured error using the output model
+#         error_output = DoltStatusOutput(
+#             success=False,
+#             current_branch=current_branch,
+#             is_clean=True,
+#             staged_tables=[],
+#             unstaged_tables=[],
+#             untracked_tables=[],
+#             total_changes=0,
+#             ahead=0,
+#             behind=0,
+#             conflicts=[],
+#             message="Status check failed",
+#             active_branch=current_branch,
+#             error=f"Error during dolt_status: {str(e)}",
+#             timestamp=datetime.now(),
+#         )
 
-        return error_output.model_dump(mode="json")
+#         return error_output.model_dump(mode="json")
 
 
+# DoltPull tool now auto-generated from CogniTool instance
 # Register the DoltPull tool
 @mcp.tool("DoltPull")
 @mcp_autofix
@@ -739,66 +718,68 @@ async def dolt_pull(input):
         return json.dumps({"success": False, "error": str(e)}, indent=2)
 
 
-@mcp.tool("DoltBranch")
-@mcp_autofix
-async def dolt_branch(input):
-    """Create a new branch using Dolt.
+# DoltBranch tool now auto-generated from CogniTool instance
+# @mcp.tool("DoltBranch")
+# @mcp_autofix
+# async def dolt_branch(input):
+#     """Create a new branch using Dolt.
 
-    Args:
-        branch_name: Name of the new branch to create
-        start_point: Commit, branch, or tag to start the branch from (optional)
-        force: Whether to force creation, overriding safety checks
+#     Args:
+#         branch_name: Name of the new branch to create
+#         start_point: Commit, branch, or tag to start the branch from (optional)
+#         force: Whether to force creation, overriding safety checks
 
-    Returns:
-        JSON string with branch creation results including success status and message
-    """
-    try:
-        # Create input object
-        input_data = DoltBranchInput(**input)
+#     Returns:
+#         JSON string with branch creation results including success status and message
+#     """
+#     try:
+#         # Create input object
+#         input_data = DoltBranchInput(**input)
 
-        # Execute the branch creation operation
-        result = dolt_branch_tool(input_data, get_memory_bank())
+#         # Execute the branch creation operation
+#         result = dolt_branch_tool(input_data, get_memory_bank())
 
-        # Return JSON representation
-        return result.model_dump_json(indent=2)
+#         # Return JSON representation
+#         return result.model_dump_json(indent=2)
 
-    except Exception as e:
-        logger.error(f"Error in DoltBranch tool: {e}", exc_info=True)
-        return json.dumps({"success": False, "error": str(e)}, indent=2)
+#     except Exception as e:
+#         logger.error(f"Error in DoltBranch tool: {e}", exc_info=True)
+#         return json.dumps({"success": False, "error": str(e)}, indent=2)
 
 
+# DoltListBranches tool now auto-generated from CogniTool instance
 # Register the DoltListBranches tool
-@mcp.tool("DoltListBranches")
-@mcp_autofix
-async def dolt_list_branches(input):
-    """List all Dolt branches with their information
+# @mcp.tool("DoltListBranches")
+# @mcp_autofix
+# async def dolt_list_branches(input):
+#     """List all Dolt branches with their information
 
-    Returns:
-        success: Whether the operation succeeded
-        branches: List of branch information objects
-        current_branch: Currently active branch
-        message: Human-readable result message
-        timestamp: Timestamp of operation
-    """
-    try:
-        # Parse dict input into Pydantic model
-        parsed_input = DoltListBranchesInput(**input)
-        result = dolt_list_branches_tool(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump(mode="json")
+#     Returns:
+#         success: Whether the operation succeeded
+#         branches: List of branch information objects
+#         current_branch: Currently active branch
+#         message: Human-readable result message
+#         timestamp: Timestamp of operation
+#     """
+#     try:
+#         # Parse dict input into Pydantic model
+#         parsed_input = DoltListBranchesInput(**input)
+#         result = dolt_list_branches_tool(parsed_input, memory_bank=get_memory_bank())
+#         return result.model_dump(mode="json")
 
-    except Exception as e:
-        logger.error(f"Error in DoltListBranches MCP tool: {e}")
-        # Import locally for error handling too
-        from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
-            DoltListBranchesOutput,
-        )
+#     except Exception as e:
+#         logger.error(f"Error in DoltListBranches MCP tool: {e}")
+#         # Import locally for error handling too
+#         from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
+#             DoltListBranchesOutput,
+#         )
 
-        return DoltListBranchesOutput(
-            success=False,
-            active_branch=get_memory_bank().branch,
-            message=f"Branch listing failed: {str(e)}",
-            error=f"Error during dolt_list_branches: {str(e)}",
-        ).model_dump(mode="json")
+#         return DoltListBranchesOutput(
+#             success=False,
+#             active_branch=get_memory_bank().branch,
+#             message=f"Branch listing failed: {str(e)}",
+#             error=f"Error during dolt_list_branches: {str(e)}",
+#         ).model_dump(mode="json")
 
 
 # ListNamespaces tool now auto-generated
@@ -807,73 +788,75 @@ async def dolt_list_branches(input):
 # CreateNamespace tool now auto-generated
 
 
+# DoltDiff tool now auto-generated from CogniTool instance
 # Register the DoltDiff tool
-@mcp.tool("DoltDiff")
-@mcp_autofix
-async def dolt_diff(input):
-    """Get a summary of differences between two revisions in Dolt.
+# @mcp.tool("DoltDiff")
+# @mcp_autofix
+# async def dolt_diff(input):
+#     """Get a summary of differences between two revisions in Dolt.
 
-    Args:
-        mode: Diff mode. 'working' for unstaged changes, 'staged' for staged changes.
-        from_revision: The starting revision (e.g., 'HEAD', 'main').
-        to_revision: The ending revision (e.g., 'WORKING', 'STAGED').
-    """
-    try:
-        input_data = DoltDiffInput(**input)
-        result = dolt_diff_tool(input_data, get_memory_bank())
-        return result.model_dump(mode="json")
-    except Exception as e:
-        logger.error(f"Error getting Dolt diff: {e}", exc_info=True)
-        return DoltDiffOutput(
-            success=False,
-            diff_summary=[],
-            message=f"An unexpected error occurred: {e}",
-            active_branch=get_memory_bank().branch,
-            error=str(e),
-        ).model_dump(mode="json")
+#     Args:
+#         mode: Diff mode. 'working' for unstaged changes, 'staged' for staged changes.
+#         from_revision: The starting revision (e.g., 'HEAD', 'main').
+#         to_revision: The ending revision (e.g., 'WORKING', 'STAGED').
+#     """
+#     try:
+#         input_data = DoltDiffInput(**input)
+#         result = dolt_diff_tool(input_data, get_memory_bank())
+#         return result.model_dump(mode="json")
+#     except Exception as e:
+#         logger.error(f"Error getting Dolt diff: {e}", exc_info=True)
+#         return DoltDiffOutput(
+#             success=False,
+#             diff_summary=[],
+#             message=f"An unexpected error occurred: {e}",
+#             active_branch=get_memory_bank().branch,
+#             error=str(e),
+#         ).model_dump(mode="json")
 
 
+# DoltAutoCommitAndPush tool now auto-generated from CogniTool instance
 # Register the DoltAutoCommitAndPush tool
-@mcp.tool("DoltAutoCommitAndPush")
-@mcp_autofix
-async def dolt_auto_commit_and_push(input):
-    """Automatically handle the complete Dolt workflow: Status -> Add -> Commit -> Push
+# @mcp.tool("DoltAutoCommitAndPush")
+# @mcp_autofix
+# async def dolt_auto_commit_and_push(input):
+#     """Automatically handle the complete Dolt workflow: Status -> Add -> Commit -> Push
 
-    This is a composite tool that performs the entire sequence atomically,
-    perfect for automated flows where you want to persist all changes.
+#     This is a composite tool that performs the entire sequence atomically,
+#     perfect for automated flows where you want to persist all changes.
 
-    Args:
-        commit_message: Commit message for the Dolt changes (required)
-        author: Optional author attribution for the commit
-        tables: Optional list of specific tables to add/commit (default: all standard tables)
-        remote_name: Name of the remote to push to (default: 'origin')
-        branch: Branch to push (default: current branch from status)
-        skip_if_clean: Skip commit/push if repository is clean (default: True)
+#     Args:
+#         commit_message: Commit message for the Dolt changes (required)
+#         author: Optional author attribution for the commit
+#         tables: Optional list of specific tables to add/commit (default: all standard tables)
+#         remote_name: Name of the remote to push to (default: 'origin')
+#         branch: Branch to push (default: current branch from status)
+#         skip_if_clean: Skip commit/push if repository is clean (default: True)
 
-    Returns:
-        JSON with comprehensive results of all operations including success status,
-        operations performed, commit hash, and push details
-    """
-    try:
-        # Parse input
-        input_data = DoltAutoCommitInput(**input)
+#     Returns:
+#         JSON with comprehensive results of all operations including success status,
+#         operations performed, commit hash, and push details
+#     """
+#     try:
+#         # Parse input
+#         input_data = DoltAutoCommitInput(**input)
 
-        # Execute the composite operation
-        result = dolt_auto_commit_and_push_tool(input_data, get_memory_bank())
+#         # Execute the composite operation
+#         result = dolt_auto_commit_and_push_tool(input_data, get_memory_bank())
 
-        # Return JSON representation
-        return result.model_dump(mode="json")
+#         # Return JSON representation
+#         return result.model_dump(mode="json")
 
-    except Exception as e:
-        logger.error(f"Error in DoltAutoCommitAndPush tool: {e}", exc_info=True)
-        return DoltAutoCommitOutput(
-            success=False,
-            message=f"Auto commit and push failed: {str(e)}",
-            operations_performed=["failed"],
-            was_clean=False,
-            active_branch=get_memory_bank().branch,
-            error=str(e),
-        ).model_dump(mode="json")
+#     except Exception as e:
+#         logger.error(f"Error in DoltAutoCommitAndPush tool: {e}", exc_info=True)
+#         return DoltAutoCommitOutput(
+#             success=False,
+#             message=f"Auto commit and push failed: {str(e)}",
+#             operations_performed=["failed"],
+#             was_clean=False,
+#             active_branch=get_memory_bank().branch,
+#             error=str(e),
+#         ).model_dump(mode="json")
 
 
 # Register a health check tool
@@ -891,51 +874,88 @@ async def health_check():
     }
 
 
+# DoltMerge tool now auto-generated from CogniTool instance
 # Register the DoltMerge tool
-@mcp.tool("DoltMerge")
-@mcp_autofix
-async def dolt_merge(input):
-    """Merge a branch into the current branch using Dolt.
+# @mcp.tool("DoltMerge")
+# @mcp_autofix
+# async def dolt_merge(input):
+#     """Merge a branch into the current branch using Dolt.
 
-    Args:
-        source_branch: Name of the branch to merge into the current branch
-        squash: Whether to squash all commits from source branch into single commit (default: False)
-        no_ff: Create a merge commit even for fast-forward merges (default: False)
-        commit_message: Custom commit message for the merge (optional)
+#     Args:
+#         source_branch: Name of the branch to merge into the current branch
+#         squash: Whether to squash all commits from source branch into single commit (default: False)
+#         no_ff: Create a merge commit even for fast-forward merges (default: False)
+#         commit_message: Custom commit message for the merge (optional)
 
-    Returns:
-        success: Whether the merge operation succeeded
-        source_branch: Name of the branch that was merged
-        target_branch: Name of the branch that was merged into
-        squash: Whether squash merge was used
-        no_ff: Whether no-fast-forward was used
-        fast_forward: Whether the merge was a fast-forward
-        conflicts: Number of conflicts encountered
-        merge_hash: Hash of the merge commit if successful
-        message: Human-readable result message
-        error: Error message if operation failed
-        timestamp: Timestamp of operation
-    """
-    try:
-        parsed_input = DoltMergeInput(**input)
-        result = dolt_merge_tool(parsed_input, memory_bank=get_memory_bank())
-        return result.model_dump(mode="json")
-    except Exception as e:
-        logger.error(f"Error in DoltMerge MCP tool: {e}")
-        return DoltMergeOutput(
-            success=False,
-            message=f"Merge failed: {str(e)}",
-            source_branch=input.get("source_branch", "unknown"),
-            target_branch=get_memory_bank().branch,
-            squash=input.get("squash", False),
-            no_ff=input.get("no_ff", False),
-            fast_forward=False,
-            conflicts=0,
-            merge_hash=None,
-            commit_message=input.get("commit_message"),
-            active_branch=get_memory_bank().branch,
-            error=f"Error during dolt_merge: {str(e)}",
-        ).model_dump(mode="json")
+#     Returns:
+#         success: Whether the merge operation succeeded
+#         source_branch: Name of the branch that was merged
+#         target_branch: Name of the branch that was merged into
+#         squash: Whether squash merge was used
+#         no_ff: Whether no-fast-forward was used
+#         fast_forward: Whether the merge was a fast-forward
+#         conflicts: Number of conflicts encountered
+#         merge_hash: Hash of the merge commit if successful
+#         message: Human-readable result message
+#         error: Error message if operation failed
+#         timestamp: Timestamp of operation
+#     """
+#     try:
+#         parsed_input = DoltMergeInput(**input)
+#         result = dolt_merge_tool(parsed_input, memory_bank=get_memory_bank())
+#         return result.model_dump(mode="json")
+#     except Exception as e:
+#         logger.error(f"Error in DoltMerge MCP tool: {e}")
+#         return DoltMergeOutput(
+#             success=False,
+#             message=f"Merge failed: {str(e)}",
+#             source_branch=input.get("source_branch", "unknown"),
+#             target_branch=get_memory_bank().branch,
+#             squash=input.get("squash", False),
+#             no_ff=input.get("no_ff", False),
+#             fast_forward=False,
+#             conflicts=0,
+#             merge_hash=None,
+#             commit_message=input.get("commit_message"),
+#             active_branch=get_memory_bank().branch,
+#             error=f"Error during dolt_merge: {str(e)}",
+#         ).model_dump(mode="json")
+
+
+# === BATCH 3 - ADVANCED DOLT TOOLS NOW AUTO-GENERATED ===
+# The following 6 Advanced Dolt Tools have been converted to auto-generated CogniTool instances
+# for proper parameter schema visibility. Manual registrations commented out.
+
+# DoltPull tool now auto-generated from CogniTool instance
+# Register the DoltPull tool
+# @mcp.tool("DoltPull")
+# @mcp_autofix
+# async def dolt_pull(input):
+#     """Pull changes from a remote repository using Dolt.
+
+#     Args:
+#         remote_name: Name of the remote to pull from (default: 'origin')
+#         branch: Specific branch to pull (default: 'main')
+#         force: Whether to force pull, ignoring conflicts
+#         no_ff: Create a merge commit even for fast-forward merges
+#         squash: Merge changes to working set without updating commit history
+
+#     Returns:
+#         JSON string with pull results including success status and message
+#     """
+#     try:
+#         # Create input object
+#         input_data = DoltPullInput(**input)
+
+#         # Execute the pull operation
+#         result = dolt_pull_tool(input_data, get_memory_bank())
+
+#         # Return JSON representation
+#         return result.model_dump_json(indent=2)
+
+#     except Exception as e:
+#         logger.error(f"Error in DoltPull tool: {e}", exc_info=True)
+#         return json.dumps({"success": False, "error": str(e)}, indent=2)
 
 
 # When this file is executed directly, use the MCP CLI
