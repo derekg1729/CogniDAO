@@ -1,15 +1,15 @@
 from typing import TypedDict, Annotated, Sequence, Literal
 import os
 import logging
+import asyncio
+from functools import lru_cache
 
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import ToolNode
 from langgraph.graph import StateGraph, END, add_messages
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Default fallback tools for when MCP is not available
@@ -25,23 +25,43 @@ except ImportError:
 
 mcp_url = os.getenv("COGNI_MCP_URL", "http://127.0.0.1:24160/sse")
 
-# Remove the problematic module-level await call
+ALLOWED_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"]
 
+def _create_tools_signature(tools):
+    """Create a deterministic signature for tools to use as cache key."""
+    return ",".join(sorted(getattr(t, "name", t.__class__.__name__) for t in tools))
 
-def _get_model(model_name: str, tools=None):
+@lru_cache(maxsize=32)
+def _get_bound_model(model_name: str, tools_signature: str, tools_tuple):
+    """Get cached model instance with tools already bound.
+    
+    Args:
+        model_name: Name of the model to create
+        tools_signature: Deterministic signature for cache key
+        tools_tuple: Tuple of tools (for cache invalidation, not used in function)
+    """
     if model_name == "gpt-4o":
-        model = ChatOpenAI(temperature=0, model_name="gpt-4o")
+        base_model = ChatOpenAI(temperature=0, model_name="gpt-4o")
     elif model_name == "gpt-4o-mini":
-        model = ChatOpenAI(temperature=0, model_name="gpt-4o-mini")
+        base_model = ChatOpenAI(temperature=0, model_name="gpt-4o-mini")
     elif model_name == "gpt-3.5-turbo":
-        model = ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo-0125")
+        base_model = ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo-0125")
     else:
-        raise ValueError(f"Unsupported model type: {model_name}")
+        raise ValueError(f"Unsupported model {model_name}; choose from {ALLOWED_MODELS}")
 
-    # Use MCP tools if available, otherwise fallback tools
+    # Convert tools tuple back to list and bind
+    tools_list = list(tools_tuple)
+    return base_model.bind_tools(tools_list)
+
+def _get_cached_bound_model(model_name: str, tools):
+    """Get a fully-bound model with tools, using caching for performance."""
     tools_to_bind = tools if tools else fallback_tools
-    model = model.bind_tools(tools_to_bind)
-    return model
+    tools_signature = _create_tools_signature(tools_to_bind)
+    
+    # Convert to tuple for hashing (required for LRU cache)
+    tools_tuple = tuple(tools_to_bind)
+    
+    return _get_bound_model(model_name, tools_signature, tools_tuple)
 
 
 class AgentState(TypedDict):
@@ -51,13 +71,19 @@ class AgentState(TypedDict):
 # Define the function that determines whether to continue or not
 def should_continue(state):
     messages = state["messages"]
-    last_message = messages[-1]
-    # If there are no tool calls, then we finish
-    if not last_message.tool_calls:
+    
+    # Guard against empty messages
+    if not messages:
         return "end"
-    # Otherwise if there is, we continue
-    else:
+    
+    last_message = messages[-1]
+    
+    # Robust check for tool calls
+    tool_calls = getattr(last_message, 'tool_calls', None)
+    if tool_calls:
         return "continue"
+    else:
+        return "end"
 
 
 system_prompt = """Be a helpful assistant"""
@@ -68,73 +94,90 @@ class GraphConfig(TypedDict):
     model_name: Literal["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"]
 
 
-async def build_graph():
-    """Build the LangGraph workflow with MCP tools."""
-    # Get MCP tools
-    client = MultiServerMCPClient(
-        {
+# Global tools cache
+_tools = None
+_tools_lock = asyncio.Lock()
+
+async def _initialize_tools():
+    """Initialize MCP tools with fallback."""
+    global _tools
+    
+    # Check if already initialized (fast path)
+    if _tools is not None:
+        return _tools
+    
+    # Use lock to prevent race conditions
+    async with _tools_lock:
+        # Double-check pattern
+        if _tools is not None:
+            return _tools
+        
+        client = MultiServerMCPClient({
             "cogni-mcp": {
                 "url": mcp_url,
                 "transport": "sse",
             }
-        }
-    )
+        })
 
-    try:
-        mcp_tools = await client.get_tools()
-        logger.info(f"Successfully connected to MCP server. Got {len(mcp_tools)} tools")
-        tools = mcp_tools
-    except Exception as e:
-        logger.warning(f"Failed to connect to MCP server: {e}. Using fallback tools.")
-        tools = fallback_tools
+        try:
+            mcp_tools = await client.get_tools()
+            logger.info(f"Successfully connected to MCP server. Got {len(mcp_tools)} tools")
+            _tools = mcp_tools
+        except Exception as e:
+            logger.warning(f"Failed to connect to MCP server: {e}. Using fallback tools.")
+            _tools = fallback_tools
+        
+        return _tools
 
-    # Define the function that calls the model
-    def call_model(state, config):
-        messages = state["messages"]
-        messages = [{"role": "system", "content": system_prompt}] + messages
-        model_name = config.get("configurable", {}).get("model_name", "gpt-4o-mini")
-        model = _get_model(model_name, tools)
-        response = model.invoke(messages)
-        # We return a list, because this will get added to the existing list
-        return {"messages": [response]}
+async def call_model(state, config):
+    """Call the model with MCP tools."""
+    tools = await _initialize_tools()
+    messages = state["messages"]
+    messages = [SystemMessage(content=system_prompt)] + messages
+    model_name = config.get("configurable", {}).get("model_name", "gpt-4o-mini")
+    
+    # Get cached bound model (eliminates repeated bind_tools calls)
+    model = _get_cached_bound_model(model_name, tools)
+    
+    response = await model.ainvoke(messages)
+    return {"messages": [response]}
 
-    # Define the function to execute tools
-    tool_node = ToolNode(tools)
-
-    # Define a new graph
+async def build_graph():
+    """Build the LangGraph workflow with MCP tools.
+    
+    Returns:
+        StateGraph: An uncompiled StateGraph instance. 
+        Call .compile() on the result to get a runnable graph.
+        
+    Example:
+        workflow = await build_graph()
+        app = workflow.compile()
+        result = await app.ainvoke({"messages": [HumanMessage("Hello")]})
+    """
+    tools = await _initialize_tools()
+    
     workflow = StateGraph(AgentState, config_schema=GraphConfig)
-
-    # Define the two nodes we will cycle between
     workflow.add_node("agent", call_model)
-    workflow.add_node("action", tool_node)
-
-    # Set the entrypoint as `agent`
-    # This means that this node is the first one called
+    workflow.add_node("action", ToolNode(tools))
     workflow.set_entry_point("agent")
-
-    # We now add a conditional edge
-    workflow.add_conditional_edges(
-        # First, we define the start node. We use `agent`.
-        # This means these are the edges taken after the `agent` node is called.
-        "agent",
-        # Next, we pass in the function that will determine which node is called next.
-        should_continue,
-        # Finally we pass in a mapping.
-        # The keys are strings, and the values are other nodes.
-        # END is a special node marking that the graph should finish.
-        # What will happen is we will call `should_continue`, and then the output of that
-        # will be matched against the keys in this mapping.
-        # Based on which one it matches, that node will then be called.
-        {
-            # If `tools`, then we call the tool node.
-            "continue": "action",
-            # Otherwise we finish.
-            "end": END,
-        },
-    )
-
-    # We now add a normal edge from `tools` to `agent`.
-    # This means that after `tools` is called, `agent` node is called next.
+    workflow.add_conditional_edges("agent", should_continue, {
+        "continue": "action",
+        "end": END,
+    })
     workflow.add_edge("action", "agent")
-
+    
     return workflow
+
+async def build_compiled_graph():
+    """Build and compile the LangGraph workflow with MCP tools.
+    
+    Returns:
+        CompiledStateGraph: A compiled, ready-to-use graph instance.
+        
+    Example:
+        app = await build_compiled_graph()
+        result = await app.ainvoke({"messages": [HumanMessage("Hello")]})
+    """
+    workflow = await build_graph()
+    return workflow.compile()
+
