@@ -5,7 +5,9 @@ from llama_index.core import StorageContext, VectorStoreIndex, load_index_from_s
 from llama_index.core.schema import NodeWithScore  # Added import for return type
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core.graph_stores.simple import SimpleGraphStore
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+# Temporarily disabled due to metadata corruption
+# from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.core.settings import Settings
 from typing import List, Optional
 
@@ -51,12 +53,14 @@ class LlamaMemory:
         self.graph_store = None
         self._is_in_memory = self.chroma_path == IN_MEMORY_PATH
 
-        # Set up local embedding model instead of OpenAI
-        logging.info("Setting up local HuggingFace embedding model")
+        # Temporarily using OpenAI embeddings due to HuggingFace metadata corruption
+        logging.info("Setting up OpenAI embedding model (temporary workaround)")
         try:
-            # Initialize HuggingFace embedding model
-            embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en-v1.5")
+            # Initialize OpenAI embedding model
+            embed_model = OpenAIEmbedding(model="text-embedding-3-small")
             Settings.embed_model = embed_model
+
+            # embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en-v1.5")
 
             # CRITICAL: Explicitly disable LLM in Settings to prevent OpenAI initialization
             Settings.llm = None
