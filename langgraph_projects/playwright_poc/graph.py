@@ -63,7 +63,7 @@ async def get_mcp_tools():
     """Get tools from the MCP server."""
     # Use Docker network URL if available, fallback to localhost
     mcp_url = os.getenv("PLAYWRIGHT_MCP_URL", "http://localhost:58462/sse#playwright")
-    
+
     client = MultiServerMCPClient(
         {
             "playwright": {
@@ -114,7 +114,7 @@ async def agent_node(state: PlaywrightState) -> PlaywrightState:
             **state,
             "messages": [AIMessage(content="No messages to process.")],
         }
-    
+
     last_message = state["messages"][-1]
     if not isinstance(last_message, HumanMessage):
         return state
@@ -236,18 +236,18 @@ def create_checkpointer():
 
 
 def compile_graph():
-    """Compile the graph with checkpointer for production use."""
+    """Compile the graph for LangGraph API (persistence handled automatically)."""
     workflow = create_stategraph()
 
-    # Add checkpointer if available
-    checkpointer = create_checkpointer()
-    if checkpointer is not None:
-        compiled = workflow.compile(checkpointer=checkpointer)
-        checkpoint_type = "Redis" if REDIS_AVAILABLE else "Memory"
-        logger.info(f"✅ Graph compiled with {checkpoint_type} checkpointer")
-    else:
-        compiled = workflow.compile()
-        logger.info("✅ Graph compiled without checkpointing")
+    # LangGraph API handles persistence automatically, so no custom checkpointer needed (and it throws an error if present))
+    # checkpointer = create_checkpointer()
+    # if checkpointer is not None:
+    #     compiled = workflow.compile(checkpointer=checkpointer)
+    #     checkpoint_type = "Redis" if REDIS_AVAILABLE else "Memory"
+    #     logger.info(f"✅ Graph compiled with {checkpoint_type} checkpointer")
+    # else:
+    compiled = workflow.compile()
+    logger.info("✅ Graph compiled for LangGraph API (automatic persistence)")
 
     return compiled
 
@@ -270,6 +270,9 @@ async def run_example():
         for node_name, node_output in event.items():
             logger.info(f"Node '{node_name}' output: {node_output}")
 
+
+# Create the graph variable that LangGraph expects
+graph = compile_graph()
 
 if __name__ == "__main__":
     # Run example for testing

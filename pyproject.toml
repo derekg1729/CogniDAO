@@ -22,6 +22,9 @@ dependencies = [
     "sentence-transformers>=2.2.2", # Embeddings used by multiple services
     "prefect>=3.0.0,<4.0.0", # Workflow orchestration for deployment scripts
     "cogni-infra-core",
+    "langchain-openai>=0.2.14",
+    "langchain-community>=0.3.27",
+    "langchain-mcp-adapters>=0.1.8",
 ]
 requires-python = ">=3.11"
 
@@ -81,7 +84,7 @@ dev = [
 
 [dependency-groups]
 dev = [
-    "langgraph-cli>=0.3.3",
+    "langgraph-cli[inmem]>=0.3.3",
 ]
 
 [tool.ruff]
@@ -99,6 +102,7 @@ members = [
     "services/web_api", 
     "services/prefect_worker",
     "langgraph_projects/playwright_poc",
+    "langgraph_projects/cogni_presence",
 ]
 
 [tool.uv.sources]
