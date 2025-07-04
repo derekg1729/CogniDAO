@@ -32,7 +32,7 @@ uv run tox
 ```
 
 You can run a specific suite with `uv run tox -e <env>`.
-Valid environments include `infra_core`, `mcp_server`, `web_api` and `integration` (see README lines 54–63).
+Valid environments right now include `infra_core`, `mcp_server`, `web_api` and `integration`.
 
 ## Pull Requests
 - Reference lines in files when summarizing changes.
