@@ -34,6 +34,9 @@ from infra_core.memory_system.tools.agent_facing.create_work_item_tool import cr
 from infra_core.memory_system.tools.agent_facing.delete_memory_block_tool import (
     delete_memory_block_tool_instance,
 )
+from infra_core.memory_system.tools.agent_facing.get_active_work_items_tool import (
+    get_active_work_items_tool,
+)
 from infra_core.memory_system.tools.agent_facing.get_memory_block_tool import (
     get_memory_block_tool_instance,
 )
@@ -104,7 +107,8 @@ def get_all_cogni_tools() -> List[CogniTool]:
         tools.append(update_task_status_tool)
     if add_validation_report_tool:
         tools.append(add_validation_report_tool)
-    # Note: get_active_work_items doesn't have CogniTool instance yet
+    if get_active_work_items_tool:
+        tools.append(get_active_work_items_tool)
 
     # Document operations
     if create_doc_memory_block_tool:

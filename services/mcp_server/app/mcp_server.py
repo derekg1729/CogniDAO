@@ -11,10 +11,7 @@ from mcp.server.fastmcp import FastMCP
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
 from infra_core.memory_system.sql_link_manager import SQLLinkManager
-from infra_core.memory_system.tools.agent_facing.get_active_work_items_tool import (
-    get_active_work_items_tool,
-    GetActiveWorkItemsInput,
-)
+# get_active_work_items_tool now auto-generated
 from infra_core.memory_system.pm_executable_links import ExecutableLinkManager
 from infra_core.memory_system.tools.agent_facing.get_linked_blocks_tool import (
     get_linked_blocks_tool,
@@ -488,37 +485,7 @@ except Exception as e:
 ## TODO: manual tool registration required for these. CogniTools do not exist yet
 
 
-# Register the GetActiveWorkItems tool
-@mcp.tool("GetActiveWorkItems")
-@mcp_autofix
-async def get_active_work_items(input):
-    """Get work items that are currently active (status='in_progress') with optional filtering
-
-    Args:
-        priority_filter: Optional filter by priority level (P0 highest, P5 lowest)
-        work_item_type_filter: Optional filter by work item type (task, project, epic, bug)
-        limit: Maximum number of results to return (1-100)
-
-    Output contains 'work_items' array sorted by priority (P0 first) then creation date.
-    """
-    try:
-        # Inject namespace if not provided (input already normalized by decorator)
-        input_with_namespace = inject_current_namespace(input)
-
-        parsed_input = GetActiveWorkItemsInput(**input_with_namespace)
-        result = get_active_work_items_tool(
-            memory_bank=get_memory_bank(), **parsed_input.model_dump()
-        )
-        return result.model_dump()
-
-    except Exception as e:
-        logger.error(f"Error getting active work items: {str(e)}")
-        return {
-            "success": False,
-            "error": f"Failed to get active work items: {str(e)}",
-            "work_items": [],
-            "timestamp": datetime.now(),
-        }
+# GetActiveWorkItems tool now auto-generated from CogniTool instance
 
 
 # Register the GetLinkedBlocks tool

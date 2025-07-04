@@ -23,7 +23,7 @@ except ImportError:
 
     fallback_tools = [TavilySearchResults(max_results=1)]
 
-mcp_url = os.getenv("COGNI_MCP_URL", "http://localhost:44234/sse")
+mcp_url = os.getenv("COGNI_MCP_URL", "http://localhost:20069/sse")
 
 ALLOWED_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"]
 
