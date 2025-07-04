@@ -43,6 +43,9 @@ from infra_core.memory_system.tools.agent_facing.get_memory_block_tool import (
 from infra_core.memory_system.tools.agent_facing.get_memory_links_tool import (
     get_memory_links_tool_instance,
 )
+from infra_core.memory_system.tools.agent_facing.get_linked_blocks_tool import (
+    get_linked_blocks_tool_instance,
+)
 from infra_core.memory_system.tools.agent_facing.get_project_graph_tool import (
     get_project_graph_tool,
 )
@@ -121,7 +124,8 @@ def get_all_cogni_tools() -> List[CogniTool]:
         tools.append(get_memory_links_tool_instance)
     if create_block_link_tool:
         tools.append(create_block_link_tool)
-    # Note: get_linked_blocks doesn't have CogniTool instance yet
+    if get_linked_blocks_tool_instance:
+        tools.append(get_linked_blocks_tool_instance)
 
     # Bulk operations
     if bulk_create_blocks_tool:

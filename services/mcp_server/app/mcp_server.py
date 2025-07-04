@@ -11,12 +11,9 @@ from mcp.server.fastmcp import FastMCP
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
 from infra_core.memory_system.sql_link_manager import SQLLinkManager
+
 # get_active_work_items_tool now auto-generated
 from infra_core.memory_system.pm_executable_links import ExecutableLinkManager
-from infra_core.memory_system.tools.agent_facing.get_linked_blocks_tool import (
-    get_linked_blocks_tool,
-    GetLinkedBlocksInput,
-)
 from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
     dolt_repo_tool,
     DoltCommitInput,
@@ -488,42 +485,7 @@ except Exception as e:
 # GetActiveWorkItems tool now auto-generated from CogniTool instance
 
 
-# Register the GetLinkedBlocks tool
-@mcp.tool("GetLinkedBlocks")
-@mcp_autofix
-async def get_linked_blocks(input):
-    """Get all blocks linked to a specific block with relationship information
-
-    Args:
-        source_block_id: ID of the source block to find links for
-        relation_filter: Optional filter by specific relation type (e.g., 'subtask_of', 'depends_on')
-        direction_filter: Filter by link direction relative to source block (incoming, outgoing, both)
-        limit: Maximum number of linked blocks to return (1-200)
-
-    Output contains 'linked_blocks' array with full block details and relationship context.
-    """
-    try:
-        # Inject namespace if not provided (input already normalized by decorator)
-        input_with_namespace = inject_current_namespace(input)
-
-        parsed_input = GetLinkedBlocksInput(**input_with_namespace)
-        result = get_linked_blocks_tool(
-            source_block_id=parsed_input.source_block_id,
-            relation_filter=parsed_input.relation_filter,
-            direction_filter=parsed_input.direction_filter,
-            limit=parsed_input.limit,
-            memory_bank=get_memory_bank(),
-        )
-        return result.model_dump()
-
-    except Exception as e:
-        logger.error(f"Error getting linked blocks: {str(e)}")
-        return {
-            "success": False,
-            "error": f"Failed to get linked blocks: {str(e)}",
-            "linked_blocks": [],
-            "timestamp": datetime.now(),
-        }
+# GetLinkedBlocks tool now auto-generated
 
 
 # NOTE: CreateBlockLink now has CogniTool instance - using auto-generated version
