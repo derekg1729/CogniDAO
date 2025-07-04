@@ -64,6 +64,8 @@ integration = [
     "tqdm",
     "onnxruntime",
 ]
+
+[dependency-groups]
 dev = [
     # Essential development and testing dependencies only
     "pytest>=7.0.0",
@@ -75,16 +77,12 @@ dev = [
     "respx>=0.22.0",  # HTTP mocking for HTTPX (used in test fixtures)
     "tox",  # Multi-environment testing tool
     "tox-uv>=0.4",  # UV plugin for tox (required by tox.ini)
+    "langgraph-cli[inmem]>=0.3.3",
     
     # Essential dependencies for basic development workflow
     # (Full dependencies available through service-specific installs)
     "fastapi",  # Basic web framework for dev
     "requests",  # HTTP client for dev/testing
-]
-
-[dependency-groups]
-dev = [
-    "langgraph-cli[inmem]>=0.3.3",
 ]
 
 [tool.ruff]

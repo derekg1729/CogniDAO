@@ -669,19 +669,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-dev = [
-    { name = "fastapi" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "pytest-mock" },
-    { name = "requests" },
-    { name = "respx" },
-    { name = "ruff" },
-    { name = "tox" },
-    { name = "tox-uv" },
-]
 integration = [
     { name = "autogen-core" },
     { name = "crewai" },
@@ -706,7 +693,18 @@ playwright = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "fastapi" },
     { name = "langgraph-cli", extra = ["inmem"] },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "pytest-mock" },
+    { name = "requests" },
+    { name = "respx" },
+    { name = "ruff" },
+    { name = "tox" },
+    { name = "tox-uv" },
 ]
 
 [package.metadata]
@@ -715,7 +713,6 @@ requires-dist = [
     { name = "cogni-infra-core", editable = "libs/infra_core" },
     { name = "crewai", marker = "extra == 'integration'", specifier = ">=0.1.0" },
     { name = "doltpy" },
-    { name = "fastapi", marker = "extra == 'dev'" },
     { name = "fastapi", marker = "extra == 'integration'" },
     { name = "httpx", marker = "extra == 'integration'", specifier = ">=0.24.0" },
     { name = "langchain-community", specifier = ">=0.3.27" },
@@ -729,31 +726,34 @@ requires-dist = [
     { name = "onnxruntime", marker = "extra == 'integration'" },
     { name = "openai", marker = "extra == 'integration'", specifier = ">=1.0.0" },
     { name = "playwright", marker = "extra == 'playwright'", specifier = ">=1.49.0" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.2.0" },
     { name = "prefect", specifier = ">=3.0.0,<4.0.0" },
     { name = "pydantic", specifier = ">=2.8.0" },
     { name = "pygithub", marker = "extra == 'integration'", specifier = ">=1.0.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.0.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
-    { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.10.0" },
     { name = "pytest-playwright", marker = "extra == 'playwright'" },
     { name = "python-frontmatter", marker = "extra == 'integration'" },
-    { name = "requests", marker = "extra == 'dev'" },
-    { name = "respx", marker = "extra == 'dev'", specifier = ">=0.22.0" },
     { name = "rpds-py" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.3.3" },
     { name = "sentence-transformers", specifier = ">=2.2.2" },
-    { name = "tox", marker = "extra == 'dev'" },
-    { name = "tox-uv", marker = "extra == 'dev'", specifier = ">=0.4" },
     { name = "tqdm", marker = "extra == 'integration'" },
     { name = "tweepy", marker = "extra == 'integration'", specifier = ">=4.0.0" },
     { name = "uvicorn", marker = "extra == 'integration'", specifier = ">=0.27.0" },
 ]
-provides-extras = ["playwright", "integration", "dev"]
+provides-extras = ["playwright", "integration"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "langgraph-cli", extras = ["inmem"], specifier = ">=0.3.3" }]
+dev = [
+    { name = "fastapi" },
+    { name = "langgraph-cli", extras = ["inmem"], specifier = ">=0.3.3" },
+    { name = "pre-commit", specifier = ">=4.2.0" },
+    { name = "pytest", specifier = ">=7.0.0" },
+    { name = "pytest-asyncio", specifier = ">=1.0.0" },
+    { name = "pytest-cov", specifier = ">=4.0.0" },
+    { name = "pytest-mock", specifier = ">=3.10.0" },
+    { name = "requests" },
+    { name = "respx", specifier = ">=0.22.0" },
+    { name = "ruff", specifier = ">=0.3.3" },
+    { name = "tox" },
+    { name = "tox-uv", specifier = ">=0.4" },
+]
 
 [[package]]
 name = "cogni-core-presence"
