@@ -23,7 +23,7 @@ except ImportError:
 
     fallback_tools = [TavilySearchResults(max_results=1)]
 
-mcp_url = os.getenv("COGNI_MCP_URL", "http://127.0.0.1:24160/sse")
+mcp_url = os.getenv("COGNI_MCP_URL", "http://localhost:44234/sse")
 
 ALLOWED_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"]
 
@@ -32,13 +32,12 @@ def _create_tools_signature(tools):
     return ",".join(sorted(getattr(t, "name", t.__class__.__name__) for t in tools))
 
 @lru_cache(maxsize=32)
-def _get_bound_model(model_name: str, tools_signature: str, tools_tuple):
+def _get_bound_model(model_name: str, tools_signature: str):
     """Get cached model instance with tools already bound.
     
     Args:
         model_name: Name of the model to create
         tools_signature: Deterministic signature for cache key
-        tools_tuple: Tuple of tools (for cache invalidation, not used in function)
     """
     if model_name == "gpt-4o":
         base_model = ChatOpenAI(temperature=0, model_name="gpt-4o")
@@ -49,19 +48,24 @@ def _get_bound_model(model_name: str, tools_signature: str, tools_tuple):
     else:
         raise ValueError(f"Unsupported model {model_name}; choose from {ALLOWED_MODELS}")
 
-    # Convert tools tuple back to list and bind
-    tools_list = list(tools_tuple)
-    return base_model.bind_tools(tools_list)
+    # Use global tools for binding (ensures consistency with signature)
+    global _tools
+    tools_to_bind = _tools if _tools else fallback_tools
+    return base_model.bind_tools(tools_to_bind)
+
 
 def _get_cached_bound_model(model_name: str, tools):
     """Get a fully-bound model with tools, using caching for performance."""
-    tools_to_bind = tools if tools else fallback_tools
+    # Update global tools if provided
+    global _tools
+    if tools:
+        _tools = tools
+
+    tools_to_bind = _tools if _tools else fallback_tools
     tools_signature = _create_tools_signature(tools_to_bind)
-    
-    # Convert to tuple for hashing (required for LRU cache)
-    tools_tuple = tuple(tools_to_bind)
-    
-    return _get_bound_model(model_name, tools_signature, tools_tuple)
+
+    # Only pass hashable signature to cached function
+    return _get_bound_model(model_name, tools_signature)
 
 
 class AgentState(TypedDict):
@@ -98,14 +102,15 @@ class GraphConfig(TypedDict):
 _tools = None
 _tools_lock = asyncio.Lock()
 
+
 async def _initialize_tools():
     """Initialize MCP tools with fallback."""
     global _tools
-    
+
     # Check if already initialized (fast path)
     if _tools is not None:
         return _tools
-    
+
     # Use lock to prevent race conditions
     async with _tools_lock:
         # Double-check pattern
@@ -126,8 +131,9 @@ async def _initialize_tools():
         except Exception as e:
             logger.warning(f"Failed to connect to MCP server: {e}. Using fallback tools.")
             _tools = fallback_tools
-        
+
         return _tools
+
 
 async def call_model(state, config):
     """Call the model with MCP tools."""
@@ -135,27 +141,28 @@ async def call_model(state, config):
     messages = state["messages"]
     messages = [SystemMessage(content=system_prompt)] + messages
     model_name = config.get("configurable", {}).get("model_name", "gpt-4o-mini")
-    
+
     # Get cached bound model (eliminates repeated bind_tools calls)
     model = _get_cached_bound_model(model_name, tools)
-    
+
     response = await model.ainvoke(messages)
     return {"messages": [response]}
 
+
 async def build_graph():
     """Build the LangGraph workflow with MCP tools.
-    
+
     Returns:
-        StateGraph: An uncompiled StateGraph instance. 
+        StateGraph: An uncompiled StateGraph instance.
         Call .compile() on the result to get a runnable graph.
-        
+
     Example:
         workflow = await build_graph()
         app = workflow.compile()
         result = await app.ainvoke({"messages": [HumanMessage("Hello")]})
     """
     tools = await _initialize_tools()
-    
+
     workflow = StateGraph(AgentState, config_schema=GraphConfig)
     workflow.add_node("agent", call_model)
     workflow.add_node("action", ToolNode(tools))
@@ -180,4 +187,5 @@ async def build_compiled_graph():
     """
     workflow = await build_graph()
     return workflow.compile()
+
 
