@@ -1,27 +1,31 @@
-# LangGraph Test Cheat-Sheet  
-**Goal:** deterministic, cheap, thorough.  
+## Goal  
+Deterministic • cheap • thorough
 
-## Pyramid  
-• **Unit** – node func only (pytest + FakeListLLM)  
-• **Component** – compiled graph w/ stub nodes; assert route & state  
-• **E2E** – LangSmith `evaluate()` / pytest-plugin vs golden dataset  
-
-## Design for Test  
-• Inject LLM/tools; expose `build_graph(agent_node=…)` factory  
-• Call `graph.nodes['x'].invoke()` directly for fast node tests  
+## Layers  
+- **Unit** — call `graph.nodes['foo'].invoke()` with `FakeListLLM` :contentReference[oaicite:0]{index=0}  
+- **Component** — compile graph, stub LLM/tool nodes, assert chosen edge + state :contentReference[oaicite:1]{index=1}  
+- **E2E** — run `langsmith.evaluate()` or `pytest -m eval` on a golden dataset :contentReference[oaicite:2]{index=2}  
 
 ## Determinism  
-• `temperature=0`, fixed RNG seeds  
-• Cache model calls (LangSmith cassettes)  
+- Set `temperature=0`, fix RNG seeds, replay LangSmith cassettes :contentReference[oaicite:3]{index=3}  
+- Default to `FakeListLLM` for local runs :contentReference[oaicite:4]{index=4}  
 
-## Mock LLM  
-• `FakeListLLM` / `FakeChatModel` for predictable outputs  
-• Subclass to capture prompts if needed  
+## Prompt Contracts  
+- Snapshot rendered prompts (e.g., `pytest-approvals`); fail on diff :contentReference[oaicite:5]{index=5}  
 
-## Assertions  
-• Verify edge taken & side-effects (DB write, Redis checkpoint)  
-• Edge-case drills: resume-checkpoint, tool failure, concurrent invokes  
+## Fault-Tolerance & Concurrency  
+- **Resume test:** save Redis/SQLite checkpoint → mutate → `invoke(None)`; expect identical result :contentReference[oaicite:6]{index=6}  
+- **Parallel test:** multiple invocations with mock interrupts; assert isolation :contentReference[oaicite:7]{index=7}  
 
-## CI One-Liner  
+## Cost & Latency Guards  
+- Env-caps (`LANGSMITH_BILLING_MAX_USD`, token limits); fail if p95 latency ↑ 15 % :contentReference[oaicite:8]{index=8}  
+
+## Dataset Discipline  
+- Store golden `.jsonl` in `tests/data` and version with DVC/Dolt :contentReference[oaicite:9]{index=9}  
+
+## Fuzzing  
+- Use `hypothesis` on router nodes to surface unseen paths :contentReference[oaicite:10]{index=10}  
+
 ```bash
-pytest -q && pytest -m eval tests/e2e
+# CI one-liner
+pytest -q && pytest -m eval
