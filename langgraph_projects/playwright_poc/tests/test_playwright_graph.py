@@ -13,8 +13,8 @@ from unittest.mock import Mock
 from langchain_core.messages import HumanMessage, AIMessage
 from langgraph.graph import StateGraph, END
 
-# Import the graph components
-from graphs.playwright_basic.graph import (
+# Import the graph components (using relative import since tests run from project dir)
+from graph import (
     PlaywrightState,
     create_stategraph,
     should_continue,

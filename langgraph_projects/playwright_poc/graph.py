@@ -13,7 +13,7 @@ Key components:
 4. Compiled graph artifact for deployment
 
 Usage:
-    from graphs.playwright_basic.graph import create_stategraph
+    from langgraph_projects.playwright_poc.graph import create_stategraph
 
     graph = create_stategraph()
     compiled = graph.compile()
