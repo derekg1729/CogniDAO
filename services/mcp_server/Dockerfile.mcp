@@ -15,12 +15,8 @@ RUN pip install --no-cache-dir uv
 # Set working directory
 WORKDIR /app
 
-# Copy workspace configuration files
-COPY pyproject.toml uv.lock* ./
-
-# Copy only the required workspace members
-COPY libs/infra_core/ ./libs/infra_core/
-COPY services/mcp_server/ ./services/mcp_server/
+# Copy entire cogni project to preserve dependencies
+COPY . .
 
 # Change to MCP server directory where pyproject.toml lives
 WORKDIR /app/services/mcp_server
