@@ -761,6 +761,7 @@ version = "0.1.0"
 source = { editable = "langgraph_projects/cogni_presence" }
 dependencies = [
     { name = "langchain-community" },
+    { name = "langchain-mcp-adapters" },
     { name = "langchain-openai" },
     { name = "langgraph" },
 ]
@@ -768,6 +769,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "langchain-community", specifier = ">=0.2.11" },
+    { name = "langchain-mcp-adapters", specifier = ">=0.1.0,<0.2.0" },
     { name = "langchain-openai", specifier = ">=0.1.17" },
     { name = "langgraph", specifier = ">=0.3.0,<0.4.0" },
 ]
