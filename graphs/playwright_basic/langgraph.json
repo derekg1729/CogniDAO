@@ -2,41 +2,21 @@
     "$schema": "https://schemas.langchain.com/langgraph/v1/manifest.json",
     "schema_version": 1,
     "dependencies": [
-        "cogni_adapters",
-        "langgraph>=0.3.0,<0.6.0",
+        ".",
+        "langgraph>=0.3.0",
         "langgraph-checkpoint-redis>=2.0.0",
-        "langchain-mcp-adapters>=0.1.0,<0.2.0",
+        "langchain-mcp-adapters>=0.1.0",
         "langchain-core>=0.3.0",
         "langchain-openai>=0.2.0",
-        "openai>=1.0.0,<1.80.0",
+        "openai>=1.0.0",
         "redis>=5.0.0"
     ],
     "env": [
         "OPENAI_API_KEY",
         "REDIS_URL"
     ],
-    "entrypoint": "graph:compile_graph",
-    "python_version": ">=3.11",
     "graphs": {
-        "playwright_basic": {
-            "title": "Playwright Basic Automation Graph",
-            "description": "A LangGraph for browser automation using Playwright MCP tools. Supports screenshot capture, navigation, and general web automation tasks.",
-            "entrypoint": "graph:compile_graph",
-            "env": [
-                "OPENAI_API_KEY",
-                "REDIS_URL"
-            ],
-            "dependencies": [
-                "cogni_adapters",
-                "langgraph>=0.3.0,<0.6.0",
-                "langgraph-checkpoint-redis>=2.0.0",
-                "langchain-mcp-adapters>=0.1.0,<0.2.0",
-                "langchain-core>=0.3.0",
-                "langchain-openai>=0.2.0",
-                "openai>=1.0.0,<1.80.0",
-                "redis>=5.0.0"
-            ]
-        }
+        "playwright_basic": "./graph.py:compiled_graph"
     },
-    "dockerfile": "../../docker/Dockerfile"
+    "python_version": "3.11"
 }

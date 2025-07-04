@@ -61,10 +61,13 @@ class PlaywrightState(TypedDict):
 
 async def get_mcp_tools():
     """Get tools from the MCP server."""
+    # Use Docker network URL if available, fallback to localhost
+    mcp_url = os.getenv("PLAYWRIGHT_MCP_URL", "http://localhost:58462/sse#playwright")
+    
     client = MultiServerMCPClient(
         {
             "playwright": {
-                "url": "http://localhost:58462/sse#playwright",
+                "url": mcp_url,
                 "transport": "sse",
             }
         }
@@ -261,6 +264,9 @@ async def run_example():
         for node_name, node_output in event.items():
             logger.info(f"Node '{node_name}' output: {node_output}")
 
+
+# Create the compiled graph instance for LangGraph CLI
+compiled_graph = compile_graph()
 
 if __name__ == "__main__":
     # Run example for testing

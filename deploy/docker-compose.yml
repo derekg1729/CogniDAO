@@ -159,7 +159,31 @@ services:
       - "8080:8080"  # Use ToolHive's default port 8080
       - "24160:24160"  # Expose MCP server port for container-to-container access (cogni-mcp)
       - "24161:24161"  # Expose MCP server port for git-mcp
+      - "58462:58462"  # Playwright MCP server port
     restart: unless-stopped
+
+  # LangGraph Playwright Basic Service
+  langgraph-playwright:
+    image: ${LANGGRAPH_PLAYWRIGHT_IMAGE:-cogni-langgraph-playwright-local}
+    build:
+      context: ../graphs/playwright_basic
+      dockerfile: Dockerfile
+    env_file: ./.env
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - REDIS_URL=redis://redis:6379
+      - PLAYWRIGHT_MCP_URL=http://toolhive:58462/sse#playwright
+      - PREFECT_API_URL=http://prefect-server:4200/api
+    ports:
+      - "8001:8000"  # LangGraph API port
+    depends_on:
+      redis:
+        condition: service_healthy
+      toolhive:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - cogni-net
 
 volumes:
   caddy_data:
