@@ -61,10 +61,13 @@ class PlaywrightState(TypedDict):
 
 async def get_mcp_tools():
     """Get tools from the MCP server."""
+    # Use Docker network URL if available, fallback to localhost
+    mcp_url = os.getenv("PLAYWRIGHT_MCP_URL", "http://localhost:58462/sse#playwright")
+    
     client = MultiServerMCPClient(
         {
             "playwright": {
-                "url": "http://localhost:58462/sse#playwright",
+                "url": mcp_url,
                 "transport": "sse",
             }
         }

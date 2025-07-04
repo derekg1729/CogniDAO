@@ -79,6 +79,11 @@ dev = [
     "requests",  # HTTP client for dev/testing
 ]
 
+[dependency-groups]
+dev = [
+    "langgraph-cli>=0.3.3",
+]
+
 [tool.ruff]
 line-length = 100
 exclude = ["build", "dist", ".venv", "__pycache__"]
@@ -93,6 +98,7 @@ members = [
     "services/mcp_server",
     "services/web_api", 
     "services/prefect_worker",
+    "graphs/playwright_basic",
 ]
 
 [tool.uv.sources]

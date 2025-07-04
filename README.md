@@ -54,13 +54,15 @@ uv sync --extra dev
 To run tests:
 ```bash
 # Run all test suites
-tox
+uv run tox
 
 # Run specific service tests
-tox run -e infra_core
-tox run -e mcp_server  
-tox run -e web_api
+uv run tox run -e infra_core
+uv run tox run -e mcp_server  
+uv run tox run -e web_api
 ```
+
+**Troubleshooting**: If you encounter testing issues, see [Testing Troubleshooting Guide](docs/TESTING_TROUBLESHOOTING.md)
 
 ### Schema Infrastructure
 
