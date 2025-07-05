@@ -119,6 +119,9 @@ async def _initialize_tools():
         if _tools is not None:
             return _tools
 
+        # Log the exact URL being used for connection
+        logger.info(f"Attempting MCP connection to: {mcp_url}")
+
         client = MultiServerMCPClient(
             {
                 "cogni-mcp": {
@@ -129,6 +132,7 @@ async def _initialize_tools():
         )
 
         try:
+            logger.info("Starting MCP client initialization...")
             # Add timeout to prevent hanging during MCP initialization
             mcp_tools = await asyncio.wait_for(client.get_tools(), timeout=30.0)
             logger.info(f"Successfully connected to MCP server. Got {len(mcp_tools)} tools")
@@ -139,7 +143,13 @@ async def _initialize_tools():
             )
             _tools = fallback_tools
         except Exception as e:
-            logger.warning(f"Failed to connect to MCP server: {e}. Using fallback tools.")
+            # Log the full exception details for debugging
+            logger.error(f"Failed to connect to MCP server at {mcp_url}: {type(e).__name__}: {e}")
+            logger.error(f"Exception details: {repr(e)}")
+            import traceback
+
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            logger.warning("Using fallback tools due to MCP connection failure.")
             _tools = fallback_tools
 
         return _tools
@@ -150,7 +160,9 @@ async def call_model(state, config):
     tools = await _initialize_tools()
     messages = state["messages"]
     messages = [SystemMessage(content=system_prompt)] + messages
-    model_name = config.get("configurable", {}).get("model_name", "gpt-4o-mini")
+
+    # Handle case where model_name is explicitly None (not just missing)
+    model_name = config.get("configurable", {}).get("model_name") or "gpt-4o-mini"
 
     # Get cached bound model (eliminates repeated bind_tools calls)
     model = _get_cached_bound_model(model_name, tools)
