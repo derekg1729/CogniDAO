@@ -5,6 +5,7 @@ from llama_index.core import StorageContext, VectorStoreIndex, load_index_from_s
 from llama_index.core.schema import NodeWithScore  # Added import for return type
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core.graph_stores.simple import SimpleGraphStore
+
 # Temporarily disabled due to metadata corruption
 # from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.embeddings.openai import OpenAIEmbedding
@@ -72,11 +73,11 @@ class LlamaMemory:
                 f"Failed to initialize HuggingFace embedding model: {embed_error}", exc_info=True
             )
             logging.error(
-                "This may cause LlamaIndex to fall back to OpenAI, leading to API key errors"
+                "To fix this, either install the missing dependencies or set OPENAI_API_KEY."
             )
-            raise RuntimeError(f"Embedding model initialization failed: {embed_error}")
+            raise RuntimeError(f"Embedding initialization failed: {embed_error}")
 
-        logging.info("Local embedding model configured")
+        logging.info("Embedding model configured successfully")
 
         if not self._is_in_memory:
             self.graph_store_path = os.path.join(self.chroma_path, DEFAULT_GRAPH_STORE_FILENAME)
