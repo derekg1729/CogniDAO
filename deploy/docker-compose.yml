@@ -52,6 +52,24 @@ services:
     networks:
       - cogni-net
 
+  # PostgreSQL Service for LangGraph Server Runtime
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=langgraph
+      - POSTGRES_USER=langgraph
+      - POSTGRES_PASSWORD=langgraph
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langgraph"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - cogni-net
+
   # Web API Service  
   api:
     image: ${API_IMAGE:-cogni-api-local}
@@ -157,9 +175,7 @@ services:
       - THV_NO_UPDATES=1  # Prevent version checks to avoid startup lag
     ports:
       - "8080:8080"  # Use ToolHive's default port 8080
-      - "24160:24160"  # Expose MCP server port for container-to-container access (cogni-mcp)
-      - "24161:24161"  # Expose MCP server port for git-mcp
-      - "58462:58462"  # Playwright MCP server port
+      # MCP server ports are dynamically managed by ToolHive when servers are deployed
     restart: unless-stopped
 
   # LangGraph Playwright Basic Service
@@ -168,14 +184,42 @@ services:
     env_file: ./.env
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY}
       - REDIS_URI=redis://redis:6379
-      - DATABASE_URI=sqlite:///tmp/langgraph.db
+      - DATABASE_URI=postgresql://langgraph:langgraph@postgres:5432/langgraph
       - PLAYWRIGHT_MCP_URL=http://toolhive:58462/sse#playwright
       - PREFECT_API_URL=http://prefect-server:4200/api
     ports:
       - "8001:8000"  # LangGraph API port
     depends_on:
       redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      toolhive:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - cogni-net
+
+  # LangGraph Cogni Presence Service
+  langgraph-cogni-presence:
+    image: ${LANGGRAPH_COGNI_PRESENCE_IMAGE:-cogni-langgraph-presence-local}
+    env_file: ./.env
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY}
+      - REDIS_URI=redis://redis:6379
+      - DATABASE_URI=postgresql://langgraph:langgraph@postgres:5432/langgraph
+      - COGNI_MCP_URL=http://toolhive:24160/sse
+      - PREFECT_API_URL=http://prefect-server:4200/api
+      - LOG_LEVEL=debug
+    ports:
+      - "8002:8000"  # LangGraph API port (different from playwright)
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
       toolhive:
         condition: service_started

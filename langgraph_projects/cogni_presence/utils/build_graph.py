@@ -23,18 +23,20 @@ except ImportError:
 
     fallback_tools = [TavilySearchResults(max_results=1)]
 
-mcp_url = os.getenv("COGNI_MCP_URL", "http://localhost:20069/sse")
+mcp_url = os.getenv("COGNI_MCP_URL", "http://toolhive:24160/sse")
 
 ALLOWED_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"]
+
 
 def _create_tools_signature(tools):
     """Create a deterministic signature for tools to use as cache key."""
     return ",".join(sorted(getattr(t, "name", t.__class__.__name__) for t in tools))
 
+
 @lru_cache(maxsize=32)
 def _get_bound_model(model_name: str, tools_signature: str):
     """Get cached model instance with tools already bound.
-    
+
     Args:
         model_name: Name of the model to create
         tools_signature: Deterministic signature for cache key
@@ -75,15 +77,15 @@ class AgentState(TypedDict):
 # Define the function that determines whether to continue or not
 def should_continue(state):
     messages = state["messages"]
-    
+
     # Guard against empty messages
     if not messages:
         return "end"
-    
+
     last_message = messages[-1]
-    
+
     # Robust check for tool calls
-    tool_calls = getattr(last_message, 'tool_calls', None)
+    tool_calls = getattr(last_message, "tool_calls", None)
     if tool_calls:
         return "continue"
     else:
@@ -116,18 +118,26 @@ async def _initialize_tools():
         # Double-check pattern
         if _tools is not None:
             return _tools
-        
-        client = MultiServerMCPClient({
-            "cogni-mcp": {
-                "url": mcp_url,
-                "transport": "sse",
+
+        client = MultiServerMCPClient(
+            {
+                "cogni-mcp": {
+                    "url": mcp_url,
+                    "transport": "sse",
+                }
             }
-        })
+        )
 
         try:
-            mcp_tools = await client.get_tools()
+            # Add timeout to prevent hanging during MCP initialization
+            mcp_tools = await asyncio.wait_for(client.get_tools(), timeout=30.0)
             logger.info(f"Successfully connected to MCP server. Got {len(mcp_tools)} tools")
             _tools = mcp_tools
+        except asyncio.TimeoutError:
+            logger.warning(
+                "MCP server connection timed out after 30 seconds. Using fallback tools."
+            )
+            _tools = fallback_tools
         except Exception as e:
             logger.warning(f"Failed to connect to MCP server: {e}. Using fallback tools.")
             _tools = fallback_tools
@@ -167,25 +177,28 @@ async def build_graph():
     workflow.add_node("agent", call_model)
     workflow.add_node("action", ToolNode(tools))
     workflow.set_entry_point("agent")
-    workflow.add_conditional_edges("agent", should_continue, {
-        "continue": "action",
-        "end": END,
-    })
+    workflow.add_conditional_edges(
+        "agent",
+        should_continue,
+        {
+            "continue": "action",
+            "end": END,
+        },
+    )
     workflow.add_edge("action", "agent")
-    
+
     return workflow
+
 
 async def build_compiled_graph():
     """Build and compile the LangGraph workflow with MCP tools.
-    
+
     Returns:
         CompiledStateGraph: A compiled, ready-to-use graph instance.
-        
+
     Example:
         app = await build_compiled_graph()
         result = await app.ainvoke({"messages": [HumanMessage("Hello")]})
     """
     workflow = await build_graph()
     return workflow.compile()
-
-
