@@ -13,6 +13,7 @@ dependencies = [
     "llama-index-core>=0.11,<0.13",
     "llama-index-vector-stores-chroma",
     "llama-index-embeddings-huggingface", 
+    "llama-index-embeddings-openai",  # Added for OpenAI embeddings support in llama_memory.py
     "sentence-transformers>=2.2.2",
     
     # LangChain integrations  
