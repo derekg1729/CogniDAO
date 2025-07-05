@@ -15,7 +15,6 @@ from infra_core.memory_system.tools.agent_facing.get_active_work_items_tool impo
     get_active_work_items_tool,
     get_active_work_items,
     GetActiveWorkItemsInput,
-    GetActiveWorkItemsOutput,
 )
 
 
@@ -252,16 +251,19 @@ class TestGetActiveWorkItemsTool:
 
     def test_tool_wrapper_success(self, memory_bank):
         """Test the tool wrapper function with valid inputs."""
+        # Configure mock to return a string for active_branch
+        memory_bank.dolt_writer.active_branch = "test-branch"
+        
         with patch(
-            "infra_core.memory_system.tools.agent_facing.get_active_work_items_tool.get_active_work_items"
+            "infra_core.memory_system.tools.agent_facing.get_active_work_items_tool.get_memory_block_core"
         ) as mock_core:
-            mock_core.return_value = GetActiveWorkItemsOutput(
-                success=True,
-                work_items=[],
-                total_count=0,
-                current_branch="test-branch",
-                timestamp=datetime.now(),
-            )
+            # Mock the core function to return a successful result
+            mock_result = type('MockResult', (), {
+                'success': True,
+                'blocks': [],
+                'current_branch': 'test-branch'
+            })()
+            mock_core.return_value = mock_result
 
             # Execute
             result = get_active_work_items_tool(
@@ -273,6 +275,7 @@ class TestGetActiveWorkItemsTool:
 
             # Assert
             assert result.success is True
+            assert result.current_branch == "test-branch"
             mock_core.assert_called_once()
 
     def test_tool_wrapper_input_validation_error(self, memory_bank):
@@ -296,7 +299,7 @@ class TestGetActiveWorkItemsTool:
         memory_bank.dolt_writer.active_branch = "test-branch"
 
         with patch(
-            "infra_core.memory_system.tools.agent_facing.get_active_work_items_tool.get_active_work_items"
+            "infra_core.memory_system.tools.agent_facing.get_active_work_items_tool.get_memory_block_core"
         ) as mock_core:
             mock_core.side_effect = Exception("Unexpected error")
 
@@ -305,6 +308,4 @@ class TestGetActiveWorkItemsTool:
 
             # Assert
             assert result.success is False
-            assert (
-                "Validation error:" in result.error
-            )  # Tool wrapper catches all exceptions as validation errors
+            assert "Unexpected error" in result.error

@@ -61,16 +61,18 @@ class TestIndividualNodes:
     @patch("utils.build_graph._get_cached_bound_model")
     @patch("utils.build_graph._initialize_tools")
     @pytest.mark.asyncio
-    async def test_call_model_basic(self, mock_initialize_tools, mock_get_cached_bound_model, sample_config):
+    async def test_call_model_basic(
+        self, mock_initialize_tools, mock_get_cached_bound_model, sample_config
+    ):
         """Test call_model with mocked LLM response."""
         # Setup fake tools
         mock_initialize_tools.return_value = []
-        
+
         # Setup fake model
         fake_response = AIMessage(content="Test response", tool_calls=[])
         bound_model = Mock()
         bound_model.ainvoke = AsyncMock(return_value=fake_response)
-        
+
         mock_get_cached_bound_model.return_value = bound_model
 
         # Test state
@@ -101,7 +103,7 @@ class TestIndividualNodes:
             mock_openai.return_value = mock_model
             mock_model.bind_tools.return_value = mock_model
 
-            result = _get_bound_model("gpt-4o-mini", "test_tools", ())
+            result = _get_bound_model("gpt-4o-mini", "test_tools")
 
             mock_openai.assert_called_once_with(temperature=0, model_name="gpt-4o-mini")
             assert result == mock_model
@@ -109,7 +111,7 @@ class TestIndividualNodes:
     def test_get_bound_model_unsupported(self):
         """Test _get_bound_model raises ValueError for unsupported model."""
         with pytest.raises(ValueError, match="Unsupported model invalid-model; choose from"):
-            _get_bound_model("invalid-model", "test_tools", ())
+            _get_bound_model("invalid-model", "test_tools")
 
 
 class TestStateManagement:
@@ -173,16 +175,18 @@ class TestGraphCompilation:
     @patch("utils.build_graph._get_cached_bound_model")
     @patch("utils.build_graph._initialize_tools")
     @pytest.mark.asyncio
-    async def test_basic_workflow_execution(self, mock_initialize_tools, mock_get_cached_bound_model):
+    async def test_basic_workflow_execution(
+        self, mock_initialize_tools, mock_get_cached_bound_model
+    ):
         """Test basic workflow execution with mocked model."""
         # Setup fake tools
         mock_initialize_tools.return_value = []
-        
+
         # Setup fake model that returns response without tool calls (ends flow)
         fake_response = AIMessage(content="Hello! How can I help?", tool_calls=[])
         bound_model = Mock()
         bound_model.ainvoke = AsyncMock(return_value=fake_response)
-        
+
         mock_get_cached_bound_model.return_value = bound_model
 
         workflow = await build_graph()
@@ -205,11 +209,13 @@ class TestGraphCompilation:
     @patch("utils.build_graph._get_cached_bound_model")
     @patch("utils.build_graph._initialize_tools")
     @pytest.mark.asyncio
-    async def test_workflow_with_tool_calls(self, mock_initialize_tools, mock_get_cached_bound_model):
+    async def test_workflow_with_tool_calls(
+        self, mock_initialize_tools, mock_get_cached_bound_model
+    ):
         """Test workflow continues to tools when model returns tool calls."""
         # Setup fake tools
         mock_initialize_tools.return_value = []
-        
+
         # Create model that first returns tool calls, then regular response
         first_response = AIMessage(
             content="Let me search for that.",
@@ -221,12 +227,12 @@ class TestGraphCompilation:
 
         bound_model = Mock()
         bound_model.ainvoke = AsyncMock(side_effect=[first_response, second_response])
-        
+
         mock_get_cached_bound_model.return_value = bound_model
 
         workflow = await build_graph()
         compiled = workflow.compile()
-        
+
         initial_state = {"messages": [HumanMessage(content="Search for something")]}
         config = {"configurable": {"model_name": "gpt-4o-mini"}}
 
@@ -250,12 +256,12 @@ class TestDeterminism:
         """Test that models are created with temperature=0 for determinism."""
         # Clear cache before test
         _get_bound_model.cache_clear()
-        
+
         mock_model = Mock()
         mock_openai.return_value = mock_model
         mock_model.bind_tools.return_value = mock_model
 
-        _get_bound_model("gpt-4o-mini", "unique_test_tools_id", ())
+        _get_bound_model("gpt-4o-mini", "unique_test_tools_id")
 
         mock_openai.assert_called_with(temperature=0, model_name="gpt-4o-mini")
 
@@ -286,15 +292,17 @@ class TestErrorHandling:
     @patch("utils.build_graph._get_cached_bound_model")
     @patch("utils.build_graph._initialize_tools")
     @pytest.mark.asyncio
-    async def test_model_error_handling(self, mock_initialize_tools, mock_get_cached_bound_model, sample_config):
+    async def test_model_error_handling(
+        self, mock_initialize_tools, mock_get_cached_bound_model, sample_config
+    ):
         """Test call_model handles model errors gracefully."""
         # Setup fake tools
         mock_initialize_tools.return_value = []
-        
+
         # Setup model to raise exception
         bound_model = Mock()
         bound_model.ainvoke = AsyncMock(side_effect=Exception("Model error"))
-        
+
         mock_get_cached_bound_model.return_value = bound_model
 
         state = {"messages": [HumanMessage(content="Hello")]}
