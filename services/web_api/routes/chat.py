@@ -54,7 +54,7 @@ async def chat(req: Request, auth=Depends(verify_auth)):
                     response.raise_for_status()
                     async for chunk in response.aiter_text():
                         if chunk.strip():
-                            yield f"data: {chunk}\n\n"
+                            yield chunk
             except Exception as e:
                 log.error(f"Streaming error: {e}")
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"

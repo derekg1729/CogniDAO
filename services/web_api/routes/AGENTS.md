@@ -41,3 +41,9 @@ docker-compose build web_api && docker-compose up -d web_api
 - Web API runs on `localhost:8000`
 - LangGraph runs on `localhost:8002`
 - Check health: `docker-compose ps`
+
+## Testing
+- Example test curl:
+```bash
+curl -X POST "http://localhost:8000/api/v1/chat" -H "Authorization: Bearer ${COGNI_API_KEY}" -H "Content-Type: application/json" -d '{"message": "Hello - this is a test user message"}'
+```
