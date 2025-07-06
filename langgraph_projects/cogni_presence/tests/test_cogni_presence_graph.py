@@ -105,7 +105,9 @@ class TestIndividualNodes:
 
             result = _get_bound_model("gpt-4o-mini", "test_tools")
 
-            mock_openai.assert_called_once_with(temperature=0, model_name="gpt-4o-mini")
+            mock_openai.assert_called_once_with(
+                temperature=0, model_name="gpt-4o-mini", streaming=True
+            )
             assert result == mock_model
 
     def test_get_bound_model_unsupported(self):
@@ -151,26 +153,40 @@ class TestGraphCompilation:
     """Component tests for compiled graph structure and routing."""
 
     @pytest.mark.asyncio
-    async def test_workflow_compilation(self):
+    async def test_workflow_compilation(self, mock_mcp_client):
         """Test that workflow compiles successfully."""
-        workflow = await build_graph()
-        compiled = workflow.compile()
+        with patch("utils.build_graph.MultiServerMCPClient") as mock_client_class:
+            mock_client_class.return_value = mock_mcp_client
+            
+            # Clear global tools cache
+            import utils.build_graph as bg
+            bg._tools = None
+            
+            workflow = await build_graph()
+            compiled = workflow.compile()
 
-        # Should have invoke methods
-        assert hasattr(compiled, "invoke")
-        assert hasattr(compiled, "ainvoke")
-        assert hasattr(compiled, "stream")
-        assert hasattr(compiled, "astream")
+            # Should have invoke methods
+            assert hasattr(compiled, "invoke")
+            assert hasattr(compiled, "ainvoke")
+            assert hasattr(compiled, "stream")
+            assert hasattr(compiled, "astream")
 
     @pytest.mark.asyncio
-    async def test_workflow_nodes_exist(self):
+    async def test_workflow_nodes_exist(self, mock_mcp_client):
         """Test that workflow has expected nodes."""
-        workflow = await build_graph()
-        compiled = workflow.compile()
+        with patch("utils.build_graph.MultiServerMCPClient") as mock_client_class:
+            mock_client_class.return_value = mock_mcp_client
+            
+            # Clear global tools cache
+            import utils.build_graph as bg
+            bg._tools = None
+            
+            workflow = await build_graph()
+            compiled = workflow.compile()
 
-        # Check node structure (this tests the graph was built correctly)
-        # We can't directly access nodes, but we can test compilation succeeded
-        assert compiled is not None
+            # Check node structure (this tests the graph was built correctly)
+            # We can't directly access nodes, but we can test compilation succeeded
+            assert compiled is not None
 
     @patch("utils.build_graph._get_cached_bound_model")
     @patch("utils.build_graph._initialize_tools")
@@ -263,11 +279,12 @@ class TestDeterminism:
 
         _get_bound_model("gpt-4o-mini", "unique_test_tools_id")
 
-        mock_openai.assert_called_with(temperature=0, model_name="gpt-4o-mini")
+        mock_openai.assert_called_with(temperature=0, model_name="gpt-4o-mini", streaming=True)
 
     def test_system_prompt_consistency(self):
         """Test that system prompt is consistent."""
-        assert system_prompt == "Be a helpful assistant"
+        assert "CogniDAO assistant" in system_prompt
+        assert "GetActiveWorkItems" in system_prompt
         assert isinstance(system_prompt, str)
         assert len(system_prompt) > 0
 

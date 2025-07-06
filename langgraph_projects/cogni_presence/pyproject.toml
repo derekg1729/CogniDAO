@@ -16,6 +16,14 @@ dependencies = [
 ]
 requires-python = ">=3.11"
 
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=1.0.0",
+    "pytest-mock>=3.10.0",
+    "langchain-tavily>=0.1.0",  # For fallback tools testing
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
