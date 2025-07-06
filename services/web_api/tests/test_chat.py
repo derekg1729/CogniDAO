@@ -31,53 +31,22 @@ def mock_memory_bank():
     return bank
 
 
-@pytest.mark.asyncio
-async def test_chat_endpoint_simple_message(mock_memory_bank):
-    """Test the /chat endpoint with a simple message and no history."""
-    app.state.memory_bank = mock_memory_bank
-
-    with (
-        patch("services.web_api.routes.chat.query_doc_memory_block") as mock_qdb,
-        patch("services.web_api.routes.chat.ChatOpenAI") as MockChatOpenAI,
-        patch(
-            "services.web_api.routes.chat.AsyncIteratorCallbackHandler"
-        ) as MockAsyncIteratorCallbackHandler,
-        patch("services.web_api.routes.chat.AIMessage") as MockAIMessage,
-        patch("services.web_api.routes.chat.HumanMessage") as MockHumanMessage,
-        patch("services.web_api.routes.chat.SystemMessage"),
-    ):
-        mock_qdb.return_value = MagicMock(success=True, blocks=[])
-
-        mock_llm_instance = MockChatOpenAI.return_value
-        mock_llm_instance.agenerate = AsyncMock(return_value=MagicMock())
-
-        mock_callback_instance = MockAsyncIteratorCallbackHandler.return_value
-
-        async def mock_aiter_gen():
-            yield "Hello "
-            yield "world!"
-
-        mock_callback_instance.aiter.return_value = mock_aiter_gen()
-        mock_callback_instance.done = asyncio.Event()
-
-        MockHumanMessage.side_effect = lambda content: type(
-            "MockedHumanMessage", (), {"content": content}
-        )
-        MockAIMessage.side_effect = lambda content: type(
-            "MockedAIMessage", (), {"content": content}
-        )
-
-        chat_request_data = CompleteQueryRequest(message="Hello")
-
-        response = client.post("/chat", json=chat_request_data.model_dump())
-
-        assert response.status_code == 200
-        content = response.text
-        print(f"Chat response content: {content}")
-        assert "Hello world!" in content
-
-    if hasattr(app.state, "memory_bank"):
-        del app.state.memory_bank
+def test_chat_endpoint_simple_message(client_with_mock_auth, mock_langgraph_success):
+    """Test the /chat endpoint with a simple message via LangGraph proxy."""
+    
+    # Make request to chat endpoint
+    response = client_with_mock_auth.post("/chat", json={"message": "Hello"})
+    
+    # Verify response is successful streaming
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
+    
+    # Verify we got some response content
+    content = response.text
+    assert len(content) > 0
+    
+    # Verify LangGraph endpoints were called
+    assert mock_langgraph_success.calls
 
 
 @pytest.mark.skip(reason="Temporarily skipping due to an AttributeError related to HistoryMessage.")

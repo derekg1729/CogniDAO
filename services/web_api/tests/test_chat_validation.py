@@ -17,6 +17,7 @@ import pytest
 from unittest.mock import patch
 from httpx import AsyncClient
 import respx
+import httpx
 
 from services.web_api.app import app
 from services.web_api import auth_utils
@@ -49,17 +50,12 @@ def mock_langgraph_success():
     with respx.mock(base_url="http://langgraph-cogni-presence:8000") as respx_mock:
         # Mock successful thread creation
         respx_mock.post("/threads").mock(
-            return_value=respx.Response(200, json={"thread_id": "test_thread"})
+            return_value=httpx.Response(200, json={"thread_id": "test_thread"})
         )
 
-        # Mock successful run creation
-        respx_mock.post("/threads/test_thread/runs").mock(
-            return_value=respx.Response(200, json={"run_id": "test_run"})
-        )
-
-        # Mock successful streaming
-        respx_mock.get("/threads/test_thread/runs/test_run/stream").mock(
-            return_value=respx.Response(200, text='data: {"type": "complete"}\n\n')
+        # Mock successful streaming (the actual endpoint used by the new implementation)
+        respx_mock.post("/threads/test_thread/runs/stream").mock(
+            return_value=httpx.Response(200, text='data: {"type": "complete"}\n\n')
         )
 
         yield respx_mock
@@ -218,7 +214,7 @@ class TestResponseValidation:
         # Mock LangGraph failure
         with respx.mock(base_url="http://langgraph-cogni-presence:8000") as respx_mock:
             respx_mock.post("/threads").mock(
-                return_value=respx.Response(500, json={"detail": "Server error"})
+                return_value=httpx.Response(500, json={"detail": "Server error"})
             )
 
             response = await async_test_client.post("/api/v1/chat", json={"message": "Hello"})
@@ -232,7 +228,7 @@ class TestResponseValidation:
         # Mock LangGraph failure
         with respx.mock(base_url="http://langgraph-cogni-presence:8000") as respx_mock:
             respx_mock.post("/threads").mock(
-                return_value=respx.Response(500, json={"detail": "Server error"})
+                return_value=httpx.Response(500, json={"detail": "Server error"})
             )
 
             response = await async_test_client.post("/api/v1/chat", json={"message": "Hello"})
@@ -350,7 +346,7 @@ class TestEdgeCases:
 
             async def slow_response():
                 await asyncio.sleep(10)  # Simulate slow response
-                return respx.Response(200, json={"thread_id": "test"})
+                return httpx.Response(200, json={"thread_id": "test"})
 
             respx_mock.post("/threads").mock(side_effect=slow_response)
 
