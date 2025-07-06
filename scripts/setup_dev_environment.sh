@@ -29,7 +29,7 @@ fi
 
 # Install Python dependencies using UV workspace
 echo "Installing Python dependencies with UV..."
-uv sync --extra dev --extra integration
+make env
 
 # Install/reinstall pre-commit hooks (this is idempotent and safe to run multiple times)
 echo "Installing pre-commit hooks..."

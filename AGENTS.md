@@ -16,6 +16,10 @@ Run the development setup script once to install dependencies and pre-commit hoo
 ```bash
 ./scripts/setup_dev_environment.sh
 ```
+or
+```bash
+uv sync --group dev --group integration 
+```
 
 ## Linting
 Run Ruff and other pre-commit checks before committing:

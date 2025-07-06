@@ -64,3 +64,7 @@ thv-cogni-mcp-local:
 		--env CHROMA_PATH=/app/chroma \
 		--env CHROMA_COLLECTION_NAME=cogni_mcp_collection \
 		cogni-mcp:latest
+
+
+make env:
+	uv sync --group dev --group integration 

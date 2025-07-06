@@ -670,23 +670,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-integration = [
-    { name = "autogen-core" },
-    { name = "crewai" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "langchain-openai" },
-    { name = "llama-index-embeddings-openai" },
-    { name = "llama-index-llms-openai" },
-    { name = "mcp" },
-    { name = "onnxruntime" },
-    { name = "openai" },
-    { name = "pygithub" },
-    { name = "python-frontmatter" },
-    { name = "tqdm" },
-    { name = "tweepy" },
-    { name = "uvicorn" },
-]
 playwright = [
     { name = "playwright" },
     { name = "pytest-playwright" },
@@ -707,39 +690,41 @@ dev = [
     { name = "tox" },
     { name = "tox-uv" },
 ]
+integration = [
+    { name = "autogen-core" },
+    { name = "crewai" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "langchain-openai" },
+    { name = "llama-index-embeddings-openai" },
+    { name = "llama-index-llms-openai" },
+    { name = "mcp" },
+    { name = "onnxruntime" },
+    { name = "openai" },
+    { name = "pygithub" },
+    { name = "python-frontmatter" },
+    { name = "tqdm" },
+    { name = "tweepy" },
+    { name = "uvicorn" },
+]
 
 [package.metadata]
 requires-dist = [
-    { name = "autogen-core", marker = "extra == 'integration'" },
     { name = "cogni-infra-core", editable = "libs/infra_core" },
-    { name = "crewai", marker = "extra == 'integration'", specifier = ">=0.1.0" },
     { name = "doltpy" },
-    { name = "fastapi", marker = "extra == 'integration'" },
-    { name = "httpx", marker = "extra == 'integration'", specifier = ">=0.24.0" },
     { name = "langchain-community", specifier = ">=0.3.27" },
     { name = "langchain-mcp-adapters", specifier = ">=0.1.8" },
     { name = "langchain-openai", specifier = ">=0.2.14" },
-    { name = "langchain-openai", marker = "extra == 'integration'" },
     { name = "llama-index-embeddings-openai", specifier = ">=0.3.1" },
-    { name = "llama-index-embeddings-openai", marker = "extra == 'integration'" },
-    { name = "llama-index-llms-openai", marker = "extra == 'integration'" },
-    { name = "mcp", marker = "extra == 'integration'" },
     { name = "mysql-connector-python", specifier = ">=8.0.21" },
-    { name = "onnxruntime", marker = "extra == 'integration'" },
-    { name = "openai", marker = "extra == 'integration'", specifier = ">=1.0.0" },
     { name = "playwright", marker = "extra == 'playwright'", specifier = ">=1.49.0" },
     { name = "prefect", specifier = ">=3.0.0,<4.0.0" },
     { name = "pydantic", specifier = ">=2.8.0" },
-    { name = "pygithub", marker = "extra == 'integration'", specifier = ">=1.0.0" },
     { name = "pytest-playwright", marker = "extra == 'playwright'" },
-    { name = "python-frontmatter", marker = "extra == 'integration'" },
     { name = "rpds-py" },
     { name = "sentence-transformers", specifier = ">=2.2.2" },
-    { name = "tqdm", marker = "extra == 'integration'" },
-    { name = "tweepy", marker = "extra == 'integration'", specifier = ">=4.0.0" },
-    { name = "uvicorn", marker = "extra == 'integration'", specifier = ">=0.27.0" },
 ]
-provides-extras = ["playwright", "integration"]
+provides-extras = ["playwright"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -755,6 +740,23 @@ dev = [
     { name = "ruff", specifier = ">=0.3.3" },
     { name = "tox" },
     { name = "tox-uv", specifier = ">=0.4" },
+]
+integration = [
+    { name = "autogen-core" },
+    { name = "crewai", specifier = ">=0.1.0" },
+    { name = "fastapi" },
+    { name = "httpx", specifier = ">=0.24.0" },
+    { name = "langchain-openai" },
+    { name = "llama-index-embeddings-openai" },
+    { name = "llama-index-llms-openai" },
+    { name = "mcp" },
+    { name = "onnxruntime" },
+    { name = "openai", specifier = ">=1.0.0" },
+    { name = "pygithub", specifier = ">=1.0.0" },
+    { name = "python-frontmatter" },
+    { name = "tqdm" },
+    { name = "tweepy", specifier = ">=4.0.0" },
+    { name = "uvicorn", specifier = ">=0.27.0" },
 ]
 
 [[package]]
