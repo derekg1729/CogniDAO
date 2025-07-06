@@ -409,14 +409,16 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_chat_endpoint_extremely_nested_json(self, async_test_client):
         """Test handling of extremely nested JSON (potential DoS)."""
-        # Create deeply nested JSON
+        # Create deeply nested JSON but keep message field at top level
         nested_data = {"message": "Hello"}
+        nested_part = {"nested": "data"}
         for _ in range(100):  # Create 100 levels of nesting
-            nested_data = {"nested": nested_data}
+            nested_part = {"nested": nested_part}
+        nested_data["extra_nested"] = nested_part
 
         response = await async_test_client.post("/api/v1/chat", json=nested_data)
 
-        # Should either accept it or reject with validation error
+        # Should either accept it (ignoring nested extra fields) or reject with validation error
         assert response.status_code in [200, 422]
 
     @pytest.mark.asyncio

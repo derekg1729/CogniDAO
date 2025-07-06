@@ -99,16 +99,11 @@ def mock_langgraph_success():
     with respx.mock(base_url="http://langgraph-cogni-presence:8000") as respx_mock:
         # Mock successful thread creation
         respx_mock.post("/threads").mock(
-            return_value=httpx.Response(200, json={"thread_id": "test_thread"})
+            return_value=httpx.Response(200, json={"thread_id": "test_thread_123"})
         )
 
-        # Mock successful run creation
-        respx_mock.post("/threads/test_thread/runs").mock(
-            return_value=httpx.Response(200, json={"run_id": "test_run"})
-        )
-
-        # Mock successful streaming
-        respx_mock.get("/threads/test_thread/runs/test_run/stream").mock(
+        # Mock successful streaming (POST endpoint, not GET)
+        respx_mock.post("/threads/test_thread_123/runs/stream").mock(
             return_value=httpx.Response(200, text='data: {"type": "complete"}\n\n')
         )
 

@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Request, Depends
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse, JSONResponse
 import httpx
 import json
 import logging
 
 # Import verify_auth from auth_utils.py
 from ..auth_utils import verify_auth
+from ..models import ChatMessage
 
 BASE = "http://langgraph-cogni-presence:8000"
 ASSISTANT = "cogni_presence"
@@ -20,9 +21,8 @@ async def lg(path, method, client, **kw):
 
 
 @router.post("/chat", response_class=StreamingResponse)
-async def chat(req: Request, auth=Depends(verify_auth)):
-    body = await req.json()
-    user_msg = body["message"]
+async def chat(chat_request: ChatMessage, auth=Depends(verify_auth)):
+    user_msg = chat_request.message
 
     log.info(f"Chat request from user: {user_msg}")
 
@@ -70,4 +70,9 @@ async def chat(req: Request, auth=Depends(verify_auth)):
     except Exception as e:
         log.error(f"Chat endpoint error: {e}")
         await client.aclose()
-        return {"error": str(e)}
+        # Return proper JSON error response with correct content-type
+        return JSONResponse(
+            status_code=200,  # Keep 200 for consistency with existing tests
+            content={"error": str(e)},
+            headers={"Content-Type": "application/json"},
+        )

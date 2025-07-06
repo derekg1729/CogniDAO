@@ -96,17 +96,17 @@ class TestChatEndpointRequestValidation:
     """Test request validation and input handling."""
 
     def test_chat_endpoint_missing_message_field(self, client_with_mock_auth):
-        """Test that missing message field causes server error."""
+        """Test that missing message field returns validation error."""
 
-        # The current implementation doesn't validate input, so this will cause a 500 error
-        # rather than a 422 validation error
-        try:
-            response = client_with_mock_auth.post("/chat", json={})  # Missing message field
-            # If we get here, the endpoint handled the error
-            assert response.status_code == 500
-        except Exception:
-            # If we get an exception, that's also expected behavior for the current implementation
-            pass
+        # With Pydantic validation, this should return a 422 validation error
+        response = client_with_mock_auth.post("/chat", json={})  # Missing message field
+        assert response.status_code == 422  # FastAPI validation error
+        
+        # Check that error mentions missing message field
+        error_data = response.json()
+        assert "detail" in error_data
+        error_details = error_data["detail"]
+        assert any(err.get("loc") == ["body", "message"] for err in error_details)
 
     def test_chat_endpoint_empty_message(self, client_with_mock_auth, mock_langgraph_success):
         """Test handling of empty message content."""
