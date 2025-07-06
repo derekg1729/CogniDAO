@@ -50,15 +50,12 @@ def client_without_memory_bank():
         app.state.memory_bank = original_bank
 
 
-# === LangGraph Chat Test Fixtures ===
-
-
 @pytest.fixture
 def mock_auth():
-    """Mock auth dependency for chat tests."""
+    """Mock auth dependency that always succeeds."""
 
-    def mock_verify_auth():
-        return {"user_id": "test_user"}
+    async def mock_verify_auth():
+        return True
 
     return mock_verify_auth
 
@@ -75,16 +72,43 @@ def client_with_mock_auth(mock_auth):
 
 
 @pytest.fixture
+async def async_client():
+    """Shared async test client using new HTTPX API."""
+    from services.web_api.auth_utils import verify_auth
+
+    # Mock auth for async tests
+    async def mock_verify_auth():
+        return True
+
+    # Set up auth override
+    original_overrides = app.dependency_overrides.copy()
+    app.dependency_overrides[verify_auth] = mock_verify_auth
+
+    # Create client with new API
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+
+    # Clean up auth override
+    app.dependency_overrides = original_overrides
+
+
+@pytest.fixture
 def mock_langgraph_success():
-    """Mock successful LangGraph responses with correct URL patterns."""
+    """Mock successful LangGraph responses."""
     with respx.mock(base_url="http://langgraph-cogni-presence:8000") as respx_mock:
         # Mock successful thread creation
         respx_mock.post("/threads").mock(
-            return_value=httpx.Response(200, json={"thread_id": "test_thread_123"})
+            return_value=httpx.Response(200, json={"thread_id": "test_thread"})
         )
 
-        # Mock successful streaming (the actual endpoint used by the new implementation)
-        respx_mock.post("/threads/test_thread_123/runs/stream").mock(
+        # Mock successful run creation
+        respx_mock.post("/threads/test_thread/runs").mock(
+            return_value=httpx.Response(200, json={"run_id": "test_run"})
+        )
+
+        # Mock successful streaming
+        respx_mock.get("/threads/test_thread/runs/test_run/stream").mock(
             return_value=httpx.Response(200, text='data: {"type": "complete"}\n\n')
         )
 
@@ -92,36 +116,12 @@ def mock_langgraph_success():
 
 
 @pytest.fixture
-def mock_langgraph_streaming():
-    """Mock LangGraph streaming responses with multiple chunks."""
-    with respx.mock(base_url="http://langgraph-cogni-presence:8000") as respx_mock:
-        # Mock thread creation
-        respx_mock.post("/threads").mock(
-            return_value=httpx.Response(200, json={"thread_id": "test_thread_123"})
-        )
-
-        # Mock streaming response with multiple chunks
-        stream_content = (
-            'data: {"type": "message", "content": "Hello"}\n\n'
-            'data: {"type": "message", "content": " world"}\n\n'
-            'data: {"type": "message", "content": "!"}\n\n'
-            'data: {"type": "done"}\n\n'
-        )
-
-        respx_mock.post("/threads/test_thread_123/runs/stream").mock(
-            return_value=httpx.Response(200, text=stream_content)
-        )
-
-        yield respx_mock
-
-
-@pytest.fixture
-def mock_langgraph_error():
-    """Mock LangGraph error responses."""
+def mock_langgraph_failure():
+    """Mock LangGraph failure responses."""
     with respx.mock(base_url="http://langgraph-cogni-presence:8000") as respx_mock:
         # Mock thread creation failure
         respx_mock.post("/threads").mock(
-            return_value=httpx.Response(500, json={"detail": "Internal server error"})
+            return_value=httpx.Response(500, json={"detail": "Server error"})
         )
 
         yield respx_mock

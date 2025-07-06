@@ -19,6 +19,7 @@ import uuid
 import asyncio
 from httpx import AsyncClient
 import respx
+import httpx
 
 from services.web_api.app import app
 from services.web_api import auth_utils
@@ -35,7 +36,8 @@ app.dependency_overrides[auth_utils.verify_auth] = mock_verify_auth
 @pytest.fixture
 async def async_test_client():
     """Async test client for FastAPI app."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    transport = httpx.ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
 
 
@@ -62,12 +64,12 @@ class TestCompleteRequestFlow:
         with respx.mock(base_url="http://langgraph-cogni-presence:8000") as respx_mock:
             # Mock thread creation
             thread_request = respx_mock.post("/threads").mock(
-                return_value=respx.Response(200, json={"thread_id": sample_thread_id})
+                return_value=httpx.Response(200, json={"thread_id": sample_thread_id})
             )
 
             # Mock run creation
             run_request = respx_mock.post(f"/threads/{sample_thread_id}/runs").mock(
-                return_value=respx.Response(200, json={"run_id": sample_run_id})
+                return_value=httpx.Response(200, json={"run_id": sample_run_id})
             )
 
             # Mock realistic streaming response
@@ -87,7 +89,7 @@ class TestCompleteRequestFlow:
                     yield chunk
 
             stream_request = respx_mock.get(f"/threads/{sample_thread_id}/runs/{sample_run_id}/stream").mock(
-                return_value=respx.Response(200, stream=streaming_response())
+                return_value=httpx.Response(200, stream=streaming_response())
             )
 
             # Make the request
@@ -128,30 +130,22 @@ class TestCompleteRequestFlow:
     ):
         """Test complete chat flow that includes tool usage."""
         with respx.mock(base_url="http://langgraph-cogni-presence:8000") as respx_mock:
-            # Mock thread and run creation
+            # Mock thread creation
             respx_mock.post("/threads").mock(
-                return_value=respx.Response(200, json={"thread_id": sample_thread_id})
+                return_value=httpx.Response(200, json={"thread_id": sample_thread_id})
             )
 
-            respx_mock.post(f"/threads/{sample_thread_id}/runs").mock(
-                return_value=respx.Response(200, json={"run_id": sample_run_id})
+            # Mock streaming response with tool usage (using the correct endpoint)
+            stream_content = (
+                'data: {"type": "messages/partial", "content": {"role": "ai", "content": "Let me search for that information."}}\n\n'
+                'data: {"type": "tool_calls", "content": {"name": "GetActiveWorkItems", "args": {}}}\n\n'
+                'data: {"type": "tool_results", "content": {"result": "Found 3 active work items"}}\n\n'
+                'data: {"type": "messages/partial", "content": {"role": "ai", "content": "Based on my search, I found 3 active work items."}}\n\n'
+                'data: {"type": "messages/complete"}\n\n'
             )
 
-            # Mock streaming response with tool usage
-            tool_usage_stream = [
-                'data: {"type": "messages/partial", "content": {"role": "ai", "content": "Let me search for that information."}}\n\n',
-                'data: {"type": "tool_calls", "content": {"name": "GetActiveWorkItems", "args": {}}}\n\n',
-                'data: {"type": "tool_results", "content": {"result": "Found 3 active work items"}}\n\n',
-                'data: {"type": "messages/partial", "content": {"role": "ai", "content": "Based on my search, I found 3 active work items."}}\n\n',
-                'data: {"type": "messages/complete"}\n\n',
-            ]
-
-            async def tool_streaming_response():
-                for chunk in tool_usage_stream:
-                    yield chunk
-
-            respx_mock.get(f"/threads/{sample_thread_id}/runs/{sample_run_id}/stream").mock(
-                return_value=respx.Response(200, stream=tool_streaming_response())
+            respx_mock.post(f"/threads/{sample_thread_id}/runs/stream").mock(
+                return_value=httpx.Response(200, text=stream_content)
             )
 
             # Make request for information that would require tools
@@ -178,11 +172,11 @@ class TestCompleteRequestFlow:
         with respx.mock(base_url="http://langgraph-cogni-presence:8000") as respx_mock:
             # Mock successful setup
             respx_mock.post("/threads").mock(
-                return_value=respx.Response(200, json={"thread_id": sample_thread_id})
+                return_value=httpx.Response(200, json={"thread_id": sample_thread_id})
             )
 
             respx_mock.post(f"/threads/{sample_thread_id}/runs").mock(
-                return_value=respx.Response(200, json={"run_id": sample_run_id})
+                return_value=httpx.Response(200, json={"run_id": sample_run_id})
             )
 
             # Mock minimal streaming response
@@ -195,7 +189,7 @@ class TestCompleteRequestFlow:
                     yield chunk
 
             respx_mock.get(f"/threads/{sample_thread_id}/runs/{sample_run_id}/stream").mock(
-                return_value=respx.Response(200, stream=minimal_streaming_response())
+                return_value=httpx.Response(200, stream=minimal_streaming_response())
             )
 
             async with async_test_client.stream(
@@ -221,7 +215,7 @@ class TestErrorRecoveryAndTimeouts:
         with respx.mock(base_url="http://langgraph-cogni-presence:8000") as respx_mock:
             # Mock thread creation failure
             respx_mock.post("/threads").mock(
-                return_value=respx.Response(500, json={"detail": "Thread creation failed"})
+                return_value=httpx.Response(500, json={"detail": "Thread creation failed"})
             )
 
             response = await async_test_client.post("/api/v1/chat", json={"message": "Hello"})
@@ -239,12 +233,12 @@ class TestErrorRecoveryAndTimeouts:
         with respx.mock(base_url="http://langgraph-cogni-presence:8000") as respx_mock:
             # Mock successful thread creation
             respx_mock.post("/threads").mock(
-                return_value=respx.Response(200, json={"thread_id": sample_thread_id})
+                return_value=httpx.Response(200, json={"thread_id": sample_thread_id})
             )
 
             # Mock run creation failure
             respx_mock.post(f"/threads/{sample_thread_id}/runs").mock(
-                return_value=respx.Response(500, json={"detail": "Run creation failed"})
+                return_value=httpx.Response(500, json={"detail": "Run creation failed"})
             )
 
             response = await async_test_client.post("/api/v1/chat", json={"message": "Hello"})
@@ -261,11 +255,11 @@ class TestErrorRecoveryAndTimeouts:
         with respx.mock(base_url="http://langgraph-cogni-presence:8000") as respx_mock:
             # Mock successful setup
             respx_mock.post("/threads").mock(
-                return_value=respx.Response(200, json={"thread_id": sample_thread_id})
+                return_value=httpx.Response(200, json={"thread_id": sample_thread_id})
             )
 
             respx_mock.post(f"/threads/{sample_thread_id}/runs").mock(
-                return_value=respx.Response(200, json={"run_id": sample_run_id})
+                return_value=httpx.Response(200, json={"run_id": sample_run_id})
             )
 
             # Mock streaming that gets interrupted
@@ -276,7 +270,7 @@ class TestErrorRecoveryAndTimeouts:
                 raise ConnectionError("Stream interrupted")
 
             respx_mock.get(f"/threads/{sample_thread_id}/runs/{sample_run_id}/stream").mock(
-                return_value=respx.Response(200, stream=interrupted_streaming())
+                return_value=httpx.Response(200, stream=interrupted_streaming())
             )
 
             async with async_test_client.stream(
@@ -319,11 +313,11 @@ class TestPerformanceAndResourceManagement:
                 run_id = f"run_{i}"
 
                 respx_mock.post("/threads").mock(
-                    return_value=respx.Response(200, json={"thread_id": thread_id})
+                    return_value=httpx.Response(200, json={"thread_id": thread_id})
                 )
 
                 respx_mock.post(f"/threads/{thread_id}/runs").mock(
-                    return_value=respx.Response(200, json={"run_id": run_id})
+                    return_value=httpx.Response(200, json={"run_id": run_id})
                 )
 
                 async def concurrent_stream(response_num=i):
@@ -331,7 +325,7 @@ class TestPerformanceAndResourceManagement:
                     yield 'data: {"type": "messages/complete"}\n\n'
 
                 respx_mock.get(f"/threads/{thread_id}/runs/{run_id}/stream").mock(
-                    return_value=respx.Response(200, stream=concurrent_stream())
+                    return_value=httpx.Response(200, stream=concurrent_stream())
                 )
 
             # Make concurrent requests
@@ -367,15 +361,15 @@ class TestPerformanceAndResourceManagement:
         with respx.mock(base_url="http://langgraph-cogni-presence:8000") as respx_mock:
             # Mock successful flow
             respx_mock.post("/threads").mock(
-                return_value=respx.Response(200, json={"thread_id": sample_thread_id})
+                return_value=httpx.Response(200, json={"thread_id": sample_thread_id})
             )
 
             run_request = respx_mock.post(f"/threads/{sample_thread_id}/runs").mock(
-                return_value=respx.Response(200, json={"run_id": sample_run_id})
+                return_value=httpx.Response(200, json={"run_id": sample_run_id})
             )
 
             respx_mock.get(f"/threads/{sample_thread_id}/runs/{sample_run_id}/stream").mock(
-                return_value=respx.Response(200, text='data: {"type": "complete"}\n\n')
+                return_value=httpx.Response(200, text='data: {"type": "complete"}\n\n')
             )
 
             # Test with large message
@@ -402,11 +396,11 @@ class TestPerformanceAndResourceManagement:
         with respx.mock(base_url="http://langgraph-cogni-presence:8000") as respx_mock:
             # Mock fast responses
             respx_mock.post("/threads").mock(
-                return_value=respx.Response(200, json={"thread_id": sample_thread_id})
+                return_value=httpx.Response(200, json={"thread_id": sample_thread_id})
             )
 
             respx_mock.post(f"/threads/{sample_thread_id}/runs").mock(
-                return_value=respx.Response(200, json={"run_id": sample_run_id})
+                return_value=httpx.Response(200, json={"run_id": sample_run_id})
             )
 
             # Mock streaming with timing
@@ -417,7 +411,7 @@ class TestPerformanceAndResourceManagement:
                 yield 'data: {"type": "messages/complete"}\n\n'
 
             respx_mock.get(f"/threads/{sample_thread_id}/runs/{sample_run_id}/stream").mock(
-                return_value=respx.Response(200, stream=timed_streaming())
+                return_value=httpx.Response(200, stream=timed_streaming())
             )
 
             start_time = time.time()
@@ -458,11 +452,11 @@ class TestRealWorldScenarios:
         with respx.mock(base_url="http://langgraph-cogni-presence:8000") as respx_mock:
             # Mock conversation responses
             respx_mock.post("/threads").mock(
-                return_value=respx.Response(200, json={"thread_id": sample_thread_id})
+                return_value=httpx.Response(200, json={"thread_id": sample_thread_id})
             )
 
             respx_mock.post(f"/threads/{sample_thread_id}/runs").mock(
-                return_value=respx.Response(200, json={"run_id": sample_run_id})
+                return_value=httpx.Response(200, json={"run_id": sample_run_id})
             )
 
             conversation_responses = {
@@ -487,7 +481,7 @@ class TestRealWorldScenarios:
                         yield chunk
 
                 respx_mock.get(f"/threads/{sample_thread_id}/runs/{sample_run_id}/stream").mock(
-                    return_value=respx.Response(200, stream=conversation_stream())
+                    return_value=httpx.Response(200, stream=conversation_stream())
                 )
 
                 async with async_test_client.stream(

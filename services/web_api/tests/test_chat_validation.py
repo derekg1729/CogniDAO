@@ -40,7 +40,8 @@ def setup_auth_override():
 @pytest.fixture
 async def async_test_client():
     """Async test client for FastAPI app."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    transport = httpx.ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
 
 
@@ -248,7 +249,8 @@ class TestAuthValidation:
         # Remove auth override to test real auth
         app.dependency_overrides = {}
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        transport = httpx.ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.post("/api/v1/chat", json={"message": "Hello"})
 
             # Should fail due to missing auth
@@ -261,7 +263,8 @@ class TestAuthValidation:
         app.dependency_overrides = {}
 
         with patch.dict("os.environ", {"COGNI_API_KEY": "valid_key"}):
-            async with AsyncClient(app=app, base_url="http://test") as client:
+            transport = httpx.ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
                 response = await client.post(
                     "/api/v1/chat",
                     json={"message": "Hello"},
@@ -278,7 +281,8 @@ class TestAuthValidation:
         app.dependency_overrides = {}
 
         with patch.dict("os.environ", {"COGNI_API_KEY": "valid_key"}):
-            async with AsyncClient(app=app, base_url="http://test") as client:
+            transport = httpx.ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
                 response = await client.post(
                     "/api/v1/chat",
                     json={"message": "Hello"},
@@ -295,7 +299,8 @@ class TestAuthValidation:
         app.dependency_overrides = {}
 
         with patch.dict("os.environ", {"COGNI_API_KEY": "valid_key"}):
-            async with AsyncClient(app=app, base_url="http://test") as client:
+            transport = httpx.ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
                 response = await client.post(
                     "/api/v1/chat",
                     json={"message": "Hello"},
