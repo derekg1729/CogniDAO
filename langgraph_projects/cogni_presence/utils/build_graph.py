@@ -41,14 +41,18 @@ def _get_bound_model(model_name: str, tools_signature: str):
         model_name: Name of the model to create
         tools_signature: Deterministic signature for cache key
     """
-    if model_name == "gpt-4o":
-        base_model = ChatOpenAI(temperature=0, model_name="gpt-4o")
-    elif model_name == "gpt-4o-mini":
-        base_model = ChatOpenAI(temperature=0, model_name="gpt-4o-mini")
-    elif model_name == "gpt-3.5-turbo":
-        base_model = ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo-0125")
-    else:
+    # Map model names to their actual OpenAI model identifiers
+    model_mapping = {
+        "gpt-4o": "gpt-4o",
+        "gpt-4o-mini": "gpt-4o-mini",
+        "gpt-3.5-turbo": "gpt-3.5-turbo-0125",
+    }
+
+    if model_name not in model_mapping:
         raise ValueError(f"Unsupported model {model_name}; choose from {ALLOWED_MODELS}")
+
+    # Enable token-level streaming so downstream SSE emits deltas
+    base_model = ChatOpenAI(temperature=0, model_name=model_mapping[model_name], streaming=True)
 
     # Use global tools for binding (ensures consistency with signature)
     global _tools
