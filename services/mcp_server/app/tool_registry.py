@@ -46,9 +46,11 @@ from infra_core.memory_system.tools.agent_facing.get_memory_links_tool import (
 from infra_core.memory_system.tools.agent_facing.get_linked_blocks_tool import (
     get_linked_blocks_tool_instance,
 )
-from infra_core.memory_system.tools.agent_facing.get_project_graph_tool import (
-    get_project_graph_tool,
-)
+
+# DISABLED: GetProjectGraph tool marked as deprecated and broken
+# from infra_core.memory_system.tools.agent_facing.get_project_graph_tool import (
+#     get_project_graph_tool,
+# )
 from infra_core.memory_system.tools.agent_facing.global_memory_inventory_tool import (
     global_memory_inventory_tool,
 )
@@ -58,12 +60,15 @@ from infra_core.memory_system.tools.agent_facing.global_semantic_search_tool imp
 from infra_core.memory_system.tools.agent_facing.health_check_tool import (
     health_check_tool,
 )
-from infra_core.memory_system.tools.agent_facing.log_interaction_block_tool import (
-    log_interaction_block_tool,
-)
-from infra_core.memory_system.tools.agent_facing.query_doc_memory_block_tool import (
-    query_doc_memory_block_tool,
-)
+
+# DISABLED: LogInteractionBlock tool marked as unused
+# from infra_core.memory_system.tools.agent_facing.log_interaction_block_tool import (
+#     log_interaction_block_tool,
+# )
+# DISABLED: QueryDocMemoryBlock tool confirmed broken (returns 0 results)
+# from infra_core.memory_system.tools.agent_facing.query_doc_memory_block_tool import (
+#     query_doc_memory_block_tool,
+# )
 from infra_core.memory_system.tools.agent_facing.set_context_tool import set_context_tool
 from infra_core.memory_system.tools.agent_facing.update_memory_block_tool import (
     update_memory_block_tool_instance,
@@ -144,8 +149,9 @@ def get_all_cogni_tools() -> List[CogniTool]:
     # Document operations
     if create_doc_memory_block_tool:
         tools.append(create_doc_memory_block_tool)
-    if query_doc_memory_block_tool:
-        tools.append(query_doc_memory_block_tool)
+    # DISABLED: QueryDocMemoryBlock tool confirmed broken (returns 0 results)
+    # if query_doc_memory_block_tool:
+    #     tools.append(query_doc_memory_block_tool)
 
     # Link operations
     if get_memory_links_tool_instance:
@@ -212,13 +218,13 @@ def get_all_cogni_tools() -> List[CogniTool]:
     if dolt_merge_tool_instance:
         tools.append(dolt_merge_tool_instance)
 
-    # Interaction logging
-    if log_interaction_block_tool:
-        tools.append(log_interaction_block_tool)
+    # DISABLED: Interaction logging
+    # if log_interaction_block_tool:
+    #     tools.append(log_interaction_block_tool)
 
-    # Deprecated tools (included for completeness)
-    if get_project_graph_tool:
-        tools.append(get_project_graph_tool)
+    # DISABLED: Deprecated tools (included for completeness)
+    # if get_project_graph_tool:
+    #     tools.append(get_project_graph_tool)
 
     return tools
 
