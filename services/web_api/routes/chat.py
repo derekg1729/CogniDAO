@@ -34,23 +34,22 @@ async def chat(req: Request, auth=Depends(verify_auth)):
         thread_id = thread_resp.json()["thread_id"]
         log.info(f"Created thread: {thread_id}")
 
-        # Create run with proper input format
+        # Create run with proper Server API streaming format
         run_data = {
             "assistant_id": ASSISTANT,
-            "input": {
-                "messages": [{"role": "user", "content": user_msg}]
-            },  # Added required input field
-            "stream": True,
+            "input": {"messages": [{"role": "user", "content": user_msg}]},
+            # Token-level streaming in Server API requires "messages-tuple" mode
+            "stream_mode": "messages-tuple",
         }
-        run_resp = await lg(f"/threads/{thread_id}/runs", "post", client, json=run_data)
-        run_id = run_resp.json()["run_id"]
-        log.info(f"Created run: {run_id}")
+
+        # Use dedicated streaming endpoint that creates run AND streams output
+        stream_path = f"/threads/{thread_id}/runs/stream"
+        log.info(f"Starting streaming run with: {stream_path}")
 
         # Stream the results
         async def generate():
             try:
-                stream_path = f"/threads/{thread_id}/runs/{run_id}/stream"
-                async with client.stream("GET", f"{BASE}{stream_path}") as response:
+                async with client.stream("POST", f"{BASE}{stream_path}", json=run_data) as response:
                     response.raise_for_status()
                     async for chunk in response.aiter_text():
                         if chunk.strip():
