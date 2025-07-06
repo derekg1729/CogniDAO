@@ -88,8 +88,9 @@ class TestChatEndpointStreaming:
         # The response should be a streaming error response
         content = response.text
         assert "error" in content
-        # The actual error response just contains "error", not the full message
-        assert content.strip() == "error"
+        # The error response should be in SSE format with JSON content
+        assert content.startswith("data:")
+        assert "500 Internal Server Error" in content
 
 
 class TestChatEndpointRequestValidation:

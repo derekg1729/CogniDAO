@@ -120,3 +120,40 @@ def mock_langgraph_failure():
         )
 
         yield respx_mock
+
+
+@pytest.fixture
+def mock_langgraph_streaming():
+    """Mock LangGraph streaming responses with multiple chunks."""
+    with respx.mock(base_url="http://langgraph-cogni-presence:8000") as respx_mock:
+        # Mock successful thread creation
+        respx_mock.post("/threads").mock(
+            return_value=httpx.Response(200, json={"thread_id": "test_thread_123"})
+        )
+
+        # Mock streaming with multiple chunks
+        respx_mock.post("/threads/test_thread_123/runs/stream").mock(
+            return_value=httpx.Response(
+                200,
+                text='data: {"type": "messages/partial", "content": {"role": "ai", "content": "Hello"}}\n\ndata: {"type": "messages/partial", "content": {"role": "ai", "content": " world"}}\n\ndata: {"type": "messages/partial", "content": {"role": "ai", "content": "!"}}\n\ndata: {"type": "messages/complete"}\n\n',
+            )
+        )
+
+        yield respx_mock
+
+
+@pytest.fixture
+def mock_langgraph_error():
+    """Mock LangGraph error responses during streaming."""
+    with respx.mock(base_url="http://langgraph-cogni-presence:8000") as respx_mock:
+        # Mock successful thread creation
+        respx_mock.post("/threads").mock(
+            return_value=httpx.Response(200, json={"thread_id": "test_thread_123"})
+        )
+
+        # Mock streaming error
+        respx_mock.post("/threads/test_thread_123/runs/stream").mock(
+            return_value=httpx.Response(500, json={"detail": "Streaming failed"})
+        )
+
+        yield respx_mock
