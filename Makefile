@@ -41,3 +41,7 @@ schemas-copy:
 clean-schemas:
 	@echo "Removing generated schemas..."
 	rm -rf schemas 
+
+
+build-langgraph:
+	uv run langgraph build --tag cogni-langgraph-combined-local
