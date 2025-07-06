@@ -24,3 +24,20 @@
 ## Auth
 - Requires `Authorization: Bearer ${COGNI_API_KEY}$` header
 - Note: API key forwarding to LangGraph not yet implemented
+
+## Deployment
+**CRITICAL**: After code changes, rebuild and redeploy containers:
+
+```bash
+# From project root
+docker-compose down
+docker-compose build web_api
+docker-compose up -d
+
+# Or rebuild specific service
+docker-compose build web_api && docker-compose up -d web_api
+```
+
+- Web API runs on `localhost:8000`
+- LangGraph runs on `localhost:8002`
+- Check health: `docker-compose ps`

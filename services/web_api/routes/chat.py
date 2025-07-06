@@ -24,55 +24,51 @@ async def chat(req: Request, auth=Depends(verify_auth)):
     body = await req.json()
     user_msg = body["message"]
 
-    log.info(f"📡 Proxying message to LangGraph: {user_msg[:100]}...")
+    log.info(f"Chat request from user: {user_msg}")
 
-    # 5️⃣ stream - FIXED: Create client inside streaming function to avoid scoping issue
-    async def events():
-        async with httpx.AsyncClient(timeout=None) as c:
-            # 1️⃣ create / reuse thread
-            tid = (
-                body.get("thread_id")
-                or (await lg("/threads", "post", c, json={})).json()["thread_id"]
-            )
+    # Use manual client management for streaming
+    client = httpx.AsyncClient()
+    try:
+        # Create thread
+        thread_resp = await lg("/threads", "post", client, json={})
+        thread_id = thread_resp.json()["thread_id"]
+        log.info(f"Created thread: {thread_id}")
 
-            # 2️⃣ memory context → system
-            if blocks := body.get("memory", []):
-                ctx = "\n\n".join(f"---\n{b}" for b in blocks)
-                await lg(
-                    f"/threads/{tid}/history", "post", c, json={"role": "system", "content": ctx}
-                )
+        # Create run with proper input format
+        run_data = {
+            "assistant_id": ASSISTANT,
+            "input": {
+                "messages": [{"role": "user", "content": user_msg}]
+            },  # Added required input field
+            "stream": True,
+        }
+        run_resp = await lg(f"/threads/{thread_id}/runs", "post", client, json=run_data)
+        run_id = run_resp.json()["run_id"]
+        log.info(f"Created run: {run_id}")
 
-            # 3️⃣ user message
-            await lg(
-                f"/threads/{tid}/history", "post", c, json={"role": "user", "content": user_msg}
-            )
+        # Stream the results
+        async def generate():
+            try:
+                stream_path = f"/threads/{thread_id}/runs/{run_id}/stream"
+                async with client.stream("GET", f"{BASE}{stream_path}") as response:
+                    response.raise_for_status()
+                    async for chunk in response.aiter_text():
+                        if chunk.strip():
+                            yield f"data: {chunk}\n\n"
+            except Exception as e:
+                log.error(f"Streaming error: {e}")
+                yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
-            # 4️⃣ run
-            run_id = (
-                await lg(
-                    f"/threads/{tid}/runs",
-                    "post",
-                    c,
-                    json={"assistant_id": ASSISTANT, "stream": True},
-                )
-            ).json()["run_id"]
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+            },
+        )
 
-            log.info(f"🏃 Started run {run_id} on thread {tid}")
-
-            # 5️⃣ stream - Use correct endpoint
-            async with c.stream(
-                "GET",
-                f"{BASE}/threads/{tid}/runs/{run_id}/stream",
-                headers={"Accept": "text/event-stream"},
-            ) as s:
-                async for line in s.aiter_lines():
-                    if line.startswith("data: "):
-                        evt = json.loads(line[6:])
-                        if evt.get("event") == "messages/partial":
-                            for m in evt["data"]:
-                                if m["type"] == "ai":
-                                    yield f"data: {json.dumps({'content': m['content']})}\n\n"
-                        if evt.get("event") == "messages/complete":
-                            return
-
-    return StreamingResponse(events(), media_type="text/event-stream")
+    except Exception as e:
+        log.error(f"Chat endpoint error: {e}")
+        await client.aclose()
+        return {"error": str(e)}
