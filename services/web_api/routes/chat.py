@@ -7,81 +7,72 @@ import logging
 # Import verify_auth from auth_utils.py
 from ..auth_utils import verify_auth
 
-logger = logging.getLogger(__name__)
-
+BASE = "http://langgraph-cogni-presence:8000"
+ASSISTANT = "cogni_presence"
+log = logging.getLogger(__name__)
 router = APIRouter(tags=["v1/Chat"])
 
-BASE = "http://langgraph-cogni-presence:8000"  # LangGraph Server
-ASSISTANT = "cogni_presence"
+
+async def lg(path, method, client, **kw):
+    r = await getattr(client, method)(f"{BASE}{path}", **kw)
+    r.raise_for_status()
+    return r
 
 
-# ----- tiny helper ----------------------------------------------------
-async def _lg(event: str, method: str = "get", **kw):
-    async with httpx.AsyncClient(timeout=None) as c:
-        try:
-            r = await getattr(c, method)(f"{BASE}{event}", **kw)
-            r.raise_for_status()
-            return r
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                f"HTTP error for {method.upper()} {BASE}{event}: {e.response.status_code} - {e.response.text}"
-            )
-            raise
-        except Exception as e:
-            logger.error(f"Request error for {method.upper()} {BASE}{event}: {e}")
-            raise
-
-
-# ----- main entry-point -----------------------------------------------
 @router.post("/chat", response_class=StreamingResponse)
 async def chat(req: Request, auth=Depends(verify_auth)):
     body = await req.json()
     user_msg = body["message"]
 
-    logger.info(f"📡 Proxying message to LangGraph: {user_msg[:100]}...")
+    log.info(f"📡 Proxying message to LangGraph: {user_msg[:100]}...")
 
-    # 1️⃣ thread (reuse cookie if supplied)
-    tid = body.get("thread_id") or (await _lg("/threads", "post", json={})).json()["thread_id"]
-
-    # 2️⃣ optional memory → system msg
-    if blocks := body.get("memory", []):
-        ctx = "\n\n".join(f"---\n{b}" for b in blocks)
-        await _lg(f"/threads/{tid}/history", "post", json={"role": "system", "content": ctx})
-
-    # 3️⃣ user message
-    await _lg(f"/threads/{tid}/history", "post", json={"role": "user", "content": user_msg})
-
-    # 4️⃣ start run
-    run = (
-        await _lg(
-            f"/threads/{tid}/runs",
-            "post",
-            json={
-                "assistant_id": ASSISTANT,
-                "stream": True,
-                "input": {"messages": [{"role": "user", "content": user_msg}]},
-            },
-        )
-    ).json()["run_id"]
-
-    logger.info(f"🏃 Started run {run} on thread {tid}")
-
-    # 5️⃣ stream SSE → client
-    async def event_stream():
+    # 5️⃣ stream - FIXED: Create client inside streaming function to avoid scoping issue
+    async def events():
         async with httpx.AsyncClient(timeout=None) as c:
+            # 1️⃣ create / reuse thread
+            tid = (
+                body.get("thread_id")
+                or (await lg("/threads", "post", c, json={})).json()["thread_id"]
+            )
+
+            # 2️⃣ memory context → system
+            if blocks := body.get("memory", []):
+                ctx = "\n\n".join(f"---\n{b}" for b in blocks)
+                await lg(
+                    f"/threads/{tid}/history", "post", c, json={"role": "system", "content": ctx}
+                )
+
+            # 3️⃣ user message
+            await lg(
+                f"/threads/{tid}/history", "post", c, json={"role": "user", "content": user_msg}
+            )
+
+            # 4️⃣ run
+            run_id = (
+                await lg(
+                    f"/threads/{tid}/runs",
+                    "post",
+                    c,
+                    json={"assistant_id": ASSISTANT, "stream": True},
+                )
+            ).json()["run_id"]
+
+            log.info(f"🏃 Started run {run_id} on thread {tid}")
+
+            # 5️⃣ stream - Use correct endpoint
             async with c.stream(
                 "GET",
-                f"{BASE}/threads/{tid}/runs/{run}/stream",
+                f"{BASE}/threads/{tid}/runs/{run_id}/stream",
                 headers={"Accept": "text/event-stream"},
             ) as s:
                 async for line in s.aiter_lines():
                     if line.startswith("data: "):
-                        data = json.loads(line[6:])
-                        if data.get("event") == "messages/partial":
-                            for m in data["data"]:
-                                if m.get("type") == "ai":
-                                    yield m["content"]
-                        if data.get("event") == "messages/complete":
-                            break
+                        evt = json.loads(line[6:])
+                        if evt.get("event") == "messages/partial":
+                            for m in evt["data"]:
+                                if m["type"] == "ai":
+                                    yield f"data: {json.dumps({'content': m['content']})}\n\n"
+                        if evt.get("event") == "messages/complete":
+                            return
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(events(), media_type="text/event-stream")
