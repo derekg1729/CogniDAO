@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any
 
 import mysql.connector
-from mysql.connector import Error
+from mysql.connector import Error, OperationalError, InterfaceError
 
 # Setup standard Python logger
 logger = logging.getLogger(__name__)
@@ -273,8 +273,166 @@ class DoltMySQLBase:
                 self._current_branch = None
                 self._use_persistent = False
 
+    def _ensure_branch_and_check_protection(
+        self, connection: mysql.connector.MySQLConnection, operation: str, target_branch: str
+    ) -> None:
+        """
+        Safely ensure we're on the target branch and check protection.
+
+        For persistent connections, this ensures the connection is actually switched
+        to the target branch before checking protection, preventing bypass attacks.
+
+        Args:
+            connection: The database connection
+            operation: Description of the operation being attempted
+            target_branch: The branch to switch to and check protection for
+
+        Raises:
+            MainBranchProtectionError: If attempting to write to protected branch
+        """
+        # For persistent connections, ensure we're actually on the target branch
+        if self._use_persistent and self._persistent_connection:
+            if self._current_branch != target_branch:
+                self._ensure_branch(connection, target_branch)
+                self._current_branch = target_branch
+        else:
+            # For non-persistent connections, always ensure branch
+            self._ensure_branch(connection, target_branch)
+
+        # Now check protection with the actual current branch
+        self._check_branch_protection(operation, target_branch)
+
+    def _is_connection_error(self, error: Exception) -> bool:
+        """
+        Check if an error is connection-related and potentially recoverable.
+
+        Args:
+            error: The exception to check
+
+        Returns:
+            True if this is a connection error that might be recoverable
+        """
+        # Check for specific MySQL connector connection errors
+        if isinstance(error, (OperationalError, InterfaceError)):
+            return True
+
+        # Check for common connection error patterns in the error message
+        if isinstance(error, Error):
+            error_msg = str(error).lower()
+            connection_keywords = [
+                "lost connection",
+                "connection was killed",
+                "connection timeout",
+                "connection refused",
+                "broken pipe",
+                "network error",
+                "connection reset",
+                "connection aborted",
+                "host is unreachable",
+                "connection closed",
+                "server has gone away",
+                "server shutdown",
+                "can't connect to mysql server",
+            ]
+            return any(keyword in error_msg for keyword in connection_keywords)
+
+        return False
+
+    def _attempt_reconnection(self) -> bool:
+        """
+        Attempt to reconnect the persistent connection if it's in use.
+
+        Returns:
+            True if reconnection was successful, False otherwise
+        """
+        if not self._use_persistent:
+            # Not using persistent connections, no need to reconnect
+            return False
+
+        logger.warning("🔄 Attempting to reconnect persistent connection...")
+
+        try:
+            # Close the old connection if it exists
+            if self._persistent_connection:
+                try:
+                    self._persistent_connection.close()
+                except Exception:
+                    pass  # Ignore errors when closing broken connection
+
+            # Create new persistent connection
+            self._persistent_connection = self._get_connection()
+
+            # Restore the branch state if we had one
+            if self._current_branch:
+                self._ensure_branch(self._persistent_connection, self._current_branch)
+
+                # Verify the branch was restored correctly
+                actual_branch = self._verify_current_branch(self._persistent_connection)
+                if actual_branch != self._current_branch:
+                    logger.warning(
+                        f"Branch mismatch after reconnection: expected '{self._current_branch}', got '{actual_branch}'"
+                    )
+                    self._current_branch = actual_branch
+
+            logger.info(
+                f"✅ Persistent connection reconnected successfully on branch '{self._current_branch}'"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Failed to reconnect persistent connection: {e}")
+            # Reset persistent connection state on failure
+            self._persistent_connection = None
+            self._current_branch = None
+            self._use_persistent = False
+            return False
+
+    def _execute_with_retry(self, operation_func, query: str, params: tuple = None):
+        """
+        Execute a database operation with automatic reconnection retry.
+
+        Args:
+            operation_func: The actual operation function to execute
+            query: SQL query string
+            params: Query parameters
+
+        Returns:
+            The result of the operation function
+
+        Raises:
+            Exception: If the operation fails even after reconnection attempt
+        """
+        try:
+            # First attempt
+            return operation_func(query, params)
+
+        except Exception as e:
+            # Check if this is a connection error and if we should retry
+            if self._is_connection_error(e):
+                logger.warning(f"⚠️ Connection error detected: {e}")
+
+                # Attempt reconnection (only for persistent connections)
+                if self._attempt_reconnection():
+                    logger.info("🔄 Retrying operation after reconnection...")
+                    try:
+                        # Second attempt after reconnection
+                        return operation_func(query, params)
+                    except Exception as retry_e:
+                        logger.error(f"❌ Operation failed even after reconnection: {retry_e}")
+                        raise Exception(f"Operation failed after reconnection attempt: {retry_e}")
+                else:
+                    # Reconnection failed, raise the original error
+                    raise e
+            else:
+                # Not a connection error, re-raise as-is
+                raise e
+
     def _execute_query(self, query: str, params: tuple = None) -> List[Dict[str, Any]]:
         """Execute a query and return results as list of dictionaries."""
+        return self._execute_with_retry(self._execute_query_impl, query, params)
+
+    def _execute_query_impl(self, query: str, params: tuple = None) -> List[Dict[str, Any]]:
+        """Implementation of query execution (without retry logic)."""
         # Use persistent connection if available, otherwise create new one
         if self._use_persistent and self._persistent_connection:
             connection = self._persistent_connection
@@ -298,6 +456,10 @@ class DoltMySQLBase:
 
     def _execute_update(self, query: str, params: tuple = None) -> int:
         """Execute an update/insert/delete query and return affected rows."""
+        return self._execute_with_retry(self._execute_update_impl, query, params)
+
+    def _execute_update_impl(self, query: str, params: tuple = None) -> int:
+        """Implementation of update execution (without retry logic)."""
         # Use persistent connection if available, otherwise create new one
         if self._use_persistent and self._persistent_connection:
             connection = self._persistent_connection
@@ -363,32 +525,3 @@ class DoltMySQLBase:
         except Exception as e:
             logger.warning(f"Failed to get active branch: {e}")
             return DEFAULT_PROTECTED_BRANCH  # Fallback to default on error
-
-    def _ensure_branch_and_check_protection(
-        self, connection: mysql.connector.MySQLConnection, operation: str, target_branch: str
-    ) -> None:
-        """
-        Safely ensure we're on the target branch and check protection.
-
-        For persistent connections, this ensures the connection is actually switched
-        to the target branch before checking protection, preventing bypass attacks.
-
-        Args:
-            connection: The database connection
-            operation: Description of the operation being attempted
-            target_branch: The branch to switch to and check protection for
-
-        Raises:
-            MainBranchProtectionError: If attempting to write to protected branch
-        """
-        # For persistent connections, ensure we're actually on the target branch
-        if self._use_persistent and self._persistent_connection:
-            if self._current_branch != target_branch:
-                self._ensure_branch(connection, target_branch)
-                self._current_branch = target_branch
-        else:
-            # For non-persistent connections, always ensure branch
-            self._ensure_branch(connection, target_branch)
-
-        # Now check protection with the actual current branch
-        self._check_branch_protection(operation, target_branch)
