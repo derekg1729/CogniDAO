@@ -135,6 +135,25 @@ def log_mcp_connection(server_type: str, url: str, tool_count: int) -> None:
     logger.info(f"✅ Connected to {server_type} MCP server at {url}. Got {tool_count} tools")
 
 
+def log_mcp_reconnection(server_type: str, url: str, attempt: int, success: bool) -> None:
+    """
+    Log MCP reconnection attempt.
+
+    Args:
+        server_type: Type of MCP server
+        url: Server URL
+        attempt: Attempt number
+        success: Whether the reconnection was successful
+    """
+    logger = get_logger(__name__)
+    if success:
+        logger.info(
+            f"🎉 MCP reconnection successful for {server_type} at {url} (attempt {attempt})"
+        )
+    else:
+        logger.warning(f"⚠️ MCP reconnection failed for {server_type} at {url} (attempt {attempt})")
+
+
 def log_mcp_fallback(server_type: str, url: str, reason: str) -> None:
     """
     Log MCP connection fallback.
@@ -148,6 +167,27 @@ def log_mcp_fallback(server_type: str, url: str, reason: str) -> None:
     logger.warning(
         f"⚠️ Failed to connect to {server_type} MCP server at {url}: {reason}. Using fallback tools."
     )
+
+
+def log_mcp_health_check(server_type: str, connection_info: dict) -> None:
+    """
+    Log MCP health check status.
+
+    Args:
+        server_type: Type of MCP server
+        connection_info: Connection information dictionary
+    """
+    logger = get_logger(__name__)
+    state = connection_info.get("state", "unknown")
+    using_fallback = connection_info.get("using_fallback", False)
+    tools_count = connection_info.get("tools_count", 0)
+
+    if using_fallback:
+        logger.debug(f"🔍 MCP health check for {server_type}: state={state}, using fallback tools")
+    else:
+        logger.debug(
+            f"🔍 MCP health check for {server_type}: state={state}, {tools_count} tools available"
+        )
 
 
 def log_model_binding(model_name: str, tool_count: int) -> None:
