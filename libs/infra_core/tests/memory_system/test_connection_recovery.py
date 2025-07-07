@@ -8,9 +8,13 @@ and attempts to restore persistent connections while preserving branch state.
 
 import pytest
 from unittest.mock import MagicMock, patch
-from mysql.connector import Error, OperationalError, InterfaceError
+from mysql.connector import Error, OperationalError, InterfaceError, DatabaseError
 
-from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig, DoltMySQLBase
+from infra_core.memory_system.dolt_mysql_base import (
+    DoltConnectionConfig,
+    DoltMySQLBase,
+    BranchConsistencyError,
+)
 
 
 class TestConnectionRecovery:
@@ -123,7 +127,7 @@ class TestConnectionRecovery:
     def test_attempt_reconnection_branch_mismatch(
         self, mock_logger, base_instance, mock_connection
     ):
-        """Test reconnection handles branch mismatch after restoration."""
+        """Test reconnection raises error on branch mismatch after restoration."""
         mock_conn, mock_cursor = mock_connection
 
         # Setup persistent connection state
@@ -137,19 +141,21 @@ class TestConnectionRecovery:
                 with patch.object(
                     base_instance, "_verify_current_branch", return_value="different-branch"
                 ):
-                    result = base_instance._attempt_reconnection()
+                    # Should raise BranchConsistencyError due to branch mismatch
+                    try:
+                        base_instance._attempt_reconnection()
+                        pytest.fail("Expected BranchConsistencyError to be raised")
+                    except Exception as e:
+                        # Verify it's the right exception type and has the right attributes
+                        assert e.__class__.__name__ == "BranchConsistencyError"
+                        assert hasattr(e, "expected_branch")
+                        assert hasattr(e, "actual_branch")
+                        assert e.expected_branch == "feat/test-branch"
+                        assert e.actual_branch == "different-branch"
 
-                    # Should still succeed but update current branch
-                    assert result is True
-                    assert base_instance._current_branch == "different-branch"
-
-                    # Should log warning about mismatch
-                    warning_calls = [
-                        call
-                        for call in mock_logger.warning.call_args_list
-                        if "Branch mismatch" in str(call)
-                    ]
-                    assert len(warning_calls) == 1
+                    # Should log error about mismatch
+                    error_calls = [str(call) for call in mock_logger.error.call_args_list]
+                    assert any("Branch mismatch after reconnection" in call for call in error_calls)
 
     @patch("infra_core.memory_system.dolt_mysql_base.logger")
     def test_attempt_reconnection_failure(self, mock_logger, base_instance):
@@ -230,7 +236,8 @@ class TestConnectionRecovery:
         )
 
         with patch.object(base_instance, "_attempt_reconnection", return_value=True):
-            with pytest.raises(Exception, match="Operation failed after reconnection attempt"):
+            # The retry should re-raise the original Error (not DatabaseError), preserving stack trace
+            with pytest.raises(Error, match="Retry failed"):
                 base_instance._execute_with_retry(mock_operation, "SELECT 1", ())
 
             assert mock_operation.call_count == 2
@@ -306,6 +313,117 @@ class TestConnectionRecovery:
                         assert any(
                             "Retrying operation after reconnection" in call for call in info_calls
                         )
+
+
+class TestNewExceptionHandling:
+    """Test the improved exception handling and branch consistency enforcement."""
+
+    @pytest.fixture
+    def base_instance(self):
+        """Create a DoltMySQLBase instance for testing."""
+        config = DoltConnectionConfig()
+        return DoltMySQLBase(config)
+
+    @patch("infra_core.memory_system.dolt_mysql_base.logger")
+    def test_database_error_during_retry_wrapped(self, mock_logger, base_instance):
+        """Test that DatabaseError during retry is properly wrapped with context."""
+        mock_operation = MagicMock(
+            side_effect=[
+                OperationalError("Lost connection"),
+                DatabaseError("Table doesn't exist"),  # DatabaseError on retry
+            ]
+        )
+
+        with patch.object(base_instance, "_attempt_reconnection", return_value=True):
+            with pytest.raises(
+                Exception, match="Database operation failed after reconnection attempt"
+            ):
+                base_instance._execute_with_retry(mock_operation, "SELECT * FROM nonexistent", ())
+
+            assert mock_operation.call_count == 2
+
+            # Should log the specific database error
+            error_calls = [str(call) for call in mock_logger.error.call_args_list]
+            assert any(
+                "Database operation failed even after reconnection" in call for call in error_calls
+            )
+
+    @patch("infra_core.memory_system.dolt_mysql_base.logger")
+    def test_branch_consistency_error_during_retry(self, mock_logger, base_instance):
+        """Test that BranchConsistencyError during reconnection bubbles up through retry mechanism."""
+        # Setup for persistent connection
+        base_instance._use_persistent = True
+        base_instance._current_branch = "expected-branch"
+        base_instance._persistent_connection = MagicMock()
+
+        mock_operation = MagicMock(side_effect=OperationalError("Connection lost"))
+
+        # Mock _attempt_reconnection to raise BranchConsistencyError
+        def mock_reconnection():
+            raise BranchConsistencyError("expected-branch", "wrong-branch")
+
+        with patch.object(base_instance, "_attempt_reconnection", side_effect=mock_reconnection):
+            with pytest.raises(BranchConsistencyError) as exc_info:
+                base_instance._execute_with_retry(mock_operation, "SELECT 1", ())
+
+            # Verify the exception details
+            assert exc_info.value.expected_branch == "expected-branch"
+            assert exc_info.value.actual_branch == "wrong-branch"
+
+            # Should detect connection error and attempt reconnection
+            warning_calls = [str(call) for call in mock_logger.warning.call_args_list]
+            assert any("Connection error detected" in call for call in warning_calls)
+
+    @patch("infra_core.memory_system.dolt_mysql_base.logger")
+    def test_precise_exception_classification(self, mock_logger, base_instance):
+        """Test that different MySQL exception types are handled precisely."""
+        from mysql.connector import ProgrammingError, IntegrityError
+
+        # Test that ProgrammingError (SQL syntax) is not considered a connection error
+        syntax_error = ProgrammingError("Syntax error in SQL statement")
+        assert base_instance._is_connection_error(syntax_error) is False
+
+        # Test that IntegrityError (constraint violation) is not considered a connection error
+        constraint_error = IntegrityError("Duplicate entry for PRIMARY KEY")
+        assert base_instance._is_connection_error(constraint_error) is False
+
+        # Test that DatabaseError subclasses with connection-related messages are detected
+        db_error_with_connection_msg = DatabaseError("Lost connection to MySQL server")
+        assert base_instance._is_connection_error(db_error_with_connection_msg) is True
+
+        # Test that generic DatabaseError without connection keywords is not detected
+        generic_db_error = DatabaseError("Generic database error")
+        assert base_instance._is_connection_error(generic_db_error) is False
+
+    def test_branch_consistency_error_attributes(self, base_instance):
+        """Test BranchConsistencyError has correct attributes and message."""
+        error = BranchConsistencyError("main", "feature")
+
+        assert error.expected_branch == "main"
+        assert error.actual_branch == "feature"
+        assert "expected 'main'" in str(error)
+        assert "but connection is on 'feature'" in str(error)
+        assert "operations on the wrong branch" in str(error)
+
+    @patch("infra_core.memory_system.dolt_mysql_base.logger")
+    def test_unexpected_error_logging_detail(self, mock_logger, base_instance):
+        """Test that unexpected errors are logged with detailed type information."""
+        base_instance._use_persistent = True
+        base_instance._persistent_connection = MagicMock()
+
+        # Mock _get_connection to raise an unexpected error
+        with patch.object(
+            base_instance, "_get_connection", side_effect=ValueError("Unexpected value error")
+        ):
+            result = base_instance._attempt_reconnection()
+
+            assert result is False
+
+            # Should log the error with type information
+            error_calls = [str(call) for call in mock_logger.error.call_args_list]
+            assert any(
+                "ValueError" in call and "Unexpected value error" in call for call in error_calls
+            )
 
 
 class TestConnectionRecoveryEdgeCases:

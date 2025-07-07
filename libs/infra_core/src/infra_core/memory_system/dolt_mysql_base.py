@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any
 
 import mysql.connector
-from mysql.connector import Error, OperationalError, InterfaceError
+from mysql.connector import Error, OperationalError, InterfaceError, DatabaseError
 
 # Setup standard Python logger
 logger = logging.getLogger(__name__)
@@ -38,10 +38,10 @@ PROTECTED_BRANCHES = [
 
 class MainBranchProtectionError(Exception):
     """
-    Exception raised when attempting to perform write operations on protected branches.
+    Raised when attempting to perform a write operation on a protected branch.
 
-    This is a security measure to prevent accidental writes to protected branches,
-    which should only contain production-ready, schema-aligned data.
+    Protected branches (typically 'main' or 'production') should not allow
+    direct write operations to prevent accidental data corruption.
     """
 
     def __init__(self, operation: str, branch: str, protected_branches: List[str] = None):
@@ -49,9 +49,25 @@ class MainBranchProtectionError(Exception):
         self.branch = branch
         self.protected_branches = protected_branches or PROTECTED_BRANCHES
         super().__init__(
-            f"Write operation '{operation}' blocked on protected branch '{branch}'. "
-            f"{branch} is protected and read-only. "
-            f"Please find the right feature branch to work on."
+            f"Operation '{operation}' blocked on protected branch '{branch}'. "
+            f"Protected branches are read-only. Please find the right feature branch to work on."
+        )
+
+
+class BranchConsistencyError(Exception):
+    """
+    Raised when branch state becomes inconsistent after reconnection.
+
+    This ensures strict branch consistency by failing fast when the database
+    connection ends up on a different branch than expected after reconnection.
+    """
+
+    def __init__(self, expected_branch: str, actual_branch: str):
+        self.expected_branch = expected_branch
+        self.actual_branch = actual_branch
+        super().__init__(
+            f"Branch consistency violation after reconnection: expected '{expected_branch}', "
+            f"but connection is on '{actual_branch}'. This could lead to operations on the wrong branch."
         )
 
 
@@ -369,18 +385,29 @@ class DoltMySQLBase:
                 # Verify the branch was restored correctly
                 actual_branch = self._verify_current_branch(self._persistent_connection)
                 if actual_branch != self._current_branch:
-                    logger.warning(
+                    logger.error(
                         f"Branch mismatch after reconnection: expected '{self._current_branch}', got '{actual_branch}'"
                     )
-                    self._current_branch = actual_branch
+                    raise BranchConsistencyError(self._current_branch, actual_branch)
 
             logger.info(
                 f"✅ Persistent connection reconnected successfully on branch '{self._current_branch}'"
             )
             return True
 
+        except DatabaseError as e:
+            logger.error(f"❌ Database error during reconnection: {e}")
+            # Reset persistent connection state on failure
+            self._persistent_connection = None
+            self._current_branch = None
+            self._use_persistent = False
+            return False
+        except BranchConsistencyError:
+            # Let branch consistency errors bubble up to enforce strict branch consistency
+            raise
         except Exception as e:
-            logger.error(f"❌ Failed to reconnect persistent connection: {e}")
+            # Log unexpected non-database errors separately for troubleshooting
+            logger.error(f"❌ Unexpected error during reconnection: {type(e).__name__}: {e}")
             # Reset persistent connection state on failure
             self._persistent_connection = None
             self._current_branch = None
@@ -417,9 +444,19 @@ class DoltMySQLBase:
                     try:
                         # Second attempt after reconnection
                         return operation_func(query, params)
+                    except DatabaseError as retry_db_e:
+                        logger.error(
+                            f"❌ Database operation failed even after reconnection: {retry_db_e}"
+                        )
+                        raise Exception(
+                            f"Database operation failed after reconnection attempt: {retry_db_e}"
+                        )
                     except Exception as retry_e:
-                        logger.error(f"❌ Operation failed even after reconnection: {retry_e}")
-                        raise Exception(f"Operation failed after reconnection attempt: {retry_e}")
+                        # Log unexpected non-database errors that occurred during retry
+                        logger.error(
+                            f"❌ Unexpected error during retry: {type(retry_e).__name__}: {retry_e}"
+                        )
+                        raise  # Re-raise unexpected errors as-is to preserve stack trace
                 else:
                     # Reconnection failed, raise the original error
                     raise e
