@@ -102,6 +102,24 @@ class MCPClientManager:
         """Check if currently using fallback tools."""
         return self._using_fallback
 
+    def _log_exception_details(self, error: Exception, context: str = "MCP connection") -> None:
+        """Log detailed exception information, handling ExceptionGroup (Python 3.11+)."""
+        # Handle ExceptionGroup (Python 3.11+) using duck typing for compatibility
+        if hasattr(error, "exceptions"):  # Duck typing for ExceptionGroup
+            logger.error(f"❌ {context} failed with {len(error.exceptions)} sub-exceptions:")
+            for i, sub_exc in enumerate(error.exceptions, 1):
+                logger.error(f"  #{i}: {type(sub_exc).__name__}: {sub_exc}")
+                if hasattr(sub_exc, "__traceback__") and sub_exc.__traceback__:
+                    import traceback
+
+                    logger.debug(
+                        f"  #{i} traceback: {''.join(traceback.format_tb(sub_exc.__traceback__))}"
+                    )
+        else:
+            # Regular exception
+            logger.error(f"❌ {context} failed: {type(error).__name__}: {error}")
+            logger.debug(f"Exception details: {repr(error)}")
+
     async def _exponential_backoff_delay(self, attempt: int) -> float:
         """Calculate exponential backoff delay."""
         delay = min(self.base_delay * (2**attempt), self.max_delay)
@@ -141,8 +159,7 @@ class MCPClientManager:
             return None
 
         except Exception as e:
-            logger.error(f"❌ MCP connection failed: {type(e).__name__}: {e}")
-            logger.debug(f"Connection error details: {repr(e)}")
+            self._log_exception_details(e, "MCP connection")
             self._connection_state = ConnectionState.FAILED
             return None
 
@@ -359,7 +376,7 @@ def get_playwright_mcp_manager() -> MCPClientManager:
     """Get the global Playwright MCP manager with reconnection capabilities."""
     global _playwright_mcp_manager
     if _playwright_mcp_manager is None:
-        mcp_url = os.getenv("PLAYWRIGHT_MCP_URL", "http://localhost:58462/sse#playwright")
+        mcp_url = os.getenv("PLAYWRIGHT_MCP_URL", "http://toolhive:21462/sse#playwright")
         server_configs = {
             "playwright": {
                 "url": mcp_url,

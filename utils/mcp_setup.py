@@ -9,6 +9,10 @@ Returns a tuple of (session, tools_list) for immediate use.
 This extracts the proven working SSE pattern from flows/examples/existing_mcp_connection.py
 into a reusable helper, eliminating code duplication across flows.
 
+NOTE: This MCP client implementation currently isn't DRY and is duplicated from
+langgraph_projects/src/shared_utils/mcp_client.py. The error handling patterns
+should be consolidated in the future.
+
 Usage:
     from utils.mcp_setup import configure_existing_mcp
 
@@ -30,6 +34,27 @@ class MCPConnectionError(Exception):
     """Custom exception for MCP connection issues"""
 
     pass
+
+
+def _log_exception_details(error: Exception, context: str = "MCP session") -> None:
+    """Log detailed exception information, handling ExceptionGroup (Python 3.11+)."""
+    logger = logging.getLogger(__name__)
+
+    # Handle ExceptionGroup (Python 3.11+) using duck typing for compatibility
+    if hasattr(error, "exceptions"):  # Duck typing for ExceptionGroup
+        logger.error(f"❌ {context} failed with {len(error.exceptions)} sub-exceptions:")
+        for i, sub_exc in enumerate(error.exceptions, 1):
+            logger.error(f"  #{i}: {type(sub_exc).__name__}: {sub_exc}")
+            if hasattr(sub_exc, "__traceback__") and sub_exc.__traceback__:
+                import traceback
+
+                logger.debug(
+                    f"  #{i} traceback: {''.join(traceback.format_tb(sub_exc.__traceback__))}"
+                )
+    else:
+        # Regular exception
+        logger.error(f"❌ {context} failed: {type(error).__name__}: {error}")
+        logger.debug(f"Exception details: {repr(error)}")
 
 
 @asynccontextmanager
@@ -111,10 +136,8 @@ async def configure_existing_mcp(sse_url: str, timeout: int = 30) -> Tuple[Clien
         logger.error(f"❌ Connection timeout to MCP server: {e}")
         raise MCPConnectionError(f"Connection timeout to MCP server: {e}")
     except Exception as e:
-        logger.error(f"❌ MCP session failed: {type(e).__name__}: {e}")
+        _log_exception_details(e, "MCP session establishment")
         logger.error(f"   MCP SSE URL: {sse_url}")
         logger.error(f"   Session state: {session}")
-        import traceback
 
-        logger.error(f"   Full traceback: {traceback.format_exc()}")
-        raise MCPConnectionError(f"Failed to establish MCP session: {type(e).__name__}: {e}")
+        raise MCPConnectionError(f"Failed to establish MCP session: {e}")
