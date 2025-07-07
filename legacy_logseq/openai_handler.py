@@ -9,12 +9,25 @@ from typing import Dict, Optional, Union, Any, Tuple, List
 from prefect import task
 from prefect.blocks.system import Secret
 from prefect.tasks import NO_CACHE  # correct import path for Prefect 3.3.3
+import time
+import random
 
 try:
     import openai  # noqa: F401
     from openai import OpenAI
 except ImportError:
     raise ImportError("OpenAI package not installed. Install with 'pip install openai'")
+
+# # Try to import Anthropic as fallback
+# try:
+#     import anthropic
+
+#     ANTHROPIC_AVAILABLE = True
+# except ImportError:
+#     ANTHROPIC_AVAILABLE = False
+#     print(
+#         "Warning: Anthropic not available. Install with 'pip install anthropic' for fallback support."
+#     )
 
 
 @task
@@ -48,7 +61,7 @@ def create_completion(
     system_message: Union[str, Dict[str, str]],
     user_prompt: str,
     message_history: Optional[List[Dict[str, str]]] = None,
-    model: str = "gpt-4",
+    model: str = "gpt-4o-mini",
     temperature: float = 0.7,
     max_tokens: Optional[int] = None,
     top_p: float = 1.0,
@@ -141,7 +154,7 @@ def extract_content(response: Dict[str, Any]) -> str:
 
 
 @task(cache_policy=NO_CACHE)
-def create_thread(client: OpenAI, instructions: str, model: str = "gpt-4-turbo") -> Tuple[str, str]:
+def create_thread(client: OpenAI, instructions: str, model: str = "gpt-4o-mini") -> Tuple[str, str]:
     """
     Create a thread and assistant for reuse across multiple completion calls.
 
@@ -170,6 +183,7 @@ def thread_completion(
     thread_id: str,
     assistant_id: str,
     user_prompt: str,
+    max_retries: int = 3,
 ) -> Dict[str, Any]:
     """
     Send a message to a thread and get the assistant's response.
@@ -179,6 +193,7 @@ def thread_completion(
         thread_id: ID of the thread to use
         assistant_id: ID of the assistant to use
         user_prompt: User message to send
+        max_retries: Maximum number of retries for rate limit errors
 
     Returns:
         Response in the same format as create_completion
@@ -189,19 +204,50 @@ def thread_completion(
     # Run the assistant
     run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
 
-    # Poll for completion
-    while True:
-        run_status = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+    retry_count = 0
+    while retry_count <= max_retries:
+        # Poll for completion
+        while True:
+            run_status = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
 
+            if run_status.status == "completed":
+                break
+            elif run_status.status in ["failed", "cancelled", "expired"]:
+                # Check if this is a rate limit error
+                if (
+                    run_status.status == "failed"
+                    and run_status.last_error
+                    and run_status.last_error.code == "rate_limit_exceeded"
+                ):
+                    if retry_count < max_retries:
+                        # Calculate exponential backoff with jitter
+                        wait_time = (2**retry_count) + random.uniform(0, 1)
+                        print(
+                            f"Rate limit hit, retrying in {wait_time:.1f}s (attempt {retry_count + 1}/{max_retries + 1})"
+                        )
+                        time.sleep(wait_time)
+                        retry_count += 1
+
+                        # Create a new run for the retry
+                        run = client.beta.threads.runs.create(
+                            thread_id=thread_id, assistant_id=assistant_id
+                        )
+                        break  # Break inner loop to retry
+                    else:
+                        # Max retries reached, raise the error
+                        raise ValueError(
+                            f"OpenAI rate limit exceeded after {max_retries} retries. Error: {run_status.last_error.message}"
+                        )
+                else:
+                    # Non-rate-limit failure, raise immediately
+                    raise ValueError(f"Assistant run failed with status: {run_status}")
+
+            # Wait before polling again
+            time.sleep(0.5)
+
+        # If we reach here and the run completed successfully, break out of retry loop
         if run_status.status == "completed":
             break
-        elif run_status.status in ["failed", "cancelled", "expired"]:
-            raise ValueError(f"Assistant run failed with status: {run_status}")
-
-        # Wait before polling again
-        import time
-
-        time.sleep(0.5)
 
     # Get the response
     messages = client.beta.threads.messages.list(thread_id=thread_id, order="desc", limit=1)
