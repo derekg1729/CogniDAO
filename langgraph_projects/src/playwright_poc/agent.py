@@ -1,183 +1,135 @@
 """
-Playwright Basic Agent Nodes.
+Playwright Agent Nodes.
 
-Agent logic and node functions for the Playwright browser automation graph.
+Agent logic and node functions for the Playwright browser automation graph with MCP reconnection support.
 """
 
 from collections.abc import Callable
+from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_core.tools import BaseTool
+from langchain_core.messages import SystemMessage, AIMessage
 from src.shared_utils import (
     PlaywrightAgentState,
     get_cached_bound_model,
     get_logger,
-    get_mcp_tools,
+    get_mcp_tools_with_refresh,
+    get_mcp_connection_info,
     log_model_binding,
 )
 
 logger = get_logger(__name__)
 
+# System prompt for Playwright agent
+PLAYWRIGHT_SYSTEM_PROMPT = """You are a helpful browser automation assistant powered by Playwright tools.
 
-def create_agent_nodes(tools: list[BaseTool]) -> tuple[Callable, Callable, Callable]:
+You can help users with:
+- Taking screenshots of web pages
+- Navigating to URLs
+- Extracting content from web pages
+- Interacting with web elements
+- Performing automated browser tasks
+
+When users request browser automation tasks, use the available Playwright tools to help them accomplish their goals.
+Be specific about what you're doing and provide clear feedback about the results."""
+
+
+def create_agent_node() -> Callable[[PlaywrightAgentState, dict[str, Any]], dict[str, Any]]:
     """
-    Create all agent node functions for the Playwright graph.
-
-    Args:
-        tools: List of Playwright MCP tools
+    Create the main agent node function with MCP reconnection support.
 
     Returns:
-        Tuple of (setup_node, agent_node, tool_node) functions
+        Agent node function
     """
 
-    async def setup_agent_node(state: PlaywrightAgentState) -> PlaywrightAgentState:
+    async def agent_node(state: PlaywrightAgentState, config: dict[str, Any]) -> dict[str, Any]:
         """
-        Node to set up the agent with MCP tools.
+        Call the model with Playwright MCP tools and system prompt, with automatic MCP reconnection.
 
         Args:
             state: Current agent state
+            config: Configuration dictionary
 
         Returns:
-            Updated agent state with tools availability
+            Updated state with model response
         """
         try:
-            # Verify MCP tools can be obtained (validation check)
-            await get_mcp_tools(server_type="playwright")
+            # Get MCP tools with refresh capability (will attempt reconnection if needed)
+            tools = await get_mcp_tools_with_refresh(server_type="playwright")
 
-            # Check if tools are available and set flag
-            return {**state, "tools_available": True, "messages": state["messages"]}
+            # Get connection info for logging
+            connection_info = get_mcp_connection_info(server_type="playwright")
 
-        except Exception as e:
-            logger.error(f"❌ Failed to setup agent: {e}")
-            return {
-                **state,
-                "tools_available": False,
-                "messages": state["messages"] + [AIMessage(content=f"Error setting up tools: {e}")],
-            }
+            # Log connection status
+            if connection_info["using_fallback"]:
+                logger.warning(
+                    f"🔄 Using fallback tools (state: {connection_info['state']}, "
+                    f"retry: {connection_info['retry_count']}/{connection_info['max_retries']})"
+                )
+            else:
+                logger.info(
+                    f"✅ Using {connection_info['tools_count']} MCP tools (state: {connection_info['state']})"
+                )
 
-    async def agent_node(state: PlaywrightAgentState) -> PlaywrightAgentState:
-        """
-        Main agent reasoning node.
+            # Prepare messages with system prompt
+            messages = state["messages"]
+            messages_with_system = [SystemMessage(content=PLAYWRIGHT_SYSTEM_PROMPT)] + list(
+                messages
+            )
 
-        Args:
-            state: Current agent state
+            # Handle case where model_name is explicitly None (not just missing)
+            model_name = config.get("configurable", {}).get("model_name") or "gpt-4o-mini"
 
-        Returns:
-            Updated agent state with model response
-        """
-        if not state.get("tools_available", False):
-            return {
-                **state,
-                "messages": state["messages"]
-                + [AIMessage(content="Tools not available. Please check MCP server connection.")],
-            }
-
-        # Get the latest human message
-        if not state["messages"]:
-            return {
-                **state,
-                "messages": [AIMessage(content="No messages to process.")],
-            }
-
-        last_message = state["messages"][-1]
-        if not isinstance(last_message, HumanMessage):
-            return state
-
-        try:
             # Get cached bound model
-            model = get_cached_bound_model("gpt-4o-mini", tools)
+            model = get_cached_bound_model(model_name, tools)
 
             # Log model binding
-            log_model_binding("gpt-4o-mini", len(tools))
+            log_model_binding(model_name, len(tools))
 
-            # Invoke the agent
-            response = await model.ainvoke(state["messages"])
+            # Invoke the model
+            response = await model.ainvoke(messages_with_system)
 
-            return {
-                **state,
-                "messages": state["messages"] + [response],
-                "current_task": last_message.content,
-            }
+            # If we were using fallback tools, add a note about limited capabilities
+            if connection_info["using_fallback"] and len(state["messages"]) == 1:  # First message
+                fallback_notice = (
+                    "\n\n*Note: I'm currently operating with limited browser automation tools due to MCP server connectivity. "
+                    "I'll automatically regain full capabilities when the connection is restored.*"
+                )
+                if hasattr(response, "content"):
+                    response.content += fallback_notice
+                elif hasattr(response, "message"):
+                    response.message += fallback_notice
 
-        except Exception as e:
-            logger.error(f"❌ Agent error: {e}")
-            return {
-                **state,
-                "messages": state["messages"]
-                + [AIMessage(content=f"Error processing request: {e}")],
-            }
-
-    async def tool_execution_node(state: PlaywrightAgentState) -> PlaywrightAgentState:
-        """
-        Execute tool calls.
-
-        Args:
-            state: Current agent state
-
-        Returns:
-            Updated agent state with tool results
-        """
-        last_message = state["messages"][-1]
-
-        if not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
-            return state
-
-        try:
-            # Create tool map
-            tool_map = {tool.name: tool for tool in tools}
-            tool_messages = []
-
-            for tool_call in last_message.tool_calls:
-                tool_name = tool_call["name"]
-                tool_args = tool_call["args"]
-
-                if tool_name in tool_map:
-                    tool = tool_map[tool_name]
-                    try:
-                        result = await tool.ainvoke(tool_args)
-                        tool_messages.append(
-                            {
-                                "role": "tool",
-                                "content": str(result),
-                                "tool_call_id": tool_call["id"],
-                            }
-                        )
-                    except Exception as e:
-                        tool_messages.append(
-                            {
-                                "role": "tool",
-                                "content": f"Error executing {tool_name}: {e}",
-                                "tool_call_id": tool_call["id"],
-                            }
-                        )
-
-            return {**state, "messages": state["messages"] + tool_messages}
+            return {"messages": [response]}
 
         except Exception as e:
-            logger.error(f"❌ Tool execution error: {e}")
-            return {
-                **state,
-                "messages": state["messages"] + [AIMessage(content=f"Tool execution failed: {e}")],
-            }
+            logger.error(f"❌ Agent error: {type(e).__name__}: {e}")
 
-    return setup_agent_node, agent_node, tool_execution_node
+            # Provide helpful error message to user
+            error_message = (
+                f"I encountered an error while processing your request: {str(e)}. "
+                "This might be due to connectivity issues. Please try again in a moment."
+            )
+
+            return {"messages": [AIMessage(content=error_message)]}
+
+    return agent_node
 
 
 def should_continue(state: PlaywrightAgentState) -> str:
     """
-    Determine if we should continue or end.
+    Determine whether to continue or end based on the last message.
 
     Args:
         state: Current agent state
 
     Returns:
-        Either "tools" or END
+        "continue" to call tools, "end" to finish
     """
-    last_message = state["messages"][-1]
+    messages = state["messages"]
+    last_message = messages[-1]
 
-    # If the last message has tool calls, continue to tool execution
+    # If the last message has tool calls, continue
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-        return "tools"
+        return "continue"
 
-    # Otherwise, we're done
     return "end"

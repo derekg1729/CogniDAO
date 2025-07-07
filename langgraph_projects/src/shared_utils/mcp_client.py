@@ -376,7 +376,7 @@ def get_playwright_mcp_manager() -> MCPClientManager:
     """Get the global Playwright MCP manager with reconnection capabilities."""
     global _playwright_mcp_manager
     if _playwright_mcp_manager is None:
-        mcp_url = os.getenv("PLAYWRIGHT_MCP_URL", "http://toolhive:21462/sse#playwright")
+        mcp_url = os.getenv("PLAYWRIGHT_MCP_URL", "http://toolhive:24162/sse#playwright")
         server_configs = {
             "playwright": {
                 "url": mcp_url,

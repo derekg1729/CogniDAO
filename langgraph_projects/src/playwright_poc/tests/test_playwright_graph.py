@@ -23,9 +23,7 @@ from src.shared_utils import PlaywrightAgentState
 def sample_state():
     """Create a sample PlaywrightAgentState for testing."""
     return PlaywrightAgentState(
-        messages=[HumanMessage(content="Take a screenshot of the current page")],
-        tools_available=False,
-        current_task="",
+        messages=[HumanMessage(content="Take a screenshot of the current page")]
     )
 
 
@@ -69,7 +67,7 @@ class TestPlaywrightStateGraph:
 
         state_with_tools = {"messages": [mock_message_with_tools]}
         result = should_continue(state_with_tools)
-        assert result == "tools"
+        assert result == "continue"
 
         # Test without tool calls
         mock_message_no_tools = Mock()
@@ -77,25 +75,18 @@ class TestPlaywrightStateGraph:
 
         state_no_tools = {"messages": [mock_message_no_tools]}
         result = should_continue(state_no_tools)
-        # In the refactored implementation, this returns "end" string
         assert result == "end"
 
     def test_playwright_state_structure(self, sample_state):
         """Test that PlaywrightAgentState has the correct structure."""
         # Check required fields exist
         assert "messages" in sample_state
-        assert "tools_available" in sample_state
-        assert "current_task" in sample_state
 
         # Check types
         assert isinstance(sample_state["messages"], list)
-        assert isinstance(sample_state["tools_available"], bool)
-        assert isinstance(sample_state["current_task"], str)
 
         # Check initial values
         assert len(sample_state["messages"]) == 1
-        assert sample_state["tools_available"] is False
-        assert sample_state["current_task"] == ""
 
 
 class TestStateManagement:
@@ -108,11 +99,6 @@ class TestStateManagement:
 
     def test_state_updates(self, sample_state):
         """Test that state can be updated properly."""
-        # Test updating tools_available
-        new_state = {**sample_state, "tools_available": True}
-        assert new_state["tools_available"] is True
-        assert new_state["messages"] == sample_state["messages"]
-
         # Test adding messages
         ai_message = AIMessage(content="I'll help you take a screenshot")
         new_state_with_message = {

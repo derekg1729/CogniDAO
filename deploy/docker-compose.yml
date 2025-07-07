@@ -190,7 +190,7 @@ services:
       - REDIS_URI=redis://redis:6379
       - DATABASE_URI=postgresql://langgraph:langgraph@postgres:5432/langgraph
       - COGNI_MCP_URL=http://toolhive:24160/sse
-      - PLAYWRIGHT_MCP_URL=http://toolhive:58462/sse#playwright
+      - PLAYWRIGHT_MCP_URL=http://toolhive:24162/sse
       - PREFECT_API_URL=http://prefect-server:4200/api
       - LOG_LEVEL=debug
       # MCP Client Reconnection Configuration

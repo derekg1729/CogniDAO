@@ -300,12 +300,6 @@ test = [
     { name = "respx" },
 ]
 
-[package.dev-dependencies]
-test = [
-    { name = "httpx" },
-    { name = "respx" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "httpx", marker = "extra == 'test'", specifier = ">=0.25.0" },
@@ -326,12 +320,6 @@ requires-dist = [
     { name = "respx", marker = "extra == 'test'", specifier = ">=0.21.0" },
 ]
 provides-extras = ["test"]
-
-[package.metadata.requires-dev]
-test = [
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "respx", specifier = ">=0.22.0" },
-]
 
 [[package]]
 name = "colorama"

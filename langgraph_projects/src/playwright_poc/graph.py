@@ -1,22 +1,22 @@
 """
-Playwright Basic Graph.
+Playwright Graph.
 
 A streamlined graph definition using shared utilities for MCP client management,
 model binding, and state management for browser automation.
 """
 
 import asyncio
-
 from langgraph.graph import END, StateGraph
+from langgraph.prebuilt import ToolNode
 from src.shared_utils import (
     GraphConfig,
     PlaywrightAgentState,
     get_logger,
-    get_mcp_tools,
+    get_mcp_tools_with_refresh,
     log_graph_compilation,
 )
 
-from .agent import create_agent_nodes, should_continue
+from .agent import create_agent_node, should_continue
 
 logger = get_logger(__name__)
 
@@ -34,34 +34,32 @@ async def build_graph() -> StateGraph:
         app = workflow.compile()
         result = await app.ainvoke({"messages": [HumanMessage("Hello")]})
     """
-    # Get MCP tools for Playwright server
-    tools = await get_mcp_tools(server_type="playwright")
+    # Get MCP tools for Playwright server with refresh capability
+    tools = await get_mcp_tools_with_refresh(server_type="playwright")
 
-    # Create agent nodes
-    setup_node, agent_node, tool_node = create_agent_nodes(tools)
+    # Create agent node
+    agent_node = create_agent_node()
 
     # Build the workflow
     workflow = StateGraph(PlaywrightAgentState, config_schema=GraphConfig)
 
     # Add nodes
-    workflow.add_node("setup", setup_node)
     workflow.add_node("agent", agent_node)
-    workflow.add_node("tools", tool_node)
+    workflow.add_node("action", ToolNode(tools))
 
     # Set entry point
-    workflow.set_entry_point("setup")
+    workflow.set_entry_point("agent")
 
-    # Add edges
-    workflow.add_edge("setup", "agent")
+    # Add conditional edges - fix the mapping issue
     workflow.add_conditional_edges(
         "agent",
         should_continue,
         {
-            "tools": "tools",
-            END: END,
+            "continue": "action",
+            "end": END,
         },
     )
-    workflow.add_edge("tools", "agent")
+    workflow.add_edge("action", "agent")
 
     # Log successful compilation
     log_graph_compilation("playwright_poc", len(workflow.nodes))

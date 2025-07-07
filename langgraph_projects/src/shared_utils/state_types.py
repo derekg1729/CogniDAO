@@ -27,9 +27,8 @@ class CogniAgentState(BaseAgentState):
 class PlaywrightAgentState(BaseAgentState):
     """State for Playwright automation agents."""
 
-    messages: Annotated[list[BaseMessage], add_messages]
-    tools_available: bool
-    current_task: str
+    # Inherits messages from BaseAgentState - identical to CogniAgentState
+    pass
 
 
 class GraphConfig(TypedDict):
@@ -105,23 +104,17 @@ def create_cogni_state(messages: Sequence[BaseMessage] | None = None) -> CogniAg
     return CogniAgentState(messages=messages or [])
 
 
-def create_playwright_state(
-    messages: list[BaseMessage] | None = None, tools_available: bool = False, current_task: str = ""
-) -> PlaywrightAgentState:
+def create_playwright_state(messages: Sequence[BaseMessage] | None = None) -> PlaywrightAgentState:
     """
     Create a Playwright agent state.
 
     Args:
         messages: Initial messages
-        tools_available: Whether tools are available
-        current_task: Current task description
 
     Returns:
         PlaywrightAgentState instance
     """
-    return PlaywrightAgentState(
-        messages=messages or [], tools_available=tools_available, current_task=current_task
-    )
+    return PlaywrightAgentState(messages=messages or [])
 
 
 def create_graph_config(
