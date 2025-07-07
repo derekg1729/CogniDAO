@@ -1,11 +1,10 @@
 {
     "dependencies": [
-        "./langgraph_projects/cogni_presence",
-        "./langgraph_projects/playwright_poc"
+        "./langgraph_projects"
     ],
     "graphs": {
-        "cogni_presence": "./langgraph_projects/cogni_presence/main.py:graph",
-        "playwright_poc": "./langgraph_projects/playwright_poc/graph.py:graph"
+        "cogni_presence": "./langgraph_projects/src/cogni_presence/main.py:graph",
+        "playwright_poc": "./langgraph_projects/src/playwright_poc/main.py:graph"
     },
     "env": [
         "OPENAI_API_KEY",
