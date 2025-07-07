@@ -6,6 +6,7 @@ GitCogniAgent for reviewing PRs
 import logging
 import json
 import re
+import os
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any
@@ -17,7 +18,24 @@ from legacy_logseq.openai_handler import (
     create_thread,
     thread_completion,
 )  # noqa: F401
-from github import Github
+from github import Github, Auth
+
+# Try to load .env file for environment variables
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    # Manual .env loading fallback
+    env_path = Path(".env")
+    if env_path.exists():
+        with open(env_path, "r") as f:
+            for line in f:
+                if "=" in line and not line.strip().startswith("#"):
+                    key, value = line.strip().split("=", 1)
+                    # Remove quotes if present
+                    value = value.strip('"').strip("'")
+                    os.environ[key] = value
 
 # Setup base logger
 logger = logging.getLogger(__name__)
@@ -51,6 +69,26 @@ class GitCogniAgent(CogniAgent):
         self.logger = external_logger or logger
         self._instrumented = False
         self.created_files = []  # Track files created by this agent instance
+
+    def _create_github_client(self):
+        """
+        Create a GitHub client with authentication if available.
+
+        Returns:
+            Github: Authenticated GitHub client if token is available, otherwise anonymous client
+        """
+        github_token = os.getenv("GITHUB_TOKEN")
+        if github_token:
+            self.logger.info("Using authenticated GitHub client (rate limit: 5,000/hour)")
+            return Github(auth=Auth.Token(github_token))
+        else:
+            self.logger.warning(
+                "No GITHUB_TOKEN found, using anonymous client (rate limit: 60/hour)"
+            )
+            self.logger.warning(
+                "Consider setting GITHUB_TOKEN environment variable for higher rate limits"
+            )
+            return Github()
 
     @staticmethod
     def setup_logging(verbose=False):
@@ -246,7 +284,7 @@ class GitCogniAgent(CogniAgent):
 
         try:
             # Create GitHub client (anonymous is fine for public repos)
-            client = Github()
+            client = self._create_github_client()
 
             # Get repository and PR
             repo = client.get_repo(f"{pr_info['owner']}/{pr_info['repo']}")
@@ -282,7 +320,7 @@ class GitCogniAgent(CogniAgent):
 
         try:
             # Create GitHub client (anonymous is fine for public repos)
-            client = Github()
+            client = self._create_github_client()
 
             # Get repository and PR
             repo = client.get_repo(f"{pr_info['owner']}/{pr_info['repo']}")
