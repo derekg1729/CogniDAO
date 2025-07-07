@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cogni-langgraph-workspace"
+version = "0.1.0"
+description = "LangGraph workspace for CogniDAO agents with shared utilities"
+authors = [
+    { name = "CogniDAO" }
+]
+dependencies = [
+    # Core LangGraph dependencies
+    "langgraph>=0.3.0,<0.4.0",
+    "langgraph-checkpoint-redis>=0.0.1,<1.0.0",
+    "langgraph-cli[inmem]>=0.3.3",
+    
+    # LangChain dependencies  
+    "langchain-core>=0.3.0,<0.4.0",
+    "langchain-openai>=0.2.0,<0.3.0",
+    "langchain-community>=0.2.11",
+    "langchain-mcp-adapters>=0.1.0,<0.2.0",
+    
+    # Infrastructure
+    "redis>=5.0.0,<6.0.0",
+    "openai>=1.68.2,<1.76.0",
+    
+    # Fallback tools
+    "langchain-tavily>=0.1.0",
+]
+requires-python = ">=3.11"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=1.0.0",
+    "pytest-mock>=3.10.0",
+    "pytest-playwright>=0.5.0",
+]
+
+# Package discovery - all packages are under src/
+[tool.hatch.build.targets.wheel]
+packages = ["src"] 

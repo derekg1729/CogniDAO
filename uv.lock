@@ -10,9 +10,7 @@ resolution-markers = [
 [manifest]
 members = [
     "cogni",
-    "cogni-core-presence",
     "cogni-infra-core",
-    "cogni-playwright-basic",
     "cogni-prefect-worker",
     "cogni-web-api",
     "mcp-server",
@@ -760,44 +758,6 @@ integration = [
 ]
 
 [[package]]
-name = "cogni-core-presence"
-version = "0.1.0"
-source = { editable = "langgraph_projects/cogni_presence" }
-dependencies = [
-    { name = "langchain-community" },
-    { name = "langchain-mcp-adapters" },
-    { name = "langchain-openai" },
-    { name = "langgraph" },
-    { name = "langgraph-checkpoint-redis" },
-    { name = "langgraph-cli", extra = ["inmem"] },
-    { name = "redis" },
-]
-
-[package.optional-dependencies]
-test = [
-    { name = "langchain-tavily" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-mock" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "langchain-community", specifier = ">=0.2.11" },
-    { name = "langchain-mcp-adapters", specifier = ">=0.1.0,<0.2.0" },
-    { name = "langchain-openai", specifier = ">=0.1.17" },
-    { name = "langchain-tavily", marker = "extra == 'test'", specifier = ">=0.1.0" },
-    { name = "langgraph", specifier = ">=0.3.0,<0.4.0" },
-    { name = "langgraph-checkpoint-redis", specifier = ">=0.0.1,<1.0.0" },
-    { name = "langgraph-cli", extras = ["inmem"], specifier = ">=0.3.3" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=1.0.0" },
-    { name = "pytest-mock", marker = "extra == 'test'", specifier = ">=3.10.0" },
-    { name = "redis", specifier = ">=5.0.0,<6.0.0" },
-]
-provides-extras = ["test"]
-
-[[package]]
 name = "cogni-infra-core"
 version = "0.1.0"
 source = { editable = "libs/infra_core" }
@@ -846,58 +806,6 @@ requires-dist = [
     { name = "unidiff", marker = "extra == 'test'", specifier = ">=0.5.0" },
 ]
 provides-extras = ["test"]
-
-[[package]]
-name = "cogni-playwright-basic"
-version = "0.1.0"
-source = { editable = "langgraph_projects/playwright_poc" }
-dependencies = [
-    { name = "langchain-core" },
-    { name = "langchain-mcp-adapters" },
-    { name = "langchain-openai" },
-    { name = "langgraph" },
-    { name = "langgraph-checkpoint-redis" },
-    { name = "langgraph-cli", extra = ["inmem"] },
-    { name = "openai" },
-    { name = "redis" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-mock" },
-    { name = "pytest-playwright" },
-    { name = "ruff" },
-]
-test = [
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-mock" },
-    { name = "pytest-playwright" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "langchain-core", specifier = ">=0.3.0,<0.4.0" },
-    { name = "langchain-mcp-adapters", specifier = ">=0.1.0,<0.2.0" },
-    { name = "langchain-openai", specifier = ">=0.2.0,<0.3.0" },
-    { name = "langgraph", specifier = ">=0.3.0,<0.4.0" },
-    { name = "langgraph-checkpoint-redis", specifier = ">=0.0.1,<1.0.0" },
-    { name = "langgraph-cli", extras = ["inmem"], specifier = ">=0.3.3" },
-    { name = "openai", specifier = ">=1.68.2,<1.76.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=1.0.0" },
-    { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.10.0" },
-    { name = "pytest-mock", marker = "extra == 'test'", specifier = ">=3.10.0" },
-    { name = "pytest-playwright", marker = "extra == 'dev'", specifier = ">=0.5.0" },
-    { name = "pytest-playwright", marker = "extra == 'test'", specifier = ">=0.5.0" },
-    { name = "redis", specifier = ">=5.0.0,<6.0.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.3.3" },
-]
-provides-extras = ["dev", "test"]
 
 [[package]]
 name = "cogni-prefect-worker"
@@ -2268,21 +2176,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e5/fd/8256eba9a159f95a13c5bf7f1f49683de93b3876585b768e6be5dc3a5765/langchain_openai-0.2.14.tar.gz", hash = "sha256:7a514f309e356b182a337c0ed36ab3fbe34d9834a235a3b85cb7f91ae775d978", size = 43647, upload-time = "2024-12-19T21:51:40.629Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ed/54/63c8264d7dbc3bf31ba61bf97740fdd76386b2d4f9a58f58afd3961ce7d7/langchain_openai-0.2.14-py3-none-any.whl", hash = "sha256:d232496662f79ece9a11caf7d798ba863e559c771bc366814f7688e0fe664fe8", size = 50876, upload-time = "2024-12-19T21:51:39.3Z" },
-]
-
-[[package]]
-name = "langchain-tavily"
-version = "0.2.6"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "langchain" },
-    { name = "langchain-core" },
-    { name = "requests" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/85/de/50542a9b11dc7f2ac9a0f4d89cc895dddac2361ad852cb684ebdfd33fa5d/langchain_tavily-0.2.6.tar.gz", hash = "sha256:52c93182abf6ae1eb6a11c32627087ae66edffe4e318299e00a184c7bb81f07c", size = 21020, upload-time = "2025-07-02T17:36:13.317Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/0c/86/4c8983e19fc7007a7ce6c27b1634f07f30183a1495008cc4ee99ffa3e42f/langchain_tavily-0.2.6-py3-none-any.whl", hash = "sha256:21f07c3ca05eb8bc239bc51f0c3918871e633ce64eb97721ea8747fddb30f4c6", size = 24874, upload-time = "2025-07-02T17:36:12.178Z" },
 ]
 
 [[package]]
