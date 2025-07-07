@@ -17,6 +17,7 @@ from ..memory_core.get_memory_block_core import (
 )
 from infra_core.memory_system.schemas.common import BlockLink
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
+from ..base.cogni_tool import CogniTool
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -309,3 +310,14 @@ def get_linked_blocks(input_data: GetLinkedBlocksInput, memory_bank) -> GetLinke
             error=error_msg,
             timestamp=datetime.now(),
         )
+
+
+# Create the tool instance
+get_linked_blocks_tool_instance = CogniTool(
+    name="GetLinkedBlocks",
+    description="Get all blocks linked to a specific block with relationship information",
+    input_model=GetLinkedBlocksInput,
+    output_model=GetLinkedBlocksOutput,
+    function=get_linked_blocks,
+    memory_linked=True,
+)

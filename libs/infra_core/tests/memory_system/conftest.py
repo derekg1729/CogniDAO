@@ -19,15 +19,38 @@ import subprocess
 import time
 import socket
 import shutil
+import os
 from typing import Generator
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from infra_core.memory_system.initialize_dolt import initialize_dolt_db
 from infra_core.memory_system.dolt_mysql_base import DoltConnectionConfig
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
 from infra_core.memory_system.schemas.common import ConfidenceScore
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_environment():
+    """Set up test environment to prevent OpenAI API calls."""
+    # Set a dummy API key to prevent missing key errors
+    os.environ["OPENAI_API_KEY"] = "dummy-key-for-testing"
+    
+    # Import MockEmbedding from LlamaIndex for proper testing
+    from llama_index.core.embeddings.mock_embed_model import MockEmbedding
+    
+    # Mock OpenAI embedding model in the actual module where it's imported
+    with patch("infra_core.memory_system.llama_memory.OpenAIEmbedding") as mock_embedding:
+        # Use LlamaIndex's MockEmbedding class which properly inherits from BaseEmbedding
+        mock_instance = MockEmbedding(embed_dim=1536)
+        mock_embedding.return_value = mock_instance
+        
+        yield
+    
+    # Clean up - remove the dummy key after tests
+    if "OPENAI_API_KEY" in os.environ and os.environ["OPENAI_API_KEY"] == "dummy-key-for-testing":
+        del os.environ["OPENAI_API_KEY"]
 
 
 def find_free_port() -> int:

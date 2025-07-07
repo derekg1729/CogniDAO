@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, model_validator
 import logging
 
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
+from ..base.cogni_tool import CogniTool
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -153,3 +154,14 @@ def create_namespace_tool(
             active_branch=current_branch,
             error=error_msg,
         )
+
+
+# Create the tool instance
+create_namespace_tool_instance = CogniTool(
+    name="CreateNamespace",
+    description="Create a new namespace in the database",
+    input_model=CreateNamespaceInput,
+    output_model=CreateNamespaceOutput,
+    function=create_namespace_tool,
+    memory_linked=True,
+)

@@ -16,6 +16,9 @@ env/
 **/.venv/
 **/venv/
 
+# Test environments
+.tox/
+
 # Test directories 
 **/tests/
 

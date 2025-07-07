@@ -14,6 +14,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from infra_core.memory_system.structured_memory_bank import StructuredMemoryBank
+from ..base.cogni_tool import CogniTool
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +141,18 @@ def list_namespaces_tool(
             success=False,
             namespaces=[],
             total_count=0,
-            message=f"Failed to list namespaces: {str(e)}",
             active_branch=current_branch,
+            message=f"Failed to list namespaces: {str(e)}",
             error=error_msg,
         )
+
+
+# Create the tool instance
+list_namespaces_tool_instance = CogniTool(
+    name="ListNamespaces",
+    description="List all available namespaces with their metadata",
+    input_model=ListNamespacesInput,
+    output_model=ListNamespacesOutput,
+    function=list_namespaces_tool,
+    memory_linked=True,
+)

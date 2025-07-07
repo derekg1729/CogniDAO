@@ -74,7 +74,7 @@ export MCP_PLAYWRIGHT_URL="http://localhost:58462/sse#playwright"
 #### Direct Python
 
 ```python
-from graphs.playwright_basic.graph import compile_graph
+from langgraph_projects.playwright_poc.graph import compile_graph
 from langchain_core.messages import HumanMessage
 
 # Compile the graph
@@ -210,7 +210,7 @@ curl http://localhost:58462/sse#playwright
 redis-cli ping
 
 # Test graph compilation
-uv run python -c "from graphs.playwright_basic.graph import compile_graph; compile_graph()"
+uv run python -c "from graph import compile_graph; compile_graph()"
 ```
 
 ## Contributing

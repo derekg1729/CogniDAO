@@ -1,0 +1,18 @@
+{
+    "dependencies": [
+        "./langgraph_projects"
+    ],
+    "graphs": {
+        "cogni_presence": "./langgraph_projects/src/cogni_presence/main.py:graph",
+        "playwright_poc": "./langgraph_projects/src/playwright_poc/main.py:graph"
+    },
+    "env": [
+        "OPENAI_API_KEY",
+        "LANGSMITH_API_KEY",
+        "REDIS_URI",
+        "REDIS_URL",
+        "COGNI_MCP_URL",
+        "PLAYWRIGHT_MCP_URL"
+    ],
+    "python_version": "3.11"
+}

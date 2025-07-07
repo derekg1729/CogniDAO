@@ -34,15 +34,23 @@ from infra_core.memory_system.tools.agent_facing.create_work_item_tool import cr
 from infra_core.memory_system.tools.agent_facing.delete_memory_block_tool import (
     delete_memory_block_tool_instance,
 )
+from infra_core.memory_system.tools.agent_facing.get_active_work_items_tool import (
+    get_active_work_items_tool,
+)
 from infra_core.memory_system.tools.agent_facing.get_memory_block_tool import (
     get_memory_block_tool_instance,
 )
 from infra_core.memory_system.tools.agent_facing.get_memory_links_tool import (
     get_memory_links_tool_instance,
 )
-from infra_core.memory_system.tools.agent_facing.get_project_graph_tool import (
-    get_project_graph_tool,
+from infra_core.memory_system.tools.agent_facing.get_linked_blocks_tool import (
+    get_linked_blocks_tool_instance,
 )
+
+# DISABLED: GetProjectGraph tool marked as deprecated and broken
+# from infra_core.memory_system.tools.agent_facing.get_project_graph_tool import (
+#     get_project_graph_tool,
+# )
 from infra_core.memory_system.tools.agent_facing.global_memory_inventory_tool import (
     global_memory_inventory_tool,
 )
@@ -52,12 +60,15 @@ from infra_core.memory_system.tools.agent_facing.global_semantic_search_tool imp
 from infra_core.memory_system.tools.agent_facing.health_check_tool import (
     health_check_tool,
 )
-from infra_core.memory_system.tools.agent_facing.log_interaction_block_tool import (
-    log_interaction_block_tool,
-)
-from infra_core.memory_system.tools.agent_facing.query_doc_memory_block_tool import (
-    query_doc_memory_block_tool,
-)
+
+# DISABLED: LogInteractionBlock tool marked as unused
+# from infra_core.memory_system.tools.agent_facing.log_interaction_block_tool import (
+#     log_interaction_block_tool,
+# )
+# DISABLED: QueryDocMemoryBlock tool confirmed broken (returns 0 results)
+# from infra_core.memory_system.tools.agent_facing.query_doc_memory_block_tool import (
+#     query_doc_memory_block_tool,
+# )
 from infra_core.memory_system.tools.agent_facing.set_context_tool import set_context_tool
 from infra_core.memory_system.tools.agent_facing.update_memory_block_tool import (
     update_memory_block_tool_instance,
@@ -66,6 +77,34 @@ from infra_core.memory_system.tools.agent_facing.update_task_status_tool import 
     update_task_status_tool,
 )
 from infra_core.memory_system.tools.agent_facing.update_work_item_tool import update_work_item_tool
+
+# Namespace operations
+from infra_core.memory_system.tools.agent_facing.bulk_update_namespace_tool import (
+    bulk_update_namespace_tool_instance,
+)
+from infra_core.memory_system.tools.agent_facing.create_namespace_tool import (
+    create_namespace_tool_instance,
+)
+from infra_core.memory_system.tools.agent_facing.dolt_namespace_tool import (
+    list_namespaces_tool_instance,
+)
+
+# Core Dolt Tools - Batch 2 (6 tools)
+from infra_core.memory_system.tools.agent_facing.dolt_repo_tool import (
+    dolt_commit_tool_instance,
+    dolt_add_tool_instance,
+    dolt_status_tool_instance,
+    dolt_checkout_tool_instance,
+    dolt_reset_tool_instance,
+    dolt_push_tool_instance,
+    # Advanced Dolt Tools - Batch 3 (6 tools)
+    dolt_pull_tool_instance,
+    dolt_branch_tool_instance,
+    dolt_list_branches_tool_instance,
+    dolt_diff_tool_instance,
+    dolt_auto_commit_and_push_tool_instance,
+    dolt_merge_tool_instance,
+)
 
 # Note: bulk_update_namespace_tool is also a function, not a CogniTool instance
 
@@ -104,20 +143,23 @@ def get_all_cogni_tools() -> List[CogniTool]:
         tools.append(update_task_status_tool)
     if add_validation_report_tool:
         tools.append(add_validation_report_tool)
-    # Note: get_active_work_items doesn't have CogniTool instance yet
+    if get_active_work_items_tool:
+        tools.append(get_active_work_items_tool)
 
     # Document operations
     if create_doc_memory_block_tool:
         tools.append(create_doc_memory_block_tool)
-    if query_doc_memory_block_tool:
-        tools.append(query_doc_memory_block_tool)
+    # DISABLED: QueryDocMemoryBlock tool confirmed broken (returns 0 results)
+    # if query_doc_memory_block_tool:
+    #     tools.append(query_doc_memory_block_tool)
 
     # Link operations
     if get_memory_links_tool_instance:
         tools.append(get_memory_links_tool_instance)
     if create_block_link_tool:
         tools.append(create_block_link_tool)
-    # Note: get_linked_blocks doesn't have CogniTool instance yet
+    if get_linked_blocks_tool_instance:
+        tools.append(get_linked_blocks_tool_instance)
 
     # Bulk operations
     if bulk_create_blocks_tool:
@@ -140,15 +182,49 @@ def get_all_cogni_tools() -> List[CogniTool]:
     if health_check_tool:
         tools.append(health_check_tool)
 
-    # Namespace operations (none have CogniTool instances yet)
+    # Namespace operations
+    if bulk_update_namespace_tool_instance:
+        tools.append(bulk_update_namespace_tool_instance)
+    if create_namespace_tool_instance:
+        tools.append(create_namespace_tool_instance)
+    if list_namespaces_tool_instance:
+        tools.append(list_namespaces_tool_instance)
 
-    # Interaction logging
-    if log_interaction_block_tool:
-        tools.append(log_interaction_block_tool)
+    # Core Dolt Tools - Batch 2 (6 tools)
+    if dolt_commit_tool_instance:
+        tools.append(dolt_commit_tool_instance)
+    if dolt_add_tool_instance:
+        tools.append(dolt_add_tool_instance)
+    if dolt_status_tool_instance:
+        tools.append(dolt_status_tool_instance)
+    if dolt_checkout_tool_instance:
+        tools.append(dolt_checkout_tool_instance)
+    if dolt_reset_tool_instance:
+        tools.append(dolt_reset_tool_instance)
+    if dolt_push_tool_instance:
+        tools.append(dolt_push_tool_instance)
 
-    # Deprecated tools (included for completeness)
-    if get_project_graph_tool:
-        tools.append(get_project_graph_tool)
+    # Advanced Dolt Tools - Batch 3 (6 tools)
+    if dolt_pull_tool_instance:
+        tools.append(dolt_pull_tool_instance)
+    if dolt_branch_tool_instance:
+        tools.append(dolt_branch_tool_instance)
+    if dolt_list_branches_tool_instance:
+        tools.append(dolt_list_branches_tool_instance)
+    if dolt_diff_tool_instance:
+        tools.append(dolt_diff_tool_instance)
+    if dolt_auto_commit_and_push_tool_instance:
+        tools.append(dolt_auto_commit_and_push_tool_instance)
+    if dolt_merge_tool_instance:
+        tools.append(dolt_merge_tool_instance)
+
+    # DISABLED: Interaction logging
+    # if log_interaction_block_tool:
+    #     tools.append(log_interaction_block_tool)
+
+    # DISABLED: Deprecated tools (included for completeness)
+    # if get_project_graph_tool:
+    #     tools.append(get_project_graph_tool)
 
     return tools
 

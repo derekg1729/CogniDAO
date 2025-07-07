@@ -16,6 +16,7 @@ from ..memory_core.get_memory_block_core import (
     GetMemoryBlockInput as CoreGetMemoryBlockInput,
 )
 from infra_core.memory_system.schemas.memory_block import MemoryBlock
+from ..base.cogni_tool import CogniTool
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -37,9 +38,7 @@ class GetActiveWorkItemsInput(BaseModel):
     limit: Optional[int] = Field(
         None, description="Maximum number of results to return", ge=1, le=100
     )
-    namespace_id: str = Field(
-        "cogni-project-management", description="Namespace ID"
-    )
+    namespace_id: str = Field("cogni-project-management", description="Namespace ID")
 
 
 class GetActiveWorkItemsOutput(BaseModel):
@@ -171,31 +170,12 @@ def get_active_work_items(
         )
 
 
-# Convenience function for backward compatibility
-def get_active_work_items_tool(memory_bank=None, **kwargs) -> GetActiveWorkItemsOutput:
-    """
-    Convenience function for retrieving active work items.
-
-    Args:
-        memory_bank: Memory bank instance
-        **kwargs: Additional parameters passed to GetActiveWorkItemsInput
-
-    Returns:
-        GetActiveWorkItemsOutput with the retrieved work items
-    """
-    try:
-        input_data = GetActiveWorkItemsInput(**kwargs)
-        return get_active_work_items(input_data, memory_bank)
-    except Exception as e:
-        error_msg = f"Validation error: {str(e)}"
-        logger.error(error_msg)
-
-        # Try to get current branch even in error case
-        try:
-            current_branch = memory_bank.dolt_writer.active_branch if memory_bank else "unknown"
-        except Exception:
-            current_branch = "unknown"
-
-        return GetActiveWorkItemsOutput(
-            success=False, error=error_msg, current_branch=current_branch, timestamp=datetime.now()
-        )
+# Create the tool instance
+get_active_work_items_tool = CogniTool(
+    name="GetActiveWorkItems",
+    description="Get work items that are currently active (status='in_progress') with optional filtering",
+    input_model=GetActiveWorkItemsInput,
+    output_model=GetActiveWorkItemsOutput,
+    function=get_active_work_items,
+    memory_linked=True,
+)

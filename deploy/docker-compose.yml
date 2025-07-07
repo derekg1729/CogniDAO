@@ -52,6 +52,24 @@ services:
     networks:
       - cogni-net
 
+  # PostgreSQL Service for LangGraph Server Runtime
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=langgraph
+      - POSTGRES_USER=langgraph
+      - POSTGRES_PASSWORD=langgraph
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langgraph"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - cogni-net
+
   # Web API Service  
   api:
     image: ${API_IMAGE:-cogni-api-local}
@@ -75,9 +93,11 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
       interval: 30s
+      timeout: 10s
       retries: 3
+      start_period: 30s
     networks:
       - cogni-net
 
@@ -157,9 +177,38 @@ services:
       - THV_NO_UPDATES=1  # Prevent version checks to avoid startup lag
     ports:
       - "8080:8080"  # Use ToolHive's default port 8080
-      - "24160:24160"  # Expose MCP server port for container-to-container access (cogni-mcp)
-      - "24161:24161"  # Expose MCP server port for git-mcp
+      # MCP server ports are dynamically managed by ToolHive when servers are deployed
     restart: unless-stopped
+
+  # LangGraph Combined Service (cogni_presence + playwright_poc)
+  langgraph-cogni-presence:
+    image: ${LANGGRAPH_COMBINED_IMAGE:-cogni-langgraph-combined-local}
+    env_file: ./.env
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY}
+      - REDIS_URI=redis://redis:6379
+      - DATABASE_URI=postgresql://langgraph:langgraph@postgres:5432/langgraph
+      - COGNI_MCP_URL=http://toolhive:24160/sse
+      - PLAYWRIGHT_MCP_URL=http://toolhive:24162/sse
+      - PREFECT_API_URL=http://prefect-server:4200/api
+      - LOG_LEVEL=debug
+      # MCP Client Reconnection Configuration
+      - MCP_MAX_RETRIES=5
+      - MCP_HEALTH_CHECK_INTERVAL=30.0
+      - MCP_CONNECTION_TIMEOUT=30.0
+    ports:
+      - "8002:8000"  # Both graphs accessible via same service (Web API connects here)
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      toolhive:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - cogni-net
 
 volumes:
   caddy_data:

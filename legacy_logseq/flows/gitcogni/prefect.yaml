@@ -10,6 +10,7 @@ pull:
 deployments:
 - name: gitcogni-review
   entrypoint: legacy_logseq/flows/gitcogni/gitcogni_flow.py:gitcogni_review_flow
+  legacy_logseq/flows/gitcogni/gitcogni_flow.py
   work_pool:
     name: cogni-pool
   parameters:

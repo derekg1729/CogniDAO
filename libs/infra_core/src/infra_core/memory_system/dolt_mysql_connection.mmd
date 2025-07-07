@@ -1,0 +1,15 @@
+graph TD
+    A[MCP Tool Call] --> B[_execute_query/_execute_update]
+    B --> C[_execute_with_retry]
+    C --> D[First Attempt]
+    D --> E{Success?}
+    E -->|Yes| F[Return Result]
+    E -->|No| G{Connection Error?}
+    G -->|No| H[Re-raise Original Error]
+    G -->|Yes| I[_attempt_reconnection]
+    I --> J{Reconnect Success?}
+    J -->|No| H
+    J -->|Yes| K[Second Attempt]
+    K --> L{Success?}
+    L -->|Yes| F
+    L -->|No| M[Raise Retry Error]

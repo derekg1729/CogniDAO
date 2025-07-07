@@ -5,7 +5,10 @@ from llama_index.core import StorageContext, VectorStoreIndex, load_index_from_s
 from llama_index.core.schema import NodeWithScore  # Added import for return type
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core.graph_stores.simple import SimpleGraphStore
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+
+# Temporarily disabled due to HuggingFace dependency conflicts
+# from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.core.settings import Settings
 from typing import List, Optional
 
@@ -51,28 +54,22 @@ class LlamaMemory:
         self.graph_store = None
         self._is_in_memory = self.chroma_path == IN_MEMORY_PATH
 
-        # Set up local embedding model instead of OpenAI
-        logging.info("Setting up local HuggingFace embedding model")
+        # Using OpenAI embeddings with custom dimensions to match ChromaDB collection
+        logging.info("Setting up OpenAI embedding model with 384 dimensions")
         try:
-            # Initialize HuggingFace embedding model
-            embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en-v1.5")
+            # Initialize OpenAI embedding model with 384 dimensions to match ChromaDB
+            embed_model = OpenAIEmbedding(model="text-embedding-3-small", dimensions=384)
             Settings.embed_model = embed_model
 
             # CRITICAL: Explicitly disable LLM in Settings to prevent OpenAI initialization
             Settings.llm = None
 
-            logging.info("Initialized local HuggingFace embedding model (BAAI/bge-small-en-v1.5)")
+            logging.info("✅ OpenAI embedding model configured successfully with 384 dimensions")
+        except Exception as e:
+            logging.error(f"❌ Failed to set up OpenAI embedding model: {e}")
+            raise
 
-        except Exception as embed_error:
-            logging.error(
-                f"Failed to initialize HuggingFace embedding model: {embed_error}", exc_info=True
-            )
-            logging.error(
-                "This may cause LlamaIndex to fall back to OpenAI, leading to API key errors"
-            )
-            raise RuntimeError(f"Embedding model initialization failed: {embed_error}")
-
-        logging.info("Local embedding model configured")
+        logging.info("OpenAI embedding model configured successfully")
 
         if not self._is_in_memory:
             self.graph_store_path = os.path.join(self.chroma_path, DEFAULT_GRAPH_STORE_FILENAME)

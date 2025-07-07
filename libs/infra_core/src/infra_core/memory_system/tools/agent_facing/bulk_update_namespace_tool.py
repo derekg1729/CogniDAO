@@ -11,11 +11,12 @@ from pydantic import BaseModel, Field
 import logging
 
 from ...schemas.common import BlockIdType
+from ..base.cogni_tool import CogniTool
 from ..memory_core.update_memory_block_core import (
     update_memory_block_core,
     UpdateMemoryBlockInput as CoreUpdateMemoryBlockInput,
+    UpdateErrorCode,
 )
-from ..memory_core.update_memory_block_models import UpdateErrorCode
 from ...dolt_writer import PERSISTED_TABLES
 
 # Setup logging
@@ -475,3 +476,14 @@ def bulk_update_namespace_tool(input_data: dict, memory_bank) -> dict:
 
     # Convert to dictionary for JSON serialization
     return result.dict()
+
+
+# Create the tool instance
+bulk_update_namespace_tool_instance = CogniTool(
+    name="BulkUpdateNamespace",
+    description="Update namespace of multiple memory blocks in a single operation with independent success tracking",
+    input_model=BulkUpdateNamespaceInput,
+    output_model=BulkUpdateNamespaceOutput,
+    function=bulk_update_namespace,
+    memory_linked=True,
+)

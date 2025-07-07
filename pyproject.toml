@@ -22,11 +22,17 @@ dependencies = [
     "sentence-transformers>=2.2.2", # Embeddings used by multiple services
     "prefect>=3.0.0,<4.0.0", # Workflow orchestration for deployment scripts
     "cogni-infra-core",
+    "langchain-openai>=0.2.14",
+    "langchain-community>=0.3.27",
+    "langchain-mcp-adapters>=0.1.8",
+    "llama-index-embeddings-openai>=0.3.1",
 ]
 requires-python = ">=3.11"
 
 [project.optional-dependencies]
 playwright = ["playwright>=1.49.0", "pytest-playwright"]
+
+[dependency-groups]
 integration = [
     # OpenAI integration (used by model handlers and gitcogni)
     "openai>=1.0.0",
@@ -70,6 +76,9 @@ dev = [
     "ruff>=0.3.3",
     "pre-commit>=4.2.0",
     "respx>=0.22.0",  # HTTP mocking for HTTPX (used in test fixtures)
+    "tox",  # Multi-environment testing tool
+    "tox-uv>=0.4",  # UV plugin for tox (required by tox.ini)
+    "langgraph-cli[inmem]>=0.3.3",
     
     # Essential dependencies for basic development workflow
     # (Full dependencies available through service-specific installs)
@@ -91,6 +100,8 @@ members = [
     "services/mcp_server",
     "services/web_api", 
     "services/prefect_worker",
+    "langgraph_projects/playwright_poc",
+    "langgraph_projects/cogni_presence",
 ]
 
 [tool.uv.sources]
