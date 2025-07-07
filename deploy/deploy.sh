@@ -186,6 +186,7 @@ EOF
                               --target-host 0.0.0.0 \
                               --host 0.0.0.0 \
                               --name cogni-mcp \
+                              --env OPENAI_API_KEY=${OPENAI_API_KEY} \
                               --env DOLT_HOST=dolt-db \
                               --env DOLT_PORT=3306 \
                               --env DOLT_USER=root \
@@ -306,6 +307,7 @@ EOF
                               --target-host 0.0.0.0 \
                               --host 0.0.0.0 \
                               --name cogni-mcp \
+                              --env OPENAI_API_KEY=${OPENAI_API_KEY} \
                               --env DOLT_HOST=dolt-db \
                               --env DOLT_PORT=3306 \
                               --env DOLT_USER=root \

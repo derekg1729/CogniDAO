@@ -53,7 +53,7 @@ thv-cogni-mcp-local:
 	thv run \
 		--target-host 0.0.0.0 \
 		--host 0.0.0.0 \
-		--name cogni-mcp \
+		--name cogni-mcp-loc \
 		--env DOLT_HOST=host.docker.internal \
 		--env DOLT_PORT=3306 \
 		--env DOLT_USER=root \
@@ -61,6 +61,7 @@ thv-cogni-mcp-local:
 		--env DOLT_DATABASE=cogni-dao-memory \
 		--env DOLT_BRANCH=cogni-project-management \
 		--env DOLT_NAMESPACE=cogni-project-management \
+		--env OPENAI_API_KEY=${OPENAI_API_KEY} \
 		--env CHROMA_PATH=/app/chroma \
 		--env CHROMA_COLLECTION_NAME=cogni_mcp_collection \
 		cogni-mcp:latest
