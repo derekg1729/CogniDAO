@@ -966,6 +966,30 @@ if __name__ == "__main__":
     # Default to stdio for Cursor, use MCP_TRANSPORT=sse for ToolHive
     transport = os.getenv("MCP_TRANSPORT", "stdio")
 
+    # 🔍 TRANSPORT ARCHITECTURE DOCUMENTATION
+    #
+    # This is a commonly misunderstood configuration. Here's how it actually works:
+    #
+    # LOCAL DEVELOPMENT (Cursor/Direct):
+    #   - MCP Server runs with stdio transport
+    #   - Client connects directly via stdin/stdout
+    #   - transport = "stdio" (default)
+    #
+    # DOCKER/TOOLHIVE DEPLOYMENT:
+    #   - MCP Server STILL runs with stdio transport
+    #   - ToolHive launches the MCP server process and communicates via stdio
+    #   - ToolHive then PROXIES the MCP server over HTTP/SSE for clients
+    #   - Clients connect to ToolHive's SSE endpoint, not directly to MCP server
+    #   - transport = "stdio" (ToolHive handles the SSE conversion)
+    #
+    # The transport variable controls how THIS MCP server process communicates,
+    # NOT how external clients connect to it in Docker deployments.
+    #
+    # ToolHive Architecture:
+    # [MCP Client] --SSE--> [ToolHive] --stdio--> [MCP Server Process]
+    #
+    transport = os.getenv("MCP_TRANSPORT", "stdio")
+
     # 🔍 ENHANCED STARTUP LOGGING for debugging deployment issues
     print("🚀 [MCP STARTUP] Cogni MCP Server starting...")
     print(f"🔧 [MCP STARTUP] Transport: {transport}")
