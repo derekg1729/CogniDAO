@@ -36,8 +36,10 @@ test = [
     "pytest-asyncio>=1.0.0",
     "pytest-mock>=3.10.0",
     "pytest-playwright>=0.5.0",
+    "respx>=0.21.0",
+    "httpx>=0.25.0",
 ]
 
 # Package discovery - all packages are under src/
 [tool.hatch.build.targets.wheel]
-packages = ["src"] 
+packages = ["src"]

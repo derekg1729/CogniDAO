@@ -11,20 +11,18 @@ import pytest
 from unittest.mock import Mock
 
 from langchain_core.messages import HumanMessage, AIMessage
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph
 
-# Import the graph components (using relative import since tests run from project dir)
-from graph import (
-    PlaywrightState,
-    create_stategraph,
-    should_continue,
-)
+# Import the graph components from the refactored modules
+from src.playwright_poc.graph import build_graph
+from src.playwright_poc.agent import should_continue
+from src.shared_utils import PlaywrightAgentState
 
 
 @pytest.fixture
 def sample_state():
-    """Create a sample PlaywrightState for testing."""
-    return PlaywrightState(
+    """Create a sample PlaywrightAgentState for testing."""
+    return PlaywrightAgentState(
         messages=[HumanMessage(content="Take a screenshot of the current page")],
         tools_available=False,
         current_task="",
@@ -36,7 +34,9 @@ class TestPlaywrightStateGraph:
 
     def test_create_stategraph_structure(self):
         """Test that the StateGraph is created with correct structure."""
-        workflow = create_stategraph()
+        import asyncio
+
+        workflow = asyncio.run(build_graph())
 
         assert isinstance(workflow, StateGraph)
 
@@ -51,7 +51,9 @@ class TestPlaywrightStateGraph:
     def test_compile_graph_basic(self):
         """Test basic graph compilation."""
         # Just test that we can create and compile a basic graph
-        workflow = create_stategraph()
+        import asyncio
+
+        workflow = asyncio.run(build_graph())
         compiled = workflow.compile()
 
         # Should be a compiled graph object
@@ -75,11 +77,11 @@ class TestPlaywrightStateGraph:
 
         state_no_tools = {"messages": [mock_message_no_tools]}
         result = should_continue(state_no_tools)
-        # LangGraph END constant is "__end__"
-        assert result == END
+        # In the refactored implementation, this returns "end" string
+        assert result == "end"
 
     def test_playwright_state_structure(self, sample_state):
-        """Test that PlaywrightState has the correct structure."""
+        """Test that PlaywrightAgentState has the correct structure."""
         # Check required fields exist
         assert "messages" in sample_state
         assert "tools_available" in sample_state
