@@ -160,8 +160,6 @@ def print_mcp_status(results: Dict[str, Any]) -> None:
         else:
             print("  Status: ❌ Disconnected")
             print(f"  State: {info.get('state', 'unknown')}")
-            if info.get("using_fallback"):
-                print(f"  Fallback: Using {info.get('fallback_tools_count', 0)} fallback tools")
             if info.get("error"):
                 print(f"  Error: {info.get('error')}")
 

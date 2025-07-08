@@ -12,16 +12,7 @@ from langgraph.graph import StateGraph, END, add_messages
 
 logger = logging.getLogger(__name__)
 
-# Default fallback tools for when MCP is not available
-try:
-    from langchain_tavily import TavilySearch
-
-    fallback_tools = [TavilySearch(max_results=1)]
-except ImportError:
-    # Fallback to the deprecated version if langchain_tavily is not installed
-    from langchain_community.tools.tavily_search import TavilySearchResults
-
-    fallback_tools = [TavilySearchResults(max_results=1)]
+# MCP is the primary and only tool source - no fallback tools
 
 mcp_url = os.getenv("COGNI_MCP_URL", "http://toolhive:24160/sse")
 
@@ -56,7 +47,7 @@ def _get_bound_model(model_name: str, tools_signature: str):
 
     # Use global tools for binding (ensures consistency with signature)
     global _tools
-    tools_to_bind = _tools if _tools else fallback_tools
+    tools_to_bind = _tools if _tools else []
     return base_model.bind_tools(tools_to_bind)
 
 
@@ -67,7 +58,7 @@ def _get_cached_bound_model(model_name: str, tools):
     if tools:
         _tools = tools
 
-    tools_to_bind = _tools if _tools else fallback_tools
+    tools_to_bind = _tools if _tools else []
     tools_signature = _create_tools_signature(tools_to_bind)
 
     # Only pass hashable signature to cached function
@@ -155,9 +146,9 @@ async def _initialize_tools():
             _tools = mcp_tools
         except asyncio.TimeoutError:
             logger.warning(
-                "MCP server connection timed out after 30 seconds. Using fallback tools."
+                "MCP server connection timed out after 30 seconds. No tools available."
             )
-            _tools = fallback_tools
+            _tools = []
         except Exception as e:
             # Log the full exception details for debugging
             logger.error(f"Failed to connect to MCP server at {mcp_url}: {type(e).__name__}: {e}")
@@ -165,8 +156,8 @@ async def _initialize_tools():
             import traceback
 
             logger.error(f"Full traceback: {traceback.format_exc()}")
-            logger.warning("Using fallback tools due to MCP connection failure.")
-            _tools = fallback_tools
+            logger.warning("No tools available due to MCP connection failure.")
+            _tools = []
 
         return _tools
 
