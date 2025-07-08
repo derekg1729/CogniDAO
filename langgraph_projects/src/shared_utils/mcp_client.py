@@ -20,18 +20,9 @@ from .logging_utils import get_logger
 logger = get_logger(__name__)
 
 # Default fallback tools for when MCP is not available
-try:
-    from langchain_tavily import TavilySearch
-
-    _fallback_tools = [TavilySearch(max_results=1)]
-except ImportError:
-    # Fallback to the deprecated version if langchain_tavily is not installed
-    try:
-        from langchain_community.tools.tavily_search import TavilySearchResults
-
-        _fallback_tools = [TavilySearchResults(max_results=1)]
-    except ImportError:
-        _fallback_tools = []
+# Note: Tavily tools removed as they require API keys that may not be available
+# MCP should be the primary tool source; fallback tools should be minimal
+_fallback_tools = []
 
 
 class ConnectionState(Enum):
