@@ -37,6 +37,11 @@ from .state_types import (
     COGNI_SYSTEM_PROMPT,
     PLAYWRIGHT_SYSTEM_PROMPT,
 )
+from .prompt_templates import (
+    PromptTemplateManager,
+    render_playwright_navigator_prompt,
+    render_playwright_observer_prompt,
+)
 
 __version__ = "0.1.0"
 __all__ = [
@@ -61,6 +66,10 @@ __all__ = [
     "GraphConfig",
     "COGNI_SYSTEM_PROMPT",
     "PLAYWRIGHT_SYSTEM_PROMPT",
+    # Prompt Templates
+    "PromptTemplateManager",
+    "render_playwright_navigator_prompt",
+    "render_playwright_observer_prompt",
     # Error Handling
     "MCPConnectionError",
     "handle_mcp_error",
