@@ -179,11 +179,10 @@ def log_mcp_health_check(server_type: str, connection_info: dict) -> None:
     """
     logger = get_logger(__name__)
     state = connection_info.get("state", "unknown")
-    using_fallback = connection_info.get("using_fallback", False)
     tools_count = connection_info.get("tools_count", 0)
 
-    if using_fallback:
-        logger.debug(f"🔍 MCP health check for {server_type}: state={state}, using fallback tools")
+    if state == "failed":
+        logger.debug(f"🔍 MCP health check for {server_type}: state={state}, connection failed")
     else:
         logger.debug(
             f"🔍 MCP health check for {server_type}: state={state}, {tools_count} tools available"
