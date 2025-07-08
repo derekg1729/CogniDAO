@@ -30,6 +30,18 @@ services:
       retries: 5
       start_period: 60s
     restart: unless-stopped
+    # Resource limits for Docker Compose (local development - enforced)
+    mem_limit: 2G           # Dolt database memory limit
+    cpus: 2.0               # 2 CPU cores max
+    # Resource limits for Docker Swarm mode (production - future compatibility)
+    deploy:
+      resources:
+        limits:
+          memory: 2G      # Dolt database memory limit
+          cpus: '2.0'     # 2 CPU cores max
+        reservations:
+          memory: 512M    # Minimum memory guarantee
+          cpus: '0.5'     # Minimum CPU guarantee
     networks:
       - cogni-net
 
@@ -67,6 +79,18 @@ services:
       timeout: 10s
       retries: 5
     restart: unless-stopped
+    # Resource limits for Docker Compose (local development - enforced)
+    mem_limit: 1G           # PostgreSQL memory limit
+    cpus: 1.0               # 1 CPU core max
+    # Resource limits for Docker Swarm mode (production - future compatibility)
+    deploy:
+      resources:
+        limits:
+          memory: 1G      # PostgreSQL memory limit
+          cpus: '1.0'     # 1 CPU core max
+        reservations:
+          memory: 256M    # Minimum memory guarantee
+          cpus: '0.25'    # Minimum CPU guarantee
     networks:
       - cogni-net
 
@@ -210,6 +234,69 @@ services:
     networks:
       - cogni-net
 
+  # Qwen3 Local Model Service via Ollama (Production-ready)
+  qwen-ollama:
+    image: ollama/ollama:latest
+    container_name: qwen-ollama
+    ports:
+      - "7869:11434"  # Non-conflicting port mapping
+    volumes:
+      - ollama_models:/root/.ollama
+    pull_policy: always
+    tty: true
+    restart: unless-stopped
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h  # Prevent model unloading
+      - OLLAMA_HOST=0.0.0.0    # Bind to all interfaces
+    # Resource limits for Docker Compose (local development - enforced)
+    mem_limit: 6G           # Model + inference memory limit
+    cpus: 4.0               # 4 CPU cores max
+    # Resource limits for Docker Swarm mode (production - future compatibility)
+    deploy:
+      resources:
+        limits:
+          memory: 6G      # Generous for 7B model + overhead
+          cpus: '4.0'     # 4 CPU cores max
+        reservations:
+          memory: 2G      # Minimum memory guarantee
+          cpus: '1.0'     # Minimum CPU guarantee
+    networks:
+      - cogni-net
+    # Uncomment for GPU support (requires Docker Compose 2.23+)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # Model initialization service (runs once to pull models)
+  qwen-init:
+    image: ollama/ollama:latest
+    container_name: qwen-init
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      - OLLAMA_HOST=qwen-ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3:4b}
+    depends_on:
+      - qwen-ollama
+    command: >
+      sh -c '
+        echo "⏳ Waiting for Ollama server to be ready..." &&
+        until OLLAMA_HOST=qwen-ollama:11434 ollama list >/dev/null 2>&1; do
+          echo "   Waiting for Ollama server..."
+          sleep 5
+        done &&
+        echo "📦 Pulling model: $${OLLAMA_MODEL}..." &&
+        OLLAMA_HOST=qwen-ollama:11434 ollama pull $${OLLAMA_MODEL} &&
+        echo "✅ Model ready: $${OLLAMA_MODEL}"
+      '
+    restart: "no"  # Run once only
+    networks:
+      - cogni-net 
+
 volumes:
   caddy_data:
   caddy_config:
@@ -217,6 +304,7 @@ volumes:
   prefect_data:
   mcp_chroma:
   redis_data:
+  ollama_models:
 
 networks:
   cogni-net:
