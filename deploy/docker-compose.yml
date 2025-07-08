@@ -239,15 +239,18 @@ services:
     image: ollama/ollama:latest
     container_name: qwen-ollama
     ports:
-      - "7869:11434"  # Non-conflicting port mapping
+      - "11434:11434"  # Standard Ollama port (was 7869 for conflict avoidance)
     volumes:
       - ollama_models:/root/.ollama
     pull_policy: always
     tty: true
     restart: unless-stopped
+    # No command override needed - default ollama serve works best
     environment:
-      - OLLAMA_KEEP_ALIVE=24h  # Prevent model unloading
-      - OLLAMA_HOST=0.0.0.0    # Bind to all interfaces
+      - OLLAMA_KEEP_ALIVE=24h         # Prevent model unloading
+      - OLLAMA_HOST=0.0.0.0           # Bind to all interfaces
+      # Research-backed M2 Max CPU optimizations (valid environment variables only)
+      - OLLAMA_NUM_PARALLEL=1        # Single request processing for CPU-only
     # Resource limits for Docker Compose (local development - enforced)
     mem_limit: 6G           # Model + inference memory limit
     cpus: 4.0               # 4 CPU cores max
@@ -277,22 +280,13 @@ services:
     container_name: qwen-init
     volumes:
       - ollama_models:/root/.ollama
+      - ./init-qwen-model.sh:/init-qwen-model.sh:ro
     environment:
-      - OLLAMA_HOST=qwen-ollama:11434
+      # Note: Update .env file to set OLLAMA_MODEL=qwen3:4b (currently overrides this default)
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3:4b}
     depends_on:
       - qwen-ollama
-    command: >
-      sh -c '
-        echo "⏳ Waiting for Ollama server to be ready..." &&
-        until OLLAMA_HOST=qwen-ollama:11434 ollama list >/dev/null 2>&1; do
-          echo "   Waiting for Ollama server..."
-          sleep 5
-        done &&
-        echo "📦 Pulling model: $${OLLAMA_MODEL}..." &&
-        OLLAMA_HOST=qwen-ollama:11434 ollama pull $${OLLAMA_MODEL} &&
-        echo "✅ Model ready: $${OLLAMA_MODEL}"
-      '
+    entrypoint: ["/bin/bash", "/init-qwen-model.sh"]
     restart: "no"  # Run once only
     networks:
       - cogni-net 
@@ -305,6 +299,8 @@ volumes:
   mcp_chroma:
   redis_data:
   ollama_models:
+    # Persisted volume for Ollama models - survives container rebuilds
+    driver: local
 
 networks:
   cogni-net:
