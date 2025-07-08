@@ -84,12 +84,13 @@ class TestConnectionRecovery:
 
     # Test _attempt_reconnection method
     def test_attempt_reconnection_not_using_persistent(self, base_instance):
-        """Test that reconnection returns False when not using persistent connections."""
+        """Test that reconnection validates regular connection capability when not using persistent connections."""
         # Ensure not using persistent connections
         base_instance._use_persistent = False
 
         result = base_instance._attempt_reconnection()
-        assert result is False
+        # New behavior: validates regular connection capability and returns True if successful
+        assert result is True
 
     @patch("infra_core.memory_system.dolt_mysql_base.logger")
     def test_attempt_reconnection_success(self, mock_logger, base_instance, mock_connection):
