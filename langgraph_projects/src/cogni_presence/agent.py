@@ -20,6 +20,16 @@ from src.shared_utils.prompt_templates import PromptTemplateManager
 
 logger = get_logger(__name__)
 
+# Global variable for runtime tools - initialized once per process
+_runtime_tools = None
+
+async def get_runtime_tools(server_type: str):
+    """Get MCP tools with lazy initialization - connect once per process."""
+    global _runtime_tools
+    if _runtime_tools is None:
+        _runtime_tools = await get_mcp_tools_with_refresh(server_type=server_type)
+    return _runtime_tools
+
 
 def create_agent_node() -> Callable[[CogniAgentState, dict[str, Any]], dict[str, Any]]:
     """
@@ -41,8 +51,8 @@ def create_agent_node() -> Callable[[CogniAgentState, dict[str, Any]], dict[str,
             Updated state with model response
         """
         try:
-            # Get MCP tools with refresh capability (will attempt reconnection if needed)
-            tools = await get_mcp_tools_with_refresh(server_type="cogni")
+            # Get MCP tools with lazy initialization (connects once per process)
+            tools = await get_runtime_tools(server_type="cogni")
 
             # Get connection info for logging
             connection_info = get_mcp_connection_info(server_type="cogni")
