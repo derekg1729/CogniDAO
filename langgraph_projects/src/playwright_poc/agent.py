@@ -16,21 +16,15 @@ from src.shared_utils import (
     get_mcp_connection_info,
     log_model_binding,
 )
+from src.shared_utils.prompt_templates import (
+    render_playwright_navigator_prompt,
+    PromptTemplateManager,
+)
 
 logger = get_logger(__name__)
 
-# System prompt for Playwright agent
-PLAYWRIGHT_SYSTEM_PROMPT = """You are a helpful browser automation assistant powered by Playwright tools.
-
-You can help users with:
-- Taking screenshots of web pages
-- Navigating to URLs
-- Extracting content from web pages
-- Interacting with web elements
-- Performing automated browser tasks
-
-When users request browser automation tasks, use the available Playwright tools to help them accomplish their goals.
-Be specific about what you're doing and provide clear feedback about the results."""
+# Template manager for generating dynamic prompts
+template_manager = PromptTemplateManager()
 
 
 def create_agent_node() -> Callable[[PlaywrightAgentState, dict[str, Any]], dict[str, Any]]:
@@ -73,11 +67,23 @@ def create_agent_node() -> Callable[[PlaywrightAgentState, dict[str, Any]], dict
                     f"✅ Using {connection_info['tools_count']} MCP tools (state: {connection_info['state']})"
                 )
 
-            # Prepare messages with system prompt
-            messages = state["messages"]
-            messages_with_system = [SystemMessage(content=PLAYWRIGHT_SYSTEM_PROMPT)] + list(
-                messages
+            # Generate tool specs for the template
+            tool_specs = template_manager.generate_tool_specs_from_mcp_tools(tools)
+            
+            # Get configuration for target URL and task context
+            target_url = config.get("configurable", {}).get("target_url", "http://host.docker.internal:3000")
+            task_context = config.get("configurable", {}).get("task_context", "")
+            
+            # Generate system prompt using template
+            system_prompt = render_playwright_navigator_prompt(
+                tool_specs=tool_specs,
+                task_context=task_context,
+                target_url=target_url
             )
+            
+            # Prepare messages with templated system prompt
+            messages = state["messages"]
+            messages_with_system = [SystemMessage(content=system_prompt)] + list(messages)
 
             # Handle case where model_name is explicitly None (not just missing)
             model_name = config.get("configurable", {}).get("model_name") or "gpt-4o-mini"

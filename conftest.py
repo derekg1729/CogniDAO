@@ -130,7 +130,12 @@ def mock_structured_memory_bank_for_mcp_server(monkeypatch):
     Uses the proven working pattern from test_mcp_poc_dry.py with enhanced return values
     for Pydantic validation compatibility.
     """
-    from infra_core.memory_system.link_manager import LinkManager
+    try:
+        from infra_core.memory_system.link_manager import LinkManager
+    except ImportError:
+        # infra_core not available (e.g., in langgraph_projects environment)
+        yield
+        return
 
     dummy_bank = MagicMock()
     dummy_link_mgr = MagicMock()

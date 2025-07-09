@@ -36,7 +36,10 @@ uv run tox
 ```
 
 You can run a specific suite with `uv run tox -e <env>`.
-Valid environments right now include `infra_core`, `mcp_server`, `web_api` and `integration`.
+Valid environments right now include `infra_core`, `mcp_server`, `web_api`, `integration`, `graphs`, and `shared_utils`.
+
+### ⚠️ Adding New Tests
+**`conftest.py` and `tox.ini` both impact cross-environment parts of the project's test suite. Careful when touching them. If you do, ensure you run the full test suite after, 'uv run tox'. Any failures are your responsibility!**
 
 ## Pull Requests
 - Reference lines in files when summarizing changes.
