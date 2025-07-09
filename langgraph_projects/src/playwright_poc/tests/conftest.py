@@ -14,6 +14,7 @@ def setup_test_environment():
     """Set up minimal test environment."""
     # Set test API key to avoid missing key errors
     os.environ["OPENAI_API_KEY"] = "test-key-for-testing"
+    
 
     yield
 

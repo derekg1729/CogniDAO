@@ -53,6 +53,7 @@ def setup_test_environment():
     os.environ["TAVILY_API_KEY"] = "test-tavily-key-for-testing"
     # Use consistent MCP URL for tests
     os.environ["COGNI_MCP_URL"] = "http://toolhive:24160/sse"
+    
 
     yield
 
