@@ -230,6 +230,37 @@ class DoltMySQLBase:
         except Error as e:
             raise Exception(f"Failed to verify current branch: {e}")
 
+    def _is_connection_healthy(self, connection: mysql.connector.MySQLConnection) -> bool:
+        """
+        Check if connection is actually usable before attempting operations.
+
+        This prevents the "MySQL Connection not available" error by proactively
+        detecting stale connections that report as connected but can't execute queries.
+
+        Args:
+            connection: The MySQL connection to check
+
+        Returns:
+            True if connection is healthy and can execute queries, False otherwise
+        """
+        try:
+            # First check if connection reports as connected
+            if not connection.is_connected():
+                logger.debug("Connection health check: connection reports as disconnected")
+                return False
+
+            # Try a simple query to verify it's actually usable
+            cursor = connection.cursor()
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+            cursor.close()
+            logger.debug("Connection health check: connection is healthy")
+            return True
+
+        except Exception as e:
+            logger.debug(f"Connection health check failed: {e}")
+            return False
+
     def use_persistent_connection(self, branch: str = DEFAULT_PROTECTED_BRANCH) -> None:
         """
         Enable persistent connection mode and checkout the specified branch.
@@ -333,6 +364,7 @@ class DoltMySQLBase:
             return True
 
         # Check for common connection error patterns in the error message
+        # TODO: what a silly way to do this.. can we be smarter?
         if isinstance(error, Error):
             error_msg = str(error).lower()
             connection_keywords = [
@@ -349,6 +381,7 @@ class DoltMySQLBase:
                 "server has gone away",
                 "server shutdown",
                 "can't connect to mysql server",
+                "mysql connection not available",  # FIX: Add Docker-specific error pattern
             ]
             return any(keyword in error_msg for keyword in connection_keywords)
 
@@ -485,8 +518,18 @@ class DoltMySQLBase:
         """Implementation of query execution (without retry logic)."""
         # Use persistent connection if available, otherwise create new one
         if self._use_persistent and self._persistent_connection:
-            connection = self._persistent_connection
-            connection_is_persistent = True
+            # FIX: Check connection health before use to prevent "MySQL Connection not available" errors
+            if not self._is_connection_healthy(self._persistent_connection):
+                logger.warning(
+                    "Persistent connection unhealthy, creating new connection for this operation"
+                )
+                # Don't reset persistent connection state - let retry logic handle reconnection
+                # Just use a new connection for this specific operation
+                connection = self._get_connection()
+                connection_is_persistent = False
+            else:
+                connection = self._persistent_connection
+                connection_is_persistent = True
         else:
             connection = self._get_connection()
             connection_is_persistent = False
@@ -498,7 +541,10 @@ class DoltMySQLBase:
             cursor.close()
             return results
         except Error as e:
-            raise Exception(f"Query failed: {e}")
+            # FIX: Don't wrap - preserve original error type for proper detection
+            # The original Exception wrapping prevented _is_connection_error from detecting
+            # OperationalError("MySQL Connection not available") properly
+            raise e
         finally:
             # Only close if it's not a persistent connection
             if not connection_is_persistent:
@@ -512,8 +558,18 @@ class DoltMySQLBase:
         """Implementation of update execution (without retry logic)."""
         # Use persistent connection if available, otherwise create new one
         if self._use_persistent and self._persistent_connection:
-            connection = self._persistent_connection
-            connection_is_persistent = True
+            # FIX: Check connection health before use to prevent "MySQL Connection not available" errors
+            if not self._is_connection_healthy(self._persistent_connection):
+                logger.warning(
+                    "Persistent connection unhealthy, creating new connection for this operation"
+                )
+                # Don't reset persistent connection state - let retry logic handle reconnection
+                # Just use a new connection for this specific operation
+                connection = self._get_connection()
+                connection_is_persistent = False
+            else:
+                connection = self._persistent_connection
+                connection_is_persistent = True
         else:
             connection = self._get_connection()
             connection_is_persistent = False
@@ -527,7 +583,8 @@ class DoltMySQLBase:
             return affected_rows
         except Error as e:
             connection.rollback()
-            raise Exception(f"Update failed: {e}")
+            # FIX: Don't wrap - preserve original error type for proper detection
+            raise e
         finally:
             # Only close if it's not a persistent connection
             if not connection_is_persistent:
