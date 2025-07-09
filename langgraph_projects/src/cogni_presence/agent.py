@@ -9,7 +9,6 @@ from typing import Any
 
 from langchain_core.messages import SystemMessage, AIMessage
 from src.shared_utils import (
-    COGNI_SYSTEM_PROMPT,
     CogniAgentState,
     get_cached_bound_model,
     get_logger,
@@ -17,6 +16,7 @@ from src.shared_utils import (
     get_mcp_connection_info,
     log_model_binding,
 )
+from src.shared_utils.prompt_templates import PromptTemplateManager
 
 logger = get_logger(__name__)
 
@@ -61,9 +61,20 @@ def create_agent_node() -> Callable[[CogniAgentState, dict[str, Any]], dict[str,
                     f"✅ Using {connection_info['tools_count']} MCP tools (state: {connection_info['state']})"
                 )
 
-            # Prepare messages with system prompt
+            # Generate tool specifications from MCP tools
+            template_manager = PromptTemplateManager()
+            tool_specs = template_manager.generate_tool_specs_from_mcp_tools(tools)
+            
+            # Render system prompt using template
+            system_prompt = template_manager.render_agent_prompt(
+                "cogni_presence", 
+                tool_specs=tool_specs,
+                task_context=""
+            )
+            
+            # Prepare messages with templated system prompt
             messages = state["messages"]
-            messages_with_system = [SystemMessage(content=COGNI_SYSTEM_PROMPT)] + list(messages)
+            messages_with_system = [SystemMessage(content=system_prompt)] + list(messages)
 
             # Handle case where model_name is explicitly None (not just missing)
             model_name = config.get("configurable", {}).get("model_name") or "gpt-4o-mini"

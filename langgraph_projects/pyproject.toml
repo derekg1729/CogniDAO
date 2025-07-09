@@ -27,6 +27,9 @@ dependencies = [
     
     # Fallback tools
     "langchain-tavily>=0.1.0",
+    
+    # Template rendering
+    "jinja2>=3.1.0,<4.0.0",
 ]
 requires-python = ">=3.11"
 
