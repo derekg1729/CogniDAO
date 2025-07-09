@@ -105,46 +105,37 @@ def temp_chroma_db(tmp_path_factory):
 
 # Shared MCP Server Mocking Fixtures (using proven working pattern)
 @pytest.fixture(autouse=True)
-def mock_mysql_connect_for_mcp_server(request, monkeypatch):
+def mock_mysql_connect_for_mcp_server(monkeypatch):
     """
     Replace mysql.connector.connect with a dummy connection for MCP server tests.
     This prevents sys.exit(1) during module import when tests run.
     Uses the proven working pattern from test_mcp_poc_dry.py.
-    
-    Only activates for tests marked with @pytest.mark.requires_mysql
     """
-    # Only apply MySQL mocking if the test requires it
-    if request.node.get_closest_marker("requires_mysql") is None:
-        yield  # Still need to yield for generator fixture
-        return
-        
     dummy_conn = MagicMock()
     dummy_cursor = MagicMock()
     dummy_cursor.execute.return_value = None
     dummy_cursor.fetchone.return_value = (1,)
     dummy_conn.cursor.return_value = dummy_cursor
 
-    # Patch the connect() call for MCP server tests that need it
+    # Patch the connect() call globally for all MCP server tests
     monkeypatch.setattr("mysql.connector.connect", lambda **kwargs: dummy_conn)
     yield
 
 
 @pytest.fixture(autouse=True)
-def mock_structured_memory_bank_for_mcp_server(request, monkeypatch):
+def mock_structured_memory_bank_for_mcp_server(monkeypatch):
     """
     Replace StructuredMemoryBank and SQLLinkManager with MagicMocks for MCP server tests.
     This ensures MCP tools work without real persistence layers during testing.
     Uses the proven working pattern from test_mcp_poc_dry.py with enhanced return values
     for Pydantic validation compatibility.
-    
-    Only activates for tests marked with @pytest.mark.requires_mysql
     """
-    # Only apply StructuredMemoryBank mocking if the test requires it
-    if request.node.get_closest_marker("requires_mysql") is None:
-        yield  # Still need to yield for generator fixture
+    try:
+        from infra_core.memory_system.link_manager import LinkManager
+    except ImportError:
+        # infra_core not available (e.g., in langgraph_projects environment)
+        yield
         return
-        
-    from infra_core.memory_system.link_manager import LinkManager
 
     dummy_bank = MagicMock()
     dummy_link_mgr = MagicMock()
