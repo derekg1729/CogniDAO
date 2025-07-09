@@ -1,21 +1,12 @@
 """
-CogniDAO Presence Graph.
-
-A streamlined graph definition using shared utilities for MCP client management,
-model binding, and state management.
+CogniDAO Presence Graph - Simple graph using LangGraph's react agent.
 """
 
 import asyncio
-
 from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
-from src.shared_utils import (
-    CogniAgentState,
-    GraphConfig,
-    get_logger,
-    get_mcp_tools,
-    log_graph_compilation,
-)
+from src.shared_utils import CogniAgentState, GraphConfig, get_logger
+from src.shared_utils.tool_registry import get_tools
 
 from .agent import create_agent_node, should_continue
 
@@ -23,45 +14,22 @@ logger = get_logger(__name__)
 
 
 async def build_graph() -> StateGraph:
-    """
-    Build the CogniDAO presence LangGraph workflow.
-
-    Returns:
-        StateGraph: An uncompiled StateGraph instance.
-        Call .compile() on the result to get a runnable graph.
-
-    Example:
-        workflow = await build_graph()
-        app = workflow.compile()
-        result = await app.ainvoke({"messages": [HumanMessage("Hello")]})
-    """
-    # Get MCP tools for Cogni server
-    tools = await get_mcp_tools(server_type="cogni")
+    """Build the CogniDAO presence LangGraph workflow."""
+    # Get tools and create agent node
+    tools = await get_tools("cogni")
+    agent_node = await create_agent_node()
 
     # Build the workflow
     workflow = StateGraph(CogniAgentState, config_schema=GraphConfig)
-
-    # Add nodes
-    workflow.add_node("agent", create_agent_node())
+    workflow.add_node("agent", agent_node)
     workflow.add_node("action", ToolNode(tools))
-
-    # Set entry point
     workflow.set_entry_point("agent")
 
     # Add edges
-    workflow.add_conditional_edges(
-        "agent",
-        should_continue,
-        {
-            "continue": "action",
-            "end": END,
-        },
-    )
+    workflow.add_conditional_edges("agent", should_continue, {"continue": "action", "end": END})
     workflow.add_edge("action", "agent")
 
-    # Log successful compilation
-    log_graph_compilation("cogni_presence", len(workflow.nodes))
-
+    logger.info(f"✅ CogniDAO graph built with {len(workflow.nodes)} nodes")
     return workflow
 
 
