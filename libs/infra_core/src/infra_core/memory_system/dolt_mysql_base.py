@@ -356,14 +356,27 @@ class DoltMySQLBase:
 
     def _attempt_reconnection(self) -> bool:
         """
-        Attempt to reconnect the persistent connection if it's in use.
+        Attempt to reconnect the persistent connection if it's in use, or validate regular connection capability.
 
         Returns:
             True if reconnection was successful, False otherwise
         """
         if not self._use_persistent:
-            # Not using persistent connections, no need to reconnect
-            return False
+            # For regular connections, just validate we can create a working connection
+            logger.warning("🔄 Attempting to validate regular connection capability...")
+            try:
+                test_conn = self._get_connection()
+                # Test the connection by creating a cursor
+                cursor = test_conn.cursor()
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+                cursor.close()
+                test_conn.close()
+                logger.info("✅ Regular connection validation successful")
+                return True
+            except Exception as e:
+                logger.error(f"❌ Regular connection validation failed: {e}")
+                return False
 
         logger.warning("🔄 Attempting to reconnect persistent connection...")
 

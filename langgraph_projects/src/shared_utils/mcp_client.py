@@ -19,19 +19,7 @@ from .logging_utils import get_logger
 
 logger = get_logger(__name__)
 
-# Default fallback tools for when MCP is not available
-try:
-    from langchain_tavily import TavilySearch
-
-    _fallback_tools = [TavilySearch(max_results=1)]
-except ImportError:
-    # Fallback to the deprecated version if langchain_tavily is not installed
-    try:
-        from langchain_community.tools.tavily_search import TavilySearchResults
-
-        _fallback_tools = [TavilySearchResults(max_results=1)]
-    except ImportError:
-        _fallback_tools = []
+# MCP is the primary and only tool source - no fallback tools
 
 
 class ConnectionState(Enum):
@@ -50,7 +38,6 @@ class MCPClientManager:
     def __init__(
         self,
         server_configs: dict[str, dict[str, Any]],
-        fallback_tools: list[BaseTool] | None = None,
         max_retries: int = 5,
         base_delay: float = 1.0,
         max_delay: float = 60.0,
@@ -62,7 +49,6 @@ class MCPClientManager:
 
         Args:
             server_configs: Dictionary of server configurations
-            fallback_tools: List of fallback tools to use when MCP is unavailable
             max_retries: Maximum number of retry attempts before giving up
             base_delay: Base delay in seconds for exponential backoff
             max_delay: Maximum delay in seconds between retries
@@ -70,7 +56,6 @@ class MCPClientManager:
             connection_timeout: Timeout for individual connection attempts
         """
         self.server_configs = server_configs
-        self.fallback_tools = fallback_tools or _fallback_tools
         self.max_retries = max_retries
         self.base_delay = base_delay
         self.max_delay = max_delay
@@ -85,7 +70,6 @@ class MCPClientManager:
         self._last_connection_attempt = 0.0
         self._retry_count = 0
         self._health_check_task: asyncio.Task | None = None
-        self._using_fallback = False
 
     @property
     def connection_state(self) -> ConnectionState:
@@ -97,10 +81,6 @@ class MCPClientManager:
         """Check if MCP client is currently connected."""
         return self._connection_state == ConnectionState.CONNECTED
 
-    @property
-    def is_using_fallback(self) -> bool:
-        """Check if currently using fallback tools."""
-        return self._using_fallback
 
     def _log_exception_details(self, error: Exception, context: str = "MCP connection") -> None:
         """Log detailed exception information, handling ExceptionGroup (Python 3.11+)."""
@@ -149,7 +129,6 @@ class MCPClientManager:
             logger.info(f"✅ Successfully connected to MCP servers. Got {len(mcp_tools)} tools")
             self._connection_state = ConnectionState.CONNECTED
             self._retry_count = 0  # Reset retry count on success
-            self._using_fallback = False
 
             return mcp_tools
 
@@ -181,11 +160,10 @@ class MCPClientManager:
             # If this was the last attempt, give up
             if attempt >= self.max_retries:
                 logger.error(
-                    f"❌ Failed to connect to MCP after {self.max_retries} attempts. Using fallback tools."
+                    f"❌ Failed to connect to MCP after {self.max_retries} attempts. No tools available."
                 )
                 self._connection_state = ConnectionState.FAILED
-                self._using_fallback = True
-                return self.fallback_tools
+                return []
 
             # Calculate delay and wait
             delay = await self._exponential_backoff_delay(attempt)
@@ -196,9 +174,8 @@ class MCPClientManager:
 
             await asyncio.sleep(delay)
 
-        # Should never reach here, but fallback just in case
-        self._using_fallback = True
-        return self.fallback_tools
+        # Should never reach here, but return empty list just in case
+        return []
 
     async def _health_check_loop(self):
         """Background task to periodically check MCP connection health and attempt reconnection."""
@@ -206,13 +183,13 @@ class MCPClientManager:
             try:
                 await asyncio.sleep(self.health_check_interval)
 
-                # Only attempt reconnection if we're currently using fallback tools
+                # Only attempt reconnection if we're currently disconnected
                 # and haven't attempted recently
                 current_time = time.time()
                 time_since_last_attempt = current_time - self._last_connection_attempt
 
                 if (
-                    self._using_fallback
+                    self._connection_state == ConnectionState.FAILED
                     and time_since_last_attempt >= self.health_check_interval
                     and self._connection_state != ConnectionState.CONNECTING
                 ):
@@ -238,13 +215,13 @@ class MCPClientManager:
 
     async def initialize_tools(self, timeout: float = 30.0) -> list[BaseTool]:
         """
-        Initialize MCP tools with retry logic and fallback.
+        Initialize MCP tools with retry logic.
 
         Args:
             timeout: Legacy parameter for compatibility (now uses connection_timeout)
 
         Returns:
-            List of tools (either from MCP or fallback)
+            List of tools from MCP (empty list if unavailable)
         """
         # Check if already initialized (fast path)
         if self._tools is not None:
@@ -276,15 +253,15 @@ class MCPClientManager:
 
     async def get_tools_with_refresh(self) -> list[BaseTool]:
         """
-        Get tools and attempt refresh if using fallback.
+        Get tools and attempt refresh if disconnected.
 
         This method is useful for agents that want to check if MCP has become
         available since the last check.
         """
         tools = await self.get_tools()
 
-        # If using fallback and enough time has passed, try to refresh
-        if self._using_fallback:
+        # If disconnected and enough time has passed, try to refresh
+        if self._connection_state == ConnectionState.FAILED:
             current_time = time.time()
             time_since_last_attempt = current_time - self._last_connection_attempt
 
@@ -308,7 +285,6 @@ class MCPClientManager:
         self._tools = None
         self._connection_state = ConnectionState.DISCONNECTED
         self._retry_count = 0
-        self._using_fallback = False
 
         # Cancel health check task
         if self._health_check_task and not self._health_check_task.done():
@@ -333,11 +309,9 @@ class MCPClientManager:
         return {
             "state": self._connection_state.value,
             "is_connected": self.is_connected,
-            "using_fallback": self._using_fallback,
             "retry_count": self._retry_count,
             "max_retries": self.max_retries,
             "tools_count": len(self._tools) if self._tools else 0,
-            "fallback_tools_count": len(self.fallback_tools),
             "server_configs": list(self.server_configs.keys()),
         }
 

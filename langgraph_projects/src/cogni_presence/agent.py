@@ -47,10 +47,13 @@ def create_agent_node() -> Callable[[CogniAgentState, dict[str, Any]], dict[str,
             # Get connection info for logging
             connection_info = get_mcp_connection_info(server_type="cogni")
 
+            # Debug: Log complete connection info
+            logger.debug(f"🔍 Complete connection info: {connection_info}")
+
             # Log connection status
-            if connection_info["using_fallback"]:
+            if connection_info["state"] == "failed":
                 logger.warning(
-                    f"🔄 Using fallback tools (state: {connection_info['state']}, "
+                    f"🔄 MCP connection failed (state: {connection_info['state']}, "
                     f"retry: {connection_info['retry_count']}/{connection_info['max_retries']})"
                 )
             else:
@@ -74,8 +77,8 @@ def create_agent_node() -> Callable[[CogniAgentState, dict[str, Any]], dict[str,
             # Invoke the model
             response = await model.ainvoke(messages_with_system)
 
-            # If we were using fallback tools, add a note about limited capabilities
-            if connection_info["using_fallback"] and len(state["messages"]) == 1:  # First message
+            # If MCP connection failed, add a note about limited capabilities
+            if connection_info["state"] == "failed" and len(state["messages"]) == 1:  # First message
                 fallback_notice = (
                     "\n\n*Note: I'm currently operating with limited tools due to MCP server connectivity. "
                     "I'll automatically regain full capabilities when the connection is restored.*"

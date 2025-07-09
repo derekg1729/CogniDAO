@@ -10,9 +10,9 @@ import asyncio
 import logging
 from unittest.mock import Mock, AsyncMock, patch
 
-from .mcp_client import MCPClientManager, ConnectionState
-from .mcp_monitor import force_mcp_reconnection
-from .logging_utils import get_logger
+from src.shared_utils.mcp_client import MCPClientManager, ConnectionState
+from src.shared_utils.mcp_monitor import force_mcp_reconnection
+from src.shared_utils.logging_utils import get_logger
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -72,7 +72,6 @@ async def test_retry_logic():
         assert len(tools) == 1
         assert tools[0].name == "mock_tool"
         assert manager.connection_state == ConnectionState.CONNECTED
-        assert not manager.is_using_fallback
 
         logger.info("✅ Retry logic test passed!")
 
@@ -105,13 +104,12 @@ async def test_fallback_behavior():
     with patch("src.shared_utils.mcp_client.MultiServerMCPClient") as mock_mcp:
         mock_mcp.return_value = mock_client
 
-        # Should fall back to backup tools
+        # Should return empty list when all attempts fail
         tools = await manager.initialize_tools()
 
-        # Verify we got fallback tools
-        assert len(tools) >= 1  # At least the Tavily search tool
+        # Verify we got empty list (no fallback tools)
+        assert tools == []
         assert manager.connection_state == ConnectionState.FAILED
-        assert manager.is_using_fallback
 
         logger.info("✅ Fallback behavior test passed!")
 
@@ -143,9 +141,9 @@ async def test_health_monitoring():
     with patch("src.shared_utils.mcp_client.MultiServerMCPClient") as mock_mcp:
         mock_mcp.return_value = mock_client
 
-        # Initial connection should fail and use fallback
+        # Initial connection should fail and return empty list
         await manager.initialize_tools()
-        assert manager.is_using_fallback
+        assert manager.connection_state == ConnectionState.FAILED
 
         # Wait for health check to potentially reconnect
         await asyncio.sleep(1.0)
@@ -181,7 +179,6 @@ async def test_connection_info():
     info = manager.get_connection_info()
     assert info["state"] == ConnectionState.DISCONNECTED.value
     assert not info["is_connected"]
-    assert not info["using_fallback"]
     assert info["retry_count"] == 0
 
     # Test after failed connection
@@ -196,7 +193,6 @@ async def test_connection_info():
         info = manager.get_connection_info()
         assert info["state"] == ConnectionState.FAILED.value
         assert not info["is_connected"]
-        assert info["using_fallback"]
         assert info["retry_count"] == 2  # Should have tried max_retries times
 
         logger.info("✅ Connection info test passed!")
