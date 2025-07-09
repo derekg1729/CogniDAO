@@ -5,13 +5,14 @@ CogniDAO Presence Agent - Simple memory management agent using LangGraph's creat
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
 from src.shared_utils import get_logger
-from src.shared_utils.prompt_templates import PromptTemplateManager
+from src.shared_utils.prompt_templates import (
+    COGNI_PRESENCE_PROMPT,
+    generate_tool_specs_from_mcp_tools,
+)
 from src.shared_utils.tool_registry import get_tools
 
 logger = get_logger(__name__)
 
-# Template manager for generating dynamic prompts
-template_manager = PromptTemplateManager()
 
 
 async def create_agent_node():
@@ -20,9 +21,8 @@ async def create_agent_node():
     tools = await get_tools("cogni")
     
     # Generate system prompt using template
-    tool_specs = template_manager.generate_tool_specs_from_mcp_tools(tools)
-    system_prompt = template_manager.render_agent_prompt(
-        "cogni_presence", 
+    tool_specs = generate_tool_specs_from_mcp_tools(tools)
+    system_prompt = COGNI_PRESENCE_PROMPT.format(
         tool_specs=tool_specs,
         task_context=""
     )

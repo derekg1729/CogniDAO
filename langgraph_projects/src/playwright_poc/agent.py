@@ -7,14 +7,12 @@ from langchain_openai import ChatOpenAI
 from src.shared_utils import get_logger
 from src.shared_utils.prompt_templates import (
     render_playwright_navigator_prompt,
-    PromptTemplateManager,
+    generate_tool_specs_from_mcp_tools,
 )
 from src.shared_utils.tool_registry import get_tools
 
 logger = get_logger(__name__)
 
-# Template manager for generating dynamic prompts
-template_manager = PromptTemplateManager()
 
 
 async def create_agent_node():
@@ -23,7 +21,7 @@ async def create_agent_node():
     tools = await get_tools("playwright")
     
     # Generate system prompt using template
-    tool_specs = template_manager.generate_tool_specs_from_mcp_tools(tools)
+    tool_specs = generate_tool_specs_from_mcp_tools(tools)
     system_prompt = render_playwright_navigator_prompt(
         tool_specs=tool_specs,
         task_context="",  # Will be configured at runtime if needed
