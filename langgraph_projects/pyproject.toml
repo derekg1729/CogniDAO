@@ -43,6 +43,9 @@ test = [
     "httpx>=0.25.0",
     "jinja2>=3.1.0,<4.0.0",
 ]
+mysql = [
+    "mysql-connector-python>=8.4.0",
+]
 
 # Package discovery - all packages are under src/
 [tool.hatch.build.targets.wheel]
