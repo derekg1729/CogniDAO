@@ -1,69 +1,28 @@
 """
-Playwright Graph.
-
-A streamlined graph definition using shared utilities for MCP client management,
-model binding, and state management for browser automation.
+Playwright Graph - Simple graph using LangGraph's react agent.
 """
 
 import asyncio
-from langgraph.graph import END, StateGraph
-from langgraph.prebuilt import ToolNode
-from src.shared_utils import (
-    GraphConfig,
-    PlaywrightAgentState,
-    get_logger,
-    get_mcp_tools_with_refresh,
-    log_graph_compilation,
-)
+from langgraph.graph import StateGraph
+from src.shared_utils import GraphConfig, PlaywrightAgentState, get_logger
 
-from .agent import create_agent_node, should_continue
+from .agent import create_agent_node
 
 logger = get_logger(__name__)
 
 
 async def build_graph() -> StateGraph:
-    """
-    Build the Playwright automation LangGraph workflow.
-
-    Returns:
-        StateGraph: An uncompiled StateGraph instance.
-        Call .compile() on the result to get a runnable graph.
-
-    Example:
-        workflow = await build_graph()
-        app = workflow.compile()
-        result = await app.ainvoke({"messages": [HumanMessage("Hello")]})
-    """
-    # Get MCP tools for Playwright server with refresh capability
-    tools = await get_mcp_tools_with_refresh(server_type="playwright")
-
+    """Build the Playwright automation LangGraph workflow."""
     # Create agent node
-    agent_node = create_agent_node()
+    agent_node = await create_agent_node()
 
-    # Build the workflow
+    # Build the workflow - create_react_agent handles tool calling internally
     workflow = StateGraph(PlaywrightAgentState, config_schema=GraphConfig)
-
-    # Add nodes
     workflow.add_node("agent", agent_node)
-    workflow.add_node("action", ToolNode(tools))
-
-    # Set entry point
     workflow.set_entry_point("agent")
+    workflow.set_finish_point("agent")
 
-    # Add conditional edges - fix the mapping issue
-    workflow.add_conditional_edges(
-        "agent",
-        should_continue,
-        {
-            "continue": "action",
-            "end": END,
-        },
-    )
-    workflow.add_edge("action", "agent")
-
-    # Log successful compilation
-    log_graph_compilation("playwright_poc", len(workflow.nodes))
-
+    logger.info(f"✅ Playwright graph built with {len(workflow.nodes)} nodes")
     return workflow
 
 
