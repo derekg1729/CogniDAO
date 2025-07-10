@@ -2,6 +2,8 @@
 Model Binding Management for LangGraph Projects.
 
 Provides centralized model binding, caching, and configuration management.
+
+TODO: currently unused by example agents :( 
 """
 
 from functools import lru_cache
