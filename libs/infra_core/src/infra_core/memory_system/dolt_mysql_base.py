@@ -16,6 +16,13 @@ Environment Variables (used by DoltConnectionConfig):
 - MYSQL_DATABASE / DB_NAME: Database name (default: memory_dolt)
 - USE_DOLT_POOL: Enable connection pooling (default: false)
 - DOLT_POOL_SIZE: Pool size when pooling enabled (default: 10)
+- DOLT_POOL_TIMEOUT: Max seconds to wait for pool connection (default: 30)
+
+Pool Exhaustion Behavior:
+When all pool connections are in use, get_connection() will block until:
+1. A connection becomes available, OR
+2. DOLT_POOL_TIMEOUT seconds elapse (raises timeout exception)
+This prevents indefinite blocking while allowing reasonable wait times.
 """
 
 import logging
@@ -129,11 +136,12 @@ class DoltMySQLBase:
         self._use_pool = os.getenv("USE_DOLT_POOL", "false").lower() == "true"
         self._pool = None
         self._pool_size = int(os.getenv("DOLT_POOL_SIZE", "10"))
+        self._pool_timeout = int(os.getenv("DOLT_POOL_TIMEOUT", "30"))
 
         if self._use_pool:
             self._initialize_connection_pool()
             logger.info(
-                f"DoltMySQLBase: Connection pooling enabled with {self._pool_size} connections"
+                f"DoltMySQLBase: Connection pooling enabled with {self._pool_size} connections, {self._pool_timeout}s timeout"
             )
         else:
             logger.debug("DoltMySQLBase: Using legacy persistent connection mode")
@@ -279,8 +287,8 @@ class DoltMySQLBase:
         # Pooled behavior: enhanced connection management
         connection = None
         try:
-            # Get connection from pool
-            connection = self._pool.get_connection()
+            # Get connection from pool with timeout to prevent indefinite blocking
+            connection = self._pool.get_connection(timeout=self._pool_timeout)
 
             # Health check with automatic reconnection
             self._ensure_connection_healthy_pooled(connection)
@@ -292,6 +300,13 @@ class DoltMySQLBase:
             if branch:
                 self._ensure_branch(connection, branch)
 
+                # Verify branch isolation worked correctly
+                actual_branch = self._verify_current_branch(connection)
+                if actual_branch != branch:
+                    raise BranchConsistencyError(branch, actual_branch)
+
+                logger.debug(f"Branch isolation verified: {branch}")
+
             logger.debug(f"Acquired pooled connection: branch={branch}, autocommit={autocommit}")
             yield connection
 
@@ -301,6 +316,10 @@ class DoltMySQLBase:
                 try:
                     connection.rollback()
                     logger.debug("Rolled back transaction due to error")
+
+                    # Reset autocommit to prevent state bleed
+                    connection.autocommit = True
+                    logger.debug("Reset connection autocommit to True after error rollback")
                 except Exception:
                     pass
             raise e
@@ -313,6 +332,10 @@ class DoltMySQLBase:
                     if not autocommit:
                         connection.rollback()
                         logger.debug("Rolled back transaction on context exit")
+
+                        # Reset autocommit to default to prevent state bleed to next borrower
+                        connection.autocommit = True
+                        logger.debug("Reset connection autocommit to True for pool return")
 
                     # Return connection to pool
                     connection.close()  # Returns to pool
@@ -330,6 +353,9 @@ class DoltMySQLBase:
         Enhanced health check for pooled connections:
         1. connection.ping(reconnect=True) - MySQL-level health check with auto-reconnect
         2. SELECT 1 - Verify basic query execution
+
+        TODO: Optimize ping cost (~0.6ms per borrow on localhost).
+        Consider ping_only mode once stable, or cache health status briefly.
 
         Args:
             connection: Connection to verify
