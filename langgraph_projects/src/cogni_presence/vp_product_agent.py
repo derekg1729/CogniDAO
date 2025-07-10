@@ -25,7 +25,7 @@ async def create_vp_product_node():
     
     # Create and return LangGraph react agent
     model = ChatOpenAI(model_name='gpt-4o-mini')
-    return create_react_agent(model=model, tools=tools, prompt=prompt)
+    return create_react_agent(model=model, tools=tools, prompt=prompt, name="vp_product")
 
 
 def should_continue(state) -> str:

@@ -1,12 +1,11 @@
 """
-CogniDAO Presence Graph - Simple graph using LangGraph's react agent.
+CogniDAO CEO Supervisor Graph - Uses LangGraph supervisor pattern
 """
 
 import asyncio
-from langgraph.graph import StateGraph, START, END
-from src.shared_utils import CogniAgentState, GraphConfig, get_logger
+from langgraph_supervisor import create_supervisor
+from src.shared_utils import get_logger
 
-from .ceo_supervisor import create_ceo_supervisor_node
 from .vp_marketing_agent import create_vp_marketing_node
 from .vp_hr_agent import create_vp_hr_node
 from .vp_tech_agent import create_vp_tech_node
@@ -16,102 +15,51 @@ from .vp_finance_agent import create_vp_finance_node
 logger = get_logger(__name__)
 
 
-def route_from_ceo(state) -> str:
-    """Route from CEO: either to VP or END conversation."""
-    messages = state["messages"]
+async def build_graph():
+    """Build the CogniDAO org chart using LangGraph supervisor pattern."""
+    # Create all VP agent nodes
+    vp_marketing = await create_vp_marketing_node()
+    vp_hr = await create_vp_hr_node()
+    vp_tech = await create_vp_tech_node()
+    vp_product = await create_vp_product_node()
+    vp_finance = await create_vp_finance_node()
     
-    # Check if this is a response from VP (look for VP signatures in recent messages)
-    recent_messages = messages[-3:] if len(messages) >= 3 else messages
-    vp_responded = any(
-        msg.content and any(vp_title in msg.content for vp_title in ["VP Marketing", "VP HR", "VP Tech", "VP Product", "VP Finance"])
-        for msg in recent_messages
-        if hasattr(msg, 'content') and msg.content
+    # Create supervisor following the example pattern
+    from langchain_openai import ChatOpenAI
+    
+    supervisor = create_supervisor(
+        model=ChatOpenAI(model_name="gpt-4o-mini"),
+        agents=[
+            vp_marketing,
+            vp_hr,
+            vp_tech,
+            vp_product,
+            vp_finance,
+        ],
+        prompt=(
+            "You are the **CEO** of CogniDAO 🏢\n\n"
+            "You are managing five VP agents:\n"
+            "- VP Marketing: Handles brand, campaigns, customer acquisition, and market analysis\n"
+            "- VP HR: Manages people, culture, recruiting, and performance management\n"
+            "- VP Tech: Oversees engineering, infrastructure, security, and technical architecture\n"
+            "- VP Product: Handles product strategy, features, roadmap, and user experience\n"
+            "- VP Finance: Manages financial planning, budgeting, forecasting, and treasury\n\n"
+            "Analyze each user request and assign work to the most appropriate VP.\n"
+            "Assign work to one agent at a time, do not call agents in parallel.\n"
+            "After receiving a VP's response, provide a final executive summary to the user.\n"
+            "You can think, and organize, but delegate specific questions and work to your VPs."
+        ),
+        add_handoff_back_messages=True,
+        output_mode="full_history",
     )
-    
-    # If VP already responded, CEO should end the conversation
-    if vp_responded:
-        return "END"
-    
-    # Otherwise, route to appropriate VP based on user request
-    # Look at the original user message (typically the first or second message)
-    user_message = None
-    for msg in messages:
-        if hasattr(msg, 'content') and msg.content and not any(title in msg.content for title in ["CEO", "VP"]):
-            user_message = msg
-            break
-    
-    if not user_message:
-        return "END"
-    
-    content = user_message.content.lower()
-    
-    if any(word in content for word in ["marketing", "brand", "campaign", "customer", "growth"]):
-        return "vp_marketing"
-    elif any(word in content for word in ["hr", "people", "hiring", "culture", "employee"]):
-        return "vp_hr"
-    elif any(word in content for word in ["tech", "technical", "engineering", "system", "security"]):
-        return "vp_tech"
-    elif any(word in content for word in ["product", "feature", "roadmap", "user", "ux"]):
-        return "vp_product"
-    elif any(word in content for word in ["finance", "financial", "budget", "revenue", "cost"]):
-        return "vp_finance"
-    
-    # Default to marketing for general queries
-    return "vp_product"
 
-
-async def build_graph() -> StateGraph:
-    """Build the CogniDAO org chart LangGraph workflow."""
-    # Create all agent nodes
-    ceo_node = await create_ceo_supervisor_node()
-    vp_marketing_node = await create_vp_marketing_node()
-    vp_hr_node = await create_vp_hr_node()
-    vp_tech_node = await create_vp_tech_node()
-    vp_product_node = await create_vp_product_node()
-    vp_finance_node = await create_vp_finance_node()
-
-    # Build the workflow with supervisor pattern
-    workflow = StateGraph(CogniAgentState, config_schema=GraphConfig)
-    
-    # Add all nodes
-    workflow.add_node("ceo_supervisor", ceo_node)
-    workflow.add_node("vp_marketing", vp_marketing_node)
-    workflow.add_node("vp_hr", vp_hr_node)
-    workflow.add_node("vp_tech", vp_tech_node)
-    workflow.add_node("vp_product", vp_product_node)
-    workflow.add_node("vp_finance", vp_finance_node)
-    
-    # Set entry point to CEO supervisor
-    workflow.add_edge(START, "ceo_supervisor")
-    
-    # Add conditional edges from CEO to VPs or END
-    workflow.add_conditional_edges(
-        "ceo_supervisor",
-        route_from_ceo,
-        {
-            "vp_marketing": "vp_marketing",
-            "vp_hr": "vp_hr",
-            "vp_tech": "vp_tech",
-            "vp_product": "vp_product",
-            "vp_finance": "vp_finance",
-            "END": END,
-        }
-    )
-    
-    # All VPs route back to CEO for final response
-    workflow.add_edge("vp_marketing", "ceo_supervisor")
-    workflow.add_edge("vp_hr", "ceo_supervisor")
-    workflow.add_edge("vp_tech", "ceo_supervisor")
-    workflow.add_edge("vp_product", "ceo_supervisor")
-    workflow.add_edge("vp_finance", "ceo_supervisor")
-
-    logger.info(f"✅ CogniDAO org chart graph built with {len(workflow.nodes)} nodes")
-    return workflow
+    logger.info("✅ CogniDAO org chart supervisor created successfully")
+    return supervisor
 
 
 async def build_compiled_graph():
     """
-    Build and compile the CogniDAO presence LangGraph workflow.
+    Build and compile the CogniDAO org chart supervisor workflow.
 
     Returns:
         CompiledStateGraph: A compiled, ready-to-use graph instance.
@@ -120,8 +68,8 @@ async def build_compiled_graph():
         app = await build_compiled_graph()
         result = await app.ainvoke({"messages": [HumanMessage("Hello")]})
     """
-    workflow = await build_graph()
-    return workflow.compile()
+    supervisor = await build_graph()
+    return supervisor.compile()
 
 
 # Export compiled graph for LangGraph dev server

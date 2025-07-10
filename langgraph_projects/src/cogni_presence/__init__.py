@@ -1,11 +1,10 @@
 """
-CogniDAO Presence Graph Package.
+CogniDAO Org Chart Package.
 
-A LangGraph implementation for CogniDAO presence and memory management.
+A LangGraph supervisor implementation for CogniDAO with CEO and VP agents.
 """
 
-from .agent import create_agent_node, should_continue
 from .graph import build_compiled_graph, build_graph
 
 __version__ = "0.1.0"
-__all__ = ["build_graph", "build_compiled_graph", "create_agent_node", "should_continue"]
+__all__ = ["build_graph", "build_compiled_graph"]

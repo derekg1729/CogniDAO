@@ -11,7 +11,9 @@ authors = [
 ]
 dependencies = [
     # Core LangGraph dependencies
-    "langgraph>=0.3.0,<0.4.0",
+    "langgraph>=0.5,<0.6",
+    "langgraph-prebuilt>=0.5,<0.6",
+    "langgraph-supervisor>=0.0.27",
     "langgraph-checkpoint-redis>=0.0.1,<1.0.0",
     "langgraph-cli[inmem]>=0.3.3",
     
