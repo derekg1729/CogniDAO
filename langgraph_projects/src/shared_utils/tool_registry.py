@@ -2,6 +2,8 @@
 Tool Registry - Cached MCP tools for all agents.
 
 Handles MCP connection once per process and provides cached tool lists.
+
+TODO: simple implementation right now. Will eventually rely on Toolhive and RBAC.
 """
 
 from async_lru import alru_cache
