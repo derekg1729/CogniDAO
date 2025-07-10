@@ -3,6 +3,8 @@ Tool Specifications Utilities
 
 Provides utilities for generating tool specifications from MCP tools.
 This is shared across agents for consistent tool documentation.
+
+TODO: I feel like we should not have made this module, and this should exist within MCP standard.
 """
 
 from typing import Any, List

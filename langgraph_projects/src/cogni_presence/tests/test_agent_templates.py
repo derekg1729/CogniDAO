@@ -96,14 +96,19 @@ class TestCogniPresenceAgentTemplates:
         
         with patch('src.shared_utils.tool_registry.get_tools', return_value=[mock_tool]), \
              patch('src.cogni_presence.agent.ChatOpenAI', return_value=mock_model), \
-             patch('src.shared_utils.prompt_templates.PromptTemplateManager.render_agent_prompt', 
+             patch('src.cogni_presence.agent.generate_tool_specs_from_mcp_tools', 
                    side_effect=Exception("Template error")):
             
             # Should raise an exception when creating agent due to template error
-            with pytest.raises(Exception) as exc_info:
-                await create_agent_node()
-            
-            assert "Template error" in str(exc_info.value)
+            try:
+                result = await create_agent_node()
+                print(f"Unexpected success: {result}")
+                assert False, "Expected Exception to be raised"
+            except AssertionError:
+                raise  # Re-raise assertion errors
+            except Exception as e:
+                print(f"Caught exception: {e}")
+                assert "Template error" in str(e)
 
     @pytest.mark.asyncio
     async def test_agent_uses_default_model_name(self):
