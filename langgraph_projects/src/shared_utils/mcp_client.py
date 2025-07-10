@@ -235,8 +235,18 @@ class MCPClientManager:
 
             self._last_connection_attempt = time.time()
 
-            # Attempt connection with retry logic
-            self._tools = await self._connection_with_retry()
+            # Check startup mode for blocking vs lazy initialization
+            startup_mode = os.getenv("MCP_STARTUP_MODE", "blocking").lower()
+            if startup_mode == "lazy":
+                # Try once, return empty if fails, trigger background reconnection
+                logger.info("🚀 MCP startup mode: lazy – continuing without tools (will retry in background)")
+                self._tools = await self._attempt_connection() or []
+                # Immediate background retry for faster recovery
+                if not self._tools:
+                    asyncio.create_task(self._connection_with_retry())
+            else:
+                # Existing blocking behavior (production default)
+                self._tools = await self._connection_with_retry()
 
             # Start health check background task if not already running
             if self._health_check_task is None or self._health_check_task.done():
