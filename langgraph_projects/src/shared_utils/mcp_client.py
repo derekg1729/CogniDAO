@@ -235,18 +235,15 @@ class MCPClientManager:
 
             self._last_connection_attempt = time.time()
 
-            # Check startup mode for blocking vs lazy initialization
-            startup_mode = os.getenv("MCP_STARTUP_MODE", "blocking").lower()
-            if startup_mode == "lazy":
-                # Try once, return empty if fails, trigger background reconnection
-                logger.info("🚀 MCP startup mode: lazy – continuing without tools (will retry in background)")
-                self._tools = await self._attempt_connection() or []
-                # Immediate background retry for faster recovery
-                if not self._tools:
-                    asyncio.create_task(self._connection_with_retry())
+            # Smart default: try once, if fails return empty and rely on health check for retry
+            logger.info("🔥 TESTING - About to try single connection attempt")
+            self._tools = await self._attempt_connection() or []
+            if not self._tools:
+                # Connection failed, starting fast with empty tools (health check will retry)
+                logger.info("🚀 MCP connection failed - starting fast with empty tools, health check will retry")
+                self._connection_state = ConnectionState.FAILED
             else:
-                # Existing blocking behavior (production default)
-                self._tools = await self._connection_with_retry()
+                logger.info("✅ MCP connection succeeded on first try")
 
             # Start health check background task if not already running
             if self._health_check_task is None or self._health_check_task.done():
