@@ -19,6 +19,10 @@ langgraph_projects/
     │   ├── graph.py        ← Graph definition using shared utilities
     │   ├── agent.py        ← Agent logic separated from infrastructure
     │   └── main.py         ← Entry point for LangGraph deployment
+    ├── simple_cogni_graph/ ← Simplified CogniDAO graph for examples/development
+    │   ├── graph.py        ← Graph definition using shared utilities
+    │   ├── agent.py        ← Agent logic separated from infrastructure
+    │   └── main.py         ← Entry point for LangGraph deployment
     └── playwright_poc/     ← Browser automation graph (75 lines, clean)
         ├── graph.py        ← Graph definition using shared utilities
         ├── agent.py        ← Agent logic separated from infrastructure
@@ -77,4 +81,121 @@ uv run tox -e graphs
 
 # Test all environments
 uv run tox
+```
+
+## Adding a New Graph
+
+To add a new graph to the project, follow these steps:
+
+### 1. Create New Subdirectory
+Create a new directory under `src/` with the following structure:
+```bash
+mkdir -p src/your_new_graph/{tests,utils}
+```
+
+### 2. Create Core Files
+Create the required files in your new directory:
+
+**`src/your_new_graph/agent.py`** - Agent logic:
+```python
+"""
+Your New Graph Agent - Description of your agent.
+"""
+
+from src.shared_utils.agent_factory import create_agent
+from .prompts import YOUR_GRAPH_PROMPT
+
+async def create_agent_node():
+    """Create your agent using shared agent factory."""
+    return await create_agent("your_graph_name", YOUR_GRAPH_PROMPT)
+```
+
+**`src/your_new_graph/prompts.py`** - Prompt templates:
+```python
+"""
+Your New Graph Prompt Templates
+"""
+
+from langchain_core.prompts import ChatPromptTemplate
+
+YOUR_GRAPH_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", """You are a helpful assistant for [describe purpose].
+    
+    **Tools Available:** {tool_specs}""")
+])
+```
+
+**`src/your_new_graph/graph.py`** - Graph definition:
+```python
+"""
+Your New Graph - Graph definition using shared utilities.
+"""
+
+from langgraph.graph import StateGraph
+from src.shared_utils import CogniAgentState, get_logger
+from .agent import create_agent_node
+
+async def build_graph() -> StateGraph:
+    """Build your graph workflow."""
+    agent_node = await create_agent_node()
+    
+    # Build workflow
+    workflow = StateGraph(CogniAgentState)
+    workflow.add_node("agent", agent_node)
+    workflow.set_entry_point("agent")
+    workflow.set_finish_point("agent")
+    
+    return workflow
+
+async def build_compiled_graph():
+    """Build and compile the graph."""
+    workflow = await build_graph()
+    return workflow.compile()
+```
+
+**`src/your_new_graph/main.py`** - Entry point:
+```python
+"""
+Your New Graph - Main Entry Point
+"""
+
+import asyncio
+import sys
+from pathlib import Path
+
+# Add src to path for absolute imports
+src_path = Path(__file__).parent.parent
+sys.path.insert(0, str(src_path))
+
+from src.your_new_graph.graph import build_compiled_graph
+
+# Export compiled graph for LangGraph deployment
+graph = asyncio.run(build_compiled_graph())
+```
+
+### 3. Register in langgraph.json
+Add your new graph to the root `langgraph.json` file:
+```json
+{
+    "graphs": {
+        "cogni_presence": "./langgraph_projects/src/cogni_presence/main.py:graph",
+        "playwright_poc": "./langgraph_projects/src/playwright_poc/main.py:graph",
+        "simple_cogni_graph": "./langgraph_projects/src/simple_cogni_graph/main.py:graph",
+        "your_new_graph": "./langgraph_projects/src/your_new_graph/main.py:graph"
+    }
+}
+```
+
+### 4. Update Documentation
+Update this `AGENTS.md` file to include your new graph in the directory structure above.
+
+### 5. Test Your Graph
+```bash
+# Test locally
+langgraph dev --port XXXX
+
+# Test your specific graph
+curl -X POST http://localhost:XXXX/your_new_graph/invoke \
+  -H "Content-Type: application/json" \
+  -d '{"input": {"messages": [{"role": "user", "content": "Hello"}]}}'
 ```
