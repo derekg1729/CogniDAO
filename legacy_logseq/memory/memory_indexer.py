@@ -105,6 +105,23 @@ def init_embedding_function(embed_model: str = EMBED_MODEL) -> Callable:
         if embed_model == "bge":
             # Use BGE (BAAI) embeddings - open source, great performance, 384 dimensions
             try:
+                # Try to import sentence_transformers with better error handling for metadata issues
+                import warnings
+                warnings.filterwarnings("ignore", category=UserWarning)
+                
+                # Set up a fallback for the metadata issue
+                import importlib.metadata
+                original_version = importlib.metadata.version
+                
+                def safe_version(distribution_name):
+                    try:
+                        return original_version(distribution_name)
+                    except (TypeError, AttributeError):
+                        # Return a fallback version if metadata access fails
+                        return "0.0.0"
+                
+                importlib.metadata.version = safe_version
+                
                 from sentence_transformers import SentenceTransformer
 
                 # Determine the best device to use (CPU/GPU/MPS)
