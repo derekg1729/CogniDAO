@@ -1,1 +1,1 @@
-# Tests for cogni_presence LangGraph
+# Tests for simple_cogni_agent LangGraph

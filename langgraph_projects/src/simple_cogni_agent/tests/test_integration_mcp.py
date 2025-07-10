@@ -6,14 +6,14 @@ MCP Integration Tests for LangGraph
 DEPRECATED: This test file is deprecated because the MCP integration
 has been refactored into shared utilities. The functions tested here
 (_initialize_tools, fallback_tools, mcp_url) no longer exist in the
-cogni_presence module.
+simple_cogni_agent module.
 
 MCP integration is now handled by:
 - src.shared_utils.mcp_client.MCPClientManager
 - src.shared_utils.get_mcp_tools()
 
 Integration testing is covered by:
-- Graph compilation tests in test_cogni_presence_graph.py
+- Graph compilation tests in test_simple_cogni_agent_graph.py
 - End-to-end integration tests
 """
 

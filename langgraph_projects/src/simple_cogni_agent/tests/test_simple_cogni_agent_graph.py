@@ -14,8 +14,8 @@ from unittest.mock import Mock
 from langchain_core.messages import HumanMessage, AIMessage
 
 # Import components to test from refactored modules
-from src.cogni_presence.graph import build_graph
-from src.cogni_presence.agent import should_continue
+from src.simple_cogni_agent.graph import build_graph
+from src.simple_cogni_agent.agent import should_continue
 from src.shared_utils import CogniAgentState, GraphConfig, COGNI_SYSTEM_PROMPT
 
 

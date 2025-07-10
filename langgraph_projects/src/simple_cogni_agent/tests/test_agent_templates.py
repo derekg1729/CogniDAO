@@ -1,16 +1,16 @@
 """
-Tests for cogni_presence agent template integration.
+Tests for simple_cogni_agent agent template integration.
 """
 
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
 from langchain_core.messages import AIMessage
 
-from src.cogni_presence.agent import create_agent_node
+from src.simple_cogni_agent.agent import create_agent_node
 
 
-class TestCogniPresenceAgentTemplates:
-    """Test the cogni_presence agent template integration."""
+class TestSimpleCogniAgentTemplates:
+    """Test the simple_cogni_agent agent template integration."""
 
     @pytest.mark.asyncio
     async def test_agent_uses_template_with_tools(self):
@@ -35,7 +35,7 @@ class TestCogniPresenceAgentTemplates:
         mock_model.ainvoke = AsyncMock(return_value=mock_response)
 
         with patch('src.shared_utils.tool_registry.get_tools', return_value=[mock_tool]), \
-             patch('src.cogni_presence.agent.ChatOpenAI', return_value=mock_model):
+             patch('src.simple_cogni_agent.agent.ChatOpenAI', return_value=mock_model):
             
             # Create agent and test
             agent_node = await create_agent_node()
@@ -55,7 +55,7 @@ class TestCogniPresenceAgentTemplates:
         mock_model.ainvoke = AsyncMock(return_value=mock_response)
 
         with patch('src.shared_utils.tool_registry.get_tools', return_value=[]), \
-             patch('src.cogni_presence.agent.ChatOpenAI', return_value=mock_model):
+             patch('src.simple_cogni_agent.agent.ChatOpenAI', return_value=mock_model):
             
             # Create agent and test
             agent_node = await create_agent_node()
@@ -72,7 +72,7 @@ class TestCogniPresenceAgentTemplates:
         mock_model.ainvoke = AsyncMock(return_value=mock_response)
 
         with patch('src.shared_utils.tool_registry.get_tools', return_value=[]), \
-             patch('src.cogni_presence.agent.ChatOpenAI', return_value=mock_model):
+             patch('src.simple_cogni_agent.agent.ChatOpenAI', return_value=mock_model):
             
             # Create agent and test with first message (should trigger fallback notice)
             agent_node = await create_agent_node()
@@ -95,8 +95,8 @@ class TestCogniPresenceAgentTemplates:
         mock_model.ainvoke = AsyncMock(return_value=mock_response)
         
         with patch('src.shared_utils.tool_registry.get_tools', return_value=[mock_tool]), \
-             patch('src.cogni_presence.agent.ChatOpenAI', return_value=mock_model), \
-             patch('src.cogni_presence.agent.generate_tool_specs_from_mcp_tools', 
+             patch('src.simple_cogni_agent.agent.ChatOpenAI', return_value=mock_model), \
+             patch('src.simple_cogni_agent.agent.generate_tool_specs_from_mcp_tools', 
                    side_effect=Exception("Template error")):
             
             # Should raise an exception when creating agent due to template error
@@ -125,7 +125,7 @@ class TestCogniPresenceAgentTemplates:
         mock_model.ainvoke = AsyncMock(return_value=mock_response)
 
         with patch('src.shared_utils.tool_registry.get_tools', return_value=[mock_tool]), \
-             patch('src.cogni_presence.agent.ChatOpenAI', return_value=mock_model) as mock_get_model:
+             patch('src.simple_cogni_agent.agent.ChatOpenAI', return_value=mock_model) as mock_get_model:
             
             # Create agent and test with no model_name in config
             agent_node = await create_agent_node()

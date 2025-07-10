@@ -14,7 +14,7 @@ src_path = Path(__file__).parent.parent
 sys.path.insert(0, str(src_path))
 
 # Import after path setup to satisfy linting
-from src.cogni_presence.graph import build_compiled_graph  # noqa: E402
+from src.simple_cogni_agent.graph import build_compiled_graph  # noqa: E402
 
 # Export compiled graph for LangGraph deployment
 graph = asyncio.run(build_compiled_graph())

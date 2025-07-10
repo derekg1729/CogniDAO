@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Pytest configuration for cogni_presence tests
+Pytest configuration for simple_cogni_agent tests
 """
 
 import os
