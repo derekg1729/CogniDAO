@@ -5,14 +5,11 @@ Playwright Agent - Simple browser automation agent using LangGraph's create_reac
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
 from src.shared_utils import get_logger
-from src.shared_utils.prompt_templates import (
-    render_playwright_navigator_prompt,
-    generate_tool_specs_from_mcp_tools,
-)
+from src.shared_utils.tool_specs import generate_tool_specs_from_mcp_tools
 from src.shared_utils.tool_registry import get_tools
+from .prompts import PLAYWRIGHT_NAVIGATOR_PROMPT
 
 logger = get_logger(__name__)
-
 
 
 async def create_agent_node():
@@ -20,17 +17,16 @@ async def create_agent_node():
     # Get tools (MCP client handles all connection logic internally)
     tools = await get_tools("playwright")
     
-    # Generate system prompt using template
+    # Create prompt with static values using .partial()
     tool_specs = generate_tool_specs_from_mcp_tools(tools)
-    system_prompt = render_playwright_navigator_prompt(
+    prompt = PLAYWRIGHT_NAVIGATOR_PROMPT.partial(
         tool_specs=tool_specs,
-        task_context="",  # Will be configured at runtime if needed
-        target_url="http://host.docker.internal:3000"  # Default
+        target_url="http://host.docker.internal:3000"
     )
     
     # Create and return LangGraph react agent
     model = ChatOpenAI(model_name='gpt-4o-mini')
-    return create_react_agent(model=model, tools=tools, prompt=system_prompt)
+    return create_react_agent(model=model, tools=tools, prompt=prompt)
 
 
 def should_continue(state) -> str:
