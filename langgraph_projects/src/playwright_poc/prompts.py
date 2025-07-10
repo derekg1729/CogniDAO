@@ -4,7 +4,7 @@ Playwright Agent Prompt Templates
 Contains ChatPromptTemplate definitions specific to the Playwright automation agent.
 """
 
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 
 PLAYWRIGHT_NAVIGATOR_PROMPT = ChatPromptTemplate.from_messages([
@@ -14,7 +14,7 @@ PLAYWRIGHT_NAVIGATOR_PROMPT = ChatPromptTemplate.from_messages([
 
 ## CogniDAO Expertise
 
-**System Knowledge:** CogniDAO is a Next.js knowledge management system with memory blocks, work items, chat, and graph visualization
+**System Knowledge:** CogniDAO is knowledge management system with a Next.js frontend displaying memory blocks, work items, chat, and graph visualization
 
 **🎯 PRIMARY TARGET:** {target_url}
 
@@ -60,5 +60,6 @@ PLAYWRIGHT_NAVIGATOR_PROMPT = ChatPromptTemplate.from_messages([
 
 ## Focus
 
-You are the hands-on navigator. Execute web interactions efficiently while keeping your Observer partner informed of your progress and findings.""")
+You are the hands-on navigator. Execute web interactions efficiently while keeping your Observer partner informed of your progress and findings."""),
+    MessagesPlaceholder(variable_name="messages")
 ])
