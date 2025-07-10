@@ -191,7 +191,7 @@ class TestDoltMySQLBasePooling:
 
     @patch("infra_core.memory_system.dolt_mysql_base.MySQLConnectionPool")
     def test_pool_get_connection_with_timeout(self, mock_pool_class):
-        """Test that pool.get_connection() is called with timeout parameter."""
+        """Test that pool.get_connection() is called correctly (no timeout support in MySQLConnectionPool)."""
         with patch.dict(os.environ, {"USE_DOLT_POOL": "true", "DOLT_POOL_TIMEOUT": "20"}):
             config = DoltConnectionConfig()
             base = DoltMySQLBase(config)
@@ -209,8 +209,8 @@ class TestDoltMySQLBasePooling:
                         with base.get_connection("test-branch", autocommit=True) as conn:
                             assert conn == mock_connection
 
-                        # Verify timeout was passed to get_connection
-                        mock_pool.get_connection.assert_called_once_with(timeout=20)
+                        # Verify get_connection was called (without timeout - not supported by MySQLConnectionPool)
+                        mock_pool.get_connection.assert_called_once_with()
 
     def test_branch_consistency_verification_exists(self):
         """Test that branch consistency verification methods exist."""

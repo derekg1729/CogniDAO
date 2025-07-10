@@ -287,8 +287,10 @@ class DoltMySQLBase:
         # Pooled behavior: enhanced connection management
         connection = None
         try:
-            # Get connection from pool with timeout to prevent indefinite blocking
-            connection = self._pool.get_connection(timeout=self._pool_timeout)
+            # Get connection from pool
+            # Note: MySQLConnectionPool.get_connection() doesn't support timeout parameter
+            # Pool exhaustion behavior is controlled by the underlying MySQL connector
+            connection = self._pool.get_connection()
 
             # Health check with automatic reconnection
             self._ensure_connection_healthy_pooled(connection)
