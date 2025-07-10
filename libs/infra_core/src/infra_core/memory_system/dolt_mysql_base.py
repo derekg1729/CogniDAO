@@ -14,6 +14,8 @@ Environment Variables (used by DoltConnectionConfig):
 - MYSQL_USER / DB_USER: Database user (default: root)
 - MYSQL_PASSWORD / DB_PASSWORD: Database password (default: empty)
 - MYSQL_DATABASE / DB_NAME: Database name (default: memory_dolt)
+- USE_DOLT_POOL: Enable connection pooling (default: false)
+- DOLT_POOL_SIZE: Pool size when pooling enabled (default: 10)
 """
 
 import logging
@@ -23,6 +25,8 @@ from typing import List, Dict, Any
 
 import mysql.connector
 from mysql.connector import Error, OperationalError, InterfaceError, DatabaseError
+from mysql.connector.pooling import MySQLConnectionPool
+from contextlib import contextmanager
 
 # Setup standard Python logger
 logger = logging.getLogger(__name__)
@@ -121,6 +125,19 @@ class DoltMySQLBase:
         self._current_branch = None
         self._use_persistent = False
 
+        # Connection pooling support (feature flagged)
+        self._use_pool = os.getenv("USE_DOLT_POOL", "false").lower() == "true"
+        self._pool = None
+        self._pool_size = int(os.getenv("DOLT_POOL_SIZE", "10"))
+
+        if self._use_pool:
+            self._initialize_connection_pool()
+            logger.info(
+                f"DoltMySQLBase: Connection pooling enabled with {self._pool_size} connections"
+            )
+        else:
+            logger.debug("DoltMySQLBase: Using legacy persistent connection mode")
+
     def _is_branch_protected(self, branch: str) -> bool:
         """
         Check if a branch is protected from write operations.
@@ -194,6 +211,150 @@ class DoltMySQLBase:
             return conn
         except Error as e:
             raise Exception(f"Failed to connect to Dolt SQL server: {e}")
+
+    def _initialize_connection_pool(self) -> None:
+        """
+        Initialize MySQL connection pool for improved connection management.
+
+        Only called when USE_DOLT_POOL=true. Provides automatic connection
+        health management, thread safety, and resource efficiency.
+        """
+        try:
+            pool_config = {
+                "pool_name": f"dolt_pool_{self.config.database}",
+                "pool_size": self._pool_size,
+                "pool_reset_session": True,  # Auto-reset session state
+                "host": self.config.host,
+                "port": self.config.port,
+                "user": self.config.user,
+                "password": self.config.password,
+                "database": self.config.database,
+                "charset": "utf8mb4",
+                "autocommit": False,  # Default for transaction control
+                "connection_timeout": 10,
+                "use_unicode": True,
+                "raise_on_warnings": True,
+            }
+
+            self._pool = MySQLConnectionPool(**pool_config)
+            logger.info(f"Initialized MySQL connection pool: {self._pool_size} connections")
+
+        except Error as e:
+            raise Exception(f"Failed to initialize MySQL connection pool: {e}")
+
+    @contextmanager
+    def get_connection(self, branch: str = None, autocommit: bool = False):
+        """
+        Get a healthy connection with branch isolation and transaction control.
+
+        When USE_DOLT_POOL=true: Uses connection pooling with automatic health checks
+        When USE_DOLT_POOL=false: Falls back to legacy _get_connection() behavior
+
+        Args:
+            branch: Target branch to checkout (None = no branch change)
+            autocommit: Transaction mode (False for writers, True for readers)
+
+        Yields:
+            mysql.connector.MySQLConnection: Healthy connection on correct branch
+
+        Example:
+            with self.get_connection('feature-branch', autocommit=False) as conn:
+                cursor = conn.cursor(dictionary=True)
+                cursor.execute("INSERT INTO memory_blocks ...")
+                conn.commit()  # Explicit commit for writers
+        """
+        if not self._use_pool:
+            # Legacy behavior: use _get_connection()
+            connection = self._get_connection()
+            try:
+                connection.autocommit = autocommit
+                if branch:
+                    self._ensure_branch(connection, branch)
+                yield connection
+            finally:
+                if connection:
+                    connection.close()
+            return
+
+        # Pooled behavior: enhanced connection management
+        connection = None
+        try:
+            # Get connection from pool
+            connection = self._pool.get_connection()
+
+            # Health check with automatic reconnection
+            self._ensure_connection_healthy_pooled(connection)
+
+            # Configure transaction mode
+            connection.autocommit = autocommit
+
+            # Branch isolation if specified
+            if branch:
+                self._ensure_branch(connection, branch)
+
+            logger.debug(f"Acquired pooled connection: branch={branch}, autocommit={autocommit}")
+            yield connection
+
+        except Exception as e:
+            # Rollback on error (only if not autocommit)
+            if connection and not autocommit:
+                try:
+                    connection.rollback()
+                    logger.debug("Rolled back transaction due to error")
+                except Exception:
+                    pass
+            raise e
+
+        finally:
+            # Guaranteed cleanup
+            if connection:
+                try:
+                    # Rollback any uncommitted transaction (only if not autocommit)
+                    if not autocommit:
+                        connection.rollback()
+                        logger.debug("Rolled back transaction on context exit")
+
+                    # Return connection to pool
+                    connection.close()  # Returns to pool
+                    logger.debug("Returned connection to pool")
+
+                except Exception as e:
+                    logger.warning(f"Error during connection cleanup: {e}")
+
+    def _ensure_connection_healthy_pooled(
+        self, connection: mysql.connector.MySQLConnection
+    ) -> None:
+        """
+        Ensure pooled connection is healthy with ping(reconnect=True) and verification.
+
+        Enhanced health check for pooled connections:
+        1. connection.ping(reconnect=True) - MySQL-level health check with auto-reconnect
+        2. SELECT 1 - Verify basic query execution
+
+        Args:
+            connection: Connection to verify
+
+        Raises:
+            Exception: If connection health check fails
+        """
+        try:
+            # Primary health check with automatic reconnection
+            connection.ping(reconnect=True)
+
+            # Verification: basic query execution
+            cursor = connection.cursor()
+            cursor.execute("SELECT 1")
+            result = cursor.fetchone()
+            cursor.close()
+
+            if result != (1,):
+                raise Exception(f"Health check returned unexpected result: {result}")
+
+            logger.debug("Pooled connection health check passed")
+
+        except Exception as e:
+            logger.error(f"Pooled connection health check failed: {e}")
+            raise Exception(f"Pooled connection health check failed: {e}")
 
     def _ensure_branch(self, connection: mysql.connector.MySQLConnection, branch: str) -> None:
         """Ensure we're on the specified branch."""
@@ -271,6 +432,20 @@ class DoltMySQLBase:
         Args:
             branch: Branch to checkout and maintain for all subsequent operations
         """
+        if self._use_pool:
+            import warnings
+
+            warnings.warn(
+                "use_persistent_connection() is deprecated when USE_DOLT_POOL=true. "
+                "Use get_connection() context manager instead for better resource management.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            logger.info(
+                f"Legacy persistent connection request ignored (pooling enabled): branch={branch}"
+            )
+            return
+
         if self._persistent_connection:
             logger.warning("Persistent connection already active, closing previous connection")
             self.close_persistent_connection()
@@ -307,6 +482,18 @@ class DoltMySQLBase:
         """
         Close the persistent connection and return to per-operation connection mode.
         """
+        if self._use_pool:
+            import warnings
+
+            warnings.warn(
+                "close_persistent_connection() is deprecated when USE_DOLT_POOL=true. "
+                "Connections are managed automatically.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            logger.info("Legacy persistent connection close request ignored (pooling enabled)")
+            return
+
         if self._persistent_connection:
             try:
                 self._persistent_connection.close()
