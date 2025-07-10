@@ -4,7 +4,7 @@ CogniDAO Presence Agent Prompt Templates
 Contains ChatPromptTemplate definitions specific to the CogniDAO presence agent.
 """
 
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 
 COGNI_PRESENCE_PROMPT = ChatPromptTemplate.from_messages([
@@ -22,5 +22,6 @@ COGNI_PRESENCE_PROMPT = ChatPromptTemplate.from_messages([
 
 **Important:** Leave branch/namespace parameters empty in tool calls.
 
-{tool_specs}""")
+{tool_specs}"""),
+    MessagesPlaceholder(variable_name="messages")
 ])
