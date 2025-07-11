@@ -9,6 +9,7 @@ from langgraph.checkpoint.redis import AsyncRedisSaver
 
 from src.simple_cogni_agent.graph import build_graph as build_simple_graph
 from src.cogni_presence.graph import build_graph as build_supervisor_graph
+from src.playwright_poc.graph import build_graph as build_playwright_graph
 
 
 class TestRedisCheckpointer:
@@ -200,3 +201,81 @@ class TestCogniPresenceSupervisor:
             # Verify the first message is still in history
             message_contents = [msg.content for msg in result2["messages"]]
             assert any("supervisor persistence" in content for content in message_contents)
+
+
+class TestPlaywrightPOC:
+    """Test Redis checkpointer integration with Playwright POC"""
+    
+    @pytest.fixture
+    def redis_uri(self):
+        """Redis connection URI"""
+        return "redis://localhost:6379"
+    
+    @pytest.fixture
+    def thread_id(self):
+        """Unique thread ID for each test"""
+        return f"playwright_test_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+    
+    @pytest.mark.asyncio
+    async def test_playwright_without_checkpointer(self):
+        """Test playwright POC works without checkpointer"""
+        workflow = await build_playwright_graph()
+        graph = workflow.compile()
+        
+        result = await graph.ainvoke({"messages": [HumanMessage("Hello")]})
+        
+        assert "messages" in result
+        assert len(result["messages"]) >= 1
+        assert result["messages"][-1].content
+    
+    @pytest.mark.asyncio
+    async def test_playwright_with_redis_checkpointer(self, redis_uri, thread_id):
+        """Test playwright POC works with Redis checkpointer"""
+        workflow = await build_playwright_graph()
+        
+        async with AsyncRedisSaver.from_conn_string(redis_uri) as checkpointer:
+            graph = workflow.compile(checkpointer=checkpointer)
+            
+            config = {"configurable": {"thread_id": thread_id}}
+            result = await graph.ainvoke(
+                {"messages": [HumanMessage("Hello from playwright Redis test")]},
+                config=config
+            )
+            
+            assert "messages" in result
+            assert len(result["messages"]) >= 1
+            assert result["messages"][-1].content
+    
+    @pytest.mark.asyncio
+    async def test_playwright_thread_persistence(self, redis_uri, thread_id):
+        """Test that playwright POC persists conversation history"""
+        workflow = await build_playwright_graph()
+        
+        async with AsyncRedisSaver.from_conn_string(redis_uri) as checkpointer:
+            graph = workflow.compile(checkpointer=checkpointer)
+            config = {"configurable": {"thread_id": thread_id}}
+            
+            # First message
+            result1 = await graph.ainvoke(
+                {"messages": [HumanMessage("Hello, I'm testing playwright persistence.")]},
+                config=config
+            )
+            
+            first_message_count = len(result1["messages"])
+            assert first_message_count >= 2  # At least user message + response
+            
+            # Second message to same thread
+            result2 = await graph.ainvoke(
+                {"messages": [HumanMessage("Do you remember our previous conversation?")]},
+                config=config
+            )
+            
+            second_message_count = len(result2["messages"])
+            
+            # Should have more messages in second result (accumulated history)
+            assert second_message_count > first_message_count
+            assert second_message_count >= 4  # 2 original + 2 new
+            
+            # Verify the first message is still in history
+            message_contents = [msg.content for msg in result2["messages"]]
+            assert any("playwright persistence" in content for content in message_contents)
