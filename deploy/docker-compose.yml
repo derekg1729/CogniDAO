@@ -33,13 +33,14 @@ services:
     networks:
       - cogni-net
 
-  # Redis Service for LangGraph Checkpointing
+  # Redis Service for LangGraph Checkpointing (DEV/TEST ENVIRONMENT)
   redis:
     image: redis/redis-stack-server:latest
+    command: redis-server --maxmemory 512mb --maxmemory-policy noeviction --appendonly yes --auto-aof-rewrite-percentage 100 --auto-aof-rewrite-min-size 64mb
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
     volumes:
-      - redis_data:/data
+      - redis_data:/data  # Keep dev data persistent for convenience. Long-term: consider removing for truly ephemeral testing
     ports:
       - "6379:6379"
     healthcheck:
