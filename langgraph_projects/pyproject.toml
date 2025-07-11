@@ -44,6 +44,9 @@ test = [
     "pytest-playwright>=0.5.0",
     "respx>=0.21.0",
     "httpx>=0.25.0",
+    "langgraph>=0.5,<0.6",
+    "langgraph-prebuilt>=0.5,<0.6",
+    "langgraph-supervisor>=0.0.27"
 ]
 mysql = [
     "mysql-connector-python>=8.4.0",

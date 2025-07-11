@@ -308,6 +308,9 @@ mysql = [
 ]
 test = [
     { name = "httpx" },
+    { name = "langgraph" },
+    { name = "langgraph-prebuilt" },
+    { name = "langgraph-supervisor" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-mock" },
@@ -325,10 +328,13 @@ requires-dist = [
     { name = "langchain-openai", specifier = ">=0.2.0,<0.3.0" },
     { name = "langchain-tavily", specifier = ">=0.1.0" },
     { name = "langgraph", specifier = ">=0.5,<0.6" },
+    { name = "langgraph", marker = "extra == 'test'", specifier = ">=0.5,<0.6" },
     { name = "langgraph-checkpoint-redis", specifier = ">=0.0.1,<1.0.0" },
     { name = "langgraph-cli", extras = ["inmem"], specifier = ">=0.3.3" },
     { name = "langgraph-prebuilt", specifier = ">=0.5,<0.6" },
+    { name = "langgraph-prebuilt", marker = "extra == 'test'", specifier = ">=0.5,<0.6" },
     { name = "langgraph-supervisor", specifier = ">=0.0.27" },
+    { name = "langgraph-supervisor", marker = "extra == 'test'", specifier = ">=0.0.27" },
     { name = "mysql-connector-python", marker = "extra == 'mysql'", specifier = ">=8.4.0" },
     { name = "openai", specifier = ">=1.68.2,<1.76.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0.0" },

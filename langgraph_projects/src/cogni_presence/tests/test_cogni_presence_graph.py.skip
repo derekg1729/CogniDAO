@@ -15,7 +15,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 # Import components to test from refactored modules
 from src.cogni_presence.graph import build_graph
-from src.cogni_presence.agent import should_continue
+# should_continue is no longer used in supervisor pattern
 from src.shared_utils import CogniAgentState, GraphConfig, COGNI_SYSTEM_PROMPT
 
 
