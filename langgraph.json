@@ -5,7 +5,8 @@
     "graphs": {
         "cogni_presence": "./langgraph_projects/src/cogni_presence/main.py:graph",
         "playwright_poc": "./langgraph_projects/src/playwright_poc/main.py:graph",
-        "simple_cogni_agent": "./langgraph_projects/src/simple_cogni_agent/main.py:graph"
+        "simple_cogni_agent": "./langgraph_projects/src/simple_cogni_agent/main.py:graph",
+        "cogni_image_gen": "./langgraph_projects/src/cogni_image_gen/main.py:graph"
     },
     "env": [
         "OPENAI_API_KEY",

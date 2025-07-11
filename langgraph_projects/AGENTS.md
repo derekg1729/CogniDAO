@@ -1,13 +1,12 @@
 # LangGraph Agents Guide
 
-## New Monorepo Structure ✨
+Root langgraph.json defines the langgraph build, pointed at this langgraph_projects repo
 
 This project has been refactored into a clean monorepo structure with shared utilities and consolidated dependencies:
 
 ```
 langgraph_projects/
 ├── pyproject.toml          ← Root workspace dependencies (35 lines, streamlined)
-├── langgraph.json          ← Graph registry (points to src/ packages)
 └── src/
     ├── shared_utils/       ← Shared utilities (6 modules, ~800 lines)
     │   ├── mcp_client.py   ← MCP connection management with fallback
