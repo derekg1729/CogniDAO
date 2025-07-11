@@ -19,7 +19,7 @@ async def test_graph_creation():
         graph = await build_graph()
         print("✅ Graph created successfully")
         print(f"Nodes: {list(graph.nodes.keys())}")
-        print(f"Edges: {list(graph.edges.keys())}")
+        print(f"Edges: {list(graph.edges)}")
         return True
     except Exception as e:
         print(f"❌ Graph creation failed: {e}")

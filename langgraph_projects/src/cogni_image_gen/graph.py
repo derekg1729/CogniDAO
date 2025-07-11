@@ -40,9 +40,19 @@ async def build_graph() -> StateGraph:
     workflow.add_edge("image_tool", "reviewer")
     
     # Conditional edge for retry logic (decider)
+    def should_retry(state):
+        score = state.get("score", 0.8)  # Default to decent score
+        retry_count = state.get("retry_count", 0)
+        max_retries = state.get("max_retries", 2)
+        
+        if score < 0.7 and retry_count < max_retries:
+            return "planner"
+        else:
+            return "responder"
+    
     workflow.add_conditional_edges(
         "reviewer",
-        lambda state: "planner" if state["score"] < 0.7 and state["retry_count"] < state["max_retries"] else "responder",
+        should_retry,
         {"planner": "planner", "responder": "responder"}
     )
     

@@ -27,8 +27,19 @@ async def create_planner_node():
         Draft + sanitize prompt (adds negative-prompt + seed if supplied)
         Decide which OpenAI image tool to invoke
         """
-        user_request = state["user_request"]
-        retry_count = state["retry_count"]
+        # Extract user request from either direct field or last message
+        user_request = state.get("user_request")
+        if not user_request and state.get("messages"):
+            # Get the last human message as the user request
+            for msg in reversed(state["messages"]):
+                if hasattr(msg, "content") and msg.content:
+                    user_request = msg.content
+                    break
+        
+        if not user_request:
+            user_request = "Generate an image"  # fallback
+        
+        retry_count = state.get("retry_count", 0)
         
         # If retrying, incorporate previous critique
         context = ""
@@ -70,10 +81,11 @@ async def create_planner_node():
         
         return {
             **state,
+            "user_request": user_request,  # Ensure this field is set
             "intent": intent,
             "prompt": prompt,
             "retry_count": new_retry_count,
-            "messages": state["messages"] + [response]
+            "messages": state.get("messages", []) + [response]
         }
     
     return planner_node
@@ -86,8 +98,8 @@ async def create_image_tool_node():
         """
         Invoke chosen endpoint: GenerateImage, EditImage, or CreateImageVariation.
         """
-        intent = state["intent"]
-        prompt = state["prompt"]
+        intent = state.get("intent", "generate")
+        prompt = state.get("prompt", "Generate an image")
         input_image = state.get("input_image")
         
         # Get OpenAI image generation tools
@@ -114,7 +126,7 @@ async def create_image_tool_node():
             return {
                 **state,
                 "image_url": None,
-                "messages": state["messages"] + [AIMessage(content=f"Error: {tool_name} tool not available")]
+                "messages": state.get("messages", []) + [AIMessage(content=f"Error: {tool_name} tool not available")]
             }
         
         # Prepare tool input based on intent
@@ -139,7 +151,7 @@ async def create_image_tool_node():
             return {
                 **state,
                 "image_url": image_url,
-                "messages": state["messages"] + [AIMessage(content=f"Generated image using {tool_name}")]
+                "messages": state.get("messages", []) + [AIMessage(content=f"Generated image using {tool_name}")]
             }
             
         except Exception as e:
@@ -147,7 +159,7 @@ async def create_image_tool_node():
             return {
                 **state,
                 "image_url": None,
-                "messages": state["messages"] + [AIMessage(content=f"Error generating image: {str(e)}")]
+                "messages": state.get("messages", []) + [AIMessage(content=f"Error generating image: {str(e)}")]
             }
     
     return image_tool_node
@@ -161,8 +173,8 @@ async def create_reviewer_node():
         Check image against original request (basic safety + quality)
         Emit score (0-1) and critique
         """
-        user_request = state["user_request"]
-        image_url = state["image_url"]
+        user_request = state.get("user_request", "Generate an image")
+        image_url = state.get("image_url")
         
         if not image_url:
             return {
@@ -216,7 +228,7 @@ async def create_reviewer_node():
             **state,
             "score": score,
             "critique": critique,
-            "messages": state["messages"] + [response]
+            "messages": state.get("messages", []) + [response]
         }
     
     return reviewer_node
@@ -229,10 +241,10 @@ async def create_responder_node():
         """
         Compose final assistant message with image_url, alt-text, and any notes.
         """
-        user_request = state["user_request"]
-        image_url = state["image_url"]
-        critique = state["critique"]
-        retry_count = state["retry_count"]
+        user_request = state.get("user_request", "Generate an image")
+        image_url = state.get("image_url")
+        critique = state.get("critique", "No critique available")
+        retry_count = state.get("retry_count", 0)
         
         model = ChatOpenAI(model_name='gpt-4o-mini', temperature=0.3)
         
@@ -255,7 +267,7 @@ async def create_responder_node():
         return {
             **state,
             "assistant_response": response.content,
-            "messages": state["messages"] + [response]
+            "messages": state.get("messages", []) + [response]
         }
     
     return responder_node

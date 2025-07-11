@@ -35,7 +35,7 @@ class ImageFlowState(BaseAgentState):
     """State for image generation workflow."""
 
     # Core workflow fields
-    user_request: str
+    user_request: str | None = None
     intent: str | None = None  # "generate" | "edit" | "variation"
     prompt: str | None = None
     input_image: str | None = None  # base64 or URL for edit/variation
