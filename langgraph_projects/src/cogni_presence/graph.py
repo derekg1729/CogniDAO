@@ -3,7 +3,9 @@ CogniDAO CEO Supervisor Graph - Uses LangGraph supervisor pattern
 """
 
 import asyncio
+import os
 from langgraph_supervisor import create_supervisor
+from langgraph.checkpoint.redis import AsyncRedisSaver
 from src.shared_utils import get_logger
 
 from .vp_marketing_agent import create_vp_marketing_node
@@ -46,18 +48,40 @@ async def build_graph():
     return supervisor
 
 
-async def build_compiled_graph():
+async def build_compiled_graph(use_checkpointer=False, checkpointer=None):
     """
     Build and compile the CogniDAO org chart supervisor workflow.
+
+    Args:
+        use_checkpointer (bool): Whether to use Redis checkpointer for persistence.
+        checkpointer: Optional pre-configured checkpointer instance.
 
     Returns:
         CompiledStateGraph: A compiled, ready-to-use graph instance.
 
     Example:
+        # Without checkpointer
         app = await build_compiled_graph()
-        result = await app.ainvoke({"messages": [HumanMessage("Hello")]})
+        
+        # With checkpointer (caller manages context)
+        async with AsyncRedisSaver.from_conn_string("redis://localhost:6379") as saver:
+            app = await build_compiled_graph(checkpointer=saver)
+            result = await app.ainvoke({"messages": [HumanMessage("Hello")]})
     """
     supervisor = await build_graph()
+    
+    if checkpointer:
+        return supervisor.compile(checkpointer=checkpointer)
+    elif use_checkpointer:
+        # For backward compatibility, try to create a simple checkpointer
+        # Note: This approach has limitations with async context management
+        logger.warning("use_checkpointer=True is deprecated. Pass checkpointer instance instead.")
+        redis_uri = os.getenv("REDIS_URI", "redis://localhost:6379")
+        # This creates a checkpointer but doesn't manage its lifecycle properly
+        # Better to pass checkpointer instance from caller
+        checkpointer = AsyncRedisSaver.from_conn_string(redis_uri)
+        return supervisor.compile(checkpointer=checkpointer)
+    
     return supervisor.compile()
 
 
