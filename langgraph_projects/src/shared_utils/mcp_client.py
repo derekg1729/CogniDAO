@@ -333,7 +333,7 @@ def get_cogni_mcp_manager() -> MCPClientManager:
             }
         }
         # Configure with environment variables or sensible defaults
-        max_retries = int(os.getenv("MCP_MAX_RETRIES", "5"))
+        max_retries = int(os.getenv("MCP_MAX_RETRIES", "0"))
         health_check_interval = float(os.getenv("MCP_HEALTH_CHECK_INTERVAL", "30.0"))
         connection_timeout = float(os.getenv("MCP_CONNECTION_TIMEOUT", "30.0"))
 
@@ -358,7 +358,7 @@ def get_playwright_mcp_manager() -> MCPClientManager:
             }
         }
         # Configure with environment variables or sensible defaults
-        max_retries = int(os.getenv("MCP_MAX_RETRIES", "5"))
+        max_retries = int(os.getenv("MCP_MAX_RETRIES", "0"))
         health_check_interval = float(os.getenv("MCP_HEALTH_CHECK_INTERVAL", "30.0"))
         connection_timeout = float(os.getenv("MCP_CONNECTION_TIMEOUT", "30.0"))
 
