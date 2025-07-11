@@ -31,6 +31,26 @@ class PlaywrightAgentState(BaseAgentState):
     pass
 
 
+class ImageFlowState(BaseAgentState):
+    """State for image generation workflow."""
+
+    # Core workflow fields
+    user_request: str
+    intent: str | None = None  # "generate" | "edit" | "variation"
+    prompt: str | None = None
+    input_image: str | None = None  # base64 or URL for edit/variation
+    
+    # Output fields
+    image_url: str | None = None
+    score: float | None = None
+    critique: str | None = None
+    assistant_response: str | None = None
+    
+    # Flow control
+    retry_count: int = 0
+    max_retries: int = 2
+
+
 class GraphConfig(TypedDict):
     """Configuration schema for LangGraph compilation."""
 

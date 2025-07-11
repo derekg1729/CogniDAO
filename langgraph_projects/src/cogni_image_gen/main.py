@@ -1,7 +1,7 @@
 """
-CogniDAO Presence Agent - Main Entry Point
+CogniDAO Image Generation Agent - Main Entry Point
 
-This module provides the main entry point for the CogniDAO Presence Agent
+This module provides the main entry point for the CogniDAO Image Generation Agent
 for LangGraph deployment and development server.
 """
 
