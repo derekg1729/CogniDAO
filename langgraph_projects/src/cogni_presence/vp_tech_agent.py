@@ -7,25 +7,25 @@ from langchain_openai import ChatOpenAI
 from src.shared_utils import get_logger
 from src.shared_utils.tool_specs import generate_tool_specs_from_mcp_tools
 from src.shared_utils.tool_registry import get_tools
-from .prompts import COGNI_PRESENCE_PROMPT
+from .prompts import VP_TECH_PROMPT
 
 logger = get_logger(__name__)
 
 
-async def create_agent_node():
-    """Create CogniDAO agent using LangGraph's create_react_agent."""
+async def create_vp_tech_node():
+    """Create VP Tech agent using LangGraph's create_react_agent."""
     # Get tools (MCP client handles all connection logic internally)
     tools = await get_tools("cogni")
     
     # Create prompt with static values using .partial()
     tool_specs = generate_tool_specs_from_mcp_tools(tools)
-    prompt = COGNI_PRESENCE_PROMPT.partial(
+    prompt = VP_TECH_PROMPT.partial(
         tool_specs=tool_specs
     )
     
     # Create and return LangGraph react agent
     model = ChatOpenAI(model_name='gpt-4o-mini')
-    return create_react_agent(model=model, tools=tools, prompt=prompt)
+    return create_react_agent(model=model, tools=tools, prompt=prompt, name="vp_tech")
 
 
 def should_continue(state) -> str:

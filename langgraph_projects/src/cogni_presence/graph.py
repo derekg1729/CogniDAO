@@ -1,34 +1,54 @@
 """
-CogniDAO Presence Graph - Simple graph using LangGraph's react agent.
+CogniDAO CEO Supervisor Graph - Uses LangGraph supervisor pattern
 """
 
 import asyncio
-from langgraph.graph import StateGraph
-from src.shared_utils import CogniAgentState, GraphConfig, get_logger
+from langgraph_supervisor import create_supervisor
+from src.shared_utils import get_logger
 
-from .agent import create_agent_node
+from .vp_marketing_agent import create_vp_marketing_node
+from .vp_hr_agent import create_vp_hr_node
+from .vp_tech_agent import create_vp_tech_node
+from .vp_product_agent import create_vp_product_node
+from .vp_finance_agent import create_vp_finance_node
+from .prompts import CEO_SUPERVISOR_PROMPT
 
 logger = get_logger(__name__)
 
 
-async def build_graph() -> StateGraph:
-    """Build the CogniDAO presence LangGraph workflow."""
-    # Create agent node
-    agent_node = await create_agent_node()
+async def build_graph():
+    """Build the CogniDAO org chart using LangGraph supervisor pattern."""
+    # Create all VP agent nodes
+    vp_marketing = await create_vp_marketing_node()
+    vp_hr = await create_vp_hr_node()
+    vp_tech = await create_vp_tech_node()
+    vp_product = await create_vp_product_node()
+    vp_finance = await create_vp_finance_node()
+    
+    # Create supervisor following the example pattern
+    from langchain_openai import ChatOpenAI
+    
+    supervisor = create_supervisor(
+        model=ChatOpenAI(model_name="gpt-4o-mini"),
+        agents=[
+            vp_marketing,
+            vp_hr,
+            vp_tech,
+            vp_product,
+            vp_finance,
+        ],
+        prompt=CEO_SUPERVISOR_PROMPT,
+        add_handoff_back_messages=True,
+        output_mode="full_history",
+    )
 
-    # Build the workflow - create_react_agent handles tool calling internally
-    workflow = StateGraph(CogniAgentState, config_schema=GraphConfig)
-    workflow.add_node("agent", agent_node)
-    workflow.set_entry_point("agent")
-    workflow.set_finish_point("agent")
-
-    logger.info(f"✅ CogniDAO graph built with {len(workflow.nodes)} nodes")
-    return workflow
+    logger.info("✅ CogniDAO org chart supervisor created successfully")
+    return supervisor
 
 
 async def build_compiled_graph():
     """
-    Build and compile the CogniDAO presence LangGraph workflow.
+    Build and compile the CogniDAO org chart supervisor workflow.
 
     Returns:
         CompiledStateGraph: A compiled, ready-to-use graph instance.
@@ -37,8 +57,8 @@ async def build_compiled_graph():
         app = await build_compiled_graph()
         result = await app.ainvoke({"messages": [HumanMessage("Hello")]})
     """
-    workflow = await build_graph()
-    return workflow.compile()
+    supervisor = await build_graph()
+    return supervisor.compile()
 
 
 # Export compiled graph for LangGraph dev server

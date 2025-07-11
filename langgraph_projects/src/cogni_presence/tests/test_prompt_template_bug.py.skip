@@ -9,7 +9,7 @@ standard variables: ['messages', 'is_last_step', 'remaining_steps'].
 import pytest
 from langchain_core.messages import HumanMessage
 
-from src.cogni_presence.agent import create_agent_node
+from src.cogni_presence.graph import build_compiled_graph
 
 
 class TestPromptTemplateBug:
