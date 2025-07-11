@@ -319,6 +319,7 @@ class MCPClientManager:
 # Global MCP client managers for common configurations
 _cogni_mcp_manager: MCPClientManager | None = None
 _playwright_mcp_manager: MCPClientManager | None = None
+_openai_mcp_manager: MCPClientManager | None = None
 
 
 def get_cogni_mcp_manager() -> MCPClientManager:
@@ -371,12 +372,37 @@ def get_playwright_mcp_manager() -> MCPClientManager:
     return _playwright_mcp_manager
 
 
+def get_openai_mcp_manager() -> MCPClientManager:
+    """Get the global OpenAI MCP manager with reconnection capabilities."""
+    global _openai_mcp_manager
+    if _openai_mcp_manager is None:
+        mcp_url = os.getenv("OPENAI_MCP_URL", "http://toolhive:24163/sse")
+        server_configs = {
+            "openai-mcp": {
+                "url": mcp_url,
+                "transport": "sse",
+            }
+        }
+        # Configure with environment variables or sensible defaults
+        max_retries = int(os.getenv("MCP_MAX_RETRIES", "0"))
+        health_check_interval = float(os.getenv("MCP_HEALTH_CHECK_INTERVAL", "30.0"))
+        connection_timeout = float(os.getenv("MCP_CONNECTION_TIMEOUT", "30.0"))
+
+        _openai_mcp_manager = MCPClientManager(
+            server_configs,
+            max_retries=max_retries,
+            health_check_interval=health_check_interval,
+            connection_timeout=connection_timeout,
+        )
+    return _openai_mcp_manager
+
+
 async def get_mcp_tools(server_type: str = "cogni") -> list[BaseTool]:
     """
     Get MCP tools for a specific server type with automatic reconnection.
 
     Args:
-        server_type: Either "cogni" or "playwright"
+        server_type: Either "cogni", "playwright", or "openai"
 
     Returns:
         List of tools
@@ -385,6 +411,8 @@ async def get_mcp_tools(server_type: str = "cogni") -> list[BaseTool]:
         manager = get_cogni_mcp_manager()
     elif server_type == "playwright":
         manager = get_playwright_mcp_manager()
+    elif server_type == "openai":
+        manager = get_openai_mcp_manager()
     else:
         raise ValueError(f"Unknown server type: {server_type}")
 
@@ -399,7 +427,7 @@ async def get_mcp_tools_with_refresh(server_type: str = "cogni") -> list[BaseToo
     have become available since the last check.
 
     Args:
-        server_type: Either "cogni" or "playwright"
+        server_type: Either "cogni", "playwright", or "openai"
 
     Returns:
         List of tools
@@ -408,6 +436,8 @@ async def get_mcp_tools_with_refresh(server_type: str = "cogni") -> list[BaseToo
         manager = get_cogni_mcp_manager()
     elif server_type == "playwright":
         manager = get_playwright_mcp_manager()
+    elif server_type == "openai":
+        manager = get_openai_mcp_manager()
     else:
         raise ValueError(f"Unknown server type: {server_type}")
 
@@ -419,7 +449,7 @@ def get_mcp_connection_info(server_type: str = "cogni") -> dict[str, Any]:
     Get connection information for a specific MCP server type.
 
     Args:
-        server_type: Either "cogni" or "playwright"
+        server_type: Either "cogni", "playwright", or "openai"
 
     Returns:
         Dictionary with connection details
@@ -428,6 +458,8 @@ def get_mcp_connection_info(server_type: str = "cogni") -> dict[str, Any]:
         manager = get_cogni_mcp_manager()
     elif server_type == "playwright":
         manager = get_playwright_mcp_manager()
+    elif server_type == "openai":
+        manager = get_openai_mcp_manager()
     else:
         raise ValueError(f"Unknown server type: {server_type}")
 

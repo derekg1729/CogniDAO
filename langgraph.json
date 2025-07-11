@@ -14,7 +14,8 @@
         "REDIS_URI",
         "REDIS_URL",
         "COGNI_MCP_URL",
-        "PLAYWRIGHT_MCP_URL"
+        "PLAYWRIGHT_MCP_URL",
+        "OPENAI_MCP_URL"
     ],
     "python_version": "3.11"
 }
