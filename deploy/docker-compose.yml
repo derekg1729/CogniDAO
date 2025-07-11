@@ -35,8 +35,7 @@ services:
 
   # Redis Service for LangGraph Checkpointing
   redis:
-    image: redis:7-alpine
-    command: redis-server --appendonly yes
+    image: redis/redis-stack-server:latest
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
     volumes:
