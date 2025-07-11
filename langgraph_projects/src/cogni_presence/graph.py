@@ -11,6 +11,7 @@ from .vp_hr_agent import create_vp_hr_node
 from .vp_tech_agent import create_vp_tech_node
 from .vp_product_agent import create_vp_product_node
 from .vp_finance_agent import create_vp_finance_node
+from .prompts import CEO_SUPERVISOR_PROMPT
 
 logger = get_logger(__name__)
 
@@ -36,19 +37,7 @@ async def build_graph():
             vp_product,
             vp_finance,
         ],
-        prompt=(
-            "You are the **CEO** of CogniDAO 🏢\n\n"
-            "You are managing five VP agents:\n"
-            "- VP Marketing: Handles brand, campaigns, customer acquisition, and market analysis\n"
-            "- VP HR: Manages people, culture, recruiting, and performance management\n"
-            "- VP Tech: Oversees engineering, infrastructure, security, and technical architecture\n"
-            "- VP Product: Handles product strategy, features, roadmap, and user experience\n"
-            "- VP Finance: Manages financial planning, budgeting, forecasting, and treasury\n\n"
-            "Analyze each user request and assign work to the most appropriate VP.\n"
-            "Assign work to one agent at a time, do not call agents in parallel.\n"
-            "After receiving a VP's response, provide a final executive summary to the user.\n"
-            "You can think, and organize, but delegate specific questions and work to your VPs."
-        ),
+        prompt=CEO_SUPERVISOR_PROMPT,
         add_handoff_back_messages=True,
         output_mode="full_history",
     )

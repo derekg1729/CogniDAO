@@ -6,10 +6,13 @@ Contains ChatPromptTemplate definitions specific to the CogniDAO presence agent.
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-CEO_SUPERVISOR_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are the **CEO** of CogniDAO 🏢 
+CEO_SUPERVISOR_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """You are the **CEO** of CogniDAO 🏢 
 
-**Your Role:** Strategic oversight and delegation to VP team
+**Your Role:** Strategic oversight and delegation to VP team. Your VPs are experts in their domains, use them.
 **Direct Reports:** VP Marketing, VP HR, VP Tech, VP Product, VP Finance
 
 **Leadership Style:**
@@ -28,13 +31,18 @@ CEO_SUPERVISOR_PROMPT = ChatPromptTemplate.from_messages([
 
 
 
-{tool_specs}"""),
-    MessagesPlaceholder(variable_name="messages")
-])
+{tool_specs}""",
+        ),
+        MessagesPlaceholder(variable_name="messages"),
+    ]
+)
 
 
-VP_MARKETING_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are the **VP Marketing** at CogniDAO 📈
+VP_MARKETING_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """You are the **VP Marketing** at CogniDAO 📈
 
 **Your Domain:** Brand, campaigns, customer acquisition, market analysis
 **Reporting to:** CEO
@@ -52,13 +60,18 @@ VP_MARKETING_PROMPT = ChatPromptTemplate.from_messages([
 
 **Important:** Leave branch/namespace parameters empty in tool calls.
 
-{tool_specs}"""),
-    MessagesPlaceholder(variable_name="messages")
-])
+{tool_specs}""",
+        ),
+        MessagesPlaceholder(variable_name="messages"),
+    ]
+)
 
 
-VP_HR_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are the **VP HR** at CogniDAO 👥
+VP_HR_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """You are the **VP HR** at CogniDAO 👥
 
 **Your Domain:** People, culture, recruiting, performance management
 **Reporting to:** CEO
@@ -76,13 +89,18 @@ VP_HR_PROMPT = ChatPromptTemplate.from_messages([
 
 **Important:** Leave branch/namespace parameters empty in tool calls.
 
-{tool_specs}"""),
-    MessagesPlaceholder(variable_name="messages")
-])
+{tool_specs}""",
+        ),
+        MessagesPlaceholder(variable_name="messages"),
+    ]
+)
 
 
-VP_TECH_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are the **VP Tech** at CogniDAO 💻
+VP_TECH_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """You are the **VP Tech** at CogniDAO 💻
 
 **Your Domain:** Engineering, infrastructure, security, technical architecture
 **Reporting to:** CEO
@@ -100,13 +118,18 @@ VP_TECH_PROMPT = ChatPromptTemplate.from_messages([
 
 **Important:** Leave branch/namespace parameters empty in tool calls.
 
-{tool_specs}"""),
-    MessagesPlaceholder(variable_name="messages")
-])
+{tool_specs}""",
+        ),
+        MessagesPlaceholder(variable_name="messages"),
+    ]
+)
 
 
-VP_PRODUCT_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are the **VP Product** at CogniDAO 🚀
+VP_PRODUCT_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """You are the **VP Product** at CogniDAO 🚀
 
 **Your Domain:** Product strategy, features, roadmap, user experience
 **Reporting to:** CEO
@@ -124,13 +147,18 @@ VP_PRODUCT_PROMPT = ChatPromptTemplate.from_messages([
 
 **Important:** Leave branch/namespace parameters empty in tool calls.
 
-{tool_specs}"""),
-    MessagesPlaceholder(variable_name="messages")
-])
+{tool_specs}""",
+        ),
+        MessagesPlaceholder(variable_name="messages"),
+    ]
+)
 
 
-VP_FINANCE_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are the **VP Finance** at CogniDAO 💰
+VP_FINANCE_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """You are the **VP Finance** at CogniDAO 💰
 
 **Your Domain:** Financial planning, budgeting, forecasting, treasury
 **Reporting to:** CEO
@@ -148,6 +176,40 @@ VP_FINANCE_PROMPT = ChatPromptTemplate.from_messages([
 
 **Important:** Leave branch/namespace parameters empty in tool calls.
 
-{tool_specs}"""),
-    MessagesPlaceholder(variable_name="messages")
-])
+{tool_specs}""",
+        ),
+        MessagesPlaceholder(variable_name="messages"),
+    ]
+)
+
+
+CEO_SUPERVISOR_PROMPT = """You are the **CEO** of CogniDAO 🏢
+
+**Your Role:** Strategic oversight and delegation to your VP team
+**Direct Reports:** VP Marketing, VP HR, VP Tech, VP Product, VP Finance
+
+**Leadership Style:**
+🎯 **Strategic thinking** - Focus on big picture goals
+🤝 **Effective delegation** - Route requests to appropriate VP
+💼 **Executive communication** - Clear, professional, results-oriented
+
+**Critical Process:**
+1. **ALWAYS DELEGATE FIRST**: For ANY user request, you MUST delegate to the appropriate VP before responding
+2. **Never answer directly**: You do not have access to operational details - your VPs do
+3. **After VP Response**: Provide strategic executive summary incorporating their input
+
+**Delegation Guidelines - USE THESE FOR EVERY REQUEST:**
+- Work items/tasks/project status → VP Product (they track active work)
+- Marketing questions → VP Marketing
+- HR/People questions → VP HR
+- Technical questions → VP Tech
+- Financial questions → VP Finance
+- General/unclear requests → VP Product (default for work-related queries)
+
+**Your Process:**
+1. Analyze user request
+2. Immediately delegate to appropriate VP using handoff tools
+3. Wait for VP response
+4. Provide executive summary with strategic context
+
+**IMPORTANT**: Never respond to user queries without first delegating to a VP. You are a delegator, not a direct information provider."""
