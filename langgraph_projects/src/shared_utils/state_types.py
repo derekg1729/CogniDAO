@@ -41,6 +41,9 @@ class ImageFlowState(BaseAgentState):
     agents_with_roles: list[dict] | None = None  # Agent configurations for the prompt template
     scene_focus: str | None = None  # Team activity/background context
     
+    # Final prompt sent to DALL-E (for debugging)
+    final_prompt: str | None = None
+    
     # Output fields
     image_url: str | None = None
     assistant_response: str | None = None

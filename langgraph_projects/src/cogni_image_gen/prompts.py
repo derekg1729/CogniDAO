@@ -27,7 +27,7 @@ COGNI_PRESENCE_PROMPT = ChatPromptTemplate.from_messages([
 ])
 
 
-COGNI_IMAGE_PROFILE_TEMPLATE = """{{
+COGNI_IMAGE_PROFILE_TEMPLATE = """<json>{{
   "agents": "{agents_with_roles}",
   "scene": "{scene_focus}",
   "style": "retro-futuristic cartoon with bold neon outlines, cosmic circuit backdrop, synthwave aesthetic",
@@ -45,29 +45,24 @@ COGNI_IMAGE_PROFILE_TEMPLATE = """{{
   "composition": "horizontal team lineup with 10-20% margin around edges",
   "lighting": "rim-glow around each agent, ambient stardust particles",
   "quality": "ultra-HD, vector-smooth edges, studio quality"
-}}"""
+}}</json>"""
 
-PLANNER_PROMPT = """You are an expert Cogni image generation planner. Your job is to:
+PLANNER_PROMPT = """You are an expert Cogni image generation planner. Based on the user request, define:
 
-1. **Parse the user request** and define the 2 template variables:
-   - agents_with_roles: List of agent configurations with role_name, pose, prop, extra_details
-   - scene_focus: Team activity/background context
+1. **agents_with_roles**: List of 2-6 agent configurations, each with:
+   - role_name: The agent's role/job
+   - pose: What action they're performing  
+   - prop: The tool/object they're using
+   - extra_details: Additional visual details
 
-2. **Output format**:
-   AGENTS: [JSON array of agent objects with role_name, pose, prop, extra_details]
-   SCENE: [description of team activity/background context]
+2. **scene_focus**: Description of the collaborative activity/context
 
 **Guidelines:**
-- Create 2-6 agents based on the user's request
+- Match the user's specific request (if they want cleaners, create cleaners!)
 - Each agent should have a distinct role and visual representation
 - Props should be readable at icon-size
 - Scene focus should describe the collaborative activity
-- Maintain the Cogni aesthetic and teamwork vibe
-
-**Example format:**
-AGENTS: [{{"role_name": "Developer", "pose": "typing on laptop", "prop": "glowing laptop", "extra_details": "focused expression"}}]
-SCENE: collaborative development session
-"""
+- Maintain the Cogni aesthetic and teamwork vibe"""
 
 
 REVIEWER_PROMPT = """You are an expert image quality and safety reviewer. Your job is to:

@@ -41,38 +41,29 @@ async def create_planner_node():
         
         retry_count = state.get("retry_count", 0)
         
+        from pydantic import BaseModel
+        from typing import List
+        
+        class Agent(BaseModel):
+            role_name: str
+            pose: str
+            prop: str
+            extra_details: str
+            
+        class PlannerOutput(BaseModel):
+            agents_with_roles: List[Agent]
+            scene_focus: str
+        
         model = ChatOpenAI(model_name='gpt-4o-mini', temperature=0.1)
+        structured_model = model.with_structured_output(PlannerOutput)
         
         # Use the planner prompt to define template variables
         messages = [HumanMessage(content=f"{PLANNER_PROMPT}\n\nUser request: {user_request}")]
-        response = await model.ainvoke(messages)
+        response = await structured_model.ainvoke(messages)
         
-        # Parse the response to extract template variables
-        response_text = response.content
-        
-        # Default fallback values
-        agents_with_roles = [
-            {
-                "role_name": "Developer",
-                "pose": "typing on laptop",
-                "prop": "glowing laptop",
-                "extra_details": "focused expression"
-            },
-            {
-                "role_name": "Designer", 
-                "pose": "reviewing designs",
-                "prop": "digital tablet",
-                "extra_details": "creative spark"
-            }
-        ]
-        
-        scene_focus = "collaborative development"
-        
-        # Simple parsing - extract AGENTS and SCENE from response
-        lines = response_text.split('\n')
-        for line in lines:
-            if line.startswith("SCENE:"):
-                scene_focus = line.replace("SCENE:", "").strip()
+        # Direct structured output - no parsing needed!
+        agents_with_roles = [agent.dict() for agent in response.agents_with_roles]
+        scene_focus = response.scene_focus
         
         return {
             **state,
@@ -80,7 +71,7 @@ async def create_planner_node():
             "agents_with_roles": agents_with_roles,
             "scene_focus": scene_focus,
             "retry_count": retry_count,
-            "messages": state.get("messages", []) + [response]
+            "messages": state.get("messages", []) + [AIMessage(content=f"Planned: {len(agents_with_roles)} agents for {scene_focus}")]
         }
     
     return planner_node
@@ -142,6 +133,7 @@ async def create_image_tool_node():
             return {
                 **state,
                 "image_url": image_url,
+                "final_prompt": final_prompt,
                 "messages": state.get("messages", []) + [AIMessage(content="Generated Cogni team image")]
             }
             
@@ -150,6 +142,7 @@ async def create_image_tool_node():
             return {
                 **state,
                 "image_url": None,
+                "final_prompt": final_prompt,
                 "messages": state.get("messages", []) + [AIMessage(content=f"Error generating image: {str(e)}")]
             }
     
