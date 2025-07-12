@@ -4,7 +4,7 @@ State Types for Cogni Image Generation.
 Domain-specific state definitions for the image generation workflow.
 """
 
-from src.shared_utils.state_types import BaseAgentState
+from src.shared_utils import BaseAgentState
 
 
 class ImageFlowState(BaseAgentState):

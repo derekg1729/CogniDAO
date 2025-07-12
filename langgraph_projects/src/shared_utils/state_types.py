@@ -17,20 +17,6 @@ class BaseAgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
 
-class CogniAgentState(BaseAgentState):
-    """State for Cogni presence agents."""
-
-    # Inherits messages from BaseAgentState
-    pass
-
-
-class PlaywrightAgentState(BaseAgentState):
-    """State for Playwright automation agents."""
-
-    # Inherits messages from BaseAgentState - identical to CogniAgentState
-    pass
-
-
 class GraphConfig(TypedDict):
     """Configuration schema for LangGraph compilation."""
 

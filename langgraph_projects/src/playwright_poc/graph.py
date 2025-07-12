@@ -6,7 +6,8 @@ import asyncio
 import os
 from langgraph.graph import StateGraph
 from langgraph.checkpoint.redis import AsyncRedisSaver
-from src.shared_utils import GraphConfig, PlaywrightAgentState, get_logger
+from src.shared_utils import GraphConfig, get_logger
+from .state_types import PlaywrightAgentState
 
 from .agent import create_agent_node
 
