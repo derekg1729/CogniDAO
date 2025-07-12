@@ -13,7 +13,7 @@ from langchain_openai import ChatOpenAI  # noqa: E402
 from langchain_core.messages import HumanMessage, AIMessage  # noqa: E402
 from src.shared_utils import get_logger  # noqa: E402
 from src.shared_utils.tool_registry import get_tools  # noqa: E402
-from .prompts import PLANNER_PROMPT, COGNI_IMAGE_PROFILE_TEMPLATE  # noqa: E402
+from .prompts import PLANNER_PROMPT, COGNI_IMAGE_PROFILE_TEMPLATE, PLAN_REVIEWER_PROMPT  # noqa: E402
 
 logger = get_logger(__name__)
 
@@ -55,8 +55,18 @@ async def create_planner_node():
         model = ChatOpenAI(model_name='gpt-4o-mini', temperature=0.1)
         structured_model = model.with_structured_output(PlannerOutput)
         
+        # Check for reviewer feedback and prepend if retry is needed
+        needs_retry = state.get("needs_retry", False)
+        suggestions = state.get("suggestions", [])
+        
+        if needs_retry and suggestions:
+            critique_section = f"<critique>\n{chr(10).join(suggestions)}\n</critique>\n\n"
+            prompt_content = f"{critique_section}{PLANNER_PROMPT}\n\nUser request: {user_request}"
+        else:
+            prompt_content = f"{PLANNER_PROMPT}\n\nUser request: {user_request}"
+        
         # Use the planner prompt to define template variables
-        messages = [HumanMessage(content=f"{PLANNER_PROMPT}\n\nUser request: {user_request}")]
+        messages = [HumanMessage(content=prompt_content)]
         response = await structured_model.ainvoke(messages)
         
         # Direct structured output - no parsing needed!
@@ -152,62 +162,46 @@ async def create_reviewer_node():
     async def reviewer_node(state):
         """
         Review the planner output (agents_with_roles and scene_focus) for quality.
-        Returns attempt=1, needs_retry=bool, and score=float.
+        Returns structured JSON with score, needs_retry, issues, and suggestions.
         """
         agents_with_roles = state.get("agents_with_roles", [])
         scene_focus = state.get("scene_focus", "")
+        user_request = state.get("user_request", "Generate an image")
         
-        # Initialize validation score
-        score = 0.0
-        feedback_points = []
+        from pydantic import BaseModel
+        from typing import List
         
-        # Validate agents_with_roles
-        if not agents_with_roles:
-            feedback_points.append("No agents defined")
-            score += 0.0
-        else:
-            # Check if we have reasonable number of agents (1-5 is good)
-            if 1 <= len(agents_with_roles) <= 5:
-                score += 0.3
-            else:
-                feedback_points.append(f"Agent count ({len(agents_with_roles)}) should be 1-5")
-            
-            # Check if agents have required fields
-            valid_agents = 0
-            for agent in agents_with_roles:
-                if (agent.get("role_name") and 
-                    agent.get("pose") and 
-                    agent.get("prop")):
-                    valid_agents += 1
-            
-            if valid_agents == len(agents_with_roles):
-                score += 0.3
-            else:
-                feedback_points.append(f"Only {valid_agents}/{len(agents_with_roles)} agents have complete details")
+        class ReviewerOutput(BaseModel):
+            score: float
+            needs_retry: bool
+            issues: List[str]
+            suggestions: List[str]
         
-        # Validate scene_focus
-        if not scene_focus:
-            feedback_points.append("No scene focus defined")
-            score += 0.0
-        elif len(scene_focus.strip()) < 10:
-            feedback_points.append("Scene focus is too brief")
-            score += 0.1
-        else:
-            score += 0.4
+        model = ChatOpenAI(model_name='gpt-4o-mini', temperature=0.1)
+        structured_model = model.with_structured_output(ReviewerOutput)
         
-        # Determine if retry is needed (score < 0.7 means needs improvement)
-        needs_retry = score < 0.7
+        # Use the reviewer prompt from prompts.py with user_request
+        reviewer_prompt = PLAN_REVIEWER_PROMPT.format(
+            user_request=user_request,
+            agents_with_roles=agents_with_roles,
+            scene_focus=scene_focus
+        )
+        
+        messages = [HumanMessage(content=reviewer_prompt)]
+        response = await structured_model.ainvoke(messages)
         
         # Create feedback message
-        if needs_retry:
-            feedback_msg = f"Plan needs improvement (score: {score:.2f}). Issues: {', '.join(feedback_points)}"
+        if response.needs_retry:
+            feedback_msg = f"Plan needs improvement (score: {response.score:.2f}). Issues: {', '.join(response.issues)}"
         else:
-            feedback_msg = f"Plan approved (score: {score:.2f}). Ready for image generation."
+            feedback_msg = f"Plan approved (score: {response.score:.2f}). Ready for image generation."
         
         return {
             "attempt": 1,  # This will be added to existing attempt via operator.add
-            "needs_retry": needs_retry,
-            "score": score,
+            "needs_retry": response.needs_retry,
+            "score": response.score,
+            "issues": response.issues,
+            "suggestions": response.suggestions,
             "messages": state.get("messages", []) + [AIMessage(content=feedback_msg)]
         }
     

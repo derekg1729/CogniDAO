@@ -27,7 +27,7 @@ COGNI_PRESENCE_PROMPT = ChatPromptTemplate.from_messages([
 ])
 
 
-COGNI_IMAGE_PROFILE_TEMPLATE = """<json>{{
+COGNI_IMAGE_PROFILE_TEMPLATE = """{{
   "agents": "{agents_with_roles}",
   "scene": "{scene_focus}",
   "style": "retro-futuristic cartoon of robot agents with bold neon outlines, cosmic circuit backdrop, synthwave aesthetic",
@@ -45,7 +45,7 @@ COGNI_IMAGE_PROFILE_TEMPLATE = """<json>{{
   "composition": "horizontal team lineup with 10-20% margin around edges",
   "lighting": "rim-glow around each agent, ambient stardust particles",
   "quality": "ultra-HD, vector-smooth edges, studio quality"
-}}</json>"""
+}}"""
 
 PLANNER_PROMPT = """You are an expert Cogni image generation planner. Based on the user request, define:
 
@@ -62,35 +62,41 @@ PLANNER_PROMPT = """You are an expert Cogni image generation planner. Based on t
 - Each agent should have a distinct role and visual representation
 - Props should be readable at icon-size
 - Scene focus should describe the collaborative activity
-- Maintain the Cogni aesthetic and teamwork vibe"""
+- Maintain the Cogni aesthetic and teamwork vibe
+
+**Important:** If you see feedback in <critique> tags above, carefully address each point:
+- Fix any identified issues with agent configurations
+- Improve scene description based on suggestions
+- Ensure all agents have complete details (role_name, pose, prop, extra_details)
+- Make the scene focus more descriptive if needed"""
 
 
-REVIEWER_PROMPT = """You are an expert image quality and safety reviewer. Your job is to:
+PLAN_REVIEWER_PROMPT = """You are reviewing a plan for image generation. Evaluate how well the <IMAGE_PLAN> plan addresses the <USER REQUEST>:
 
-1. **Assess image quality** against the original request:
-   - Does it match the user's intent?
-   - Is the artistic quality acceptable?
-   - Are there any technical issues?
+<USER REQUEST> 
+{user_request}
+</USER REQUEST>
 
-2. **Check for safety concerns**:
-   - Inappropriate content
-   - Harmful imagery
-   - Policy violations
+<IMAGE_PLAN>
+PLANNED COMPONENTS:
+<AGENTS_WITH_ROLES> {agents_with_roles} </AGENTS_WITH_ROLES>
+<SCENE_FOCUS> {scene_focus} </SCENE_FOCUS>
+</IMAGE_PLAN>
 
-3. **Provide scoring**:
-   - Score 0.0-1.0 (where 0.7+ is acceptable)
-   - Specific critique with actionable feedback
+Evaluate if the <IMAGE_PLAN> match what the <USER_REQUEST> asked for, in terms of:
+1. Number of agents
+2. Relevant agent props and actions
+3. **Agent completeness** - Each agent needs role_name, pose, prop, extra_details
+4. Concise, clear <SCENE_FOCUS>
 
-**Output format**:
-SCORE: [0.0-1.0]
-CRITIQUE: [specific feedback for improvement]
+Score from 0.0 to 1.0 where:
+- 0.0-0.6: Poor, needs major improvement
+- 0.7-0.8: Good, minor issues  
+- 0.9-1.0: Excellent, ready to proceed
 
-**Guidelines:**
-- Be constructive in critique
-- Focus on specific improvements
-- Consider both technical and artistic aspects
-- Err on the side of safety
-"""
+Set needs_retry = true if score < 0.7
+
+Return JSON with: score, needs_retry, issues (list of problems), suggestions (list of improvements)."""
 
 
 RESPONDER_PROMPT = """You are a helpful assistant presenting image generation results. Your job is to:

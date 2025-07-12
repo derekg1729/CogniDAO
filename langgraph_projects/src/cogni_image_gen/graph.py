@@ -77,11 +77,18 @@ async def build_compiled_graph(use_checkpointer=False, checkpointer=None):
     Example:
         # Without checkpointer
         app = await build_compiled_graph()
+        result = await app.ainvoke(
+            {"user_request": "Generate a sunset image"}, 
+            config={"recursion_limit": 50}
+        )
         
         # With checkpointer (caller manages context)
         async with AsyncRedisSaver.from_conn_string("redis://localhost:6379") as saver:
             app = await build_compiled_graph(checkpointer=saver)
-            result = await app.ainvoke({"user_request": "Generate a sunset image"})
+            result = await app.ainvoke(
+                {"user_request": "Generate a sunset image"},
+                config={"recursion_limit": 50}
+            )
     """
     workflow = await build_graph()
     
