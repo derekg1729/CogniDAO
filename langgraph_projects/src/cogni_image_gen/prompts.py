@@ -30,7 +30,7 @@ COGNI_PRESENCE_PROMPT = ChatPromptTemplate.from_messages([
 COGNI_IMAGE_PROFILE_TEMPLATE = """<json>{{
   "agents": "{agents_with_roles}",
   "scene": "{scene_focus}",
-  "style": "retro-futuristic cartoon with bold neon outlines, cosmic circuit backdrop, synthwave aesthetic",
+  "style": "retro-futuristic cartoon of robot agents with bold neon outlines, cosmic circuit backdrop, synthwave aesthetic",
   "agent_design": {{
     "body": "round head & torso, stubby limbs",
     "face": "LED eyes + mouth with warm yellow glow",
