@@ -32,18 +32,17 @@ class PlaywrightAgentState(BaseAgentState):
 
 
 class ImageFlowState(BaseAgentState):
-    """State for image generation workflow."""
+    """Simplified state for image generation workflow focused on template variables."""
 
     # Core workflow fields
     user_request: str | None = None
-    intent: str | None = None  # "generate" | "edit" | "variation"
-    prompt: str | None = None
-    input_image: str | None = None  # base64 or URL for edit/variation
+    
+    # Template variables (planner defines these 2 variables)
+    agents_with_roles: list[dict] | None = None  # Agent configurations for the prompt template
+    scene_focus: str | None = None  # Team activity/background context
     
     # Output fields
     image_url: str | None = None
-    score: float | None = None
-    critique: str | None = None
     assistant_response: str | None = None
     
     # Flow control

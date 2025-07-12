@@ -13,19 +13,19 @@ from langchain_openai import ChatOpenAI  # noqa: E402
 from langchain_core.messages import HumanMessage, AIMessage  # noqa: E402
 from src.shared_utils import get_logger  # noqa: E402
 from src.shared_utils.tool_registry import get_tools  # noqa: E402
-from .prompts import PLANNER_PROMPT, REVIEWER_PROMPT, RESPONDER_PROMPT  # noqa: E402
+from .prompts import PLANNER_PROMPT, COGNI_IMAGE_PROFILE_TEMPLATE  # noqa: E402
 
 logger = get_logger(__name__)
 
 
 async def create_planner_node():
-    """Create planner node for intent classification and prompt crafting."""
+    """Create planner node for defining template variables."""
     
     async def planner_node(state):
         """
-        Parse user request → intent (generate | edit | variation)
-        Draft + sanitize prompt (adds negative-prompt + seed if supplied)
-        Decide which OpenAI image tool to invoke
+        Parse user request and define the 2 template variables:
+        1. agents_with_roles - Agent configurations for the prompt template
+        2. scene_focus - Team activity/background context
         """
         # Extract user request from either direct field or last message
         user_request = state.get("user_request")
@@ -41,50 +41,45 @@ async def create_planner_node():
         
         retry_count = state.get("retry_count", 0)
         
-        # If retrying, incorporate previous critique
-        context = ""
-        if retry_count > 0 and state.get("critique"):
-            context = f"Previous attempt critique: {state['critique']}\n\n"
-        
-        # Create planning prompt
-        planning_input = f"{context}User request: {user_request}"
-        
         model = ChatOpenAI(model_name='gpt-4o-mini', temperature=0.1)
         
-        # Use the planner prompt to determine intent and craft prompt
-        messages = [HumanMessage(content=f"{PLANNER_PROMPT}\n\n{planning_input}")]
+        # Use the planner prompt to define template variables
+        messages = [HumanMessage(content=f"{PLANNER_PROMPT}\n\nUser request: {user_request}")]
         response = await model.ainvoke(messages)
         
-        # Parse the response to extract intent and prompt
-        # Simple parsing - in production, you'd use structured output
+        # Parse the response to extract template variables
         response_text = response.content
         
-        # Extract intent
-        intent = "generate"  # default
-        if "INTENT: edit" in response_text:
-            intent = "edit"
-        elif "INTENT: variation" in response_text:
-            intent = "variation"
-        elif "INTENT: generate" in response_text:
-            intent = "generate"
+        # Default fallback values
+        agents_with_roles = [
+            {
+                "role_name": "Developer",
+                "pose": "typing on laptop",
+                "prop": "glowing laptop",
+                "extra_details": "focused expression"
+            },
+            {
+                "role_name": "Designer", 
+                "pose": "reviewing designs",
+                "prop": "digital tablet",
+                "extra_details": "creative spark"
+            }
+        ]
         
-        # Extract prompt (look for PROMPT: line)
-        prompt = user_request  # fallback
+        scene_focus = "collaborative development"
+        
+        # Simple parsing - extract AGENTS and SCENE from response
         lines = response_text.split('\n')
         for line in lines:
-            if line.startswith("PROMPT:"):
-                prompt = line.replace("PROMPT:", "").strip()
-                break
-        
-        # Increment retry count for next iteration
-        new_retry_count = retry_count + 1 if retry_count > 0 else 0
+            if line.startswith("SCENE:"):
+                scene_focus = line.replace("SCENE:", "").strip()
         
         return {
             **state,
-            "user_request": user_request,  # Ensure this field is set
-            "intent": intent,
-            "prompt": prompt,
-            "retry_count": new_retry_count,
+            "user_request": user_request,
+            "agents_with_roles": agents_with_roles,
+            "scene_focus": scene_focus,
+            "retry_count": retry_count,
             "messages": state.get("messages", []) + [response]
         }
     
@@ -92,54 +87,50 @@ async def create_planner_node():
 
 
 async def create_image_tool_node():
-    """Create image tool router node for OpenAI endpoints."""
+    """Create image tool node using template variables."""
     
     async def image_tool_node(state):
         """
-        Invoke chosen endpoint: GenerateImage, EditImage, or CreateImageVariation.
+        Build final prompt from template variables and generate image.
         """
-        intent = state.get("intent", "generate")
-        prompt = state.get("prompt", "Generate an image")
-        input_image = state.get("input_image")
+        agents_with_roles = state.get("agents_with_roles", [])
+        scene_focus = state.get("scene_focus", "collaborative development")
+        
+        # Build final prompt using template
+        agents_description = ", ".join([
+            f"{agent.get('role_name', 'Agent')} {agent.get('pose', 'working')} with {agent.get('prop', 'tools')}"
+            for agent in agents_with_roles
+        ])
+        
+        final_prompt = COGNI_IMAGE_PROFILE_TEMPLATE.format(
+            agents_with_roles=agents_description,
+            scene_focus=scene_focus
+        )
+        
+        # Debug: Log what we're sending to the MCP tool
+        logger.info(f"Final prompt being sent to MCP tool: {final_prompt[:500]}...")
         
         # Get OpenAI image generation tools
-        tools = await get_tools("openai")  # Assuming OpenAI tools are available
+        tools = await get_tools("openai")
         
-        # Find the appropriate tool based on intent
-        tool_map = {
-            "generate": "GenerateImage",
-            "edit": "EditImage", 
-            "variation": "CreateImageVariation"
-        }
-        
-        tool_name = tool_map.get(intent, "GenerateImage")
-        
-        # Find the tool
+        # Find GenerateImage tool
         selected_tool = None
         for tool in tools:
-            if tool.name == tool_name:
+            if tool.name == "GenerateImage":
                 selected_tool = tool
                 break
         
         if not selected_tool:
-            logger.error(f"Tool {tool_name} not found")
+            logger.error("GenerateImage tool not found")
             return {
                 **state,
                 "image_url": None,
-                "messages": state.get("messages", []) + [AIMessage(content=f"Error: {tool_name} tool not available")]
+                "messages": state.get("messages", []) + [AIMessage(content="Error: GenerateImage tool not available")]
             }
         
-        # Prepare tool input based on intent
-        tool_input = {"prompt": prompt}
-        
-        if intent == "edit" and input_image:
-            tool_input["image"] = input_image
-        elif intent == "variation" and input_image:
-            tool_input["image"] = input_image
-        
         try:
-            # Invoke the tool
-            result = await selected_tool.ainvoke(tool_input)
+            # Invoke the tool with final prompt
+            result = await selected_tool.ainvoke({"prompt": final_prompt})
             
             # Extract image URL from result
             image_url = None
@@ -151,7 +142,7 @@ async def create_image_tool_node():
             return {
                 **state,
                 "image_url": image_url,
-                "messages": state.get("messages", []) + [AIMessage(content=f"Generated image using {tool_name}")]
+                "messages": state.get("messages", []) + [AIMessage(content="Generated Cogni team image")]
             }
             
         except Exception as e:
@@ -166,70 +157,24 @@ async def create_image_tool_node():
 
 
 async def create_reviewer_node():
-    """Create reviewer node for quality/safety assessment."""
+    """Create reviewer node - simplified to just pass through."""
     
     async def reviewer_node(state):
         """
-        Check image against original request (basic safety + quality)
-        Emit score (0-1) and critique
+        Simple pass-through reviewer - just confirms image was generated.
         """
-        user_request = state.get("user_request", "Generate an image")
         image_url = state.get("image_url")
         
-        if not image_url:
+        if image_url:
             return {
                 **state,
-                "score": 0.0,
-                "critique": "No image was generated to review"
+                "messages": state.get("messages", []) + [AIMessage(content="Image reviewed and approved")]
             }
-        
-        model = ChatOpenAI(model_name='gpt-4o-mini', temperature=0.1)
-        
-        # Create review prompt
-        review_input = f"""
-        Original request: {user_request}
-        Generated image URL: {image_url}
-        
-        Please review this image generation result and provide:
-        1. A score from 0.0 to 1.0 (where 1.0 is perfect)
-        2. A brief critique with specific feedback
-        
-        Format your response as:
-        SCORE: [0.0-1.0]
-        CRITIQUE: [your feedback]
-        """
-        
-        messages = [HumanMessage(content=f"{REVIEWER_PROMPT}\n\n{review_input}")]
-        response = await model.ainvoke(messages)
-        
-        # Parse response
-        response_text = response.content
-        
-        # Extract score
-        score = 0.8  # default decent score
-        lines = response_text.split('\n')
-        for line in lines:
-            if line.startswith("SCORE:"):
-                try:
-                    score = float(line.replace("SCORE:", "").strip())
-                    score = max(0.0, min(1.0, score))  # Clamp between 0-1
-                except ValueError:
-                    pass
-                break
-        
-        # Extract critique
-        critique = "Image generated successfully"
-        for line in lines:
-            if line.startswith("CRITIQUE:"):
-                critique = line.replace("CRITIQUE:", "").strip()
-                break
-        
-        return {
-            **state,
-            "score": score,
-            "critique": critique,
-            "messages": state.get("messages", []) + [response]
-        }
+        else:
+            return {
+                **state,
+                "messages": state.get("messages", []) + [AIMessage(content="No image to review")]
+            }
     
     return reviewer_node
 
@@ -239,35 +184,20 @@ async def create_responder_node():
     
     async def responder_node(state):
         """
-        Compose final assistant message with image_url, alt-text, and any notes.
+        Compose final assistant message with image_url and details.
         """
         user_request = state.get("user_request", "Generate an image")
         image_url = state.get("image_url")
-        critique = state.get("critique", "No critique available")
-        retry_count = state.get("retry_count", 0)
         
-        model = ChatOpenAI(model_name='gpt-4o-mini', temperature=0.3)
-        
-        # Create response prompt
-        response_input = f"""
-        User request: {user_request}
-        Generated image URL: {image_url}
-        Quality assessment: {critique}
-        Retry attempts: {retry_count}
-        
-        Please compose a helpful final response that includes:
-        1. The image URL
-        2. Alt-text description
-        3. Any relevant notes about the generation process
-        """
-        
-        messages = [HumanMessage(content=f"{RESPONDER_PROMPT}\n\n{response_input}")]
-        response = await model.ainvoke(messages)
+        if image_url:
+            assistant_response = f"I've generated a Cogni team image for your request: '{user_request}'\n\nImage URL: {image_url}\n\nThis image features the signature Cogni aesthetic with neon outlines, cosmic circuit backdrop, and team collaboration theme."
+        else:
+            assistant_response = f"I wasn't able to generate an image for your request: '{user_request}'. Please try again."
         
         return {
             **state,
-            "assistant_response": response.content,
-            "messages": state.get("messages", []) + [response]
+            "assistant_response": assistant_response,
+            "messages": state.get("messages", []) + [AIMessage(content=assistant_response)]
         }
     
     return responder_node

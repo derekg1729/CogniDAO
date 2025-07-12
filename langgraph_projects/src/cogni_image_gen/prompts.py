@@ -27,29 +27,46 @@ COGNI_PRESENCE_PROMPT = ChatPromptTemplate.from_messages([
 ])
 
 
-PLANNER_PROMPT = """You are an expert image generation planner. Your job is to:
+COGNI_IMAGE_PROFILE_TEMPLATE = """{{
+  "agents": "{agents_with_roles}",
+  "scene": "{scene_focus}",
+  "style": "retro-futuristic cartoon with bold neon outlines, cosmic circuit backdrop, synthwave aesthetic",
+  "agent_design": {{
+    "body": "round head & torso, stubby limbs",
+    "face": "LED eyes + mouth with warm yellow glow",
+    "emblem": "C logo on chest"
+  }},
+  "colors": {{
+    "primary": "#00BFFF, #0080FF, #004EFF",
+    "secondary": "#FF0080, #FF3D5E, #FF6F00", 
+    "accents": "#39FF14, #B9FF62",
+    "background": "#0A0020, #120033, #1B004F"
+  }},
+  "composition": "horizontal team lineup with 10-20% margin around edges",
+  "lighting": "rim-glow around each agent, ambient stardust particles",
+  "quality": "ultra-HD, vector-smooth edges, studio quality"
+}}"""
 
-1. **Parse the user request** and determine the intent:
-   - "generate" - Create new image from text
-   - "edit" - Modify existing image  
-   - "variation" - Create variations of existing image
+PLANNER_PROMPT = """You are an expert Cogni image generation planner. Your job is to:
 
-2. **Craft an optimized prompt** that:
-   - Enhances the user's request with artistic details
-   - Adds appropriate negative prompts if needed
-   - Includes technical parameters (style, quality, etc.)
-   - Maintains the core intent while improving clarity
+1. **Parse the user request** and define the 2 template variables:
+   - agents_with_roles: List of agent configurations with role_name, pose, prop, extra_details
+   - scene_focus: Team activity/background context
 
-3. **Output format**:
-   INTENT: [generate|edit|variation]
-   PROMPT: [optimized prompt text]
+2. **Output format**:
+   AGENTS: [JSON array of agent objects with role_name, pose, prop, extra_details]
+   SCENE: [description of team activity/background context]
 
 **Guidelines:**
-- Keep prompts concise but descriptive (1-2 sentences max)
-- Add artistic style cues when appropriate
-- Include safety considerations in negative prompts
-- Maintain user's original creative vision
-- For retries, address previous critique feedback
+- Create 2-6 agents based on the user's request
+- Each agent should have a distinct role and visual representation
+- Props should be readable at icon-size
+- Scene focus should describe the collaborative activity
+- Maintain the Cogni aesthetic and teamwork vibe
+
+**Example format:**
+AGENTS: [{{"role_name": "Developer", "pose": "typing on laptop", "prop": "glowing laptop", "extra_details": "focused expression"}}]
+SCENE: collaborative development session
 """
 
 
