@@ -64,7 +64,9 @@ PLANNER_PROMPT = """You are an expert Cogni image generation planner. Based on t
 - Scene focus should describe the collaborative activity
 - Maintain the Cogni aesthetic and teamwork vibe
 
-**Important:** If you see feedback in <critique> tags above, carefully address each point:
+**Important Feedback Processing:**
+- If you see <HUMAN_FEEDBACK> tags above, prioritize and carefully address all human suggestions
+- If you see <critique> tags above, address the reviewer's technical feedback points
 - Fix any identified issues with agent configurations
 - Improve scene description based on suggestions
 - Ensure all agents have complete details (role_name, pose, prop, extra_details)

@@ -5,7 +5,7 @@ Domain-specific state definitions for the image generation workflow.
 """
 
 import operator
-from typing import Annotated
+from typing import Annotated, Literal
 from src.shared_utils import BaseAgentState
 
 
@@ -33,3 +33,8 @@ class ImageFlowState(BaseAgentState):
     score: float | None = None  # Quality score from reviewer
     issues: list[str] = []  # Issues identified by reviewer (overwrites)
     suggestions: list[str] = []  # Improvement suggestions from reviewer (overwrites)
+    
+    # Human-in-the-loop control fields
+    decision: Literal['approve', 'revise'] | None = None  # Human's approve/revise decision
+    planner_feedback: str | None = None  # Human feedback for planner improvement
+    last_interrupt_id: str | None = None  # Track interrupt ID for resume operations

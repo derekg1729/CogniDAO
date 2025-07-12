@@ -11,6 +11,7 @@ sys.path.insert(0, str(src_path))
 
 from langchain_openai import ChatOpenAI  # noqa: E402
 from langchain_core.messages import HumanMessage, AIMessage  # noqa: E402
+from langgraph.types import Interrupt  # noqa: E402
 from src.shared_utils import get_logger  # noqa: E402
 from src.shared_utils.tool_registry import get_tools  # noqa: E402
 from .prompts import PLANNER_PROMPT, COGNI_IMAGE_PROFILE_TEMPLATE, PLAN_REVIEWER_PROMPT  # noqa: E402
@@ -55,18 +56,29 @@ async def create_planner_node():
         model = ChatOpenAI(model_name='gpt-4o-mini', temperature=0.1)
         structured_model = model.with_structured_output(PlannerOutput)
         
-        # Check for reviewer feedback and prepend if retry is needed
+        # Check for reviewer feedback and human feedback, prepend if retry is needed
         needs_retry = state.get("needs_retry", False)
         suggestions = state.get("suggestions", [])
+        planner_feedback = state.get("planner_feedback")
         
+        feedback_sections = []
+        
+        # Add human feedback if present (highest priority)
+        if planner_feedback:
+            feedback_sections.append(f"<HUMAN_FEEDBACK>\n{planner_feedback}\n</HUMAN_FEEDBACK>")
+        
+        # Add reviewer suggestions if retry is needed
         if needs_retry and suggestions:
-            critique_section = f"<critique>\n{chr(10).join(suggestions)}\n</critique>\n\n"
-            prompt_content = f"{critique_section}{PLANNER_PROMPT}\n\nUser request: {user_request}"
+            feedback_sections.append(f"<critique>\n{chr(10).join(suggestions)}\n</critique>")
+        
+        if feedback_sections:
+            feedback_content = "\n\n".join(feedback_sections)
+            prompt_content = f"{feedback_content}\n\n{PLANNER_PROMPT}\n\nUser request: {user_request}"
         else:
             prompt_content = f"{PLANNER_PROMPT}\n\nUser request: {user_request}"
         
         # Use the planner prompt to define template variables
-        messages = [HumanMessage(content=prompt_content)]
+        messages = [AIMessage(content=prompt_content)]
         response = await structured_model.ainvoke(messages)
         
         # Direct structured output - no parsing needed!
@@ -230,3 +242,30 @@ async def create_responder_node():
         }
     
     return responder_node
+
+
+async def create_hil_node():
+    """Create human-in-the-loop checkpoint node for review after image generation."""
+    
+    async def hil_node(state):
+        """
+        Interrupt execution to allow human review of generated image and plan.
+        Returns Interrupt object with review payload for frontend consumption.
+        """
+        # Prepare comprehensive review payload for human reviewer
+        review_payload = {
+            "user_request": state.get("user_request"),
+            "agents_with_roles": state.get("agents_with_roles"), 
+            "scene_focus": state.get("scene_focus"),
+            "reviewer_score": state.get("score"),
+            "reviewer_issues": state.get("issues", []),
+            "reviewer_suggestions": state.get("suggestions", []),
+            "image_url": state.get("image_url"),
+            "final_prompt": state.get("final_prompt"),
+            "attempt": state.get("attempt", 0)
+        }
+        
+        # Return Interrupt object to pause execution and surface data to frontend
+        return Interrupt(value=review_payload)
+    
+    return hil_node

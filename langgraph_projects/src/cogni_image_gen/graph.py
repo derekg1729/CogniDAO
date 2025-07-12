@@ -13,7 +13,7 @@ from langgraph.graph import StateGraph  # noqa: E402
 from langgraph.checkpoint.redis import AsyncRedisSaver  # noqa: E402
 from src.shared_utils import GraphConfig, get_logger  # noqa: E402
 from .state_types import ImageFlowState  # noqa: E402
-from .nodes import create_planner_node, create_image_tool_node, create_reviewer_node, create_responder_node  # noqa: E402
+from .nodes import create_planner_node, create_image_tool_node, create_reviewer_node, create_responder_node, create_hil_node  # noqa: E402
 
 logger = get_logger(__name__)
 
@@ -25,6 +25,7 @@ async def build_graph() -> StateGraph:
     image_tool_node = await create_image_tool_node()
     reviewer_node = await create_reviewer_node()
     responder_node = await create_responder_node()
+    hil_node = await create_hil_node()
 
     # Build the workflow
     workflow = StateGraph(ImageFlowState, config_schema=GraphConfig)
@@ -32,13 +33,15 @@ async def build_graph() -> StateGraph:
     workflow.add_node("image_tool", image_tool_node)
     workflow.add_node("reviewer", reviewer_node)
     workflow.add_node("responder", responder_node)
+    workflow.add_node("human_checkpoint", hil_node)
     
     # Set entry point
     workflow.set_entry_point("planner")
     
-    # Add edges - reviewer now comes BEFORE image creation
+    # Add edges - reviewer before image creation, HIL checkpoint after responder
     workflow.add_edge("planner", "reviewer")
     workflow.add_edge("image_tool", "responder")
+    workflow.add_edge("responder", "human_checkpoint")
     
     # Conditional edge for reviewer feedback loop (max 5 cycles)
     def decide_next(state):
@@ -57,7 +60,25 @@ async def build_graph() -> StateGraph:
         {"planner": "planner", "image_tool": "image_tool"}
     )
     
-    workflow.add_edge("responder", "__end__")
+    # Conditional edge for human checkpoint after responder
+    def decide_after_human_review(state):
+        decision = state.get("decision")
+        if decision == "approve":
+            return "end"  # Finish workflow
+        elif decision == "revise":
+            # Set retry flags for planner loop
+            return "planner"
+        else:
+            # Default case - should not happen with proper HIL, but safety fallback
+            return "end"
+    
+    workflow.add_conditional_edges(
+        "human_checkpoint",
+        decide_after_human_review,
+        {"planner": "planner", "end": "__end__"}
+    )
+    
+    # Remove the old responder -> __end__ edge since responder now goes to human_checkpoint
 
     logger.info(f"✅ CogniDAO image generation graph built with {len(workflow.nodes)} nodes")
     return workflow
@@ -79,7 +100,7 @@ async def build_compiled_graph(use_checkpointer=False, checkpointer=None):
         app = await build_compiled_graph()
         result = await app.ainvoke(
             {"user_request": "Generate a sunset image"}, 
-            config={"recursion_limit": 50}
+            config={"recursion_limit": 100}
         )
         
         # With checkpointer (caller manages context)
@@ -87,7 +108,7 @@ async def build_compiled_graph(use_checkpointer=False, checkpointer=None):
             app = await build_compiled_graph(checkpointer=saver)
             result = await app.ainvoke(
                 {"user_request": "Generate a sunset image"},
-                config={"recursion_limit": 50}
+                config={"recursion_limit": 100}
             )
     """
     workflow = await build_graph()
