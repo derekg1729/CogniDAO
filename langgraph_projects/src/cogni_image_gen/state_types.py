@@ -4,6 +4,8 @@ State Types for Cogni Image Generation.
 Domain-specific state definitions for the image generation workflow.
 """
 
+import operator
+from typing import Annotated
 from src.shared_utils import BaseAgentState
 
 
@@ -24,6 +26,7 @@ class ImageFlowState(BaseAgentState):
     image_url: str | None = None
     assistant_response: str | None = None
     
-    # Flow control
-    retry_count: int = 0
-    max_retries: int = 2
+    # Flow control for reviewer feedback loop
+    attempt: Annotated[int, operator.add] = 0  # Auto-increments each time reviewer runs
+    needs_retry: bool = False  # Flag set by reviewer to request another planner pass
+    score: float | None = None  # Quality score from reviewer

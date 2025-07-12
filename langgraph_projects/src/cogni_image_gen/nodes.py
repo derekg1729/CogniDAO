@@ -39,8 +39,6 @@ async def create_planner_node():
         if not user_request:
             user_request = "Generate an image"  # fallback
         
-        retry_count = state.get("retry_count", 0)
-        
         from pydantic import BaseModel
         from typing import List
         
@@ -70,7 +68,6 @@ async def create_planner_node():
             "user_request": user_request,
             "agents_with_roles": agents_with_roles,
             "scene_focus": scene_focus,
-            "retry_count": retry_count,
             "messages": state.get("messages", []) + [AIMessage(content=f"Planned: {len(agents_with_roles)} agents for {scene_focus}")]
         }
     
@@ -150,24 +147,69 @@ async def create_image_tool_node():
 
 
 async def create_reviewer_node():
-    """Create reviewer node - simplified to just pass through."""
+    """Create reviewer node to validate agents_with_roles and scene_focus before image creation."""
     
     async def reviewer_node(state):
         """
-        Simple pass-through reviewer - just confirms image was generated.
+        Review the planner output (agents_with_roles and scene_focus) for quality.
+        Returns attempt=1, needs_retry=bool, and score=float.
         """
-        image_url = state.get("image_url")
+        agents_with_roles = state.get("agents_with_roles", [])
+        scene_focus = state.get("scene_focus", "")
         
-        if image_url:
-            return {
-                **state,
-                "messages": state.get("messages", []) + [AIMessage(content="Image reviewed and approved")]
-            }
+        # Initialize validation score
+        score = 0.0
+        feedback_points = []
+        
+        # Validate agents_with_roles
+        if not agents_with_roles:
+            feedback_points.append("No agents defined")
+            score += 0.0
         else:
-            return {
-                **state,
-                "messages": state.get("messages", []) + [AIMessage(content="No image to review")]
-            }
+            # Check if we have reasonable number of agents (1-5 is good)
+            if 1 <= len(agents_with_roles) <= 5:
+                score += 0.3
+            else:
+                feedback_points.append(f"Agent count ({len(agents_with_roles)}) should be 1-5")
+            
+            # Check if agents have required fields
+            valid_agents = 0
+            for agent in agents_with_roles:
+                if (agent.get("role_name") and 
+                    agent.get("pose") and 
+                    agent.get("prop")):
+                    valid_agents += 1
+            
+            if valid_agents == len(agents_with_roles):
+                score += 0.3
+            else:
+                feedback_points.append(f"Only {valid_agents}/{len(agents_with_roles)} agents have complete details")
+        
+        # Validate scene_focus
+        if not scene_focus:
+            feedback_points.append("No scene focus defined")
+            score += 0.0
+        elif len(scene_focus.strip()) < 10:
+            feedback_points.append("Scene focus is too brief")
+            score += 0.1
+        else:
+            score += 0.4
+        
+        # Determine if retry is needed (score < 0.7 means needs improvement)
+        needs_retry = score < 0.7
+        
+        # Create feedback message
+        if needs_retry:
+            feedback_msg = f"Plan needs improvement (score: {score:.2f}). Issues: {', '.join(feedback_points)}"
+        else:
+            feedback_msg = f"Plan approved (score: {score:.2f}). Ready for image generation."
+        
+        return {
+            "attempt": 1,  # This will be added to existing attempt via operator.add
+            "needs_retry": needs_retry,
+            "score": score,
+            "messages": state.get("messages", []) + [AIMessage(content=feedback_msg)]
+        }
     
     return reviewer_node
 

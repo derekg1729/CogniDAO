@@ -36,25 +36,25 @@ async def build_graph() -> StateGraph:
     # Set entry point
     workflow.set_entry_point("planner")
     
-    # Add edges
-    workflow.add_edge("planner", "image_tool")
-    workflow.add_edge("image_tool", "reviewer")
+    # Add edges - reviewer now comes BEFORE image creation
+    workflow.add_edge("planner", "reviewer")
+    workflow.add_edge("image_tool", "responder")
     
-    # Conditional edge for retry logic (decider)
-    def should_retry(state):
-        score = state.get("score", 0.8)  # Default to decent score
-        retry_count = state.get("retry_count", 0)
-        max_retries = state.get("max_retries", 2)
+    # Conditional edge for reviewer feedback loop (max 5 cycles)
+    def decide_next(state):
+        needs_retry = state.get("needs_retry", False)
+        attempt = state.get("attempt", 0)
         
-        if score < 0.7 and retry_count < max_retries:
+        # Continue to planner if retry needed and under 5 attempts, otherwise go to image generation
+        if needs_retry and attempt < 5:
             return "planner"
         else:
-            return "responder"
+            return "image_tool"
     
     workflow.add_conditional_edges(
         "reviewer",
-        should_retry,
-        {"planner": "planner", "responder": "responder"}
+        decide_next,
+        {"planner": "planner", "image_tool": "image_tool"}
     )
     
     workflow.add_edge("responder", "__end__")
@@ -85,6 +85,7 @@ async def build_compiled_graph(use_checkpointer=False, checkpointer=None):
     """
     workflow = await build_graph()
     
+    # Note: recursion_limit is set during invocation, not compilation
     if checkpointer:
         return workflow.compile(checkpointer=checkpointer)
     elif use_checkpointer:
