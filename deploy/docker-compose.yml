@@ -36,7 +36,7 @@ services:
   # Redis Service for LangGraph Checkpointing (DEV/TEST ENVIRONMENT)
   redis:
     image: redis/redis-stack-server:latest
-    command: redis-server --maxmemory 512mb --maxmemory-policy noeviction --appendonly yes --auto-aof-rewrite-percentage 100 --auto-aof-rewrite-min-size 64mb
+    command: redis-server --maxmemory 512mb --maxmemory-policy noeviction --appendonly yes --auto-aof-rewrite-percentage 100 --auto-aof-rewrite-min-size 64mb --protected-mode no
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
     volumes:

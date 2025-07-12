@@ -210,6 +210,24 @@ EOF
                               --env GIT_ALLOW_NETWORK=true \
                               mcp/git:latest || warning "⚠️ Git MCP server deployment failed, continuing..."
                             
+                            # Deploy OpenAI MCP server with ToolHive
+                            status "Deploying OpenAI MCP server with ToolHive..."
+                            docker exec toolhive thv run \
+                              --port 24163 \
+                              --target-port 24163 \
+                              --target-host 0.0.0.0 \
+                              --host 0.0.0.0 \
+                              openai-mcp:latest || warning "⚠️ OpenAI MCP server deployment failed, continuing..."
+                            
+                            # Wait for containers to start, then test if they are running
+                            sleep 3
+                            if docker ps | grep -q openai-mcp; then
+                                status "Connecting MCP container to cogni-net network..."
+                                docker network connect deploy_cogni-net openai-mcp 2>/dev/null || warning "⚠️ Network connection may have failed"
+                                status "✅ OpenAI MCP server deployed and networked"
+                            else
+                                warning "⚠️ OpenAIMCP container not running after deployment"
+                            fi
 
                             # Deploy Git MCP server with ToolHive
                             status "Deploying Playwright MCP server with ToolHive..."
@@ -358,6 +376,25 @@ EOF
                                 status "✅ MCP server deployed and networked"
                             else
                                 warning "⚠️ MCP container not running after deployment"
+                            fi
+
+                            # Deploy OpenAI MCP server with ToolHive
+                            status "Deploying OpenAI MCP server with ToolHive..."
+                            docker exec toolhive thv run \
+                              --port 24163 \
+                              --target-port 24163 \
+                              --target-host 0.0.0.0 \
+                              --host 0.0.0.0 \
+                              openai-mcp:latest || warning "⚠️ OpenAI MCP server deployment failed, continuing..."
+                            
+                            # Wait for containers to start, then test if they are running
+                            sleep 3
+                            if docker ps | grep -q openai-mcp; then
+                                status "Connecting MCP container to cogni-net network..."
+                                docker network connect deploy_cogni-net openai-mcp 2>/dev/null || warning "⚠️ Network connection may have failed"
+                                status "✅ OpenAI MCP server deployed and networked"
+                            else
+                                warning "⚠️ OpenAIMCP container not running after deployment"
                             fi
 
                             if docker ps | grep -q git-mcp; then
