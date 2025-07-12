@@ -16,7 +16,8 @@ from langchain_core.messages import HumanMessage, AIMessage
 # Import components to test from refactored modules
 from src.simple_cogni_agent.graph import build_graph
 from src.simple_cogni_agent.agent import should_continue
-from src.shared_utils import CogniAgentState, GraphConfig, COGNI_SYSTEM_PROMPT
+from src.shared_utils import CogniAgentState, GraphConfig
+from src.simple_cogni_agent.prompts import COGNI_SYSTEM_PROMPT
 
 
 class TestIndividualNodes:

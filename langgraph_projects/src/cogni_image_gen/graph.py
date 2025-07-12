@@ -11,7 +11,8 @@ sys.path.insert(0, str(src_path))
 
 from langgraph.graph import StateGraph  # noqa: E402
 from langgraph.checkpoint.redis import AsyncRedisSaver  # noqa: E402
-from src.shared_utils import ImageFlowState, GraphConfig, get_logger  # noqa: E402
+from src.shared_utils import GraphConfig, get_logger  # noqa: E402
+from .state_types import ImageFlowState  # noqa: E402
 from .nodes import create_planner_node, create_image_tool_node, create_reviewer_node, create_responder_node  # noqa: E402
 
 logger = get_logger(__name__)

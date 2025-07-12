@@ -33,10 +33,8 @@ from .state_types import (
     BaseAgentState,
     CogniAgentState,
     PlaywrightAgentState,
-    ImageFlowState,
     GraphConfig,
-    COGNI_SYSTEM_PROMPT,
-    PLAYWRIGHT_SYSTEM_PROMPT,
+    ExtendedGraphConfig,
 )
 from .tool_specs import generate_tool_specs_from_mcp_tools
 
@@ -60,10 +58,8 @@ __all__ = [
     "BaseAgentState",
     "CogniAgentState",
     "PlaywrightAgentState",
-    "ImageFlowState",
     "GraphConfig",
-    "COGNI_SYSTEM_PROMPT",
-    "PLAYWRIGHT_SYSTEM_PROMPT",
+    "ExtendedGraphConfig",
     # Tool Specifications
     "generate_tool_specs_from_mcp_tools",
     # Error Handling

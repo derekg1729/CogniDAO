@@ -16,7 +16,8 @@ from langchain_core.messages import HumanMessage, AIMessage
 # Import components to test from refactored modules
 from src.cogni_image_gen.graph import build_graph
 from src.cogni_image_gen.agent import should_continue
-from src.shared_utils import CogniAgentState, GraphConfig, COGNI_SYSTEM_PROMPT
+from src.shared_utils import GraphConfig
+from src.cogni_image_gen.state_types import ImageFlowState
 
 
 class TestIndividualNodes:
@@ -63,8 +64,8 @@ class TestStateManagement:
     """Test state management and message handling."""
 
     def test_agent_state_structure(self):
-        """Test CogniAgentState TypedDict structure."""
-        state: CogniAgentState = {"messages": [HumanMessage(content="test")]}
+        """Test ImageFlowState TypedDict structure."""
+        state: ImageFlowState = {"messages": [HumanMessage(content="test")]}
 
         assert "messages" in state
         assert isinstance(state["messages"], list)
@@ -81,7 +82,7 @@ class TestStateManagement:
     def test_message_add_behavior(self):
         """Test that add_messages annotation works correctly."""
         # This tests the Annotated[Sequence[BaseMessage], add_messages] behavior
-        initial_state: CogniAgentState = {"messages": [HumanMessage(content="Hello")]}
+        initial_state: ImageFlowState = {"messages": [HumanMessage(content="Hello")]}
         new_messages = [AIMessage(content="Hi there")]
 
         # Simulate what LangGraph does internally with add_messages
@@ -129,12 +130,6 @@ class TestDeterminism:
     # Note: Model temperature test is now covered by shared_utils.model_binding tests
     # since _get_bound_model is internal to that module
 
-    def test_system_prompt_consistency(self):
-        """Test that system prompt is consistent."""
-        assert "CogniDAO assistant" in COGNI_SYSTEM_PROMPT
-        assert "GetActiveWorkItems" in COGNI_SYSTEM_PROMPT
-        assert isinstance(COGNI_SYSTEM_PROMPT, str)
-        assert len(COGNI_SYSTEM_PROMPT) > 0
 
 
 class TestErrorHandling:
