@@ -60,19 +60,8 @@ def build_graph() -> StateGraph:
         {"planner": "planner", "image_tool": "image_tool"}
     )
     
-    # Conditional edge for human checkpoint - supports both approval and revision paths
-    def decide_after_human_review(state):
-        decision = state.get("decision")
-        if decision == "revise":
-            return "planner"  # Restart the planning process
-        else:
-            return "end"  # Default to end (approve or no decision yet)
-    
-    workflow.add_conditional_edges(
-        "human_checkpoint",
-        decide_after_human_review,
-        {"planner": "planner", "end": "__end__"}
-    )
+    # Simple edge - HIL node handles its own routing via Command(goto=...)
+    workflow.add_edge("human_checkpoint", "__end__")
     
     # Remove the old responder -> __end__ edge since responder now goes to human_checkpoint
 

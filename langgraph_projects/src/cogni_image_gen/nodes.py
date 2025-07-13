@@ -6,7 +6,8 @@ import sys
 from pathlib import Path
 from langchain_openai import ChatOpenAI  
 from langchain_core.messages import HumanMessage, AIMessage  
-from langgraph.types import interrupt  
+from langgraph.types import interrupt, Command
+from typing import Literal  
 
 # Add src to path for absolute imports
 src_path = Path(__file__).parent.parent
@@ -256,61 +257,60 @@ def create_responder_node():
 def create_hil_node():
     """Create human-in-the-loop checkpoint node for review after image generation."""
     
-    async def hil_node(state):
+    async def hil_node(state) -> Command[Literal['__end__', 'planner']]:
         """
-        Interrupt execution to allow human review of generated image and plan.
+        Single-interrupt HIL pattern for human approval of generated images.
         
-        On first run: Returns Interrupt object to pause execution.
-        On resume: Processes human decision and updates state for conditional routing.
+        First visit: Raises Interrupt and stores interrupt_id
+        After resume: Branches on human decision using Command routing
         """
-        hil_response = interrupt(
-            {
-                "question": "Is this approved?",
-                # Surface the output that should be
-                # reviewed and approved by the human.
-                "image_url": state.get("image_url")
+        logger.info(f"🔄 HIL Node - Current state decision: {state.get('decision')}")
+        logger.info(f"🔄 HIL Node - Full state keys: {list(state.keys())}")
+        
+        # 1️⃣ First visit → raise interrupt and store ID
+        if state.get('decision') is None:
+            logger.info("📋 HIL Node - First visit: Raising interrupt for human review")
+            payload = {
+                'view': 'image-review',
+                'data': {
+                    'image_url': state['image_url'],
+                    'question': 'Approve this image?'
+                }
             }
-        )
-
-        print("---human_feedback---")
-        print(f"{hil_response}")
-        # Example output:
-        # ---human_feedback---
-        # {'902425cf-9a94-de8c-c5b1-ae3b41be47de': 'hi'}
-        
-        # TODO: Overly complex and brittle retrieval of input
-
-        # Extract the actual human input from the GUID-keyed response
-        # LangSmith returns {guid: actual_value}, we need just the value
-        if isinstance(hil_response, dict) and hil_response:
-            # Get the first (and only) value from the GUID-keyed dict
-            human_input_value = next(iter(hil_response.values()))
-            print(f"Extracted human input: {human_input_value}")
-        else:
-            # Fallback for direct string responses or empty dict
-            human_input_value = hil_response
-        
-        # Process the human input to determine the decision
-        # Expected formats: "approve", "revise", or structured input
-        if isinstance(human_input_value, str):
-            # Simple string responses
-            if "revise" in human_input_value.lower():
-                decision = "revise"
-            elif "approve" in human_input_value.lower():
-                decision = "approve"
-            else:
-                decision = "approve"  # Default to approve for unclear responses
-        elif isinstance(human_input_value, dict):
-            # Structured responses from tests/UI
-            decision = human_input_value.get("decision", "approve")
-        else:
-            decision = "approve"  # Safe default
+            # Use the simpler interrupt() function from LangGraph
+            human_response = interrupt(payload)
+            logger.info(f"🗣️ HIL Node - Human response received: {human_response}")
+            logger.info(f"🗣️ HIL Node - Human response type: {type(human_response)}")
             
-        print(f"Processed decision: {decision}")
+            # Process the human response and update state
+            if isinstance(human_response, str):
+                if "revise" in human_response.lower():
+                    decision = "revise"
+                elif "approve" in human_response.lower():
+                    decision = "approve"
+                else:
+                    decision = "approve"  # Default
+            else:
+                decision = "approve"  # Safe default
+                
+            logger.info(f"🧠 HIL Node - Processed decision: '{decision}' from human input: '{human_response}'")
+            
+            # Return updated state with decision
+            return {
+                **state,
+                'decision': decision,
+                'human_input': human_response
+            }
+
+        # 2️⃣ After resume → branch on human decision
+        logger.info(f"✅ HIL Node - After resume: Processing decision '{state['decision']}'")
         
-        return {
-            "human_input": human_input_value,
-            "decision": decision
-        }
+        if state['decision'] == 'approve':
+            logger.info("👍 HIL Node - Human approved: Going to END")
+            return Command(goto='__end__')
+
+        # Default → revise (human wants changes)
+        logger.info(f"👎 HIL Node - Human wants revision: Going to PLANNER (decision was '{state['decision']}')")
+        return Command(goto='planner')
     
     return hil_node
