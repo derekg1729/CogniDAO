@@ -18,14 +18,14 @@ from .nodes import create_planner_node, create_image_tool_node, create_reviewer_
 logger = get_logger(__name__)
 
 
-async def build_graph() -> StateGraph:
+def build_graph() -> StateGraph:
     """Build the CogniDAO image generation LangGraph workflow."""
     # Create all nodes
-    planner_node = await create_planner_node()
-    image_tool_node = await create_image_tool_node()
-    reviewer_node = await create_reviewer_node()
-    responder_node = await create_responder_node()
-    hil_node = await create_hil_node()
+    planner_node = create_planner_node()
+    image_tool_node = create_image_tool_node()
+    reviewer_node = create_reviewer_node()
+    responder_node = create_responder_node()
+    hil_node = create_hil_node()
 
     # Build the workflow
     workflow = StateGraph(ImageFlowState, config_schema=GraphConfig)
@@ -107,7 +107,7 @@ async def build_compiled_graph(use_checkpointer=False, checkpointer=None):
                 config={"recursion_limit": 100}
             )
     """
-    workflow = await build_graph()
+    workflow = build_graph()
     
     # Note: recursion_limit is set during invocation, not compilation
     if checkpointer:

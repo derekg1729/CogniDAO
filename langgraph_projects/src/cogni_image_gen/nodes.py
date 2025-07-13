@@ -18,8 +18,19 @@ from .prompts import PLANNER_PROMPT, COGNI_IMAGE_PROFILE_TEMPLATE, PLAN_REVIEWER
 
 logger = get_logger(__name__)
 
+# Module-level singletons for heavy objects
+_llm = ChatOpenAI(model_name='gpt-4o-mini', temperature=0.1)
+_tools_cache = None
 
-async def create_planner_node():
+async def _get_openai_tools():
+    """Cache OpenAI tools to avoid repeated lookups."""
+    global _tools_cache
+    if _tools_cache is None:
+        _tools_cache = await get_tools("openai")
+    return _tools_cache
+
+
+def create_planner_node():
     """Create planner node for defining template variables."""
     
     async def planner_node(state):
@@ -53,8 +64,7 @@ async def create_planner_node():
             agents_with_roles: List[Agent]
             scene_focus: str
         
-        model = ChatOpenAI(model_name='gpt-4o-mini', temperature=0.1)
-        structured_model = model.with_structured_output(PlannerOutput)
+        structured_model = _llm.with_structured_output(PlannerOutput)
         
         # Check for reviewer feedback and human feedback, prepend if retry is needed
         needs_retry = state.get("needs_retry", False)
@@ -96,7 +106,7 @@ async def create_planner_node():
     return planner_node
 
 
-async def create_image_tool_node():
+def create_image_tool_node():
     """Create image tool node using template variables."""
     
     async def image_tool_node(state):
@@ -121,7 +131,7 @@ async def create_image_tool_node():
         logger.info(f"Final prompt being sent to MCP tool: {final_prompt[:500]}...")
         
         # Get OpenAI image generation tools
-        tools = await get_tools("openai")
+        tools = await _get_openai_tools()
         
         # Find GenerateImage tool
         selected_tool = None
@@ -168,7 +178,7 @@ async def create_image_tool_node():
     return image_tool_node
 
 
-async def create_reviewer_node():
+def create_reviewer_node():
     """Create reviewer node to validate agents_with_roles and scene_focus before image creation."""
     
     async def reviewer_node(state):
@@ -189,8 +199,7 @@ async def create_reviewer_node():
             issues: List[str]
             suggestions: List[str]
         
-        model = ChatOpenAI(model_name='gpt-4o-mini', temperature=0.1)
-        structured_model = model.with_structured_output(ReviewerOutput)
+        structured_model = _llm.with_structured_output(ReviewerOutput)
         
         # Use the reviewer prompt from prompts.py with user_request
         reviewer_prompt = PLAN_REVIEWER_PROMPT.format(
@@ -220,7 +229,7 @@ async def create_reviewer_node():
     return reviewer_node
 
 
-async def create_responder_node():
+def create_responder_node():
     """Create responder node for final output formatting."""
     
     async def responder_node(state):
@@ -244,7 +253,7 @@ async def create_responder_node():
     return responder_node
 
 
-async def create_hil_node():
+def create_hil_node():
     """Create human-in-the-loop checkpoint node for review after image generation."""
     
     async def hil_node(state):
