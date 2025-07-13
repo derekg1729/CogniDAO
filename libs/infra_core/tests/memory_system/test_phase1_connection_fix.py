@@ -126,7 +126,7 @@ class TestPhase1ConnectionFix:
             except OperationalError as e:
                 # Should preserve original error type and message
                 assert str(e) == "MySQL Connection not available"
-                assert type(e) == OperationalError
+                assert isinstance(e, OperationalError)
                 # Should NOT be wrapped in generic Exception
 
     def test_integration_with_retry_logic(self, base_instance):

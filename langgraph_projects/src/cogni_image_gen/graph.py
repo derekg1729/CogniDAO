@@ -69,7 +69,8 @@ async def build_graph() -> StateGraph:
             # Set retry flags for planner loop
             return "planner"
         else:
-            # Default case - should not happen with proper HIL, but safety fallback
+            # If no decision provided yet, default to end for safety
+            # The interrupt will handle pausing until human provides input
             return "end"
     
     workflow.add_conditional_edges(

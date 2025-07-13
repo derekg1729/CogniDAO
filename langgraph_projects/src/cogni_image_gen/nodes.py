@@ -251,7 +251,16 @@ async def create_hil_node():
         """
         Interrupt execution to allow human review of generated image and plan.
         Returns Interrupt object with review payload for frontend consumption.
+        
+        If human has already provided a decision, continue execution.
+        Otherwise, interrupt and wait for human input.
         """
+        # Check if human has already provided a decision
+        decision = state.get("decision")
+        if decision is not None:
+            # Human has made a decision, continue execution
+            return state
+        
         # Prepare comprehensive review payload for human reviewer
         review_payload = {
             "user_request": state.get("user_request"),

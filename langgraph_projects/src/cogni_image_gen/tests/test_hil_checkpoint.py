@@ -77,6 +77,24 @@ class TestHILNode:
         assert payload["reviewer_score"] is None
         assert payload["reviewer_issues"] == []
 
+    @pytest.mark.asyncio
+    async def test_hil_node_with_existing_decision(self):
+        """Test HIL node continues execution when decision already provided."""
+        hil_node = await create_hil_node()
+        
+        # State with existing human decision
+        state = {
+            "decision": "approve",
+            "image_url": "https://example.com/image.png",
+            "messages": []
+        }
+        
+        result = await hil_node(state)
+        
+        # Should return state directly, not interrupt
+        assert result == state
+        assert not isinstance(result, Interrupt)
+
 
 class TestHILGraphIntegration:
     """Integration tests for HIL checkpoint in the full graph."""
@@ -94,7 +112,7 @@ class TestHILGraphIntegration:
         # This is verified by successful compilation
 
     def test_human_decision_routing_approve(self):
-        """Test conditional logic routes to responder when human approves."""
+        """Test conditional logic routes to end when human approves."""
         # Simulate human approval decision
         state = {
             "decision": "approve",
@@ -104,13 +122,13 @@ class TestHILGraphIntegration:
         # Test the decision logic from the graph
         decision = state.get("decision")
         if decision == "approve":
-            result = "responder"
+            result = "end"
         elif decision == "revise":
             result = "planner"
         else:
-            result = "responder"
+            result = None  # Stay in interrupt state
         
-        assert result == "responder"
+        assert result == "end"
 
     def test_human_decision_routing_revise(self):
         """Test conditional logic routes to planner when human requests revision."""
@@ -124,16 +142,16 @@ class TestHILGraphIntegration:
         # Test the decision logic from the graph
         decision = state.get("decision")
         if decision == "approve":
-            result = "responder"
+            result = "end"
         elif decision == "revise":
             result = "planner"
         else:
-            result = "responder"
+            result = None  # Stay in interrupt state
         
         assert result == "planner"
 
     def test_human_decision_routing_default(self):
-        """Test conditional logic defaults to responder for safety."""
+        """Test conditional logic defaults to end when no decision provided."""
         # Simulate missing or invalid decision
         state = {
             "decision": None,
@@ -143,13 +161,13 @@ class TestHILGraphIntegration:
         # Test the decision logic from the graph
         decision = state.get("decision")
         if decision == "approve":
-            result = "responder"
+            result = "end"
         elif decision == "revise":
             result = "planner"
         else:
-            result = "responder"
+            result = "end"  # Default to end, interrupt handles the pause
         
-        assert result == "responder"
+        assert result == "end"
 
 
 class TestStateManagement:
