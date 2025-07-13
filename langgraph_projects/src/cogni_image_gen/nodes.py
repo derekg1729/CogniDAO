@@ -4,10 +4,9 @@ CogniDAO Image Generation Nodes - Specialized nodes for image generation workflo
 
 import sys
 from pathlib import Path
-from typing import Literal
 from langchain_openai import ChatOpenAI  
 from langchain_core.messages import HumanMessage, AIMessage  
-from langgraph.types import interrupt, Command  
+from langgraph.types import interrupt  
 
 # Add src to path for absolute imports
 src_path = Path(__file__).parent.parent
@@ -248,14 +247,14 @@ async def create_responder_node():
 async def create_hil_node():
     """Create human-in-the-loop checkpoint node for review after image generation."""
     
-    async def hil_node(state) -> Command[Literal["__end__", "planner"]]:
+    async def hil_node(state):
         """
         Interrupt execution to allow human review of generated image and plan.
         
         On first run: Returns Interrupt object to pause execution.
         On resume: Processes human decision and updates state for conditional routing.
         """
-        is_approved = interrupt(
+        hil_response = interrupt(
             {
                 "question": "Is this approved?",
                 # Surface the output that should be
@@ -264,9 +263,12 @@ async def create_hil_node():
             }
         )
 
-        if is_approved:
-            return Command(goto="__end__")
-        else:
-            return Command(goto="planner")
+        print("---human_feedback---")
+        print(f"{hil_response}")
+        # Example output:
+        # ---human_feedback---
+        # {'902425cf-9a94-de8c-c5b1-ae3b41be47de': 'hi'}
+
+        return {"human_input": hil_response}
     
     return hil_node
