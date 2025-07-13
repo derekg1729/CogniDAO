@@ -60,18 +60,13 @@ async def build_graph() -> StateGraph:
         {"planner": "planner", "image_tool": "image_tool"}
     )
     
-    # Conditional edge for human checkpoint after responder
+    # Conditional edge for human checkpoint - supports both approval and revision paths
     def decide_after_human_review(state):
         decision = state.get("decision")
-        if decision == "approve":
-            return "end"  # Finish workflow
-        elif decision == "revise":
-            # Set retry flags for planner loop
-            return "planner"
+        if decision == "revise":
+            return "planner"  # Restart the planning process
         else:
-            # If no decision provided yet, default to end for safety
-            # The interrupt will handle pausing until human provides input
-            return "end"
+            return "end"  # Default to end (approve or no decision yet)
     
     workflow.add_conditional_edges(
         "human_checkpoint",

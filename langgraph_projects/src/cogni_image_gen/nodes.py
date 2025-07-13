@@ -4,14 +4,15 @@ CogniDAO Image Generation Nodes - Specialized nodes for image generation workflo
 
 import sys
 from pathlib import Path
+from typing import Literal
+from langchain_openai import ChatOpenAI  
+from langchain_core.messages import HumanMessage, AIMessage  
+from langgraph.types import interrupt, Command  
 
 # Add src to path for absolute imports
 src_path = Path(__file__).parent.parent
 sys.path.insert(0, str(src_path))
 
-from langchain_openai import ChatOpenAI  # noqa: E402
-from langchain_core.messages import HumanMessage, AIMessage  # noqa: E402
-from langgraph.types import Interrupt  # noqa: E402
 from src.shared_utils import get_logger  # noqa: E402
 from src.shared_utils.tool_registry import get_tools  # noqa: E402
 from .prompts import PLANNER_PROMPT, COGNI_IMAGE_PROFILE_TEMPLATE, PLAN_REVIEWER_PROMPT  # noqa: E402
@@ -247,34 +248,25 @@ async def create_responder_node():
 async def create_hil_node():
     """Create human-in-the-loop checkpoint node for review after image generation."""
     
-    async def hil_node(state):
+    async def hil_node(state) -> Command[Literal["__end__", "planner"]]:
         """
         Interrupt execution to allow human review of generated image and plan.
-        Returns Interrupt object with review payload for frontend consumption.
         
-        If human has already provided a decision, continue execution.
-        Otherwise, interrupt and wait for human input.
+        On first run: Returns Interrupt object to pause execution.
+        On resume: Processes human decision and updates state for conditional routing.
         """
-        # Check if human has already provided a decision
-        decision = state.get("decision")
-        if decision is not None:
-            # Human has made a decision, continue execution
-            return state
-        
-        # Prepare comprehensive review payload for human reviewer
-        review_payload = {
-            "user_request": state.get("user_request"),
-            "agents_with_roles": state.get("agents_with_roles"), 
-            "scene_focus": state.get("scene_focus"),
-            "reviewer_score": state.get("score"),
-            "reviewer_issues": state.get("issues", []),
-            "reviewer_suggestions": state.get("suggestions", []),
-            "image_url": state.get("image_url"),
-            "final_prompt": state.get("final_prompt"),
-            "attempt": state.get("attempt", 0)
-        }
-        
-        # Return Interrupt object to pause execution and surface data to frontend
-        return Interrupt(value=review_payload)
+        is_approved = interrupt(
+            {
+                "question": "Is this approved?",
+                # Surface the output that should be
+                # reviewed and approved by the human.
+                "image_url": state.get("image_url")
+            }
+        )
+
+        if is_approved:
+            return Command(goto="__end__")
+        else:
+            return Command(goto="planner")
     
     return hil_node
