@@ -5,7 +5,25 @@ Contains prompt definitions for the specialized image generation workflow nodes.
 """
 
 
-COGNI_IMAGE_PROFILE_TEMPLATE = """{{
+
+
+# TODO : temporary approach - adding prompt variations here, and substituting value of COGNI_IMAGE_PROFILE_TEMPLATE
+
+COGNI_ACTION_ARENA_PROFILE = """{{
+  "agents": "{agents_with_roles}",
+  "scene": "{scene_focus}",
+  "style": "retro-futuristic cartoon illustration of friendly round robots in dynamic action on a luminous digital arena, bold neon linework, bright blue sky and cheering pixel spectators",
+  "colors": "electric cyan & royal blue primaries, hot magenta & vivid orange secondaries, lime-green accents on a midnight-indigo background",
+  "composition": "motion-filled horizontal layout with ~.15 outer margin, field or arena lines guiding perspective",
+  "lighting": "soft neon rim-light on each agent, subtle ambient stardust sparkles, high-contrast highlights",
+  "quality": "ultra-HD digital art, razor-sharp vector edges, studio clarity"
+}}"""
+
+
+COGNI_IMAGE_PROFILE_TEMPLATE = COGNI_ACTION_ARENA_PROFILE
+
+
+ORIGINAL_COGNI_IMAGE_PROFILE_TEMPLATE = """{{
   "agents": "{agents_with_roles}",
   "scene": "{scene_focus}",
   "style": "retro-futuristic cartoon of robot agents with bold neon outlines, cosmic circuit backdrop, synthwave aesthetic",
