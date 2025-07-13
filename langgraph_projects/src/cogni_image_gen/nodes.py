@@ -293,7 +293,10 @@ def create_hil_node():
         # Simple routing based on human input
         if isinstance(human_input, str) and "revise" in human_input.lower():
             logger.info("👎 HIL Node - ROUTING TO PLANNER (revise)")
-            return Command(goto='planner',  update={"messages": [HumanMessage(content="Human rejected. Please try again with a different style.")]})
+            return Command(goto='planner', update={
+                "planner_feedback": "Human rejected. Please try again with a different style.",
+                "needs_retry": True
+            })
         else:
             logger.info("👍 HIL Node - ROUTING TO END (approve/default)")
             return Command(goto='__end__')
