@@ -67,10 +67,26 @@ def create_planner_node():
         
         structured_model = _llm.with_structured_output(PlannerOutput)
         
+        # Update planner scratchpad with current iteration info
+        iteration_count = state.get("planner_iteration_count", 0) + 1
+        scratchpad = state.get("planner_scratchpad", []).copy()
+        
+        # Log current planning attempt
+        attempt_info = f"Iteration {iteration_count}: Planning for '{user_request}'"
+        if state.get("needs_retry"):
+            attempt_info += " (RETRY after feedback)"
+        scratchpad.append(attempt_info)
+        
         # Check for reviewer feedback and human feedback, prepend if retry is needed
         needs_retry = state.get("needs_retry", False)
         suggestions = state.get("suggestions", [])
         planner_feedback = state.get("planner_feedback")
+        
+        # Add feedback to scratchpad
+        if planner_feedback:
+            scratchpad.append(f"Human feedback: {planner_feedback}")
+        if needs_retry and suggestions:
+            scratchpad.append(f"Reviewer suggestions: {', '.join(suggestions)}")
         
         feedback_sections = []
         
@@ -81,6 +97,11 @@ def create_planner_node():
         # Add reviewer suggestions if retry is needed
         if needs_retry and suggestions:
             feedback_sections.append(f"<critique>\n{chr(10).join(suggestions)}\n</critique>")
+        
+        # Add scratchpad context for planner's self-reflection
+        if scratchpad:
+            scratchpad_context = f"<PLANNER_CONTEXT>\nPrevious attempts: {chr(10).join(scratchpad[-3:])}\n</PLANNER_CONTEXT>"
+            feedback_sections.append(scratchpad_context)
         
         if feedback_sections:
             feedback_content = "\n\n".join(feedback_sections)
@@ -96,11 +117,16 @@ def create_planner_node():
         agents_with_roles = [agent.dict() for agent in response.agents_with_roles]
         scene_focus = response.scene_focus
         
+        # Update scratchpad with results
+        scratchpad.append(f"Generated: {len(agents_with_roles)} agents, scene: {scene_focus}")
+        
         return {
             **state,
             "user_request": user_request,
             "agents_with_roles": agents_with_roles,
             "scene_focus": scene_focus,
+            "planner_scratchpad": scratchpad,
+            "planner_iteration_count": iteration_count,
             "messages": state.get("messages", []) + [AIMessage(content=f"Planned: {len(agents_with_roles)} agents for {scene_focus}")]
         }
     

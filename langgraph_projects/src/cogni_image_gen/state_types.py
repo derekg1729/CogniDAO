@@ -38,3 +38,7 @@ class ImageFlowState(BaseAgentState):
     decision: Literal['approve', 'revise'] | None = None  # Human's approve/revise decision
     planner_feedback: str | None = None  # Human feedback for planner improvement
     last_interrupt_id: str | None = None  # Track interrupt ID for resume operations
+    
+    # Planner-specific scratchpad (private to planner agent)
+    planner_scratchpad: list[str] = []  # Planner's internal reasoning steps
+    planner_iteration_count: int = 0  # How many times planner has run
