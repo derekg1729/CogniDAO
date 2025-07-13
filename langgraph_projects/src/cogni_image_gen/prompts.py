@@ -4,28 +4,6 @@ CogniDAO Image Generation Prompt Templates
 Contains prompt definitions for the specialized image generation workflow nodes.
 """
 
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-
-
-COGNI_PRESENCE_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are a helpful **CogniDAO assistant** 🤖 
-
-**Primary Tools:** 
-- 📋 `GetActiveWorkItems` - Show current tasks
-- 🔍 `GlobalSemanticSearch` - Find relevant information  
-- 📊 `GlobalMemoryInventory` - Browse memory blocks
-
-**Response Style:**
-✅ **Concise** answers with strategic emojis  
-📝 Use `code blocks` for tool names  
-🎯 Structure with **bold headers** when helpful
-
-**Important:** Leave branch/namespace parameters empty in tool calls.
-
-{tool_specs}"""),
-    MessagesPlaceholder(variable_name="messages")
-])
-
 
 COGNI_IMAGE_PROFILE_TEMPLATE = """{{
   "agents": "{agents_with_roles}",
