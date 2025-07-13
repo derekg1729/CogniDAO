@@ -266,51 +266,36 @@ def create_hil_node():
         """
         logger.info(f"🔄 HIL Node - Current state decision: {state.get('decision')}")
         logger.info(f"🔄 HIL Node - Full state keys: {list(state.keys())}")
-        
-        # 1️⃣ First visit → raise interrupt and store ID
-        if state.get('decision') is None:
-            logger.info("📋 HIL Node - First visit: Raising interrupt for human review")
-            payload = {
+
+        payload = {
                 'view': 'image-review',
                 'data': {
                     'image_url': state['image_url'],
                     'question': 'Approve this image?'
                 }
-            }
-            # Use the simpler interrupt() function from LangGraph
-            human_response = interrupt(payload)
-            logger.info(f"🗣️ HIL Node - Human response received: {human_response}")
-            logger.info(f"🗣️ HIL Node - Human response type: {type(human_response)}")
-            
-            # Process the human response and update state
-            if isinstance(human_response, str):
-                if "revise" in human_response.lower():
-                    decision = "revise"
-                elif "approve" in human_response.lower():
-                    decision = "approve"
-                else:
-                    decision = "approve"  # Default
-            else:
-                decision = "approve"  # Safe default
-                
-            logger.info(f"🧠 HIL Node - Processed decision: '{decision}' from human input: '{human_response}'")
-            
-            # Return updated state with decision
-            return {
-                **state,
-                'decision': decision,
-                'human_input': human_response
-            }
+        }
+        # Use the simpler interrupt() function from LangGraph
+        human_response = interrupt(payload)
+        logger.info(f"🗣️ HIL Node - Human response received: {human_response}")
+        logger.info(f"🗣️ HIL Node - Human response type: {type(human_response)}")
 
-        # 2️⃣ After resume → branch on human decision
-        logger.info(f"✅ HIL Node - After resume: Processing decision '{state['decision']}'")
+            # Get the last ToolMessage with name "draft_tool" which is the drafted emai
         
-        if state['decision'] == 'approve':
-            logger.info("👍 HIL Node - Human approved: Going to END")
+        # Extract human input from GUID dict
+        if isinstance(human_response, dict) and human_response:
+            ## TODO : this just graphs the next interrupt value. It doesn't do any processing of the GUID
+            human_input = next(iter(human_response.values()))
+            logger.info(f"🔍 HIL Node - Extracted from GUID: '{human_input}'")
+        else:
+            human_input = human_response
+            logger.info(f"🔍 HIL Node - Direct input: '{human_input}'")
+            
+        # Simple routing based on human input
+        if isinstance(human_input, str) and "revise" in human_input.lower():
+            logger.info("👎 HIL Node - ROUTING TO PLANNER (revise)")
+            return Command(goto='planner',  update={"messages": [HumanMessage(content="Human rejected. Please try again with a different style.")]})
+        else:
+            logger.info("👍 HIL Node - ROUTING TO END (approve/default)")
             return Command(goto='__end__')
-
-        # Default → revise (human wants changes)
-        logger.info(f"👎 HIL Node - Human wants revision: Going to PLANNER (decision was '{state['decision']}')")
-        return Command(goto='planner')
     
     return hil_node

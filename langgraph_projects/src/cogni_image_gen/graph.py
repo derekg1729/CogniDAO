@@ -60,8 +60,7 @@ def build_graph() -> StateGraph:
         {"planner": "planner", "image_tool": "image_tool"}
     )
     
-    # Simple edge - HIL node handles its own routing via Command(goto=...)
-    workflow.add_edge("human_checkpoint", "__end__")
+    # No edge needed - HIL node handles its own routing via Command(goto=...)
     
     # Remove the old responder -> __end__ edge since responder now goes to human_checkpoint
 
