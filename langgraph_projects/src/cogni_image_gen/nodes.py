@@ -277,7 +277,40 @@ def create_hil_node():
         # Example output:
         # ---human_feedback---
         # {'902425cf-9a94-de8c-c5b1-ae3b41be47de': 'hi'}
+        
+        # TODO: Overly complex and brittle retrieval of input
 
-        return {"human_input": hil_response}
+        # Extract the actual human input from the GUID-keyed response
+        # LangSmith returns {guid: actual_value}, we need just the value
+        if isinstance(hil_response, dict) and hil_response:
+            # Get the first (and only) value from the GUID-keyed dict
+            human_input_value = next(iter(hil_response.values()))
+            print(f"Extracted human input: {human_input_value}")
+        else:
+            # Fallback for direct string responses or empty dict
+            human_input_value = hil_response
+        
+        # Process the human input to determine the decision
+        # Expected formats: "approve", "revise", or structured input
+        if isinstance(human_input_value, str):
+            # Simple string responses
+            if "revise" in human_input_value.lower():
+                decision = "revise"
+            elif "approve" in human_input_value.lower():
+                decision = "approve"
+            else:
+                decision = "approve"  # Default to approve for unclear responses
+        elif isinstance(human_input_value, dict):
+            # Structured responses from tests/UI
+            decision = human_input_value.get("decision", "approve")
+        else:
+            decision = "approve"  # Safe default
+            
+        print(f"Processed decision: {decision}")
+        
+        return {
+            "human_input": human_input_value,
+            "decision": decision
+        }
     
     return hil_node
