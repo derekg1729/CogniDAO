@@ -11,19 +11,21 @@ sys.path.insert(0, str(src_path))
 
 from langgraph.graph import StateGraph  # noqa: E402
 from langgraph.checkpoint.redis import AsyncRedisSaver  # noqa: E402
-from src.shared_utils import ImageFlowState, GraphConfig, get_logger  # noqa: E402
-from .nodes import create_planner_node, create_image_tool_node, create_reviewer_node, create_responder_node  # noqa: E402
+from src.shared_utils import GraphConfig, get_logger  # noqa: E402
+from .state_types import ImageFlowState  # noqa: E402
+from .nodes import create_planner_node, create_image_tool_node, create_reviewer_node, create_responder_node, create_hil_node  # noqa: E402
 
 logger = get_logger(__name__)
 
 
-async def build_graph() -> StateGraph:
+def build_graph() -> StateGraph:
     """Build the CogniDAO image generation LangGraph workflow."""
     # Create all nodes
-    planner_node = await create_planner_node()
-    image_tool_node = await create_image_tool_node()
-    reviewer_node = await create_reviewer_node()
-    responder_node = await create_responder_node()
+    planner_node = create_planner_node()
+    image_tool_node = create_image_tool_node()
+    reviewer_node = create_reviewer_node()
+    responder_node = create_responder_node()
+    hil_node = create_hil_node()
 
     # Build the workflow
     workflow = StateGraph(ImageFlowState, config_schema=GraphConfig)
@@ -31,32 +33,36 @@ async def build_graph() -> StateGraph:
     workflow.add_node("image_tool", image_tool_node)
     workflow.add_node("reviewer", reviewer_node)
     workflow.add_node("responder", responder_node)
+    workflow.add_node("human_checkpoint", hil_node)
     
     # Set entry point
     workflow.set_entry_point("planner")
     
-    # Add edges
-    workflow.add_edge("planner", "image_tool")
-    workflow.add_edge("image_tool", "reviewer")
+    # Add edges - reviewer before image creation, HIL checkpoint after responder
+    workflow.add_edge("planner", "reviewer")
+    workflow.add_edge("image_tool", "responder")
+    workflow.add_edge("responder", "human_checkpoint")
     
-    # Conditional edge for retry logic (decider)
-    def should_retry(state):
-        score = state.get("score", 0.8)  # Default to decent score
-        retry_count = state.get("retry_count", 0)
-        max_retries = state.get("max_retries", 2)
+    # Conditional edge for reviewer feedback loop (max 5 cycles)
+    def decide_next(state):
+        needs_retry = state.get("needs_retry", False)
+        attempt = state.get("attempt", 0)
         
-        if score < 0.7 and retry_count < max_retries:
+        # Continue to planner if retry needed and under 5 attempts, otherwise go to image generation
+        if needs_retry and attempt < 5:
             return "planner"
         else:
-            return "responder"
+            return "image_tool"
     
     workflow.add_conditional_edges(
         "reviewer",
-        should_retry,
-        {"planner": "planner", "responder": "responder"}
+        decide_next,
+        {"planner": "planner", "image_tool": "image_tool"}
     )
     
-    workflow.add_edge("responder", "__end__")
+    # No edge needed - HIL node handles its own routing via Command(goto=...)
+    
+    # Remove the old responder -> __end__ edge since responder now goes to human_checkpoint
 
     logger.info(f"✅ CogniDAO image generation graph built with {len(workflow.nodes)} nodes")
     return workflow
@@ -76,14 +82,22 @@ async def build_compiled_graph(use_checkpointer=False, checkpointer=None):
     Example:
         # Without checkpointer
         app = await build_compiled_graph()
+        result = await app.ainvoke(
+            {"user_request": "Generate a sunset image"}, 
+            config={"recursion_limit": 100}
+        )
         
         # With checkpointer (caller manages context)
         async with AsyncRedisSaver.from_conn_string("redis://localhost:6379") as saver:
             app = await build_compiled_graph(checkpointer=saver)
-            result = await app.ainvoke({"user_request": "Generate a sunset image"})
+            result = await app.ainvoke(
+                {"user_request": "Generate a sunset image"},
+                config={"recursion_limit": 100}
+            )
     """
-    workflow = await build_graph()
+    workflow = build_graph()
     
+    # Note: recursion_limit is set during invocation, not compilation
     if checkpointer:
         return workflow.compile(checkpointer=checkpointer)
     elif use_checkpointer:

@@ -16,7 +16,7 @@ from langgraph.graph import StateGraph
 # Import the graph components from the refactored modules
 from src.playwright_poc.graph import build_graph
 from src.playwright_poc.agent import should_continue
-from src.shared_utils import PlaywrightAgentState
+from src.playwright_poc.state_types import PlaywrightAgentState
 
 
 @pytest.fixture

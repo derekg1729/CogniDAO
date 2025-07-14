@@ -4,21 +4,34 @@ CogniDAO Image Generation Nodes - Specialized nodes for image generation workflo
 
 import sys
 from pathlib import Path
+from langchain_openai import ChatOpenAI  
+from langchain_core.messages import HumanMessage, AIMessage  
+from langgraph.types import interrupt, Command
+from typing import Literal  
 
 # Add src to path for absolute imports
 src_path = Path(__file__).parent.parent
 sys.path.insert(0, str(src_path))
 
-from langchain_openai import ChatOpenAI  # noqa: E402
-from langchain_core.messages import HumanMessage, AIMessage  # noqa: E402
 from src.shared_utils import get_logger  # noqa: E402
 from src.shared_utils.tool_registry import get_tools  # noqa: E402
-from .prompts import PLANNER_PROMPT, COGNI_IMAGE_PROFILE_TEMPLATE  # noqa: E402
+from .prompts import PLANNER_PROMPT, COGNI_IMAGE_PROFILE_TEMPLATE, PLAN_REVIEWER_PROMPT  # noqa: E402
 
 logger = get_logger(__name__)
 
+# Module-level singletons for heavy objects
+_llm = ChatOpenAI(model_name='gpt-4o-mini', temperature=0.1)
+_tools_cache = None
 
-async def create_planner_node():
+async def _get_openai_tools():
+    """Cache OpenAI tools to avoid repeated lookups."""
+    global _tools_cache
+    if _tools_cache is None:
+        _tools_cache = await get_tools("openai")
+    return _tools_cache
+
+
+def create_planner_node():
     """Create planner node for defining template variables."""
     
     async def planner_node(state):
@@ -39,8 +52,6 @@ async def create_planner_node():
         if not user_request:
             user_request = "Generate an image"  # fallback
         
-        retry_count = state.get("retry_count", 0)
-        
         from pydantic import BaseModel
         from typing import List
         
@@ -54,30 +65,75 @@ async def create_planner_node():
             agents_with_roles: List[Agent]
             scene_focus: str
         
-        model = ChatOpenAI(model_name='gpt-4o-mini', temperature=0.1)
-        structured_model = model.with_structured_output(PlannerOutput)
+        structured_model = _llm.with_structured_output(PlannerOutput)
+        
+        # Update planner scratchpad with current iteration info
+        iteration_count = state.get("planner_iteration_count", 0) + 1
+        scratchpad = state.get("planner_scratchpad", []).copy()
+        
+        # Log current planning attempt
+        attempt_info = f"Iteration {iteration_count}: Planning for '{user_request}'"
+        if state.get("needs_retry"):
+            attempt_info += " (RETRY after feedback)"
+        scratchpad.append(attempt_info)
+        
+        # Check for reviewer feedback and human feedback, prepend if retry is needed
+        needs_retry = state.get("needs_retry", False)
+        suggestions = state.get("suggestions", [])
+        planner_feedback = state.get("planner_feedback")
+        
+        # Add feedback to scratchpad
+        if planner_feedback:
+            scratchpad.append(f"Human feedback: {planner_feedback}")
+        if needs_retry and suggestions:
+            scratchpad.append(f"Reviewer suggestions: {', '.join(suggestions)}")
+        
+        feedback_sections = []
+        
+        # Add human feedback if present (highest priority)
+        if planner_feedback:
+            feedback_sections.append(f"<HUMAN_FEEDBACK>\n{planner_feedback}\n</HUMAN_FEEDBACK>")
+        
+        # Add reviewer suggestions if retry is needed
+        if needs_retry and suggestions:
+            feedback_sections.append(f"<critique>\n{chr(10).join(suggestions)}\n</critique>")
+        
+        # Add scratchpad context for planner's self-reflection
+        if scratchpad:
+            scratchpad_context = f"<PLANNER_CONTEXT>\nPrevious attempts: {chr(10).join(scratchpad[-3:])}\n</PLANNER_CONTEXT>"
+            feedback_sections.append(scratchpad_context)
+        
+        if feedback_sections:
+            feedback_content = "\n\n".join(feedback_sections)
+            prompt_content = f"{feedback_content}\n\n{PLANNER_PROMPT}\n\nUser request: {user_request}"
+        else:
+            prompt_content = f"{PLANNER_PROMPT}\n\nUser request: {user_request}"
         
         # Use the planner prompt to define template variables
-        messages = [HumanMessage(content=f"{PLANNER_PROMPT}\n\nUser request: {user_request}")]
+        messages = [AIMessage(content=prompt_content)]
         response = await structured_model.ainvoke(messages)
         
         # Direct structured output - no parsing needed!
         agents_with_roles = [agent.dict() for agent in response.agents_with_roles]
         scene_focus = response.scene_focus
         
+        # Update scratchpad with results
+        scratchpad.append(f"Generated: {len(agents_with_roles)} agents, scene: {scene_focus}")
+        
         return {
             **state,
             "user_request": user_request,
             "agents_with_roles": agents_with_roles,
             "scene_focus": scene_focus,
-            "retry_count": retry_count,
+            "planner_scratchpad": scratchpad,
+            "planner_iteration_count": iteration_count,
             "messages": state.get("messages", []) + [AIMessage(content=f"Planned: {len(agents_with_roles)} agents for {scene_focus}")]
         }
     
     return planner_node
 
 
-async def create_image_tool_node():
+def create_image_tool_node():
     """Create image tool node using template variables."""
     
     async def image_tool_node(state):
@@ -102,7 +158,7 @@ async def create_image_tool_node():
         logger.info(f"Final prompt being sent to MCP tool: {final_prompt[:500]}...")
         
         # Get OpenAI image generation tools
-        tools = await get_tools("openai")
+        tools = await _get_openai_tools()
         
         # Find GenerateImage tool
         selected_tool = None
@@ -149,30 +205,58 @@ async def create_image_tool_node():
     return image_tool_node
 
 
-async def create_reviewer_node():
-    """Create reviewer node - simplified to just pass through."""
+def create_reviewer_node():
+    """Create reviewer node to validate agents_with_roles and scene_focus before image creation."""
     
     async def reviewer_node(state):
         """
-        Simple pass-through reviewer - just confirms image was generated.
+        Review the planner output (agents_with_roles and scene_focus) for quality.
+        Returns structured JSON with score, needs_retry, issues, and suggestions.
         """
-        image_url = state.get("image_url")
+        agents_with_roles = state.get("agents_with_roles", [])
+        scene_focus = state.get("scene_focus", "")
+        user_request = state.get("user_request", "Generate an image")
         
-        if image_url:
-            return {
-                **state,
-                "messages": state.get("messages", []) + [AIMessage(content="Image reviewed and approved")]
-            }
+        from pydantic import BaseModel
+        from typing import List
+        
+        class ReviewerOutput(BaseModel):
+            score: float
+            needs_retry: bool
+            issues: List[str]
+            suggestions: List[str]
+        
+        structured_model = _llm.with_structured_output(ReviewerOutput)
+        
+        # Use the reviewer prompt from prompts.py with user_request
+        reviewer_prompt = PLAN_REVIEWER_PROMPT.format(
+            user_request=user_request,
+            agents_with_roles=agents_with_roles,
+            scene_focus=scene_focus
+        )
+        
+        messages = [HumanMessage(content=reviewer_prompt)]
+        response = await structured_model.ainvoke(messages)
+        
+        # Create feedback message
+        if response.needs_retry:
+            feedback_msg = f"Plan needs improvement (score: {response.score:.2f}). Issues: {', '.join(response.issues)}"
         else:
-            return {
-                **state,
-                "messages": state.get("messages", []) + [AIMessage(content="No image to review")]
-            }
+            feedback_msg = f"Plan approved (score: {response.score:.2f}). Ready for image generation."
+        
+        return {
+            "attempt": 1,  # This will be added to existing attempt via operator.add
+            "needs_retry": response.needs_retry,
+            "score": response.score,
+            "issues": response.issues,
+            "suggestions": response.suggestions,
+            "messages": state.get("messages", []) + [AIMessage(content=feedback_msg)]
+        }
     
     return reviewer_node
 
 
-async def create_responder_node():
+def create_responder_node():
     """Create responder node for final output formatting."""
     
     async def responder_node(state):
@@ -194,3 +278,53 @@ async def create_responder_node():
         }
     
     return responder_node
+
+
+def create_hil_node():
+    """Create human-in-the-loop checkpoint node for review after image generation."""
+    
+    async def hil_node(state) -> Command[Literal['__end__', 'planner']]:
+        """
+        Single-interrupt HIL pattern for human approval of generated images.
+        
+        First visit: Raises Interrupt and stores interrupt_id
+        After resume: Branches on human decision using Command routing
+        """
+        logger.info(f"🔄 HIL Node - Current state decision: {state.get('decision')}")
+        logger.info(f"🔄 HIL Node - Full state keys: {list(state.keys())}")
+
+        payload = {
+                'view': 'image-review',
+                'data': {
+                    'image_url': state['image_url'],
+                    'question': 'Approve this image?'
+                }
+        }
+        # Use the simpler interrupt() function from LangGraph
+        human_response = interrupt(payload)
+        logger.info(f"🗣️ HIL Node - Human response received: {human_response}")
+        logger.info(f"🗣️ HIL Node - Human response type: {type(human_response)}")
+
+            # Get the last ToolMessage with name "draft_tool" which is the drafted emai
+        
+        # Extract human input from GUID dict
+        if isinstance(human_response, dict) and human_response:
+            ## TODO : this just graphs the next interrupt value. It doesn't do any processing of the GUID
+            human_input = next(iter(human_response.values()))
+            logger.info(f"🔍 HIL Node - Extracted from GUID: '{human_input}'")
+        else:
+            human_input = human_response
+            logger.info(f"🔍 HIL Node - Direct input: '{human_input}'")
+            
+        # Simple routing based on human input
+        if isinstance(human_input, str) and "revise" in human_input.lower():
+            logger.info("👎 HIL Node - ROUTING TO PLANNER (revise)")
+            return Command(goto='planner', update={
+                "planner_feedback": "Human rejected. Please try again with a different style.",
+                "needs_retry": True
+            })
+        else:
+            logger.info("👍 HIL Node - ROUTING TO END (approve/default)")
+            return Command(goto='__end__')
+    
+    return hil_node

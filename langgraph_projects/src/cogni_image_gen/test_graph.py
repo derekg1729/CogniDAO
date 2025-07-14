@@ -2,7 +2,6 @@
 Simple test to verify the image generation graph works.
 """
 
-import asyncio
 import sys
 from pathlib import Path
 
@@ -13,10 +12,10 @@ sys.path.insert(0, str(src_path))
 from src.cogni_image_gen.graph import build_graph  # noqa: E402
 
 
-async def test_graph_creation():
-    """Test that the graph can be created without errors."""
+def test_graph_creation():
+    """Test that the graph can be created without errors and without event loop."""
     try:
-        graph = await build_graph()
+        graph = build_graph()
         print("✅ Graph created successfully")
         print(f"Nodes: {list(graph.nodes.keys())}")
         print(f"Edges: {list(graph.edges)}")
@@ -26,13 +25,13 @@ async def test_graph_creation():
         return False
 
 
-async def test_graph_structure():
+def test_graph_structure():
     """Test that the graph has the expected structure."""
     try:
-        graph = await build_graph()
+        graph = build_graph()
         
-        # Check expected nodes
-        expected_nodes = {"planner", "image_tool", "reviewer", "responder"}
+        # Check expected nodes (including human_checkpoint)
+        expected_nodes = {"planner", "image_tool", "reviewer", "responder", "human_checkpoint"}
         actual_nodes = set(graph.nodes.keys())
         
         if expected_nodes == actual_nodes:
@@ -56,18 +55,18 @@ async def test_graph_structure():
         return False
 
 
-async def main():
+def main():
     """Run all tests."""
     print("🧪 Testing CogniDAO Image Generation Graph...")
     
     test_results = []
     
     # Test graph creation
-    result1 = await test_graph_creation()
+    result1 = test_graph_creation()
     test_results.append(result1)
     
     # Test graph structure
-    result2 = await test_graph_structure()
+    result2 = test_graph_structure()
     test_results.append(result2)
     
     # Summary
@@ -84,5 +83,35 @@ async def main():
         return False
 
 
+def test_no_event_loop_required():
+    """Test that graph building doesn't require an event loop."""
+    try:
+        # This should work without asyncio.run()
+        build_graph()
+        print("✅ Graph builds without event loop")
+        return True
+    except RuntimeError as e:
+        if "no running event loop" in str(e).lower():
+            print(f"❌ Graph building requires event loop: {e}")
+            return False
+        else:
+            print(f"❌ Unexpected error: {e}")
+            return False
+    except Exception as e:
+        print(f"❌ Graph building failed: {e}")
+        return False
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Test without event loop first
+    print("🧪 Testing graph building without event loop...")
+    no_loop_result = test_no_event_loop_required()
+    
+    if no_loop_result:
+        # Run other tests
+        main_result = main()
+        if not main_result:
+            exit(1)
+    else:
+        print("❌ Event loop dependency test failed")
+        exit(1)

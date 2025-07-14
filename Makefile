@@ -66,6 +66,24 @@ thv-cogni-mcp-local:
 		--env CHROMA_COLLECTION_NAME=cogni_mcp_collection \
 		cogni-mcp:latest
 
+thv-playwright-local:
+	thv run mcp/playwright:latest
+
+thv-git-local:
+	thv run mcp/git:latest
+
+thv-openai-mcp-local:
+	thv run openai-mcp:latest
+
+all-thv-local:
+	make thv-cogni-mcp-local
+	make thv-openai-mcp-local
+	make thv-playwright-local
+	make thv-git-local
+
+all-thv-local-stop:
+	thv stop --all
+
 
 make env:
 	uv sync --group dev --group integration 

@@ -31,12 +31,8 @@ from .mcp_monitor import (
 from .model_binding import ModelBindingManager, get_cached_bound_model
 from .state_types import (
     BaseAgentState,
-    CogniAgentState,
-    PlaywrightAgentState,
-    ImageFlowState,
     GraphConfig,
-    COGNI_SYSTEM_PROMPT,
-    PLAYWRIGHT_SYSTEM_PROMPT,
+    ExtendedGraphConfig,
 )
 from .tool_specs import generate_tool_specs_from_mcp_tools
 
@@ -58,12 +54,8 @@ __all__ = [
     "get_cached_bound_model",
     # State Management
     "BaseAgentState",
-    "CogniAgentState",
-    "PlaywrightAgentState",
-    "ImageFlowState",
     "GraphConfig",
-    "COGNI_SYSTEM_PROMPT",
-    "PLAYWRIGHT_SYSTEM_PROMPT",
+    "ExtendedGraphConfig",
     # Tool Specifications
     "generate_tool_specs_from_mcp_tools",
     # Error Handling
