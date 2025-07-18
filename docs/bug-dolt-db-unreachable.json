@@ -1,0 +1,21 @@
+{
+    "type": "bug",
+    "title": "Cogni Memory (Dolt DB) Unreachable",
+    "description": "The Cogni Memory system, which relies on a Dolt database, is currently unreachable. Attempts to connect to the database fail with a 'Connection refused' error. This suggests that the database server is not running or that the environment configuration for the database connection is incorrect or has been lost. This is a critical issue as it prevents the creation of new memory blocks, such as projects and tasks.",
+    "status": "new",
+    "priority": "P0",
+    "tags": [
+        "bug",
+        "database",
+        "dolt",
+        "connection-error",
+        "environment"
+    ],
+    "created_by": "Gemini Assistant",
+    "reproduction_steps": [
+        "Attempt to create a new work item using the `CreateWorkItem` tool in the MCP.",
+        "Observe the tool failure with a `2003: Can't connect to MySQL server on 'localhost:3306' (61 Connection refused)` error."
+    ],
+    "expected_result": "The `CreateWorkItem` tool should successfully connect to the Dolt database and create a new work item.",
+    "actual_result": "The tool fails to connect to the database, and the work item is not created."
+}

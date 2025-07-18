@@ -1,0 +1,28 @@
+{
+    "type": "project",
+    "title": "LLM Evaluations and Unit Testing for CI/CD",
+    "description": "A research project to explore and select a framework for LLM evaluations and unit testing, integrating it into our CI/CD pipeline. This project has very little initial content; the most important task is research. The primary candidates for investigation are Langfuse and DeepEval. The main goal is to establish a robust process for evaluating and ensuring the quality of our LLM-based systems.",
+    "status": "backlog",
+    "priority": "P0",
+    "tags": [
+        "llm",
+        "evaluation",
+        "testing",
+        "ci-cd",
+        "langfuse",
+        "deepeval",
+        "research"
+    ],
+    "created_by": "Gemini Assistant",
+    "role_hint": "researcher",
+    "action_items": [
+        "Research Langfuse's features for LLM evaluation.",
+        "Research DeepEval's capabilities for unit testing LLMs.",
+        "Create a comparative analysis of Langfuse vs. DeepEval.",
+        "Develop a proposal for an implementation and integration plan into our CI/CD pipeline."
+    ],
+    "acceptance_criteria": [
+        "A document comparing Langfuse and DeepEval with a recommendation for Cogni is produced.",
+        "A proof-of-concept implementation for the chosen framework is created."
+    ]
+}

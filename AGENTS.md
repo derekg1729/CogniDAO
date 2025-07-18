@@ -9,7 +9,6 @@ This repository uses **AGENTS.md** files to guide AI-assisted contributions. Fol
 <core_principles>
   <objective>You will have ONE objective. Know what it is. Is it <feature_planning>, or <debugging>? These require different approaches.</objective>
   <minimal>Minimal, clean changes only. Use existing libraries and functions at all costs. Any custom functions or complexity must be justified</minimal>
-  <memory>Use Cogni-Memory MCP with SetContext for branch/namespace</memory>
   <untested>Untested code is untrusted code - add tests for all changes</untested>
   <commits>Commit messages are contracts - accurately reflect each diff</commits>
 </core_principles>
