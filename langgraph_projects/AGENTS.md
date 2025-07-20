@@ -22,6 +22,10 @@ langgraph_projects/
     │   ├── graph.py        ← Graph definition using shared utilities
     │   ├── agent.py        ← Agent logic separated from infrastructure
     │   └── main.py         ← Entry point for LangGraph deployment
+    ├── layered_cogni_agent/ ← Layered CogniDAO agent architecture
+    │   ├── graph.py        ← Graph definition using shared utilities
+    │   ├── agent.py        ← Agent logic separated from infrastructure
+    │   └── main.py         ← Entry point for LangGraph deployment
     └── playwright_poc/     ← Browser automation graph (75 lines, clean)
         ├── graph.py        ← Graph definition using shared utilities
         ├── agent.py        ← Agent logic separated from infrastructure
