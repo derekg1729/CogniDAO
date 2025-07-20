@@ -14,10 +14,12 @@ from enum import Enum
 
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from dotenv import load_dotenv
 
 from .logging_utils import get_logger
 
 logger = get_logger(__name__)
+load_dotenv()
 
 # MCP is the primary and only tool source - no fallback tools
 

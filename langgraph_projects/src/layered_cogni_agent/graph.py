@@ -2,7 +2,6 @@
 CogniDAO Presence Graph - Simple graph using LangGraph's react agent.
 """
 
-import asyncio
 import os
 from langgraph.graph import StateGraph
 from langgraph.checkpoint.redis import AsyncRedisSaver
@@ -66,5 +65,4 @@ async def build_compiled_graph(use_checkpointer=False, checkpointer=None):
     return workflow.compile()
 
 
-# Export compiled graph for LangGraph dev server
-graph = asyncio.run(build_compiled_graph())
+# Note: Graph is exported from main.py for LangGraph deployment
