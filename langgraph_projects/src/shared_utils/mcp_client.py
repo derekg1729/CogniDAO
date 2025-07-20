@@ -336,7 +336,8 @@ def get_cogni_mcp_manager() -> MCPClientManager:
     """Get the global Cogni MCP manager with reconnection capabilities."""
     global _cogni_mcp_manager
     if _cogni_mcp_manager is None:
-        mcp_url = os.getenv("COGNI_MCP_URL", "http://toolhive:24160/sse")
+        # mcp_url = os.getenv("COGNI_MCP_URL", "http://toolhive:24160/sse")
+        mcp_url = "http://localhost:61279/sse"
         logger.info(f"🔧 Cogni MCP URL resolved to: {mcp_url}")
         
         server_configs = {
