@@ -57,6 +57,16 @@ class KnowledgeRelationType(str, Enum):
     CITED_BY = "cited_by"
 
 
+# Workflow/process specific relation types (EDO pattern)
+class EventDecisionOutcomeRelationType(str, Enum):
+    """Event-Decision-Outcome workflow specific relation types."""
+
+    REASON_FOR = "reason_for"  # Event provides reason for Decision
+    JUSTIFIED_BY = "justified_by"  # Decision is justified by Event
+    CAUSES = "causes"  # Decision causes Outcome
+    CAUSED_BY = "caused_by"  # Outcome is caused by Decision
+
+
 # Collect all relation values into a flat list
 _all_relation_values = [
     e.value
@@ -64,6 +74,7 @@ _all_relation_values = [
     + list(PMRelationType)
     + list(BugRelationType)
     + list(KnowledgeRelationType)
+    + list(EventDecisionOutcomeRelationType)
 ]
 
 # Dynamically generate the RelationType Literal type from all enum values
@@ -76,6 +87,7 @@ RELATION_CATEGORIES = {
     "project_management": [r.value for r in PMRelationType],
     "bug_tracking": [r.value for r in BugRelationType],
     "knowledge": [r.value for r in KnowledgeRelationType],
+    "workflow": [r.value for r in EventDecisionOutcomeRelationType],
 }
 
 
@@ -103,6 +115,11 @@ INVERSE_RELATIONS = {
     # Knowledge relations
     KnowledgeRelationType.SOURCE_OF.value: KnowledgeRelationType.CITED_BY.value,
     KnowledgeRelationType.CITED_BY.value: KnowledgeRelationType.SOURCE_OF.value,
+    # Workflow relations (EDO pattern)
+    EventDecisionOutcomeRelationType.REASON_FOR.value: EventDecisionOutcomeRelationType.JUSTIFIED_BY.value,
+    EventDecisionOutcomeRelationType.JUSTIFIED_BY.value: EventDecisionOutcomeRelationType.REASON_FOR.value,
+    EventDecisionOutcomeRelationType.CAUSES.value: EventDecisionOutcomeRelationType.CAUSED_BY.value,
+    EventDecisionOutcomeRelationType.CAUSED_BY.value: EventDecisionOutcomeRelationType.CAUSES.value,
 }
 
 
@@ -122,7 +139,13 @@ def is_valid_relation(relation: str) -> bool:
 
 # Validation: Check for duplicate relation values across all categories
 _all_values = set()
-for enum_class in [CoreRelationType, PMRelationType, BugRelationType, KnowledgeRelationType]:
+for enum_class in [
+    CoreRelationType,
+    PMRelationType,
+    BugRelationType,
+    KnowledgeRelationType,
+    EventDecisionOutcomeRelationType,
+]:
     for member in enum_class:
         if member.value in _all_values:
             raise ValueError(f"Duplicate relation value: {member.value}")
