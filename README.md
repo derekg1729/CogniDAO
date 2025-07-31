@@ -75,6 +75,13 @@ This project uses a schema-first approach for API development:
 **Requirements:**
 - Python dependencies (managed by UV workspace in pyproject.toml)
 - Node.js with npm (for TypeScript code generation)
+- direnv (for automatic environment variable loading)
+
+To install direnv (macOS):
+```bash
+brew install direnv
+direnv allow
+```
 
 To install the TypeScript code generator:
 ```bash
