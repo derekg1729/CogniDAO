@@ -11,6 +11,7 @@ from typing import Dict, Any
 from src.shared_utils import get_logger
 from src.shared_utils.tool_specs import generate_tool_specs_from_mcp_tools
 from src.shared_utils.tool_registry import get_tools
+from src.shared_utils.edo_tools import write_handoff_summary
 from src.edo_layered_agent.state_types import CogniAgentState
 
 # EDO functionality moved to explicit graph nodes
@@ -57,8 +58,9 @@ async def create_agent_node():
     # Get tools (MCP client handles all connection logic internally)
     tools = await get_tools("cogni")
 
-    # Add our test tool
+    # Add our test tool and EDO handoff tool
     tools.append(test_tool)
+    tools.append(write_handoff_summary)
 
     # Create prompt with static values using .partial()
     tool_specs = generate_tool_specs_from_mcp_tools(tools)

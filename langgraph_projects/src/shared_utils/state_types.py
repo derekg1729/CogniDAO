@@ -5,7 +5,7 @@ Provides shared TypedDict definitions and configuration schemas.
 """
 
 from collections.abc import Sequence
-from typing import Annotated, Literal, TypedDict, Dict, Any
+from typing import Annotated, Literal, TypedDict, Dict, Any, List
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph import add_messages
@@ -17,6 +17,15 @@ class BaseAgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
     remaining_steps: int  # Required for create_react_agent
     structured_response: Dict[str, Any]  # Required when using response_format
+
+
+class EDOAgentState(BaseAgentState):
+    """State for agents using the Event-Decision-Outcome pattern."""
+    
+    # EDO pattern fields
+    edo_current_event: Dict[str, Any] | None = None  # Current event block from edo loader
+    edo_reasoning_context: List[Dict[str, Any]] = []  # Related blocks from edo loader  
+    edo_handoff_summary: str | None = None  # Generated summary for next agent
 
 
 class GraphConfig(TypedDict):

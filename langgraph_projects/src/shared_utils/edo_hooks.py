@@ -130,7 +130,11 @@ async def edo_decision_writer_node(
             logger.error("Required tools not found")
             return state
 
-        decision_content = getattr(state.get("messages", [{}])[-1], "content", "No decision")
+        # Use handoff summary if available, otherwise fall back to last message content
+        handoff_summary = state.get("edo_handoff_summary")
+
+        # TODO - better conditional branching if no handoff summary exists
+        decision_content = handoff_summary or getattr(state.get("messages", [{}])[-1], "content", "No decision")
 
         # Create Decision
         decision_result = await create_memory_tool.ainvoke(
