@@ -2,7 +2,6 @@
 
 import json
 from typing import Dict, Any, Optional
-from langchain_core.messages import SystemMessage
 from .logging_utils import get_logger
 from .tool_registry import get_tools
 
@@ -81,24 +80,8 @@ async def edo_event_loader_node(state: Dict[str, Any]) -> Dict[str, Any]:
             else:
                 state["edo_reasoning_context"] = []
 
-            # Inject context
-            if "messages" not in state:
-                state["messages"] = []
-            state["messages"].insert(
-                0,
-                SystemMessage(
-                    content=f"""**EDO EVENT:**
-{event_block.get("title", "No title")} - {event_block.get("text", "")[:500]}...
-**TASK:** Analyze and provide structured decision."""
-                ),
-            )
-
-            if state.get("edo_reasoning_context"):
-                context_msg = (
-                    f"""**CONTEXT:** {len(state["edo_reasoning_context"])} related blocks"""
-                )
-                state["messages"].insert(1, SystemMessage(content=context_msg))
         else:
+            logger.warning("No unprocessed events found")
             state.update({"edo_current_event": None, "edo_reasoning_context": []})
 
     except Exception as e:
