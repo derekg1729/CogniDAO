@@ -1,15 +1,21 @@
 """EDO utilities for LangGraph agents - simplified implementation."""
 
 import json
+from datetime import datetime
 from typing import Dict, Any, Optional
+from langgraph.types import RunnableConfig
 from .logging_utils import get_logger
 from .tool_registry import get_tools
 
 logger = get_logger(__name__)
 
 
-async def edo_event_loader_node(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Load unprocessed Events (log blocks with no incoming reason_for links)."""
+async def edo_event_loader_node(
+    state: Dict[str, Any], 
+    config: RunnableConfig,
+    agent_id: str
+) -> Dict[str, Any]:
+    """Load unprocessed Events (log blocks with no incoming reason_for links) for specific agent."""
     logger.info("📥 Loading events...")
 
     try:
@@ -26,7 +32,13 @@ async def edo_event_loader_node(state: Dict[str, Any]) -> Dict[str, Any]:
             state.update({"edo_current_event": None, "edo_reasoning_context": []})
             return state
 
-        result = await get_memory_tool.ainvoke({"type_filter": "log", "limit": "10"})
+        # Filter by agent_id
+        metadata_filters = f'{{"x_agent_id": "{agent_id}"}}'
+        result = await get_memory_tool.ainvoke({
+            "type_filter": "log", 
+            "limit": "1",
+            "metadata_filters": metadata_filters
+        })
         if isinstance(result, str):
             result = json.loads(result)
 
@@ -91,8 +103,14 @@ async def edo_event_loader_node(state: Dict[str, Any]) -> Dict[str, Any]:
     return state
 
 
-async def edo_decision_writer_node(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Write Decision and Outcome blocks, create EDO links."""
+async def edo_decision_writer_node(
+    state: Dict[str, Any], 
+    config: RunnableConfig,
+    agent_id: str
+) -> Dict[str, Any]:
+    """Write Decision and Outcome blocks with agent metadata, create EDO links."""
+    thread_id = config["configurable"]["thread_id"]
+    timestamp = datetime.utcnow().isoformat()
     current_event = state.get("edo_current_event")
     if not current_event:
         return state
@@ -120,7 +138,7 @@ async def edo_decision_writer_node(state: Dict[str, Any]) -> Dict[str, Any]:
                 "type": "log",
                 "content": decision_content,
                 "title": f"Decision: {current_event.get('title', 'Event')}",
-                "metadata": '{"edo_phase": "decision", "actor": "edo_agent"}',
+                "metadata": f'{{"edo_phase": "decision", "actor": "edo_agent", "x_agent_id": "{agent_id}", "x_thread_id": "{thread_id}", "x_timestamp": "{timestamp}"}}',
             }
         )
         if isinstance(decision_result, str):
@@ -146,7 +164,7 @@ async def edo_decision_writer_node(state: Dict[str, Any]) -> Dict[str, Any]:
                         "type": "log",
                         "content": "Outcome pending...",
                         "title": f"Outcome: {current_event.get('title', 'Event')}",
-                        "metadata": '{"edo_phase": "outcome", "actor": "pending"}',
+                        "metadata": f'{{"edo_phase": "outcome", "actor": "pending", "x_agent_id": "{agent_id}", "x_thread_id": "{thread_id}", "x_timestamp": "{timestamp}"}}',
                     }
                 )
                 if isinstance(outcome_result, str):
@@ -193,7 +211,7 @@ async def create_mock_event(title: str, content: str) -> Optional[str]:
                 "type": "log",
                 "content": content,
                 "title": title,
-                "metadata": '{"x_agent_id": "system", "component": "edo_agent"}',
+                "metadata": f'{{"x_agent_id": "system", "component": "edo_agent", "x_timestamp": "{datetime.utcnow().isoformat()}"}}'
             }
         )
         if isinstance(result, str):

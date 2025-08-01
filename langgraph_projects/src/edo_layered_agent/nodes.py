@@ -3,6 +3,7 @@ EDO Layered Agent Nodes - Event-Decision-Outcome workflow nodes.
 """
 
 import sys
+from functools import partial
 from pathlib import Path
 from typing import Dict, Any
 
@@ -17,13 +18,13 @@ logger = get_logger(__name__)
 
 
 def create_edo_event_loader():
-    """Create EDO event loader node."""
-    return edo_event_loader_node
+    """Create EDO event loader node with agent_id bound."""
+    return partial(edo_event_loader_node, agent_id="edo_layered_agent")
 
 
 def create_edo_decision_writer():
-    """Create EDO decision writer node.""" 
-    return edo_decision_writer_node
+    """Create EDO decision writer node with agent_id bound.""" 
+    return partial(edo_decision_writer_node, agent_id="edo_layered_agent")
 
 
 def create_passthrough_node():
