@@ -20,7 +20,7 @@ def write_todos(
         update={
             "todos": todos,
             "messages": [
-                ToolMessage(f"Updated todo list to {todos}", tool_call_id=tool_call_id)
+                ToolMessage(todos, tool_call_id=tool_call_id)
             ],
         }
     )
