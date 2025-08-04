@@ -1,3 +1,4 @@
+import json
 from langchain_core.tools import tool, InjectedToolCallId
 from langgraph.types import Command
 from langchain_core.messages import ToolMessage
@@ -20,7 +21,7 @@ def write_todos(
         update={
             "todos": todos,
             "messages": [
-                ToolMessage(todos, tool_call_id=tool_call_id)
+                ToolMessage(json.dumps(todos), tool_call_id=tool_call_id)
             ],
         }
     )
