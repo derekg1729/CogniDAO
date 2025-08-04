@@ -8,7 +8,8 @@
         "simple_cogni_agent": "./langgraph_projects/src/simple_cogni_agent/main.py:graph",
         "layered_cogni_agent": "./langgraph_projects/src/layered_cogni_agent/main.py:graph",
         "edo_layered_agent  ": "./langgraph_projects/src/edo_layered_agent/main.py:graph",
-        "cogni_image_gen": "./langgraph_projects/src/cogni_image_gen/main.py:graph"
+        "cogni_image_gen": "./langgraph_projects/src/cogni_image_gen/main.py:graph",
+        "research_deepagent": "./langgraph_projects/src/research_deepagent/agent.py:agent"
     },
     "env": [
         "OPENAI_API_KEY",
@@ -17,7 +18,8 @@
         "REDIS_URL",
         "COGNI_MCP_URL",
         "PLAYWRIGHT_MCP_URL",
-        "OPENAI_MCP_URL"
+        "OPENAI_MCP_URL",
+        "TAVILY_API_KEY"
     ],
     "python_version": "3.11"
 }
