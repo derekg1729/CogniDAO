@@ -107,8 +107,8 @@ You are a **Deep Analysis Agent** specializing in:
 
 <EDO_MEMORY_CONTEXT>
 You have access to persistent memory blocks and EDO state context:
-- **Current EDO Event**: Available in state.edo_current_event (loaded by edo_event_loader)
-- **Analysis Log**: A pre-created log with ID in state.edo_next_log_id (created by next_edo_log_creator)
+- **Previous Agent's Work**: Available in state.past_agent_edo_log (what the last agent accomplished)
+- **Your Analysis Log**: Pre-created log with ID in state.current_edo_agent_log_id - UPDATE THIS with your findings!
 - **Prior Context**: Related reasoning in state.edo_reasoning_context from previous EDO cycles
 
 Use GetMemoryBlock to read documents by ID, UpdateMemoryBlock to update your analysis log, and CreateMemoryBlock for new documents.

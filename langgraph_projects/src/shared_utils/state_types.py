@@ -23,13 +23,13 @@ class EDOAgentState(BaseAgentState):
     """State for agents using the Event-Decision-Outcome pattern."""
     
     # EDO pattern fields
-    edo_current_event: Dict[str, Any] | None = None  # Current event block from edo loader
+    past_agent_edo_log: Dict[str, Any] | None = None  # Previous agent's EDO log/work
     edo_reasoning_context: List[Dict[str, Any]] = []  # Related blocks from edo loader  
     edo_handoff_summary: str | None = None  # Generated summary for next agent
     
     # New EDO pattern fields (redesigned flow)
-    edo_next_log_id: str | None = None  # ID of the next log block for agent to update
-    edo_next_log: Dict[str, Any] | None = None  # Full next log block data
+    current_edo_agent_log_id: str | None = None  # ID of current agent's analysis log
+    current_edo_agent_log: Dict[str, Any] | None = None  # Current agent's analysis log data
 
 
 class GraphConfig(TypedDict):

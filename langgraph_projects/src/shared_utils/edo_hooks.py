@@ -29,7 +29,7 @@ async def edo_event_loader_node(
 
         if not get_memory_tool:
             logger.error("GetMemoryBlock tool not found")
-            state.update({"edo_current_event": None, "edo_reasoning_context": []})
+            state.update({"past_agent_edo_log": None, "edo_reasoning_context": []})
             return state
 
         # Filter by agent_id
@@ -44,12 +44,12 @@ async def edo_event_loader_node(
 
         if not (result and result.get("success") and result.get("blocks")):
             logger.warning("No log blocks found")
-            state.update({"edo_current_event": None, "edo_reasoning_context": []})
+            state.update({"past_agent_edo_log": None, "edo_reasoning_context": []})
             return state
 
         blocks = result.get("blocks", [])
         if not blocks:
-            state.update({"edo_current_event": None, "edo_reasoning_context": []})
+            state.update({"past_agent_edo_log": None, "edo_reasoning_context": []})
             return state
 
         # Find unprocessed event
@@ -78,7 +78,7 @@ async def edo_event_loader_node(
 
         if event_block:
             logger.info(f"Found event: {event_block['id']}")
-            state["edo_current_event"] = event_block
+            state["past_agent_edo_log"] = event_block
 
             # Get context
             if get_linked_tool:
@@ -94,11 +94,11 @@ async def edo_event_loader_node(
 
         else:
             logger.warning("No unprocessed events found")
-            state.update({"edo_current_event": None, "edo_reasoning_context": []})
+            state.update({"past_agent_edo_log": None, "edo_reasoning_context": []})
 
     except Exception as e:
         logger.error(f"Event loader failed: {e}")
-        state.update({"edo_current_event": None, "edo_reasoning_context": []})
+        state.update({"past_agent_edo_log": None, "edo_reasoning_context": []})
 
     return state
 
@@ -111,11 +111,11 @@ async def next_edo_log_creator_node(
     """Create next EDO log linked to previous log, for agent to write findings into."""
     thread_id = config["configurable"]["thread_id"]
     timestamp = datetime.utcnow().isoformat()
-    current_event = state.get("edo_current_event")
-    if not current_event:
+    past_log = state.get("past_agent_edo_log")
+    if not past_log:
         return state
 
-    logger.info(f"📝 Creating next EDO log for {current_event['id']}")
+    logger.info(f"📝 Creating next EDO log for {past_log['id']}")
 
     try:
         tools = await get_tools("cogni")
@@ -135,7 +135,7 @@ async def next_edo_log_creator_node(
             {
                 "type": "log",
                 "content": "Agent analysis and findings will be written here...",
-                "title": f"Analysis: {current_event.get('title', 'Event')}",
+                "title": f"Analysis: {past_log.get('title', 'Event')}",
                 "x_agent_id": agent_id,
                 "x_timestamp": timestamp,
                 "x_thread_id": thread_id,
@@ -152,7 +152,7 @@ async def next_edo_log_creator_node(
                 # Link Previous Event → Next Log
                 link_result = await create_link_tool.ainvoke(
                     {
-                        "source_block_id": current_event["id"],
+                        "source_block_id": past_log["id"],
                         "target_block_id": next_log_id,
                         "relation": "reason_for",
                     }
@@ -160,10 +160,10 @@ async def next_edo_log_creator_node(
                 if isinstance(link_result, str):
                     link_result = json.loads(link_result)
 
-                logger.info(f"✅ Created next EDO log: {current_event['id']} → {next_log_id}")
+                logger.info(f"✅ Created next EDO log: {past_log['id']} → {next_log_id}")
                 state.update({
-                    "edo_next_log_id": next_log_id,
-                    "edo_next_log": next_log_result.get("block")
+                    "current_edo_agent_log_id": next_log_id,
+                    "current_edo_agent_log": next_log_result.get("block")
                 })
 
     except Exception as e:

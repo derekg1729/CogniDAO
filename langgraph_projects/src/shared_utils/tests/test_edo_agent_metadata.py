@@ -23,7 +23,7 @@ def mock_state():
     """Mock state with messages."""
     return {
         "messages": [type('Message', (), {'content': 'Test decision content'})()],
-        "edo_current_event": {
+        "past_agent_edo_log": {
             "id": "event_123",
             "title": "Test Event",
             "content": "Test event content"

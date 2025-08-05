@@ -32,7 +32,7 @@ class ResponseFormat(BaseModel):
 def pre_model_hook(state):
     """Inject EDO context as SystemMessage before each LLM call."""
     # Get EDO context from state
-    edo_context = state.get("edo_current_event", {})
+    edo_context = state.get("past_agent_edo_log", {})
 
     # Create SystemMessage with EDO context
     if edo_context:
