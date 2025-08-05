@@ -8,7 +8,7 @@ from langgraph.checkpoint.redis import AsyncRedisSaver
 from src.shared_utils import GraphConfig, get_logger
 from .state_types import CogniAgentState
 
-from .agent import create_agent_node
+from .agent import create_deepagent_node
 from .nodes import create_edo_event_loader, create_next_edo_log_creator
 
 logger = get_logger(__name__)
@@ -19,7 +19,7 @@ async def build_graph() -> StateGraph:
     # Create all nodes
     edo_event_loader = create_edo_event_loader()
     next_edo_log_creator = create_next_edo_log_creator()
-    agent_node = await create_agent_node()
+    agent_node = await create_deepagent_node()  # Swap: use DeepAgent instead
 
     # Build the workflow - New EDO pattern: Event Loader -> Log Creator -> Agent
     workflow = StateGraph(CogniAgentState, config_schema=GraphConfig)

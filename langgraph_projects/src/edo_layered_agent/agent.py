@@ -14,8 +14,11 @@ from src.shared_utils.tool_registry import get_tools
 from src.shared_utils.edo_tools import write_handoff_summary
 from src.edo_layered_agent.state_types import CogniAgentState
 
+# DeepAgent integration
+from src.shared_agent_frameworks.deepagents import create_deep_agent
+
 # EDO functionality moved to explicit graph nodes
-from .prompts import EDO_PROTOTYPE_AGENT_PROMPT
+from .prompts import EDO_PROTOTYPE_AGENT_PROMPT, EDO_DEEPAGENT_INSTRUCTIONS
 
 logger = get_logger(__name__)
 
@@ -99,3 +102,36 @@ def should_continue(state) -> str:
         return "continue"
 
     return "end"
+
+
+async def create_deepagent_node():
+    """Create EDO DeepAgent with MCP memory tools and EDO-specific capabilities."""
+    logger.info("🧠 Creating EDO DeepAgent node...")
+    
+    # Get MCP tools for persistent memory blocks
+    mcp_tools = await get_tools("cogni")
+    
+    # Filter to the 3 memory block tools we need for persistent storage
+    memory_tools = [
+        tool for tool in mcp_tools 
+        if hasattr(tool, 'name') and tool.name in ["GetMemoryBlock", "CreateMemoryBlock", "UpdateMemoryBlock"]
+    ]
+    
+    # Add EDO-specific tools
+    edo_tools = [test_tool, write_handoff_summary]
+    
+    # Combine all tools for DeepAgent
+    all_tools = memory_tools + edo_tools
+    
+    logger.info(f"🔧 DeepAgent configured with {len(all_tools)} tools: {len(memory_tools)} memory + {len(edo_tools)} EDO tools")
+    
+    # Create DeepAgent with EDO-specific instructions and state schema
+    deepagent = create_deep_agent(
+        tools=all_tools,
+        instructions=EDO_DEEPAGENT_INSTRUCTIONS,
+        subagents=[],  # Could add research/critique subagents later
+        state_schema=CogniAgentState,  # Use EDO state schema for compatibility
+    )
+    
+    logger.info("✅ EDO DeepAgent node created successfully")
+    return deepagent
