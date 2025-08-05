@@ -1,6 +1,6 @@
 from .sub_agent import _create_task_tool, SubAgent
 from .model import get_default_model
-from .tools import write_todos, write_file, read_file, ls, edit_file
+from .tools import write_todos
 from .state import DeepAgentState
 from typing import Sequence, Union, Callable, Any, TypeVar, Type, Optional
 from langchain_core.tools import BaseTool
@@ -28,36 +28,43 @@ def create_deep_agent(
     tools: Sequence[Union[BaseTool, Callable, dict[str, Any]]],
     instructions: str,
     model: Optional[Union[str, LanguageModelLike]] = None,
-    subagents: list[SubAgent] = None,
+    subagents: Sequence[SubAgent] = (),
     state_schema: Optional[StateSchemaType] = None,
 ):
-    """Create a deep agent.
+    """Create a deep agent. Caller provides all tools including MCP memory tools.
 
-    This agent will by default have access to a tool to write todos (write_todos),
-    and then four file editing tools: write_file, ls, read_file, edit_file.
+    This agent will by default have access to:
+    - write_todos: Task management tool
+
+    The caller should provide MCP memory tools (GetMemoryBlock, CreateMemoryBlock, 
+    UpdateMemoryBlock) in the tools parameter for persistent document storage.
 
     Args:
-        tools: The additional tools the agent should have access to.
-        instructions: The additional instructions the agent should have. Will go in
-            the system prompt.
+        tools: All tools the agent should have access to, including MCP memory tools.
+        instructions: Additional instructions for the agent. Will be appended to
+            the base system prompt.
         model: The model to use.
-        subagents: The subagents to use. Each subagent should be a dictionary with the
-            following keys:
+        subagents: The subagents to use. Each subagent should have:
                 - `name`
                 - `description` (used by the main agent to decide whether to call the sub agent)
                 - `prompt` (used as the system prompt in the subagent)
                 - (optional) `tools`
         state_schema: The schema of the deep agent. Should subclass from DeepAgentState
     """
-    prompt = instructions + base_prompt
-    built_in_tools = [write_todos, write_file, read_file, ls, edit_file]
+    # Fix prompt ordering: base system rules first, then caller instructions
+    prompt = base_prompt + instructions
+    
+    # Simple built-in tools: just todos (no async I/O)
+    built_in_tools = [write_todos]
+    
     if model is None:
         model = get_default_model()
     state_schema = state_schema or DeepAgentState
+    
     task_tool = _create_task_tool(
         list(tools) + built_in_tools,
         instructions,
-        subagents or [],
+        subagents,
         model,
         state_schema
     )

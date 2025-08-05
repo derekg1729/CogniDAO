@@ -20,6 +20,17 @@ def file_reducer(left, right):
         return {**left, **right}
 
 
+def blocks_reducer(left, right):
+    """Reducer for relevant_blocks dictionary."""
+    if left is None:
+        return right
+    elif right is None:
+        return left
+    else:
+        return {**left, **right}
+
+
 class DeepAgentState(AgentState):
     todos: NotRequired[list[Todo]]
-    files: Annotated[NotRequired[dict[str, str]], file_reducer]
+    files: Annotated[NotRequired[dict[str, str]], file_reducer]  # Legacy mock filesystem
+    relevant_blocks: Annotated[NotRequired[dict[str, str]], blocks_reducer]  # block_id -> block_title mapping

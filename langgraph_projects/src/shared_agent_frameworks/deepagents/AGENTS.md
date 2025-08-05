@@ -1,5 +1,51 @@
 # DeepAgents Framework - Tool Message Patterns
 
+## MCP Memory Tool Integration - REQUIRED
+
+**ALL DeepAgent instantiations MUST create async MCP connection to CogniDAO memory tools.**
+
+### Required Pattern
+
+```python
+async def create_agent():
+    """Create agent with MCP memory tools for persistent document storage."""
+    # Get MCP tools for persistent memory blocks
+    mcp_tools = await get_tools("cogni")
+    
+    # Filter to the 3 memory block tools we need
+    memory_tools = [tool for tool in mcp_tools if hasattr(tool, 'name') and 
+                   tool.name in ["GetMemoryBlock", "CreateMemoryBlock", "UpdateMemoryBlock"]]
+    
+    # Combine your tools with MCP memory tools
+    all_tools = your_custom_tools + memory_tools
+    
+    # Create DeepAgent with persistent memory capability
+    return create_deep_agent(
+        tools=all_tools,  # Always include MCP memory tools
+        instructions=your_instructions,
+        subagents=your_subagents
+    )
+
+# Create agent synchronously at module level for LangGraph compatibility
+agent = asyncio.run(create_agent())
+```
+
+### What Changed from the original source (https://github.com/hwchase17/deepagents):
+
+- ❌ **Old**: Mock filesystem using `state["files"]` dictionary (ephemeral)
+- ✅ **New**: MCP memory tools for persistent document storage
+- ❌ **Old**: `write_file`, `read_file`, `edit_file`, `ls` (mock tools)
+- ✅ **New**: `CreateMemoryBlock`, `GetMemoryBlock`, `UpdateMemoryBlock` (persistent)
+- ✅ **Keep**: `write_todos` (unchanged)
+- 📝 **Future**: Local contextual memory block list in LangGraph state (Task: b64f26ac-6539-4da6-ae0f-34bc48237cf1)
+
+### Architecture Benefits
+
+1. **Persistent Storage**: Documents survive across agent sessions
+2. **External Tool Injection**: No async/sync mixing in framework
+3. **Caller Responsibility**: Async MCP loading happens where async context exists
+4. **LangGraph Compatible**: `create_deep_agent()` stays synchronous
+
 ## Todo List as Conversational Memory
 
 The `write_todos` tool uses a simple but effective pattern: treating conversation history as ephemeral task storage, similar to approaches in Claude Code and LangGraph demos.

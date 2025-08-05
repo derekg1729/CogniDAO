@@ -1,10 +1,11 @@
 import os
+import asyncio
 from typing import Literal
 
 from tavily import TavilyClient
 
-
 from shared_agent_frameworks.deepagents import create_deep_agent
+from shared_utils.tool_registry import get_tools
 
 
 # Search tool to use to do research
@@ -157,9 +158,23 @@ You have access to a few tools.
 Use this to run an internet search for a given query. You can specify the number of results, the topic, and whether raw content should be included.
 """
 
-# Create the agent
-agent = create_deep_agent(
-    [internet_search],
-    research_instructions,
-    subagents=[critique_sub_agent, research_sub_agent],
-).with_config({"recursion_limit": 1000})
+async def create_agent():
+    """Create the research agent with MCP memory tools."""
+    # Get MCP tools for persistent memory blocks
+    mcp_tools = await get_tools("cogni")
+    
+    # Filter to the 3 memory block tools we need
+    memory_tools = [tool for tool in mcp_tools if hasattr(tool, 'name') and tool.name in ["GetMemoryBlock", "CreateMemoryBlock", "UpdateMemoryBlock"]]
+    
+    # Combine internet search with memory tools
+    agent_tools = [internet_search] + memory_tools
+    
+    # Create the agent with both internet search and memory persistence
+    return create_deep_agent(
+        agent_tools,
+        research_instructions,
+        subagents=[critique_sub_agent, research_sub_agent],
+    ).with_config({"recursion_limit": 1000})
+
+# Create the agent synchronously using asyncio
+agent = asyncio.run(create_agent())
