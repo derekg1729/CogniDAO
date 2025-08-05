@@ -26,6 +26,10 @@ class EDOAgentState(BaseAgentState):
     edo_current_event: Dict[str, Any] | None = None  # Current event block from edo loader
     edo_reasoning_context: List[Dict[str, Any]] = []  # Related blocks from edo loader  
     edo_handoff_summary: str | None = None  # Generated summary for next agent
+    
+    # New EDO pattern fields (redesigned flow)
+    edo_next_log_id: str | None = None  # ID of the next log block for agent to update
+    edo_next_log: Dict[str, Any] | None = None  # Full next log block data
 
 
 class GraphConfig(TypedDict):

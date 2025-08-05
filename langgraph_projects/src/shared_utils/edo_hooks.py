@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from langgraph.types import RunnableConfig
 from .logging_utils import get_logger
 from .tool_registry import get_tools
@@ -103,19 +103,19 @@ async def edo_event_loader_node(
     return state
 
 
-async def edo_decision_writer_node(
+async def next_edo_log_creator_node(
     state: Dict[str, Any], 
     config: RunnableConfig,
     agent_id: str
 ) -> Dict[str, Any]:
-    """Write Decision and Outcome blocks with agent metadata, create EDO links."""
+    """Create next EDO log linked to previous log, for agent to write findings into."""
     thread_id = config["configurable"]["thread_id"]
     timestamp = datetime.utcnow().isoformat()
     current_event = state.get("edo_current_event")
     if not current_event:
         return state
 
-    logger.info(f"📤 Writing decision for {current_event['id']}")
+    logger.info(f"📝 Creating next EDO log for {current_event['id']}")
 
     try:
         tools = await get_tools("cogni")
@@ -130,103 +130,45 @@ async def edo_decision_writer_node(
             logger.error("Required tools not found")
             return state
 
-        # Use handoff summary if available, otherwise fall back to last message content
-        handoff_summary = state.get("edo_handoff_summary")
-
-        # TODO - better conditional branching if no handoff summary exists
-        decision_content = handoff_summary or getattr(state.get("messages", [{}])[-1], "content", "No decision")
-
-        # Create Decision
-        decision_result = await create_memory_tool.ainvoke(
+        # Create blank next EDO log for agent to write into
+        next_log_result = await create_memory_tool.ainvoke(
             {
                 "type": "log",
-                "content": decision_content,
-                "title": f"Decision: {current_event.get('title', 'Event')}",
-                "metadata": f'{{"edo_phase": "decision", "actor": "edo_agent", "x_agent_id": "{agent_id}", "x_thread_id": "{thread_id}", "x_timestamp": "{timestamp}"}}',
+                "content": "Agent analysis and findings will be written here...",
+                "title": f"Analysis: {current_event.get('title', 'Event')}",
+                "x_agent_id": agent_id,
+                "x_timestamp": timestamp,
+                "x_thread_id": thread_id,
             }
         )
-        if isinstance(decision_result, str):
-            decision_result = json.loads(decision_result)
+        if isinstance(next_log_result, str):
+            next_log_result = json.loads(next_log_result)
+        
+        logger.info(f"🔍 Next log creation result: {next_log_result}")
 
-        if decision_result and decision_result.get("success"):
-            decision_id = decision_result.get("block_id")
-            if decision_id:
-                # Link Event → Decision
+        if next_log_result and next_log_result.get("success"):
+            next_log_id = next_log_result.get("id")
+            if next_log_id:
+                # Link Previous Event → Next Log
                 link_result = await create_link_tool.ainvoke(
                     {
                         "source_block_id": current_event["id"],
-                        "target_block_id": decision_id,
+                        "target_block_id": next_log_id,
                         "relation": "reason_for",
                     }
                 )
                 if isinstance(link_result, str):
                     link_result = json.loads(link_result)
 
-                # Create Outcome
-                outcome_result = await create_memory_tool.ainvoke(
-                    {
-                        "type": "log",
-                        "content": "Outcome pending...",
-                        "title": f"Outcome: {current_event.get('title', 'Event')}",
-                        "metadata": f'{{"edo_phase": "outcome", "actor": "pending", "x_agent_id": "{agent_id}", "x_thread_id": "{thread_id}", "x_timestamp": "{timestamp}"}}',
-                    }
-                )
-                if isinstance(outcome_result, str):
-                    outcome_result = json.loads(outcome_result)
-
-                if outcome_result and outcome_result.get("success"):
-                    outcome_id = outcome_result.get("block_id")
-                    if outcome_id:
-                        # Link Decision → Outcome
-                        link_result2 = await create_link_tool.ainvoke(
-                            {
-                                "source_block_id": decision_id,
-                                "target_block_id": outcome_id,
-                                "relation": "causes",
-                            }
-                        )
-                        if isinstance(link_result2, str):
-                            link_result2 = json.loads(link_result2)
-
-                        logger.info(
-                            f"✅ EDO chain: {current_event['id']} → {decision_id} → {outcome_id}"
-                        )
-                        state.update({"edo_decision_id": decision_id, "edo_outcome_id": outcome_id})
+                logger.info(f"✅ Created next EDO log: {current_event['id']} → {next_log_id}")
+                state.update({
+                    "edo_next_log_id": next_log_id,
+                    "edo_next_log": next_log_result.get("block")
+                })
 
     except Exception as e:
-        logger.error(f"Decision writer failed: {e}")
+        logger.error(f"Next EDO log creation failed: {e}")
 
     return state
 
 
-async def create_mock_event(title: str, content: str) -> Optional[str]:
-    """Create mock event for testing."""
-    try:
-        tools = await get_tools("cogni")
-        create_tool = next(
-            (t for t in tools if hasattr(t, "name") and t.name == "CreateMemoryBlock"), None
-        )
-
-        if not create_tool:
-            return None
-
-        result = await create_tool.ainvoke(
-            {
-                "type": "log",
-                "content": content,
-                "title": title,
-                "metadata": f'{{"x_agent_id": "system", "component": "edo_agent", "x_timestamp": "{datetime.utcnow().isoformat()}"}}'
-            }
-        )
-        if isinstance(result, str):
-            result = json.loads(result)
-
-        if result and result.get("success"):
-            block_id = result.get("block_id")
-            if block_id:
-                logger.info(f"📝 Created event: {block_id}")
-                return block_id
-    except Exception as e:
-        logger.error(f"Mock event creation failed: {e}")
-
-    return None

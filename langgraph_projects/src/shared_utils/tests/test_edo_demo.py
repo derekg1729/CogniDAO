@@ -30,7 +30,7 @@ async def create_demo_events():
     
     created_events = []
     for event in events:
-        event_id = await create_mock_event(event["title"], event["content"])
+        event_id = await create_mock_event(event["title"], event["content"], "edo_layered_agent")
         if event_id:
             created_events.append(event_id)
             

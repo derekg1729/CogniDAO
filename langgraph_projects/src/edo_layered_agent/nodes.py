@@ -12,7 +12,7 @@ src_path = Path(__file__).parent.parent
 sys.path.insert(0, str(src_path))
 
 from src.shared_utils import get_logger  # noqa: E402
-from src.shared_utils.edo_hooks import edo_event_loader_node, edo_decision_writer_node  # noqa: E402
+from src.shared_utils.edo_hooks import edo_event_loader_node, next_edo_log_creator_node  # noqa: E402
 
 logger = get_logger(__name__)
 
@@ -22,9 +22,9 @@ def create_edo_event_loader():
     return partial(edo_event_loader_node, agent_id="edo_layered_agent")
 
 
-def create_edo_decision_writer():
-    """Create EDO decision writer node with agent_id bound.""" 
-    return partial(edo_decision_writer_node, agent_id="edo_layered_agent")
+def create_next_edo_log_creator():
+    """Create next EDO log creator node with agent_id bound.""" 
+    return partial(next_edo_log_creator_node, agent_id="edo_layered_agent")
 
 
 def create_passthrough_node():

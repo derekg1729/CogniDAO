@@ -9,7 +9,7 @@ from src.shared_utils import GraphConfig, get_logger
 from .state_types import CogniAgentState
 
 from .agent import create_agent_node
-from .nodes import create_edo_event_loader, create_edo_decision_writer
+from .nodes import create_edo_event_loader, create_next_edo_log_creator
 
 logger = get_logger(__name__)
 
@@ -18,20 +18,20 @@ async def build_graph() -> StateGraph:
     """Build the EDO Layered Agent workflow with explicit EDO nodes."""
     # Create all nodes
     edo_event_loader = create_edo_event_loader()
+    next_edo_log_creator = create_next_edo_log_creator()
     agent_node = await create_agent_node()
-    edo_decision_writer = create_edo_decision_writer()
 
-    # Build the workflow - EDO pattern: Event Loader -> Agent -> Decision Writer
+    # Build the workflow - New EDO pattern: Event Loader -> Log Creator -> Agent
     workflow = StateGraph(CogniAgentState, config_schema=GraphConfig)
     workflow.add_node("edo_event_loader", edo_event_loader)
+    workflow.add_node("next_edo_log_creator", next_edo_log_creator)
     workflow.add_node("agent", agent_node)
-    workflow.add_node("edo_decision_writer", edo_decision_writer)
     
-    # EDO flow: Load Event -> Agent Decision -> Write Decision & Outcome
+    # New EDO flow: Load Previous Log -> Create Next Log -> Agent Writes to Log
     workflow.set_entry_point("edo_event_loader")
-    workflow.add_edge("edo_event_loader", "agent")
-    workflow.add_edge("agent", "edo_decision_writer")
-    workflow.set_finish_point("edo_decision_writer")
+    workflow.add_edge("edo_event_loader", "next_edo_log_creator")
+    workflow.add_edge("next_edo_log_creator", "agent")
+    workflow.set_finish_point("agent")
 
     logger.info(f"✅ EDO Layered Agent graph built with {len(workflow.nodes)} nodes")
     return workflow
