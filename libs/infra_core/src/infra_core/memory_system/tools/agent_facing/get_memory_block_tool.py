@@ -95,7 +95,7 @@ def get_memory_block_tool(
 # Create the tool instance
 get_memory_block_tool_instance = CogniTool(
     name="GetMemoryBlock",
-    description="Retrieves memory blocks by ID(s) or with filtering parameters.",
+    description="Retrieves memory blocks by ID(s) or with filtering parameters. IMPORTANT: block_ids must be a LIST format. Examples: {\"block_ids\": [\"abc123\"]} for single block, {\"block_ids\": [\"abc123\", \"def456\", \"ghi789\"]} for multiple blocks, {\"type_filter\": \"doc\", \"limit\": 5} for filtered search. Always use [\"id1\", \"id2\"] list format, never just \"id\" string.",
     input_model=GetMemoryBlockInput,
     output_model=GetMemoryBlockOutput,
     function=get_memory_block,
