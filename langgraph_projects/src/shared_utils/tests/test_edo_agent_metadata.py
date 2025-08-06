@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from langgraph.types import RunnableConfig
 
-from src.shared_utils.edo_hooks import edo_event_loader_node, edo_decision_writer_node
+from src.shared_utils.edo_hooks import edo_event_loader_node, next_edo_log_creator_node
 
 
 @pytest.fixture
@@ -65,39 +65,41 @@ async def test_edo_event_loader_filters_by_agent_id(mock_config):
 
 
 @pytest.mark.asyncio
-async def test_edo_decision_writer_includes_metadata(mock_config, mock_state):
-    """Test that edo_decision_writer_node includes agent metadata."""
+async def test_next_edo_log_creator_includes_metadata(mock_config, mock_state):
+    """Test that next_edo_log_creator_node includes agent metadata."""
     mock_create_memory_tool = AsyncMock()
     mock_create_memory_tool.name = "CreateMemoryBlock"
     mock_create_memory_tool.ainvoke.return_value = json.dumps({
         "success": True,
-        "block_id": "decision_123"
+        "id": "log_123"
     })
     
     mock_create_link_tool = AsyncMock()
     mock_create_link_tool.name = "CreateBlockLink"
     mock_create_link_tool.ainvoke.return_value = json.dumps({"success": True})
     
+    # Add memory refs to state so next_edo_log_creator can find previous log
+    test_state = {**mock_state, "relevant_memory_block_refs": {"previous_agent_edo_log": "prev_log_123"}}
+    
     with patch('src.shared_utils.edo_hooks.get_tools') as mock_get_tools:
         mock_get_tools.return_value = [mock_create_memory_tool, mock_create_link_tool]
         
-        await edo_decision_writer_node(
-            state=mock_state,
+        await next_edo_log_creator_node(
+            state=test_state,
             config=mock_config,
             agent_id="test_agent"
         )
         
-        # Verify metadata includes agent_id, thread_id, and timestamp
-        assert mock_create_memory_tool.ainvoke.call_count == 2  # Decision + Outcome
+        # Verify log creation with agent metadata
+        mock_create_memory_tool.ainvoke.assert_called_once()
         
-        # Check decision metadata
-        decision_call = mock_create_memory_tool.ainvoke.call_args_list[0][0][0]
-        metadata_str = decision_call["metadata"]
+        # Check log creation call
+        log_call = mock_create_memory_tool.ainvoke.call_args[0][0]
         
-        assert "test_agent" in metadata_str
-        assert "test_thread_123" in metadata_str
-        assert "x_timestamp" in metadata_str
-        assert "edo_phase" in metadata_str
+        assert log_call["x_agent_id"] == "test_agent"
+        assert "test_thread_123" in log_call["title"]
+        assert "x_timestamp" in log_call
+        assert log_call["type"] == "log"
 
 
 @pytest.mark.asyncio
