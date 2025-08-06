@@ -1,7 +1,7 @@
 """EDO utilities for LangGraph agents - simplified implementation."""
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 from langgraph.types import RunnableConfig
 from .logging_utils import get_logger
@@ -16,8 +16,14 @@ async def edo_event_loader_node(
     config: RunnableConfig,
     agent_id: str
 ) -> Dict[str, Any]:
-    """Load unprocessed Events (log blocks with no incoming reason_for links) for specific agent."""
+    """Load unprocessed Events (log blocks with no outgoing reason_for links) for specific agent."""
     logger.info("📥 Loading events...")
+    
+    # Skip if memory refs already populated (avoid re-execution on every message)
+    memory_refs = state.get("relevant_memory_block_refs", {})
+    if memory_refs.get(PREV_EDO):
+        logger.info("📝 Previous EDO log already loaded, skipping event loader")
+        return state
 
     try:
         tools = await get_tools("cogni")
@@ -34,9 +40,10 @@ async def edo_event_loader_node(
 
         # Filter by agent_id
         metadata_filters = f'{{"x_agent_id": "{agent_id}"}}'
+        # Note: Removed limit to work around GetMemoryBlock tool limitation
+        # The tool lacks ordering parameters, so limit=1 returns oldest, not newest
         result = await get_memory_tool.ainvoke({
             "type_filter": "log", 
-            "limit": "1",
             "metadata_filters": metadata_filters
         })
         if isinstance(result, str):
@@ -50,23 +57,23 @@ async def edo_event_loader_node(
         if not blocks:
             return state
 
-        # Find unprocessed event
+        # Find unprocessed event (most recent log with no outgoing "reason_for" links)
         event_block = None
         for block in blocks:
             if get_linked_tool:
-                incoming_links = await get_linked_tool.ainvoke(
+                outgoing_links = await get_linked_tool.ainvoke(
                     {
                         "source_block_id": block["id"],
-                        "direction_filter": "incoming",
+                        "direction_filter": "outgoing",
                         "relation_filter": "reason_for",
                         "limit": "1",
                     }
                 )
-                if isinstance(incoming_links, str):
-                    incoming_links = json.loads(incoming_links)
+                if isinstance(outgoing_links, str):
+                    outgoing_links = json.loads(outgoing_links)
 
-                if incoming_links and incoming_links.get("success"):
-                    linked_blocks = incoming_links.get("linked_blocks", [])
+                if outgoing_links and outgoing_links.get("success"):
+                    linked_blocks = outgoing_links.get("linked_blocks", [])
                     if not linked_blocks:
                         event_block = block
                         break
@@ -108,10 +115,15 @@ async def next_edo_log_creator_node(
     agent_id: str
 ) -> Dict[str, Any]:
     """Create next EDO log linked to previous log, for agent to write findings into."""
-    thread_id = config["configurable"]["thread_id"]
-    timestamp = datetime.utcnow().isoformat()
-    # Get previous agent's log ID from memory refs
+    # Skip if current EDO log already exists (avoid re-execution on every message)
     memory_refs = state.get("relevant_memory_block_refs", {})
+    if memory_refs.get(CURR_EDO):
+        logger.info("📝 Current EDO log already created, skipping creator")
+        return state
+    
+    thread_id = config["configurable"]["thread_id"]
+    timestamp = datetime.now(timezone.utc).isoformat()
+    # Get previous agent's log ID from memory refs
     past_log_id = memory_refs.get(PREV_EDO)
     
     if not past_log_id:
