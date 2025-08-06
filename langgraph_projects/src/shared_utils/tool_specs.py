@@ -59,11 +59,6 @@ def generate_tool_specs_from_mcp_tools(mcp_tools: List[Any]) -> str:
     # Create formatted tool specs string (keep under 1.5k tokens)
     tool_specs_text = """## Available MCP Tools:
 
-Example usage:
-- navigate: {"url": "https://example.com"}
-- screenshot: {"name": "page_capture.png"}
-
-Tools:
 """ + "\n".join(f"• {spec}" for spec in tool_specs[:12])  # Limit to top 12 tools
 
     if len(tool_specs_text) > 1400:  # Trim if too long

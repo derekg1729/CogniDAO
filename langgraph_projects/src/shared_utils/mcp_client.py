@@ -14,10 +14,12 @@ from enum import Enum
 
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from dotenv import load_dotenv
 
 from .logging_utils import get_logger
 
 logger = get_logger(__name__)
+load_dotenv()
 
 # MCP is the primary and only tool source - no fallback tools
 
@@ -81,7 +83,6 @@ class MCPClientManager:
         """Check if MCP client is currently connected."""
         return self._connection_state == ConnectionState.CONNECTED
 
-
     def _log_exception_details(self, error: Exception, context: str = "MCP connection") -> None:
         """Log detailed exception information, handling ExceptionGroup (Python 3.11+)."""
         # Handle ExceptionGroup (Python 3.11+) using duck typing for compatibility
@@ -117,8 +118,10 @@ class MCPClientManager:
         try:
             # Log detailed connection info for each server
             for server_name, config in self.server_configs.items():
-                logger.info(f"🔗 Connecting to {server_name} at {config['url']} (transport: {config['transport']}, timeout: {self.connection_timeout}s)")
-            
+                logger.info(
+                    f"🔗 Connecting to {server_name} at {config['url']} (transport: {config['transport']}, timeout: {self.connection_timeout}s)"
+                )
+
             self._connection_state = ConnectionState.CONNECTING
 
             # Create new client for each attempt
@@ -137,14 +140,18 @@ class MCPClientManager:
 
         except asyncio.TimeoutError:
             for server_name, config in self.server_configs.items():
-                logger.warning(f"⏰ Connection to {server_name} at {config['url']} timed out after {self.connection_timeout} seconds")
+                logger.warning(
+                    f"⏰ Connection to {server_name} at {config['url']} timed out after {self.connection_timeout} seconds"
+                )
             self._connection_state = ConnectionState.FAILED
             return None
 
         except Exception as e:
             # Log which specific servers failed
             for server_name, config in self.server_configs.items():
-                logger.error(f"❌ Connection to {server_name} at {config['url']} failed: {type(e).__name__}: {e}")
+                logger.error(
+                    f"❌ Connection to {server_name} at {config['url']} failed: {type(e).__name__}: {e}"
+                )
             self._log_exception_details(e, "MCP connection")
             self._connection_state = ConnectionState.FAILED
             return None
@@ -335,8 +342,9 @@ def get_cogni_mcp_manager() -> MCPClientManager:
     global _cogni_mcp_manager
     if _cogni_mcp_manager is None:
         mcp_url = os.getenv("COGNI_MCP_URL", "http://toolhive:24160/sse")
+        # mcp_url = "http://localhost:61279/sse"
         logger.info(f"🔧 Cogni MCP URL resolved to: {mcp_url}")
-        
+
         server_configs = {
             "cogni-mcp": {
                 "url": mcp_url,
@@ -347,8 +355,10 @@ def get_cogni_mcp_manager() -> MCPClientManager:
         max_retries = int(os.getenv("MCP_MAX_RETRIES", "0"))
         health_check_interval = float(os.getenv("MCP_HEALTH_CHECK_INTERVAL", "30.0"))
         connection_timeout = float(os.getenv("MCP_CONNECTION_TIMEOUT", "30.0"))
-        
-        logger.debug(f"🔧 Cogni MCP config: retries={max_retries}, health_check={health_check_interval}s, timeout={connection_timeout}s")
+
+        logger.debug(
+            f"🔧 Cogni MCP config: retries={max_retries}, health_check={health_check_interval}s, timeout={connection_timeout}s"
+        )
 
         _cogni_mcp_manager = MCPClientManager(
             server_configs,
@@ -390,7 +400,7 @@ def get_openai_mcp_manager() -> MCPClientManager:
     if _openai_mcp_manager is None:
         mcp_url = os.getenv("OPENAI_MCP_URL", "http://toolhive:24163/sse")
         logger.info(f"🔧 OpenAI MCP URL resolved to: {mcp_url}")
-        
+
         server_configs = {
             "openai-mcp": {
                 "url": mcp_url,
@@ -401,8 +411,10 @@ def get_openai_mcp_manager() -> MCPClientManager:
         max_retries = int(os.getenv("MCP_MAX_RETRIES", "0"))
         health_check_interval = float(os.getenv("MCP_HEALTH_CHECK_INTERVAL", "30.0"))
         connection_timeout = float(os.getenv("MCP_CONNECTION_TIMEOUT", "30.0"))
-        
-        logger.debug(f"🔧 OpenAI MCP config: retries={max_retries}, health_check={health_check_interval}s, timeout={connection_timeout}s")
+
+        logger.debug(
+            f"🔧 OpenAI MCP config: retries={max_retries}, health_check={health_check_interval}s, timeout={connection_timeout}s"
+        )
 
         _openai_mcp_manager = MCPClientManager(
             server_configs,

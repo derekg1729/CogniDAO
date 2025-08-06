@@ -5,16 +5,44 @@ Provides shared TypedDict definitions and configuration schemas.
 """
 
 from collections.abc import Sequence
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Literal, TypedDict, Dict, Any
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph import add_messages
 
 
+# Constants for guaranteed memory block reference entries
+PREV_EDO = "previous_agent_edo_log"
+CURR_EDO = "current_agent_edo_log"
+
+
+def memory_refs_reducer(left, right):
+    """Reducer for relevant_memory_block_refs dictionary."""
+    if left is None:
+        return right
+    elif right is None:
+        return left
+    else:
+        return {**left, **right}
+
+
 class BaseAgentState(TypedDict):
-    """Base state for all LangGraph agents."""
+    """Base state for all LangGraph agents, compatible with create_react_agent."""
 
     messages: Annotated[Sequence[BaseMessage], add_messages]
+    remaining_steps: int  # Required for create_react_agent
+    structured_response: Dict[str, Any]  # Required when using response_format
+
+
+class EDOAgentState(BaseAgentState):
+    """State for agents using the Event-Decision-Outcome pattern."""
+    
+    # Universal memory block reference system
+    relevant_memory_block_refs: Annotated[Dict[str, str], memory_refs_reducer] = {}
+    # Key = block_name, Value = block_id (e.g., "previous_agent_edo_log": "f4b04e1f-8985-440d-8b16-3a3c6365f82f")
+    
+    # Legacy EDO field (to be removed after transition)
+    edo_handoff_summary: str | None = None  # Generated summary for next agent
 
 
 class GraphConfig(TypedDict):
@@ -31,7 +59,3 @@ class ExtendedGraphConfig(GraphConfig):
     streaming: bool
     mcp_server_type: str
     timeout: float
-
-
-
-

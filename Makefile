@@ -54,6 +54,7 @@ thv-cogni-mcp-local:
 		--target-host 0.0.0.0 \
 		--host 0.0.0.0 \
 		--name cogni-mcp-loc \
+		--port 14352 \
 		--env DOLT_HOST=host.docker.internal \
 		--env DOLT_PORT=3306 \
 		--env DOLT_USER=root \

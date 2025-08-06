@@ -27,7 +27,7 @@ class GetMemoryBlockInput(BaseModel):
 
     # Multiple block retrieval with filtering
     type_filter: Optional[
-        Literal["knowledge", "task", "project", "doc", "interaction", "bug", "epic"]
+        Literal["knowledge", "task", "project", "doc", "interaction", "bug", "epic", "log"]
     ] = Field(None, description="Optional filter by block type")
     namespace_id: Optional[str] = Field(
         None, description="Optional filter by namespace ID for multi-tenant operations"

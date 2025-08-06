@@ -23,9 +23,13 @@ dependencies = [
     "prefect>=3.0.0,<4.0.0", # Workflow orchestration for deployment scripts
     "cogni-infra-core",
     "langchain-openai>=0.2.14",
+    "langchain-core==0.3.68",  # Pin to exact version that works with LangGraph
     "langchain-community>=0.3.27",
     "langchain-mcp-adapters>=0.1.8",
     "llama-index-embeddings-openai>=0.3.1",
+    # DeepAgents research agent dependencies
+    "tavily-python>=0.3.0",
+    "langchain-anthropic>=0.1.23,<0.4.0",
 ]
 requires-python = ">=3.11"
 

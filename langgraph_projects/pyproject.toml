@@ -55,3 +55,6 @@ mysql = [
 # Package discovery - all packages are under src/
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
+
+[tool.uv.scripts]
+langgraph = { cmd = "dotenv -f ../.env run -- langgraph", help = "Run langgraph commands with .env file from root." }

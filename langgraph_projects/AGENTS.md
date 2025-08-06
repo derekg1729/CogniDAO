@@ -1,8 +1,8 @@
 # LangGraph Agents Guide
 
-Root langgraph.json defines the langgraph build, pointed at this langgraph_projects repo
+<if: Developing Langgraph features> You must read langgraph_projects/AGENTS-langgraph-quick-ref.md</if>
 
-This project has been refactored into a clean monorepo structure with shared utilities and consolidated dependencies:
+Overview of current structure, not necessarily the right structure
 
 ```
 langgraph_projects/
@@ -22,11 +22,17 @@ langgraph_projects/
     │   ├── graph.py        ← Graph definition using shared utilities
     │   ├── agent.py        ← Agent logic separated from infrastructure
     │   └── main.py         ← Entry point for LangGraph deployment
+    ├── layered_cogni_agent/ ← Layered CogniDAO agent architecture
+    │   ├── graph.py        ← Graph definition using shared utilities
+    │   ├── agent.py        ← Agent logic separated from infrastructure
+    │   └── main.py         ← Entry point for LangGraph deployment
     └── playwright_poc/     ← Browser automation graph (75 lines, clean)
         ├── graph.py        ← Graph definition using shared utilities
         ├── agent.py        ← Agent logic separated from infrastructure
         └── main.py         ← Entry point for LangGraph deployment
 ```
+
+Root langgraph.json defines the langgraph build, pointed at this langgraph_projects repo
 
 ## Key Improvements
 
