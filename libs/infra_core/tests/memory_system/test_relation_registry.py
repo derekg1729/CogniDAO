@@ -9,6 +9,7 @@ from infra_core.memory_system.relation_registry import (
     PMRelationType,
     BugRelationType,
     KnowledgeRelationType,
+    EventDecisionOutcomeRelationType,
     RELATION_CATEGORIES,
     INVERSE_RELATIONS,
     CANONICAL_DEPENDENCY_RELATION,
@@ -131,6 +132,7 @@ def test_get_all_relation_types():
         + len(PMRelationType)
         + len(BugRelationType)
         + len(KnowledgeRelationType)
+        + len(EventDecisionOutcomeRelationType)
     )
 
     assert len(relations) == expected_count
@@ -142,6 +144,12 @@ def test_get_all_relation_types():
     assert "duplicate_of" in relations
     assert "part_of" in relations
     assert "contains" in relations
+    
+    # Check EDO workflow relations
+    assert "reason_for" in relations
+    assert "justified_by" in relations
+    assert "causes" in relations
+    assert "caused_by" in relations
     assert "source_of" in relations
     assert "cited_by" in relations
 
