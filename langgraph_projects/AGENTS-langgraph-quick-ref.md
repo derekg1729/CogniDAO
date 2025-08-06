@@ -26,6 +26,8 @@ Architecture: How packages are organized in the LangChain ecosystem.
 <memory>Information about a conversation that is persisted so that it can be used in future conversations.</memory>
 <multimodality>The ability to work with data that comes in different forms, such as text, audio, images, and video.</multimodality>
 <runnable_interface>The base abstraction that many LangChain components and the LangChain Expression Language are built on.</runnable_interface>
+<pre-model_hook>Run before EVERY LLM call - first call, tool calls, every agent iteration. If you need something that runs only ONCE before/after an agent, these hooks are NOT for you. Use explicit graph nodes instead.</pre-model_hook>
+<post-model_hook>Run after EVERY LLM call - first call, tool calls, every agent iteration. If you need something that runs only ONCE before/after an agent, these hooks are NOT for you. Use explicit graph nodes instead.</post-model_hook>
 <streaming>LangChain streaming APIs for surfacing results as they are generated.</streaming>
 <langchain_expression_language>A syntax for orchestrating LangChain components. Most useful for simpler applications.</langchain_expression_language>
 <document_loaders>Load a source as a list of documents.</document_loaders>

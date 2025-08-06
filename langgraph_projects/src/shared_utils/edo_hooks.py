@@ -6,6 +6,7 @@ from typing import Dict, Any
 from langgraph.types import RunnableConfig
 from .logging_utils import get_logger
 from .tool_registry import get_tools
+from .state_types import PREV_EDO, CURR_EDO
 
 logger = get_logger(__name__)
 
@@ -29,7 +30,6 @@ async def edo_event_loader_node(
 
         if not get_memory_tool:
             logger.error("GetMemoryBlock tool not found")
-            state.update({"past_agent_edo_log": None, "edo_reasoning_context": []})
             return state
 
         # Filter by agent_id
@@ -44,12 +44,10 @@ async def edo_event_loader_node(
 
         if not (result and result.get("success") and result.get("blocks")):
             logger.warning("No log blocks found")
-            state.update({"past_agent_edo_log": None, "edo_reasoning_context": []})
             return state
 
         blocks = result.get("blocks", [])
         if not blocks:
-            state.update({"past_agent_edo_log": None, "edo_reasoning_context": []})
             return state
 
         # Find unprocessed event
@@ -78,9 +76,10 @@ async def edo_event_loader_node(
 
         if event_block:
             logger.info(f"Found event: {event_block['id']}")
-            state["past_agent_edo_log"] = event_block
+            # Add previous agent's EDO log to memory refs
+            state.setdefault("relevant_memory_block_refs", {})[PREV_EDO] = event_block["id"]
 
-            # Get context
+            # Get context blocks and add to memory refs
             if get_linked_tool:
                 links_result = await get_linked_tool.ainvoke(
                     {"source_block_id": event_block["id"], "limit": "10"}
@@ -88,17 +87,17 @@ async def edo_event_loader_node(
                 if isinstance(links_result, str):
                     links_result = json.loads(links_result)
                 if links_result and links_result.get("success"):
-                    state["edo_reasoning_context"] = links_result.get("blocks", [])
-            else:
-                state["edo_reasoning_context"] = []
+                    context_blocks = links_result.get("blocks", [])
+                    # Add each context block to memory refs with numbered names
+                    for i, block in enumerate(context_blocks):
+                        if "id" in block:
+                            state.setdefault("relevant_memory_block_refs", {})[f"context_block_{i+1}"] = block["id"]
 
         else:
             logger.warning("No unprocessed events found")
-            state.update({"past_agent_edo_log": None, "edo_reasoning_context": []})
 
     except Exception as e:
         logger.error(f"Event loader failed: {e}")
-        state.update({"past_agent_edo_log": None, "edo_reasoning_context": []})
 
     return state
 
@@ -111,11 +110,15 @@ async def next_edo_log_creator_node(
     """Create next EDO log linked to previous log, for agent to write findings into."""
     thread_id = config["configurable"]["thread_id"]
     timestamp = datetime.utcnow().isoformat()
-    past_log = state.get("past_agent_edo_log")
-    if not past_log:
+    # Get previous agent's log ID from memory refs
+    memory_refs = state.get("relevant_memory_block_refs", {})
+    past_log_id = memory_refs.get(PREV_EDO)
+    
+    if not past_log_id:
+        logger.warning("No previous agent EDO log found in memory refs")
         return state
 
-    logger.info(f"📝 Creating next EDO log for {past_log['id']}")
+    logger.info(f"📝 Creating next EDO log for {past_log_id}")
 
     try:
         tools = await get_tools("cogni")
@@ -135,7 +138,7 @@ async def next_edo_log_creator_node(
             {
                 "type": "log",
                 "content": "Agent analysis and findings will be written here...",
-                "title": f"Analysis: {past_log.get('title', 'Event')}",
+                "title": f"{agent_id} log {thread_id}",
                 "x_agent_id": agent_id,
                 "x_timestamp": timestamp,
                 "x_thread_id": thread_id,
@@ -152,7 +155,7 @@ async def next_edo_log_creator_node(
                 # Link Previous Event → Next Log
                 link_result = await create_link_tool.ainvoke(
                     {
-                        "source_block_id": past_log["id"],
+                        "source_block_id": past_log_id,
                         "target_block_id": next_log_id,
                         "relation": "reason_for",
                     }
@@ -160,11 +163,9 @@ async def next_edo_log_creator_node(
                 if isinstance(link_result, str):
                     link_result = json.loads(link_result)
 
-                logger.info(f"✅ Created next EDO log: {past_log['id']} → {next_log_id}")
-                state.update({
-                    "current_edo_agent_log_id": next_log_id,
-                    "current_edo_agent_log": next_log_result.get("block")
-                })
+                logger.info(f"✅ Created next EDO log: {past_log_id} → {next_log_id}")
+                # Add current agent log to memory refs
+                state.setdefault("relevant_memory_block_refs", {})[CURR_EDO] = next_log_id
 
     except Exception as e:
         logger.error(f"Next EDO log creation failed: {e}")

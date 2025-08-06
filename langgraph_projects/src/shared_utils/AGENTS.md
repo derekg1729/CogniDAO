@@ -22,3 +22,4 @@ if isinstance(result, str):
 ```
 
 This is critical for all MCP tool integrations. Do not assume tools return dict objects directly.
+I

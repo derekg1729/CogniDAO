@@ -4,8 +4,8 @@ CogniDAO Presence Graph Package.
 A LangGraph implementation for CogniDAO presence and memory management.
 """
 
-from .agent import create_agent_node, should_continue
+from .agent import create_deepagent_node, should_continue
 from .graph import build_compiled_graph, build_graph
 
 __version__ = "0.1.0"
-__all__ = ["build_graph", "build_compiled_graph", "create_agent_node", "should_continue"]
+__all__ = ["build_graph", "build_compiled_graph", "create_deepagent_node", "should_continue"]

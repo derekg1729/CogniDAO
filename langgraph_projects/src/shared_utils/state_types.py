@@ -5,10 +5,25 @@ Provides shared TypedDict definitions and configuration schemas.
 """
 
 from collections.abc import Sequence
-from typing import Annotated, Literal, TypedDict, Dict, Any, List
+from typing import Annotated, Literal, TypedDict, Dict, Any
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph import add_messages
+
+
+# Constants for guaranteed memory block reference entries
+PREV_EDO = "previous_agent_edo_log"
+CURR_EDO = "current_agent_edo_log"
+
+
+def memory_refs_reducer(left, right):
+    """Reducer for relevant_memory_block_refs dictionary."""
+    if left is None:
+        return right
+    elif right is None:
+        return left
+    else:
+        return {**left, **right}
 
 
 class BaseAgentState(TypedDict):
@@ -22,14 +37,12 @@ class BaseAgentState(TypedDict):
 class EDOAgentState(BaseAgentState):
     """State for agents using the Event-Decision-Outcome pattern."""
     
-    # EDO pattern fields
-    past_agent_edo_log: Dict[str, Any] | None = None  # Previous agent's EDO log/work
-    edo_reasoning_context: List[Dict[str, Any]] = []  # Related blocks from edo loader  
-    edo_handoff_summary: str | None = None  # Generated summary for next agent
+    # Universal memory block reference system
+    relevant_memory_block_refs: Annotated[Dict[str, str], memory_refs_reducer] = {}
+    # Key = block_name, Value = block_id (e.g., "previous_agent_edo_log": "f4b04e1f-8985-440d-8b16-3a3c6365f82f")
     
-    # New EDO pattern fields (redesigned flow)
-    current_edo_agent_log_id: str | None = None  # ID of current agent's analysis log
-    current_edo_agent_log: Dict[str, Any] | None = None  # Current agent's analysis log data
+    # Legacy EDO field (to be removed after transition)
+    edo_handoff_summary: str | None = None  # Generated summary for next agent
 
 
 class GraphConfig(TypedDict):
