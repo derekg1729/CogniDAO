@@ -32,6 +32,7 @@ class BaseAgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
     remaining_steps: int  # Required for create_react_agent
     structured_response: Dict[str, Any]  # Required when using response_format
+    relevant_memory_block_refs: Annotated[Dict[str, str], memory_refs_reducer] = {}
 
 
 class EDOAgentState(BaseAgentState):

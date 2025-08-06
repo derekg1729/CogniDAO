@@ -7,12 +7,13 @@ import os
 from langgraph_supervisor import create_supervisor
 from langgraph.checkpoint.redis import AsyncRedisSaver
 from src.shared_utils import get_logger
-
+from src.shared_utils.state_types import BaseAgentState
 from .vp_marketing_agent import create_vp_marketing_node
 from .vp_hr_agent import create_vp_hr_node
 from .vp_tech_agent import create_vp_tech_node
 from .vp_product_agent import create_vp_product_node
 from .vp_finance_agent import create_vp_finance_node
+from .ceo_supervisor import get_ceo_tools
 from .prompts import CEO_SUPERVISOR_PROMPT
 
 logger = get_logger(__name__)
@@ -27,6 +28,9 @@ async def build_graph():
     vp_product = await create_vp_product_node()
     vp_finance = await create_vp_finance_node()
     
+    # Get CEO strategic tools
+    ceo_tools = await get_ceo_tools()
+    
     # Create supervisor following the example pattern
     from langchain_openai import ChatOpenAI
     
@@ -40,8 +44,10 @@ async def build_graph():
             vp_finance,
         ],
         prompt=CEO_SUPERVISOR_PROMPT,
+        tools=ceo_tools,  # Inject CEO strategic tools
         add_handoff_back_messages=True,
         output_mode="full_history",
+        state_schema=BaseAgentState
     )
 
     logger.info("✅ CogniDAO org chart supervisor created successfully")
