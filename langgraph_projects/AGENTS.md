@@ -102,18 +102,10 @@ mkdir -p src/your_new_graph/{tests,utils}
 Create the required files in your new directory:
 
 **`src/your_new_graph/agent.py`** - Agent logic:
-```python
-"""
-Your New Graph Agent - Description of your agent.
-"""
 
-from src.shared_utils.agent_factory import create_agent
-from .prompts import YOUR_GRAPH_PROMPT
-
-async def create_agent_node():
-    """Create your agent using shared agent factory."""
-    return await create_agent("your_graph_name", YOUR_GRAPH_PROMPT)
-```
+Choose one of two patterns:
+- **Standard React Agent**: See `src/simple_cogni_agent/agent.py` for implementation
+- **DeepAgent Pattern**: See `src/edo_layered_agent/agent.py` for implementation with persistent memory and task delegation
 
 **`src/your_new_graph/prompts.py`** - Prompt templates:
 ```python

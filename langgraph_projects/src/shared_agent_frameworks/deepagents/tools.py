@@ -24,6 +24,11 @@ def write_todos(
     )
 
 
+# TODO - move memory_block_ref tools to here, so they are auto-inherited by all deepagents
+# from src.shared_utils.edo_tools import get_relevant_memory_block_refs, add_memory_block_ref
+# edo_tools = [get_relevant_memory_block_refs, add_memory_block_ref]
+
+
 # def ls(state: Annotated[DeepAgentState, InjectedState]) -> list[str]:
 #     """List all files"""
 #     return list(state.get("files", {}).keys())
