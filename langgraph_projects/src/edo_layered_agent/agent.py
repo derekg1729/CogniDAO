@@ -5,7 +5,7 @@ EDO Layered Agent - Event-Decision-Outcome pattern with memory-driven hooks.
 from src.shared_utils import get_logger
 from src.shared_utils.tool_registry import get_tools
 from src.shared_utils.edo_tools import get_relevant_memory_block_refs, add_memory_block_ref
-from src.edo_layered_agent.state_types import CogniAgentState
+from src.shared_utils.state_types import BaseAgentState
 
 # DeepAgent integration
 from src.shared_agent_frameworks.deepagents import create_deep_agent
@@ -16,14 +16,10 @@ from .prompts import EDO_DEEPAGENT_INSTRUCTIONS
 logger = get_logger(__name__)
 
 
-
-
 async def test_tool() -> str:
     """Testing tool for the layered agent."""
     print("🔧 TEST-TOOL: Tool invoked successfully!")
     return "Test tool executed successfully"
-
-
 
 
 def should_continue(state) -> str:
@@ -72,7 +68,7 @@ async def create_deepagent_node():
         tools=all_tools,
         instructions=EDO_DEEPAGENT_INSTRUCTIONS,
         subagents=[],  # Could add research/critique subagents later
-        state_schema=CogniAgentState,  # Use EDO state schema for compatibility
+        state_schema=BaseAgentState,  # Use EDO state schema for compatibility
     )
     
     logger.info("✅ EDO DeepAgent node created successfully")

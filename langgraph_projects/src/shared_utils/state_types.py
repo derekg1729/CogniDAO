@@ -5,7 +5,7 @@ Provides shared TypedDict definitions and configuration schemas.
 """
 
 from collections.abc import Sequence
-from typing import Annotated, Literal, TypedDict, Dict, Any, NotRequired
+from typing import Annotated, Literal, TypedDict, Dict, Any
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph import add_messages
@@ -34,23 +34,6 @@ def memory_refs_reducer(left, right):
         return {**left, **right}
 
 
-def file_reducer(left, right):
-    if left is None:
-        return right
-    elif right is None:
-        return left
-    else:
-        return {**left, **right}
-
-
-def blocks_reducer(left, right):
-    """Reducer for relevant_blocks dictionary."""
-    if left is None:
-        return right
-    elif right is None:
-        return left
-    else:
-        return {**left, **right}
 
 class BaseAgentState(TypedDict):
     """Base state for all LangGraph agents, compatible with create_react_agent."""
@@ -60,12 +43,6 @@ class BaseAgentState(TypedDict):
     remaining_steps: RemainingSteps  # Required for create_react_agent
     structured_response: Dict[str, Any]  # Required when using response_format
     relevant_memory_block_refs: Annotated[Dict[str, str], memory_refs_reducer] = {}
-    
-    # DeepAgent compatibility fields
-    todos: NotRequired[list[Todo]]
-    files: Annotated[NotRequired[dict[str, str]], file_reducer]  # Legacy mock filesystem
-    relevant_blocks: Annotated[NotRequired[dict[str, str]], blocks_reducer]  # block_id -> block_title mapping
-
 
 class EDOAgentState(BaseAgentState):
     """State for agents using the Event-Decision-Outcome pattern."""

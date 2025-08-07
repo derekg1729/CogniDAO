@@ -103,72 +103,11 @@ Create the required files in your new directory:
 
 **`src/your_new_graph/agent.py`** - Agent logic:
 
-Choose one of two patterns:
+Choose one of three patterns:
 - **Standard React Agent**: See `src/simple_cogni_agent/agent.py` for implementation
 - **DeepAgent Pattern**: See `src/edo_layered_agent/agent.py` for implementation with persistent memory and task delegation
+- **Supervisor Agent Pattern **: see `src/cogni_presence/graph.py` 
 
-**`src/your_new_graph/prompts.py`** - Prompt templates:
-```python
-"""
-Your New Graph Prompt Templates
-"""
-
-from langchain_core.prompts import ChatPromptTemplate
-
-YOUR_GRAPH_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are a helpful assistant for [describe purpose].
-    
-    **Tools Available:** {tool_specs}""")
-])
-```
-
-**`src/your_new_graph/graph.py`** - Graph definition:
-```python
-"""
-Your New Graph - Graph definition using shared utilities.
-"""
-
-from langgraph.graph import StateGraph
-from src.shared_utils import CogniAgentState, get_logger
-from .agent import create_agent_node
-
-async def build_graph() -> StateGraph:
-    """Build your graph workflow."""
-    agent_node = await create_agent_node()
-    
-    # Build workflow
-    workflow = StateGraph(CogniAgentState)
-    workflow.add_node("agent", agent_node)
-    workflow.set_entry_point("agent")
-    workflow.set_finish_point("agent")
-    
-    return workflow
-
-async def build_compiled_graph():
-    """Build and compile the graph."""
-    workflow = await build_graph()
-    return workflow.compile()
-```
-
-**`src/your_new_graph/main.py`** - Entry point:
-```python
-"""
-Your New Graph - Main Entry Point
-"""
-
-import asyncio
-import sys
-from pathlib import Path
-
-# Add src to path for absolute imports
-src_path = Path(__file__).parent.parent
-sys.path.insert(0, str(src_path))
-
-from src.your_new_graph.graph import build_compiled_graph
-
-# Export compiled graph for LangGraph deployment
-graph = asyncio.run(build_compiled_graph())
-```
 
 ### 3. Register in langgraph.json
 Add your new graph to the root `langgraph.json` file:
