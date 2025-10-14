@@ -54,20 +54,36 @@ This repository uses **AGENTS.md** files to guide AI-assisted contributions. Fol
 </deployment>
 
 <radicle>
-  <overview>Decentralized P2P code collaboration platform - alternative to GitHub</overview>
+  <overview>Decentralized P2P code collaboration platform - alternative to GitHub. Uses "patches" (Radicle's term for pull requests).</overview>
+  <manual>https://man.sr.ht/~radicle-dev/radicle-cli/ - Complete CLI reference</manual>
   <setup>
     <install>brew install radicle-cli</install>
     <auth>rad auth (creates Ed25519 keypair)</auth>
     <init>rad init (initialize project from git repo)</init>
     <push>rad push (publish to network)</push>
   </setup>
+  <branch_workflow>
+    <create_branch>git checkout -b feature-branch</create_branch>
+    <commit>git commit -m "descriptive message"</commit>
+    <push_branch>git push rad feature-branch</push_branch>
+    <create_patch>git push rad HEAD:refs/patches</create_patch>
+    <patch_options>git push rad HEAD:refs/patches -o patch.message="title"</patch_options>
+  </branch_workflow>
+  <patch_management>
+    <list>rad patch (shows open patches)</list>
+    <show>rad patch show &lt;patch-id&gt;</show>
+    <review>rad patch review &lt;patch-id&gt; --accept/--reject</review>
+    <checkout>rad patch checkout &lt;patch-id&gt;</checkout>
+    <merge>git merge patch/&lt;patch-id&gt; && git push rad</merge>
+  </patch_management>
   <common_commands>
     <clone>rad clone rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5</clone>
     <git_integration>git push rad / git pull (use rad remote)</git_integration>
     <remotes>rad remote add &lt;nodeID&gt; --name &lt;alias&gt; --sync --fetch</remotes>
-    <status>rad self --nid / rad ls</status>
+    <status>rad self / rad ls / rad node status</status>
+    <help>rad --help / rad &lt;command&gt; --help</help>
   </common_commands>
-  <workflow>Initialize → Push → Clone/Track → Sync across P2P network</workflow>
+  <workflow>Initialize → Push → Create patches → Review → Merge → Sync P2P network</workflow>
 </radicle>
 </agents>
 
