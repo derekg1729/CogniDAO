@@ -52,6 +52,23 @@ This repository uses **AGENTS.md** files to guide AI-assisted contributions. Fol
   <setup>./deploy/deploy.sh local</setup>
   <health_checks>Verify all services respond to health endpoints. If you just built a feature/bug, this is the time to curl + test that specific endpoint</health_checks>
 </deployment>
+
+<radicle>
+  <overview>Decentralized P2P code collaboration platform - alternative to GitHub</overview>
+  <setup>
+    <install>brew install radicle-cli</install>
+    <auth>rad auth (creates Ed25519 keypair)</auth>
+    <init>rad init (initialize project from git repo)</init>
+    <push>rad push (publish to network)</push>
+  </setup>
+  <common_commands>
+    <clone>rad clone rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5</clone>
+    <git_integration>git push rad / git pull (use rad remote)</git_integration>
+    <remotes>rad remote add &lt;nodeID&gt; --name &lt;alias&gt; --sync --fetch</remotes>
+    <status>rad self --nid / rad ls</status>
+  </common_commands>
+  <workflow>Initialize → Push → Clone/Track → Sync across P2P network</workflow>
+</radicle>
 </agents>
 
 
