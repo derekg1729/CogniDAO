@@ -1,0 +1,25 @@
+# License Analysis: ELv2 vs PolyForm Licenses
+
+## Comparison of License Types
+
+| Dimension | Elastic License 2.0 (ELv2) | PolyForm Perimeter 1.0.x | PolyForm Shield 1.0.0 |
+|-----------|----------------------------|---------------------------|------------------------|
+| **Core grant** | Use, copy, distribute, make available, prepare derivatives; non-sublicensable, non-transferable. ([Elastic](https://elastic.co)) | Copyright + distribution + changes for "permitted purpose." ([polyformproject.org](https://polyformproject.org)) | Same structure. ([polyformproject.org](https://polyformproject.org)) |
+| **Main restriction** | No providing the software "as a hosted or managed service." Also no license-key circumvention; keep notices. ([Elastic](https://elastic.co)) | Noncompete with the software: you may not provide any product that competes with the software. ([polyformproject.org](https://polyformproject.org)) | Noncompete with the software or the licensor's products/services using it. Broader than Perimeter. ([polyformproject.org](https://polyformproject.org)) |
+| **"Competes" defined** | Not defined; focus is SaaS provision. ([Elastic](https://elastic.co)) | Explicitly covers substitutes across interfaces, platforms, and pricing. ([polyformproject.org](https://polyformproject.org)) | Explicitly covers goods/services, cross-interface, cross-platform; adds "marketed as a substitute." ([polyformproject.org](https://polyformproject.org)) |
+| **Patent grant** | Yes; ends on your patent assertion. ([Elastic](https://elastic.co)) | Yes; ends on patent assertion. ([polyformproject.org](https://polyformproject.org)) | Yes; ends on patent assertion. ([polyformproject.org](https://polyformproject.org)) |
+| **Notice requirements** | Pass through license; mark modifications. ([Elastic](https://elastic.co)) | Pass through terms/URL; include any Required Notice: lines. ([polyformproject.org](https://polyformproject.org)) | Same. ([polyformproject.org](https://polyformproject.org)) |
+| **Sublicensing/transfer** | No sublicensing or transfer. ([Elastic](https://elastic.co)) | No sublicensing or transfer. ([polyformproject.org](https://polyformproject.org)) | No sublicensing or transfer. ([polyformproject.org](https://polyformproject.org)) |
+| **Termination + cure** | Auto-terminate on breach; 30-day cure once, then permanent on repeat. ([Elastic](https://elastic.co)) | 32-day cure window on first notice; otherwise ends immediately. ([polyformproject.org](https://polyformproject.org)) | Same 32-day cure pattern. ([polyformproject.org](https://polyformproject.org)) |
+| **Trademarks** | Keep notices; trademark use subject to law. ([Elastic](https://elastic.co)) | Not a trademark license; use governed by law; notices required. ([polyformproject.org](https://polyformproject.org)) | Same. ([polyformproject.org](https://polyformproject.org)) |
+| **Special clauses** | License-key anti-circumvention. ([Elastic](https://elastic.co)) | "Competition" section clarifies broad forms of competition. ([polyformproject.org](https://polyformproject.org)) | Adds New Products and Discontinued Products rules, and extends to licensor affiliates and sold lines of business. ([polyformproject.org](https://polyformproject.org)) |
+| **Change date** | None in license text. ([Elastic](https://elastic.co)) | None. ([polyformproject.org](https://polyformproject.org)) | None. ([polyformproject.org](https://polyformproject.org)) |
+| **What it really blocks** | Running your code as a managed service for others. Not a general "no compete." ([Elastic](https://elastic.co)) | Any competing product with the software itself. Lets you run your own service if it's not a substitute. ([polyformproject.org](https://polyformproject.org)) | Any competing product with the software or your products/services using it. Strongest moat against "steal + resell." ([polyformproject.org](https://polyformproject.org)) |
+
+## Our Choice: PolyForm Shield
+
+We are choosing PolyForm Shield for CogniDAO because it provides the strongest protection for our "community-source" model. PolyForm Shield blocks outsiders from reselling or standing up competing services while protecting CogniDAO's broader offerings, not just this repository. It's cleaner than ELv2's narrow "no managed service" rule and stronger than Perimeter's software-only noncompete. We will pair this with a Community Member Agreement for verified members. ([polyformproject.org](https://polyformproject.org))
+
+## CMA (Community Member Agreement) in Practice
+
+Publish the repo under PolyForm Shield. Separately, give verified CogniDAO members a signed Community Member Agreement that grants extra rights: operate hosted services for DAO users, collaborate across sub-DAOs, and ship derivatives inside the network; forbid sublicensing to non-members; require contribution-back and brand compliance. Practically: store a short CMA in a repo template, collect signatures via CLA-bot or e-signature, and enforce by revoking membership on breach.

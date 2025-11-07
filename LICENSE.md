@@ -1,26 +1,41 @@
-Polyform Noncommercial License 1.0.0
+PolyForm Shield License 1.0.0
 
-Copyright (c) [2025] CogniDAO contributors
+Copyright (c) 2025 CogniDAO contributors
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the “Software”), to use,
-copy, modify, and distribute the Software, subject to the following conditions:
+Acceptance
+In order to get any license under these terms, you must agree to them as both strict obligations and conditions to all your licenses.
 
-1. Noncommercial Use Only. You may use the Software for any noncommercial purpose,
-   including personal, academic, or evaluation use. You may not use the Software,
-   or any part of it, for commercial purposes without a commercial license.
+Copyright License
+The licensor grants you a copyright license for the software to do everything you might do with the software that would otherwise infringe the licensor's copyright in it for any permitted purpose.
 
-2. Commercial Use Requires License. If you wish to use the Software in a
-   commercial product or service, you must obtain a commercial license from
-   CogniDAO or an authorized agent.
+Distribution License
+The licensor grants you an additional copyright license to distribute copies of the software.
 
-3. License Not Transferable. You may not sublicense, assign, or transfer this
-   license to anyone else without prior written consent.
+Notices
+You must ensure that anyone who gets a copy of any part of the software from you also gets a copy of these terms or the URL for them.
 
-For the full terms, see https://polyformproject.org/licenses/noncommercial/1.0.0/
+Changes and New Works License
+The licensor grants you an additional copyright license to make changes and new works based on the software for any permitted purpose.
 
----
+Patent License
+The licensor grants you a patent license for the software that covers patent claims the licensor can license, or becomes able to license.
 
-This software is provided “as-is”, without warranty of any kind, express or implied,
-including but not limited to warranties of merchantability, fitness for a particular
-purpose, and noninfringement.
+Noncompete
+Any purpose is a permitted purpose, except for providing any product that competes with the software or any product the licensor or its affiliates provides.
+
+Fair Use
+You may have "fair use" rights for the software under the law. These terms do not limit them.
+
+No Other Rights
+These terms do not allow you to sublicense or transfer any of your licenses to anyone else.
+
+Patent Defense
+If you make any written claim that the software infringes any patent, your patent license ends immediately.
+
+Violations
+The first time you are notified in writing that you have violated these terms, your licenses can continue if you come into full compliance within 32 days.
+
+No Liability
+AS FAR AS THE LAW ALLOWS, THE SOFTWARE COMES AS IS, WITHOUT ANY WARRANTY OR CONDITION, AND THE LICENSOR WILL NOT BE LIABLE TO YOU FOR ANY DAMAGES.
+
+For the full terms and additional information, see https://polyformproject.org/licenses/shield/1.0.0/
